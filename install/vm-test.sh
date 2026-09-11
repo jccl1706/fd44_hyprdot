@@ -241,7 +241,16 @@ elif [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
 fi
 
 log "starting VM (${RAM} RAM, ${CPUS} vCPU, ${DISK_SIZE} disk, UEFI)"
-exec qemu-system-x86_64 \
+
+# NOT `exec qemu-...`. exec replaces this shell's process image, which throws
+# away the EXIT trap set above - so the http.server started for the guest to
+# curl from was never killed and leaked on EVERY run. One of them was found
+# still serving ~/Downloads eight hours and several sessions later, quietly
+# holding port 8000; a later run then saw the port answering, reused it, and
+# would have fed the VM a stale installer out of the wrong directory.
+#
+# Running qemu as a child costs one idle shell and makes the trap work.
+qemu-system-x86_64 \
     -enable-kvm \
     -machine q35,smm=on \
     -cpu host \
