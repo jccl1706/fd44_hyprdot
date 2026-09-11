@@ -132,7 +132,12 @@ cat <<EOF
   deliberately not in the installer's package list. ssh is for driving the
   live environment while testing, not the result.
 
-  Release the mouse from the VM window with ctrl+alt+g.
+  KEYBOARD GRAB: this host runs Hyprland too, so SUPER+<key> is caught by
+  YOUR desktop before it ever reaches the guest. grab-on-hover is enabled, so
+  moving the pointer into the VM window hands the whole keyboard - SUPER
+  included - to the guest. ctrl+alt+g toggles the grab manually.
+  (The mechanism is the Wayland keyboard-shortcuts-inhibit protocol, which
+  GDK implements and Hyprland honours.)
   Shut the VM down from inside, or just close the window.
 
 EOF
@@ -151,16 +156,38 @@ EOF
 # device to fail cleanly.
 if [[ -e /usr/lib64/qemu/hw-display-virtio-gpu-gl.so ]] \
    && ls /usr/lib64/libvirglrenderer.so.* >/dev/null 2>&1; then
-    VIDEO=(-device virtio-vga-gl -display gtk,gl=on)
+    VIDEO=(-device virtio-vga-gl -display gtk,gl=on,grab-on-hover=on)
     log "3D acceleration available (virglrenderer present)"
 else
-    VIDEO=(-device virtio-vga -display gtk)
+    VIDEO=(-device virtio-vga -display gtk,grab-on-hover=on)
     log "3D unavailable - falling back to software rendering"
     [[ -e /usr/lib64/qemu/hw-display-virtio-gpu-gl.so ]] \
         || log "  missing: qemu-device-display-virtio-gpu-gl"
     ls /usr/lib64/libvirglrenderer.so.* >/dev/null 2>&1 \
         || log "  missing: virglrenderer"
     log "  the install will still work; Hyprland itself may not start."
+fi
+
+# Run qemu's GTK window through XWayland rather than natively on Wayland.
+#
+# GTK3's Wayland backend implements NEITHER zwp_pointer_constraints_v1 NOR
+# zwp_relative_pointer_manager_v1 (0 references in libgdk-3.so.0), so when
+# qemu grabs input it cannot lock the pointer or receive relative motion:
+# the keyboard grab works - that is a different protocol, which GDK does
+# have - but the mouse stops moving inside the guest entirely.
+#
+# X11 has native XGrabPointer and needs no such protocol, so under XWayland
+# the grab works fully. Hyprland still composites the window; this only
+# changes which toolkit backend GTK uses. Costs one translation layer.
+#
+# Needs xorg-x11-server-Xwayland installed (it is, on this machine).
+if [[ -n "${WAYLAND_DISPLAY:-}" ]] && [[ -n "${DISPLAY:-}" ]]; then
+    log "using XWayland for the qemu window (working pointer grab)"
+    export GDK_BACKEND=x11
+elif [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
+    warn "no DISPLAY set - qemu will run natively on Wayland, and the mouse"
+    warn "  will stop moving whenever input is grabbed (GTK3 Wayland lacks"
+    warn "  pointer constraints). Install/enable Xwayland to fix."
 fi
 
 log "starting VM (${RAM} RAM, ${CPUS} vCPU, ${DISK_SIZE} disk, UEFI)"
@@ -178,5 +205,6 @@ exec qemu-system-x86_64 \
     -netdev user,id=net0,hostfwd=tcp::"$SSH_PORT"-:22 \
     -device virtio-net-pci,netdev=net0 \
     -device virtio-tablet-pci \
+    -device virtio-mouse-pci \
     -device virtio-keyboard-pci \
     -audiodev none,id=snd0

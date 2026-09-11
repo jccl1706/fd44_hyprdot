@@ -170,3 +170,27 @@ hl.bind("Print", hl.dsp.exec_cmd(
 hl.bind(Mod .. " + CTRL + P", hl.dsp.exec_cmd(
     'grim -g "$(slurp)" "$HOME/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png"'
 ))
+
+
+-- -------------------------------------------------------------------------
+-- Passthrough submap (for nested compositors / VMs)
+-- -------------------------------------------------------------------------
+-- Running a VM - or another Wayland session - inside this one means two
+-- compositors competing for SUPER, and the host always wins: Hyprland
+-- intercepts the modifier before the guest window ever sees it. qemu cannot
+-- take it back either. Under XWayland its XGrabKeyboard only affects the X
+-- server, and on the Wayland backend GTK3 implements no pointer constraints,
+-- so grabbing there kills mouse motion instead.
+--
+-- A submap sidesteps all of it: while "passthrough" is active, none of the
+-- bindings above exist, so every key including SUPER goes straight to the
+-- focused window. SUPER+Escape toggles it, and that one binding is all the
+-- submap defines - which is also why it cannot trap you: the same key gets
+-- you out.
+--
+-- Check which submap is active at any time with:  hyprctl submap
+hl.define_submap("passthrough", function()
+    hl.bind(Mod .. " + Escape", hl.dsp.submap("reset"))
+end)
+
+hl.bind(Mod .. " + Escape", hl.dsp.submap("passthrough"))

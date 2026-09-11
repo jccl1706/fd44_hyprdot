@@ -941,8 +941,80 @@ if [[ "$encrypt" == yes ]]; then
     runsh "vgchange -an 2>/dev/null || true"
     runsh "cryptsetup close $mapper_name 2>/dev/null || true"
 fi
+# A btrfs that the running kernel has already SCANNED stays registered even
+# after it is unmounted, and that registration keeps the partition busy: the
+# kernel then refuses to re-read the partition table ("unable to inform the
+# kernel of the change ... they are in use"), so every later mkfs hits a stale
+# layout and fails with "Device or resource busy". Live media scan for btrfs
+# at boot, so this bites when reinstalling over an existing btrfs system - not
+# only when a previous run of this script was interrupted.
+#
+# `btrfs device scan --forget` drops those registrations. It fails while a
+# filesystem is still mounted, hence the umount above first, and it is not
+# fatal here - on a disk with no btrfs there is simply nothing to forget.
+if command -v btrfs >/dev/null 2>&1; then
+    runsh "btrfs device scan --forget 2>/dev/null || true"
+fi
+
 run wipefs -af "$target"
 run sgdisk -Z "$target"
+
+# Make the kernel actually adopt the new table before anything tries to mkfs
+# on it. partprobe alone is not always enough: udev has to finish creating the
+# new device nodes, and on a disk that was just wiped the settle can lag.
+settle_partitions() {
+    local i
+    (( DRY )) && { printf '   \033[2m|\033[0m partprobe %s + udevadm settle (with retries)\n' "$target"; return 0; }
+    for i in 1 2 3 4 5; do
+        partprobe "$target" >/dev/null 2>&1
+        udevadm settle --timeout=10 >/dev/null 2>&1
+        sleep 1
+        # Success once the kernel reports at least one partition for the target.
+        if lsblk -nro NAME "$target" 2>/dev/null | tail -n +2 | grep -q .; then
+            return 0
+        fi
+    done
+    warn "kernel still has not adopted the partition table for $target"
+    warn "  if the next step fails with 'Device or resource busy', reboot the"
+    warn "  live environment and run this script again - something in this"
+    warn "  session still holds the old layout."
+    return 0
+}
+
+# Erase filesystem signatures from each NEW partition.
+#
+# `wipefs -af "$target"` above only clears signatures on the disk itself - it
+# does not reach inside partitions. An old btrfs superblock therefore survives
+# in the region the new partition table maps to, and udev's btrfs rule scans
+# and REGISTERS it the moment the partition node appears. That registration
+# holds the device busy, so mkfs.btrfs then dies with
+#     ERROR: unable to open /dev/vdaN: Device or resource busy
+# and no amount of `btrfs device scan --forget` helps, because udev simply
+# re-registers it. Wiping the partitions themselves removes what udev finds.
+wipe_partitions() {
+    local part
+    if (( DRY )); then
+        printf '   \033[2m|\033[0m wipefs -af each partition of %s\n' "$target"
+        return 0
+    fi
+    for part in $(lsblk -nrpo NAME "$target" 2>/dev/null | tail -n +2); do
+        if wipefs -af "$part" >/dev/null 2>&1; then
+            continue
+        fi
+        # wipefs opens with O_EXCL, so it FAILS on a device the kernel still
+        # holds - exactly the case we are trying to escape. dd does not use
+        # O_EXCL and can still write, so fall back to zeroing the superblock
+        # locations by hand. btrfs keeps its primary superblock at 64 KiB and
+        # a copy at 64 MiB; clearing the first megabyte and the 64 MiB mark
+        # removes both, which is what stops udev re-registering the device.
+        warn "  wipefs could not open $part (busy) - zeroing superblocks directly"
+        dd if=/dev/zero of="$part" bs=1M count=2      conv=fsync >/dev/null 2>&1 || true
+        dd if=/dev/zero of="$part" bs=1M count=1 seek=64 conv=fsync >/dev/null 2>&1 || true
+    done
+    # Drop any registration that slipped in before the wipe.
+    command -v btrfs >/dev/null 2>&1 && btrfs device scan --forget >/dev/null 2>&1 || true
+    udevadm settle --timeout=10 >/dev/null 2>&1 || true
+}
 
 if [[ "$encrypt" == yes ]]; then
     run sgdisk \
@@ -961,8 +1033,8 @@ else
         -n2:0:0            -t2:8300 -c2:BTRFSROOT \
         "$target"
 fi
-run partprobe "$target"
-run udevadm settle
+settle_partitions
+wipe_partitions
 
 log "Making file systems"
 run mkfs.vfat -F32 -n EFISYSTEM "$esppart"
@@ -1178,8 +1250,29 @@ run fchroot useradd -m -G wheel -s /bin/bash -p "$user_password" "$username"
 # password and forces a change before handing over to the shell. So the first
 # boot shows one password prompt, then never again.
 #
+# Done by editing /etc/shadow directly rather than with `chage -d 0`, which
+# fails inside the chroot at this point with "chage: cannot open /etc/passwd".
+# Field 3 of a shadow entry is sp_lstchg, days since epoch of the last password
+# change; 0 means "must change at next login", which is exactly what chage -d 0
+# sets. Editing the file needs no chroot at all.
+#
 # If you replace user_password with your own private hash, you can drop this.
-run fchroot chage -d 0 "$username"
+expire_password() {
+    local shadow="$rootmnt/etc/shadow"
+    if (( DRY )); then
+        printf '   \033[2m|\033[0m expire password for %s in %s\n' "$username" "$shadow"
+        return 0
+    fi
+    [[ -f $shadow ]] || die "no $shadow - useradd did not run?"
+    awk -F: -v u="$username" 'BEGIN{OFS=":"} $1==u{$3=0} {print}' "$shadow" >"$shadow.new" \
+        || die "failed to rewrite $shadow"
+    # Preserve the original mode/owner rather than inheriting the shell's umask.
+    chmod --reference="$shadow" "$shadow.new"
+    chown --reference="$shadow" "$shadow.new"
+    mv "$shadow.new" "$shadow"
+    grep -q "^$username:[^:]*:0:" "$shadow" || die "password expiry did not take for $username"
+}
+expire_password
 writefile 0440 "$rootmnt/etc/sudoers.d/10-wheel" <<'EOF'
 %wheel ALL=(ALL:ALL) ALL
 EOF
@@ -1416,9 +1509,24 @@ if [[ -n "$dotfiles_repo" ]]; then
                 run fchroot sudo -u "$username" ln -sf \
                     "/home/$username/Work/$dotdir/systemd/$u" \
                     "/home/$username/.config/systemd/user/$u"
-                run fchroot systemctl --global enable "$u" \
-                    || warn "  could not enable $u"
-                log "  enabled user unit $u"
+                # `systemctl --global enable` only searches system-wide user
+                # unit directories (/usr/lib/systemd/user, /etc/systemd/user);
+                # it cannot see a unit that lives in the user's own
+                # ~/.config/systemd/user, so it fails with "Unit ... does not
+                # exist". There is no user session in a chroot to run
+                # `systemctl --user` against either, so create the WantedBy
+                # symlink directly - which is exactly what enabling does.
+                wanted=$(grep -m1 '^WantedBy=' "$unit" | cut -d= -f2 | tr -d '[:space:]')
+                if [[ -n $wanted ]]; then
+                    run fchroot sudo -u "$username" mkdir -p \
+                        "/home/$username/.config/systemd/user/$wanted.wants"
+                    run fchroot sudo -u "$username" ln -sf \
+                        "/home/$username/Work/$dotdir/systemd/$u" \
+                        "/home/$username/.config/systemd/user/$wanted.wants/$u"
+                    log "  enabled user unit $u (WantedBy=$wanted)"
+                else
+                    warn "  $u has no WantedBy= - linked but not enabled"
+                fi
             done
         fi
         run fchroot chown -R "$username:$username" "/home/$username/Work" \
@@ -1510,7 +1618,10 @@ if [[ -n "$zram_size" ]]; then
 fi
 
 check "hyprland-uwsm session entry"    "[[ -f '$rootmnt/usr/share/wayland-sessions/hyprland-uwsm.desktop' || -f '$rootmnt/usr/local/share/wayland-sessions/hyprland-uwsm.desktop' ]]"
-check "hypridle config written"        "grep -q before_sleep_cmd '$rootmnt/home/$username/.config/hypr/hypridle.conf'"
+# Run this one INSIDE the chroot. When dotfiles are used, ~/.config/hypr is a
+# symlink to an absolute path that is only valid in the target - read from the
+# live system as $rootmnt/... it dangles and the check fails spuriously.
+check "hypridle config written"        "fchroot grep -q before_sleep_cmd '/home/$username/.config/hypr/hypridle.conf'"
 target_uid="$(awk -F: -v u="$username" '$1==u{print $3}' "$rootmnt/etc/passwd")"
 check "user owns their config dir"     "[[ -n '$target_uid' && \$(stat -c %u '$rootmnt/home/$username/.config') == '$target_uid' ]]"
 check "autorelabel scheduled"          "[[ -f '$rootmnt/.autorelabel' ]]"
