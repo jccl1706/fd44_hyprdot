@@ -17,9 +17,8 @@ import QtQuick
 Item {
     id: root
 
-    property color fgColor: "#cdd6f4"
-    property string fontFamily: "Inter Variable"
-    property int fontSize: 16
+    // Reads Theme directly - no properties to declare, nothing for Bar.qml
+    // to pass down.
 
     // "HH" is 24 hour, zero padded. "hh" would be 12 hour.
     property string timeFormat: "HH:mm"
@@ -38,9 +37,9 @@ Item {
 
         text: Qt.formatDateTime(clock.date, root.timeFormat)
 
-        color: root.fgColor
-        font.family: root.fontFamily
-        font.pixelSize: root.fontSize
+        color: Theme.fg
+        font.family: Theme.font
+        font.pixelSize: Theme.fontSizeClock
         font.bold: true
 
         // Digits are drawn at a fixed advance width so the label does not

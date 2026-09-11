@@ -31,6 +31,8 @@ systemd/
   power-mode.service     user unit that runs power-mode.sh in watch mode
 
 quickshell/
+  Theme.qml              SINGLETON - every colour, font and metric lives here
+                         and nowhere else. Change the bar's look from one file.
   shell.qml              entry point - one Bar per monitor, plus the IpcHandler
                          that Hyprland's keybinds call
   Bar.qml                the panel: left / centre / right regions
@@ -93,6 +95,21 @@ Inspect a running instance:
 qs ipc show                       # what IPC targets exist
 hyprctl layers                    # confirm the layer surface (namespace: quickshell)
 ```
+
+### Changing the look
+
+Everything visual is in `quickshell/Theme.qml` - colours, fonts, sizes,
+spacing, corner radius, animation durations. Components read `Theme.accent`
+directly rather than declaring their own properties, so there is nothing to
+thread through and no second copy to forget.
+
+Two QML traps worth knowing if you edit it:
+
+- `color` needs `import QtQuick`; with only `import Quickshell` it fails with
+  "color is not a type".
+- An identifier starting with `on` plus a capital letter is parsed as a SIGNAL
+  HANDLER, not a property. `readonly property color onAccent` fails with
+  "Cannot assign a value to a signal" - hence `accentFg`.
 
 ### Font dependencies
 

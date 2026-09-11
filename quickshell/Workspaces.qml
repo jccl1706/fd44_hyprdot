@@ -21,12 +21,6 @@ Row {
     // are not shown here.
     readonly property int count: 5
 
-    property color fgColor:     "#cdd6f4"
-    property color dimColor:    "#6c7086"
-    property color accentColor: "#89b4fa"
-    property string fontFamily: "Inter Variable"
-    property bool fontBold: true
-
     spacing: 6
 
     Repeater {
@@ -58,27 +52,27 @@ Row {
             height: 18
             radius: height / 2
 
-            color: focused  ? root.accentColor
-                 : exists   ? Qt.rgba(root.fgColor.r, root.fgColor.g, root.fgColor.b, 0.25)
+            color: focused  ? Theme.accent
+                 : exists   ? Qt.rgba(Theme.fg.r, Theme.fg.g, Theme.fg.b, 0.25)
                             : "transparent"
 
             border.width: exists || focused ? 0 : 1
-            border.color: Qt.rgba(root.dimColor.r, root.dimColor.g, root.dimColor.b, 0.5)
+            border.color: Qt.rgba(Theme.dim.r, Theme.dim.g, Theme.dim.b, 0.5)
 
             // Width and colour animate so switching reads as movement rather
             // than a jump. Kept short - the bar should feel instant.
-            Behavior on width  { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-            Behavior on color  { ColorAnimation  { duration: 140 } }
+            Behavior on width  { NumberAnimation { duration: Theme.animNormal; easing.type: Easing.OutCubic } }
+            Behavior on color  { ColorAnimation  { duration: Theme.animNormal } }
 
             Text {
                 anchors.centerIn: parent
                 text: chip.wsId
-                font.family: root.fontFamily
-                font.pixelSize: 10
-                font.bold: root.fontBold || chip.focused
-                color: chip.focused ? "#1e1e2e"
-                     : chip.exists  ? root.fgColor
-                                    : root.dimColor
+                font.family: Theme.font
+                font.pixelSize: Theme.fontSizeSmall
+                font.bold: Theme.bold || chip.focused
+                color: chip.focused ? Theme.accentFg
+                     : chip.exists  ? Theme.fg
+                                    : Theme.dim
                 visible: chip.focused || chip.exists
             }
 

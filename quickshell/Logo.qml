@@ -20,12 +20,10 @@ import QtQuick
 Item {
     id: root
 
-    property color fgColor: "#cdd6f4"
-    property color hoverColor: "#89b4fa"
 
     // Flip to true once a Nerd Font is installed.
     property bool useGlyph: true
-    property string glyphFont: "Symbols Nerd Font"
+    property string glyphFont: Theme.glyphFont
     property string glyph: ""          // nf-linux-fedora
 
     property string imageSource: "file:///usr/share/pixmaps/fedora-logo-sprite.svg"
@@ -33,7 +31,7 @@ Item {
     // Drawn size of the mark. Kept separate from implicitWidth/Height so the
     // clickable area stays comfortable even when the glyph itself is small -
     // shrinking the hit target along with the icon makes it fiddly to click.
-    property real glyphSize: 18
+    property real glyphSize: Theme.glyphSize
 
     // Emitted on click, so the bar decides what a click means rather than
     // this component hardcoding it.
@@ -56,7 +54,7 @@ Item {
         height: root.glyphSize
 
         opacity: mouse.containsMouse ? 1.0 : 0.85
-        Behavior on opacity { NumberAnimation { duration: 120 } }
+        Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
     }
 
     Text {
@@ -65,8 +63,8 @@ Item {
         text: root.glyph
         font.family: root.glyphFont
         font.pixelSize: root.glyphSize
-        color: mouse.containsMouse ? root.hoverColor : root.fgColor
-        Behavior on color { ColorAnimation { duration: 120 } }
+        color: mouse.containsMouse ? Theme.accent : Theme.fg
+        Behavior on color { ColorAnimation { duration: Theme.animFast } }
     }
 
     // If neither path produced anything visible, show something rather than
@@ -76,7 +74,7 @@ Item {
         visible: !root.useGlyph && img.status !== Image.Ready
         text: "●"                        // filled circle
         font.pixelSize: root.glyphSize * 0.6
-        color: root.fgColor
+        color: Theme.fg
     }
 
     MouseArea {

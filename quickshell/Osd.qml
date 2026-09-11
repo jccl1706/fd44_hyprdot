@@ -25,11 +25,6 @@ import QtQuick
 Item {
     id: root
 
-    property color fgColor:     "#cdd6f4"
-    property color dimColor:    "#6c7086"
-    property color accentColor: "#89b4fa"
-    property string fontFamily: "Inter Variable"
-    property bool fontBold: true
 
     // How long the OSD stays up after the last keypress.
     property int hideDelay: 1500
@@ -45,11 +40,11 @@ Item {
     clip: true
 
     Behavior on implicitWidth {
-        NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: Theme.animSlow; easing.type: Easing.OutCubic }
     }
 
     opacity: shown ? 1 : 0
-    Behavior on opacity { NumberAnimation { duration: 140 } }
+    Behavior on opacity { NumberAnimation { duration: Theme.animNormal } }
 
     // --- sources ---------------------------------------------------------
 
@@ -119,9 +114,9 @@ Item {
         Text {
             anchors.verticalCenter: parent.verticalCenter
             text: root.glyph
-            font.family: "Symbols Nerd Font"
+            font.family: Theme.glyphFont
             font.pixelSize: 14
-            color: root.muted && root.mode === "volume" ? root.dimColor : root.fgColor
+            color: root.muted && root.mode === "volume" ? Theme.dim : Theme.fg
         }
 
         // Track with a filled portion. Fixed width so the bar does not jitter
@@ -131,14 +126,14 @@ Item {
             width: 70
             height: 4
             radius: 2
-            color: Qt.rgba(root.dimColor.r, root.dimColor.g, root.dimColor.b, 0.4)
+            color: Qt.rgba(Theme.dim.r, Theme.dim.g, Theme.dim.b, 0.4)
 
             Rectangle {
                 height: parent.height
                 radius: parent.radius
                 width: parent.width * Math.max(0, Math.min(1, root.value))
-                color: root.muted && root.mode === "volume" ? root.dimColor : root.accentColor
-                Behavior on width { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                color: root.muted && root.mode === "volume" ? Theme.dim : Theme.accent
+                Behavior on width { NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic } }
             }
         }
 
@@ -147,11 +142,11 @@ Item {
             text: root.muted && root.mode === "volume"
                   ? "muted"
                   : Math.round(root.value * 100) + "%"
-            font.family: root.fontFamily
-            font.bold: root.fontBold
-            font.pixelSize: 11
+            font.family: Theme.font
+            font.bold: Theme.bold
+            font.pixelSize: Theme.fontSize
             font.features: { "tnum": 1 }
-            color: root.fgColor
+            color: Theme.fg
             // Reserve the width of the widest label so the track does not
             // shift when 9% becomes 10%.
             width: 34

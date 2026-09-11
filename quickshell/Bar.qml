@@ -32,7 +32,7 @@ PanelWindow {
         right: true
     }
 
-    implicitHeight: 34
+    implicitHeight: Theme.barHeight
 
     // Layer-shell surfaces can reserve space, so tiled windows are placed
     // below the bar instead of underneath it. Hyprland honours this via
@@ -42,57 +42,36 @@ PanelWindow {
 
     color: "transparent"
 
-    // --- palette ---------------------------------------------------------
-    // Kept here for now. Once a second component needs these they should move
-    // to a shared singleton rather than be duplicated.
-    readonly property color bgColor:   "#1e1e2e"
-    readonly property color fgColor:   "#cdd6f4"
-    readonly property color dimColor:  "#6c7086"
-    readonly property color accent:    "#89b4fa"
-
-    // Set explicitly rather than relying on Qt's default. Unset, Qt uses
-    // whatever fontconfig resolves for sans-serif (Noto Sans here), which
-    // means the bar would look different on a machine with a different font
-    // set - including a fresh install from the installer in install/.
-    // NOTE the family is "Inter Variable", NOT "Inter". rsms-inter-vf-fonts
-    // registers it under that name; asking for "Inter" silently falls back to
-    // Noto Sans, which looks like the font failed to install.
-    // Check with:  fc-match "Inter Variable"
-    readonly property string fontFamily: "Inter Variable"
-
-    // Bar text is bold throughout - at these sizes regular weight reads thin
-    // against the dark background.
-    readonly property bool fontBold: true
 
     Rectangle {
         anchors.fill: parent
-        color: root.bgColor
+        color: Theme.bg
 
-        // A hairline under the bar reads as a deliberate edge rather than the
-        // bar just stopping.
-        Rectangle {
-            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-            height: 1
-            color: Qt.darker(root.bgColor, 1.4)
-        }
+        // Per-corner radius needs Qt 6.7+ (this is 6.11). Only the bottom is
+        // rounded: the top edge is flush against the top of the screen, so
+        // rounding it would open a gap onto the desktop rather than look
+        // deliberate.
+        bottomLeftRadius: Theme.cornerRadius
+        bottomRightRadius: Theme.cornerRadius
+
+        // No bottom hairline any more: with rounded corners it cut straight
+        // across them. The corner radius is the edge now.
 
         // Three regions: left, centre, right. Laid out independently so a
         // wide centre widget cannot push the side ones around, which is what
         // happens if the whole bar is one RowLayout.
         Item {
             id: leftRegion
-            anchors { left: parent.left; top: parent.top; bottom: parent.bottom; leftMargin: 12 }
+            anchors { left: parent.left; top: parent.top; bottom: parent.bottom; leftMargin: Theme.barPadding }
             width: leftRow.implicitWidth
 
             Row {
                 id: leftRow
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 12
+                spacing: Theme.itemSpacing
 
                 Logo {
                     anchors.verticalCenter: parent.verticalCenter
-                    fgColor: root.fgColor
-                    hoverColor: root.accent
                     // Nothing wired to the click yet - this is where a
                     // launcher or a menu would go once one exists.
                     onActivated: console.log("logo clicked")
@@ -104,16 +83,11 @@ PanelWindow {
                     anchors.verticalCenter: parent.verticalCenter
                     width: 1
                     height: 14
-                    color: Qt.rgba(root.dimColor.r, root.dimColor.g, root.dimColor.b, 0.5)
+                    color: Qt.rgba(Theme.dim.r, Theme.dim.g, Theme.dim.b, 0.5)
                 }
 
                 Workspaces {
                     anchors.verticalCenter: parent.verticalCenter
-                    fgColor: root.fgColor
-                    dimColor: root.dimColor
-                    accentColor: root.accent
-                    fontFamily: root.fontFamily
-                    fontBold: root.fontBold
                 }
 
                 // Hidden until a volume/brightness key is pressed. Sits right
@@ -122,11 +96,6 @@ PanelWindow {
                 Osd {
                     id: osd
                     anchors.verticalCenter: parent.verticalCenter
-                    fgColor: root.fgColor
-                    dimColor: root.dimColor
-                    accentColor: root.accent
-                    fontFamily: root.fontFamily
-                    fontBold: root.fontBold
                 }
             }
         }
@@ -144,15 +113,13 @@ PanelWindow {
 
                 Clock {
                     anchors.verticalCenter: parent.verticalCenter
-                    fgColor: root.fgColor
-                    fontFamily: root.fontFamily
                 }
             }
         }
 
         Item {
             id: rightRegion
-            anchors { right: parent.right; top: parent.top; bottom: parent.bottom; rightMargin: 12 }
+            anchors { right: parent.right; top: parent.top; bottom: parent.bottom; rightMargin: Theme.barPadding }
             width: rightRow.implicitWidth
 
             Row {
@@ -162,10 +129,10 @@ PanelWindow {
 
                 Text {
                     text: "right"
-                    color: root.dimColor
-                    font.family: root.fontFamily
-                    font.bold: root.fontBold
-                    font.pixelSize: 12
+                    color: Theme.dim
+                    font.family: Theme.font
+                    font.bold: Theme.bold
+                    font.pixelSize: Theme.fontSize
                 }
             }
         }
