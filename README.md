@@ -30,6 +30,15 @@ bin/
 systemd/
   power-mode.service     user unit that runs power-mode.sh in watch mode
 
+quickshell/
+  shell.qml              entry point - one Bar per monitor, plus the IpcHandler
+                         that Hyprland's keybinds call
+  Bar.qml                the panel: left / centre / right regions
+  Logo.qml               Fedora mark (Nerd Font glyph, SVG fallback)
+  Workspaces.qml         five fixed slots, live state from Hyprland IPC
+  Clock.qml              24h clock, SystemClock-driven
+  Osd.qml                hidden volume/brightness indicator
+
 install/
   install_fedora_v1_9.sh guided Fedora 44 installer that builds this machine
                          from bare metal: Btrfs + systemd-boot + optional
@@ -62,6 +71,48 @@ systemctl --user enable --now power-mode.service
 
 `power-mode.service` is `WantedBy=graphical-session.target`, so it starts and
 stops with the Hyprland session.
+
+## Quickshell bar
+
+`~/.config/quickshell` is a symlink to `quickshell/` here, same as the Hyprland
+config. Run it with `qs`; it watches its own files and reloads on save.
+
+```
+[ logo | 1 2 3 4 5   <osd> ]        [ 13:47 ]        [ ... ]
+```
+
+The OSD is hidden until a volume or brightness key is pressed. Those keybinds
+change the value and then call `qs ipc call osd volume` / `... brightness` -
+see the bottom of `hypr/binds.lua`. The OSD reads the real value from PipeWire
+or `/sys/class/backlight` at display time, so it cannot drift out of sync, and
+if quickshell is not running the call fails harmlessly and the key still works.
+
+Inspect a running instance:
+
+```sh
+qs ipc show                       # what IPC targets exist
+hyprctl layers                    # confirm the layer surface (namespace: quickshell)
+```
+
+### Font dependencies
+
+The bar needs two fonts that are NOT part of this repo:
+
+- **Inter Variable** - `sudo dnf install rsms-inter-vf-fonts`.
+  NOTE the family is registered as `Inter Variable`, not `Inter`. Asking for
+  `Inter` silently falls back to Noto Sans and merely looks slightly wrong.
+  Check with `fc-match "Inter Variable"`.
+- **Symbols Nerd Font** - glyphs for the logo and the OSD icons. Not packaged
+  in Fedora; the official symbols-only release is ~2.3 MiB:
+  ```sh
+  curl -fLO https://github.com/ryanoasis/nerd-fonts/releases/latest/download/NerdFontsSymbolsOnly.tar.xz
+  mkdir -p ~/.local/share/fonts && tar -xf NerdFontsSymbolsOnly.tar.xz -C ~/.local/share/fonts --wildcards '*.ttf'
+  fc-cache -f
+  ```
+  Check with `fc-match ':charset=f30a'` - it should name SymbolsNerdFont, not
+  Noto Sans. Without it the logo and OSD icons render as empty boxes;
+  `Logo.qml` can fall back to an SVG by setting `useGlyph: false`, but the OSD
+  icons have no fallback.
 
 ## Rebuilding this machine
 

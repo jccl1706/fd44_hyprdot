@@ -138,15 +138,24 @@ hl.bind(Mod .. " + mouse_up",   hl.dsp.focus({ workspace = "e-1" }))
 -- Audio goes through wpctl (PipeWire/WirePlumber). The -l 1 on volume-up
 -- clamps at 100% so the key cannot push the sink into software amplification.
 
-hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true, repeating = true })
-hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"),      { locked = true, repeating = true })
-hl.bind("XF86AudioMute",        hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"),     { locked = true, repeating = true })
+-- Each of these changes the value and THEN tells quickshell to show its OSD.
+-- Order matters: the OSD reads the real value from PipeWire / sysfs when it
+-- displays, so announcing before the change would show the old number.
+--
+-- `qs ipc call osd volume` targets the IpcHandler in quickshell/shell.qml.
+-- If quickshell is not running the call fails harmlessly and the volume still
+-- changes - the OSD is decoration, never a dependency.
+hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+ && qs ipc call osd volume"), { locked = true, repeating = true })
+hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- && qs ipc call osd volume"),      { locked = true, repeating = true })
+hl.bind("XF86AudioMute",        hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle && qs ipc call osd volume"),     { locked = true, repeating = true })
 hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),   { locked = true, repeating = true })
 
 -- brightnessctl -e4 uses a 4th-power curve so low-end steps feel even, and
 -- -n2 stops it going fully dark (minimum 2).
-hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%+"), { locked = true, repeating = true })
-hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%-"), { locked = true, repeating = true })
+-- -d amdgpu_bl1 is required: without it brightnessctl also picks up the
+-- ChromeOS EC LED classes and errors on them.
+hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd("brightnessctl -d amdgpu_bl1 -e4 -n2 set 5%+ && qs ipc call osd brightness"), { locked = true, repeating = true })
+hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl -d amdgpu_bl1 -e4 -n2 set 5%- && qs ipc call osd brightness"), { locked = true, repeating = true })
 
 -- Media keys. playerctl is installed.
 hl.bind("XF86AudioNext",  hl.dsp.exec_cmd("playerctl next"),       { locked = true })
