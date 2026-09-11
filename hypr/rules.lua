@@ -103,3 +103,44 @@ hl.window_rule({
 --
 -- hl.layer_rule({ name = "blur-bar",   match = { namespace = "^quickshell$" }, blur = true })
 -- hl.layer_rule({ name = "ignore-bar", match = { namespace = "^quickshell$" }, ignore_alpha = 0.3 })
+
+
+-- The launcher animates itself: the card slides up out of the bottom frame
+-- and the scrim fades, both driven by Qt inside quickshell/Launcher.qml.
+--
+-- Hyprland's default layersIn/layersOut fade runs on the whole surface at the
+-- same time, so the compositor was cross-fading a 1440x960 overlay while Qt
+-- was sliding a card inside it. The two animations do not share a curve or a
+-- duration, and the result reads as stutter rather than as either animation.
+-- Hand the motion entirely to Quickshell.
+hl.layer_rule({
+    name    = "launcher-no-anim",
+    match   = { namespace = "^quickshell-launcher$" },
+    no_anim = true,
+})
+
+
+-- NO BLUR ON THE LAUNCHER. It was tried and removed; this note is here so it
+-- does not get added back on the assumption that it was simply overlooked.
+--
+-- A frosted panel looks good, but Hyprland's layer blur applies to the whole
+-- SURFACE, not to the parts of it that happen to be painted. The launcher's
+-- surface covers the entire screen - it has to, so that clicking anywhere
+-- outside the panel dismisses it - so blurring it blurs everything behind it,
+-- including the frame. Measured effect on the frame's top edge, which should
+-- be a hard 1px line:
+--
+--     blur off          1.3 px transition, reaching full white
+--     blur on           4.5 px transition, never exceeding 246
+--
+-- and that was true at every x across the screen, not only under the panel.
+-- The frame edge visibly turns to mush whenever the launcher opens.
+--
+-- Neither obvious lever helps. ignore_alpha, which reads like the knob for
+-- restricting blur by opacity, disables it outright instead. Removing the
+-- scrim so the surface is transparent everywhere except the panel makes it
+-- WORSE, not better (5.7-7.0 px) - proof the blur is not alpha-gated at all.
+--
+-- So it is blur or a crisp frame, and the frame wins: it is on screen all the
+-- time, the launcher is not. Theme.panelAlpha still gives the panel its
+-- translucency.

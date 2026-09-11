@@ -41,14 +41,17 @@ Apps = {
     -- not "chromium" - there is no "chromium" symlink.
     browser      = "chromium-browser",
 
-    -- No application launcher is installed. This is deliberate: Quickshell is
-    -- intended to own the bar, launcher and notification popups, so a separate
-    -- launcher (wofi/fuzzel/rofi) would duplicate it.
+    -- The launcher is Quickshell's (quickshell/Launcher.qml), not a separate
+    -- program: no wofi/fuzzel/rofi, because Quickshell already owns the bar
+    -- and would duplicate it.
     --
-    -- Leave this nil until Quickshell provides one. binds.lua checks for nil
-    -- and skips the launcher keybind rather than binding a key to an empty
-    -- command, which is what the stock config did.
-    menu         = nil,
+    -- This is an IPC call rather than a command that starts something. The
+    -- launcher surface already exists, unmapped, inside the running
+    -- quickshell; the keybind only tells it to show itself. If quickshell is
+    -- not running the call fails harmlessly and no key appears to be broken.
+    --
+    -- Check what a running instance exposes with:  qs ipc show
+    menu         = "qs ipc call launcher toggle",
 }
 
 -- Main modifier used throughout binds.lua.

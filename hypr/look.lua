@@ -26,9 +26,30 @@ local colors = {
 hl.config({
     general = {
         gaps_in  = 5,
-        gaps_out = 20,
 
-        border_size = 2,
+        -- Small, because quickshell's Frame.qml already draws a 4px border
+        -- around the screen and reserves that space. At 0 the window's own
+        -- border touches the frame and the two stack into one thick edge;
+        -- a few px of breathing room keeps them reading as separate things.
+        -- (The old value of 20 stacked 28px of dead space for no reason.)
+        -- If you ever stop running quickshell, put this back to ~10.
+        --
+        -- Per-side, in CSS order. Top and bottom get more room than the sides
+        -- because they are the crowded ones: the top edge carries the 34px bar
+        -- rather than a 4px strip, so the same gap reads as tighter there, and
+        -- matching the bottom to it keeps the window visually centred in the
+        -- well instead of riding low.
+        gaps_out = { top = 8, right = 4, bottom = 8, left = 4 },
+
+        -- No window borders. The quickshell frame already draws the outline of
+        -- the screen, and gaps_in/gaps_out separate the windows from each
+        -- other, so a per-window border was a third edge doing the same job.
+        --
+        -- TRADEOFF: the active/inactive gradient below is what marked the
+        -- focused window, and with no border to paint it on, nothing does.
+        -- Put this back to 2 if you lose track of focus; the colours are still
+        -- configured and will take effect again immediately.
+        border_size = 0,
 
         col = {
             active_border   = {

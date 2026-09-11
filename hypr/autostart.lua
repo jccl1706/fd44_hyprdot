@@ -57,16 +57,29 @@ hl.env("HYPRCURSOR_SIZE", "24")
 --   Xwayland              (spawned by Hyprland on demand)
 --
 -- What is genuinely NOT running yet:
---   a status bar / launcher / notification daemon - Quickshell is intended to
---   provide all three, and has no config yet (~/.config/quickshell is empty)
 --   hyprpaper - installed but not started, so there is no wallpaper daemon
 --
--- Add them here once they exist, e.g.:
+-- Add it here once it is wanted:
 --
 -- hl.on("hyprland.start", function()
 --     hl.exec_cmd("hyprpaper")
---     hl.exec_cmd("qs")            -- Quickshell
 -- end)
+
+
+-- Quickshell: the bar, the screen frame and the application launcher
+-- (quickshell/). Without this nothing draws them, and Super+Space - which is
+-- an IPC call into a RUNNING quickshell rather than a command that starts one
+-- - silently does nothing.
+--
+-- Deliberately a child of Hyprland rather than its own systemd unit: these
+-- surfaces belong to this compositor session and should go away with it.
+-- Applications launched FROM the launcher are the opposite case and get their
+-- own scope via uwsm - see Launcher.qml.
+--
+-- -d daemonizes, so Hyprland's startup is not held open by it.
+hl.on("hyprland.start", function()
+    hl.exec_cmd("qs -d")
+end)
 
 -- NOTE: do not try to quit Plymouth from here.
 --

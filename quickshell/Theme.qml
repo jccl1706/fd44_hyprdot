@@ -64,6 +64,27 @@ Singleton {
     // the screen edge, so rounding it would just show a gap.
     readonly property int cornerRadius: 12
 
+    // Border enclosing the screen (Frame.qml). Windows tile inside it.
+    // Keep hyprland's gaps_out small to match - the frame and the gap stack,
+    // so a thick frame plus a wide gap is twice the dead space for no reason.
+    // Currently paired with gaps_out = 4 in hypr/look.lua.
+    readonly property int frameThickness: 4
+
+    // Outer corner radius of the frame. Capped by the frame thickness: Qt
+    // clamps a radius to half the smaller dimension, so on a 4px-wide piece
+    // anything above 4 draws the same 2px curve. Keep them in step.
+    readonly property int frameCornerRadius: 4
+
+    // Opacity of floating panels - currently just the launcher. The bar and
+    // frame stay fully opaque: they sit against the screen edge with nothing
+    // interesting behind them, and a translucent border reads as a rendering
+    // fault rather than as a choice.
+    //
+    // Paired with a blur layer rule in hypr/rules.lua. Without the blur a
+    // translucent panel over a terminal is genuinely hard to read - the text
+    // behind it competes with the text on it.
+    readonly property real panelAlpha: 0.85
+
     // --- motion ----------------------------------------------------------
     // Kept short throughout: a bar should feel instant. Anything above about
     // 200ms starts to read as lag rather than animation.

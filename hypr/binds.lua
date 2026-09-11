@@ -27,7 +27,7 @@ hl.bind(Mod .. " + E",      hl.dsp.exec_cmd(Apps.file_manager))
 -- exec_cmd("") spawns a shell that does nothing, which looks like the key is
 -- broken rather than unassigned.
 if Apps.menu then
-    hl.bind(Mod .. " + R", hl.dsp.exec_cmd(Apps.menu))
+    hl.bind(Mod .. " + space", hl.dsp.exec_cmd(Apps.menu))
 end
 
 -- Exit. Prefers hyprshutdown if it is installed, otherwise exits directly.

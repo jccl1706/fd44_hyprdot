@@ -42,6 +42,30 @@ ShellRoot {
         Bar {}
     }
 
+    // The three remaining edges of the frame. The Bar is the top edge.
+    // A separate Variants per edge, because Variants passes exactly one model
+    // item and the edge has to be fixed per instance.
+    Variants {
+        model: Quickshell.screens
+        Frame { edge: "left" }
+    }
+    Variants {
+        model: Quickshell.screens
+        Frame { edge: "right" }
+    }
+    Variants {
+        model: Quickshell.screens
+        Frame { edge: "bottom" }
+    }
+
+    // The application launcher. Hidden until IPC opens it, so this costs an
+    // unmapped surface per monitor and nothing else.
+    Variants {
+        id: launcherVariants
+        model: Quickshell.screens
+        Launcher {}
+    }
+
     // -----------------------------------------------------------------------
     // IPC - lets Hyprland's keybinds drive the OSD
     // -----------------------------------------------------------------------
@@ -56,6 +80,14 @@ ShellRoot {
     //
     // List what a running instance exposes with:  qs ipc show
     IpcHandler {
+        target: "launcher"
+
+        function toggle(): void { shell.eachLauncher(l => l.toggle()) }
+        function open(): void   { shell.eachLauncher(l => l.open())   }
+        function close(): void  { shell.eachLauncher(l => l.close())  }
+    }
+
+    IpcHandler {
         target: "osd"
 
         function volume(): void {
@@ -64,6 +96,16 @@ ShellRoot {
 
         function brightness(): void {
             shell.showOsd("brightness")
+        }
+    }
+
+    // Drive every launcher instance - one per monitor, as with the bars.
+    // With a single display this is one call; the loop is what keeps a second
+    // monitor from silently doing nothing.
+    function eachLauncher(fn): void {
+        const instances = launcherVariants.instances
+        for (let i = 0; i < instances.length; i++) {
+            if (instances[i]) fn(instances[i])
         }
     }
 

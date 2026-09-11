@@ -47,12 +47,11 @@ PanelWindow {
         anchors.fill: parent
         color: Theme.bg
 
-        // Per-corner radius needs Qt 6.7+ (this is 6.11). Only the bottom is
-        // rounded: the top edge is flush against the top of the screen, so
-        // rounding it would open a gap onto the desktop rather than look
-        // deliberate.
-        bottomLeftRadius: Theme.cornerRadius
-        bottomRightRadius: Theme.cornerRadius
+        // Square on every corner. The bar is the TOP EDGE of the frame that
+        // Frame.qml draws down the sides and across the bottom, so rounding
+        // where they meet would leave a visible notch at the junction instead
+        // of one continuous border. The rounding lives on the frame's outer
+        // bottom corners instead.
 
         // No bottom hairline any more: with rounded corners it cut straight
         // across them. The corner radius is the edge now.
