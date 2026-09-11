@@ -5,9 +5,10 @@
 # with --dry-run.
 #
 # Usage:
-#   idle-action.sh lock  {battery|always}   lock the session
-#   idle-action.sh blank {battery|always}   turn the display off
-#   idle-action.sh wake                     turn the display back on
+#   idle-action.sh lock    {battery|always}   lock the session
+#   idle-action.sh blank   {battery|always}   turn the display off
+#   idle-action.sh suspend {battery|always}   suspend the machine
+#   idle-action.sh wake                       turn the display back on
 #
 # "battery" means: do nothing when running on AC, because the later
 # unconditional listener handles that case.
@@ -101,7 +102,11 @@ in_scope() {
         always)  return 0 ;;
         battery)
             if on_ac; then
-                log "on AC - skipping, the later unconditional listener handles this"
+                # For "blank" a later unconditional listener picks this up on
+                # AC. For "suspend" there deliberately is no AC equivalent -
+                # plugged in, the machine stays awake (lid close still
+                # suspends, via logind's HandleLidSwitchExternalPower).
+                log "on AC - skipping this battery-scoped $action"
                 return 1
             fi
             return 0
@@ -123,8 +128,21 @@ case "$action" in
     wake)
         set_dpms on
         ;;
+    suspend)
+        in_scope || exit 0
+        # systemctl suspend goes through logind, so it honours inhibitors:
+        # a "block" inhibitor stops it outright, a "delay" one (NetworkManager,
+        # UPower, hypridle's own before_sleep handling) just postpones it until
+        # that handler is done. Verified allowed for this user without root
+        # (pkcheck org.freedesktop.login1.suspend -> 0).
+        #
+        # No on-resume is needed for this listener: hypridle's after_sleep_cmd
+        # already runs "idle-action.sh wake" when the machine comes back.
+        log "suspending (scope: $scope)"
+        if (( DRY )); then log "would run: systemctl suspend"; else systemctl suspend; fi
+        ;;
     *)
-        echo "usage: $0 {lock|blank} {battery|always} [--dry-run]" >&2
+        echo "usage: $0 {lock|blank|suspend} {battery|always} [--dry-run]" >&2
         echo "       $0 wake [--dry-run]" >&2
         exit 2
         ;;
