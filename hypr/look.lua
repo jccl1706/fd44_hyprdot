@@ -46,7 +46,8 @@ hl.config({
         -- https://wiki.hypr.land/Configuring/Advanced-and-Cool/Tearing/
         allow_tearing = false,
 
-        layout = "dwindle",
+        -- "dwindle" | "master" | "scrolling"
+        layout = "scrolling",
     },
 
     decoration = {
@@ -196,9 +197,43 @@ hl.config({
 })
 
 -- https://wiki.hypr.land/Configuring/Layouts/Scrolling-Layout/
+--
+-- THIS IS THE ACTIVE LAYOUT (general.layout above).
+--
+-- Windows form an infinite horizontal strip of columns. Instead of splitting
+-- the screen ever smaller, new windows extend the strip and the viewport
+-- scrolls to follow focus. Values below are Hyprland's own defaults, written
+-- out explicitly so they are visible and easy to tune.
 hl.config({
     scrolling = {
+        -- Fraction of the screen a new column occupies. 0.5 = half width, so
+        -- two columns fill the screen.
+        column_width = 0.5,
+
+        -- Which way the strip grows when a window opens: "right" or "left".
+        direction = "right",
+
+        -- Widths cycled through when resizing a column. Handy set: a third,
+        -- a half, two thirds, full.
+        explicit_column_widths = "0.333, 0.5, 0.667, 1.0",
+
+        -- How the viewport positions itself around the focused column.
+        focus_fit_method = 1,
+
+        -- Scroll the viewport automatically to keep focus visible.
+        follow_focus = true,
+
+        -- Minimum fraction of the focused column that must stay on screen
+        -- before the viewport scrolls to follow it.
+        follow_min_visible = 0.4,
+
+        -- A lone column behaves as fullscreen (no gaps/borders wasted).
         fullscreen_on_one_column = true,
+
+        -- Moving focus past either end wraps around to the other end,
+        -- rather than stopping.
+        wrap_focus = true,
+        wrap_swapcol = true,
     },
 })
 

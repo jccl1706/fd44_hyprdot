@@ -54,7 +54,35 @@ hl.bind(Mod .. " + F", hl.dsp.window.fullscreen())
 
 hl.bind(Mod .. " + V", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(Mod .. " + P", hl.dsp.window.pseudo())
-hl.bind(Mod .. " + J", hl.dsp.layout("togglesplit"))  -- dwindle only
+
+-- Layout messages are layout-specific. The active layout is "scrolling"
+-- (see look.lua), whose valid messages are:
+--
+--   colresize <+1|-1|N|+0.1|-0.1>  cycle or set the focused column's width,
+--                                  stepping through scrolling.explicit_column_widths
+--   fit <active|all|visible|toend|tobeg>  refit columns into the viewport
+--   promote                        promote the focused window
+--   expel                          move the focused window out into its own column
+--   consume                        pull the next column's window into this one
+--   swapcol <+1|-1>                swap this column with its neighbour
+--
+-- Anything else - notably dwindle's "togglesplit", which used to be on this
+-- key - errors with "no such layoutmsg for scrolling".
+hl.bind(Mod .. " + J", hl.dsp.layout("colresize +1"))
+
+-- Stacking windows within a column is the scrolling layout's main trick:
+-- several windows share one column slot instead of extending the strip.
+--
+--   [  consume  pull the NEXT column's window into this column
+--   ]  expel    push the focused window back out into its own column
+--
+-- Both are directionless - passing "left"/"right" changes nothing.
+hl.bind(Mod .. " + bracketleft",  hl.dsp.layout("consume"))
+hl.bind(Mod .. " + bracketright", hl.dsp.layout("expel"))
+
+-- Zoom out so every column in the strip is visible at once, which is the
+-- practical way to find a window once the strip is longer than the screen.
+hl.bind(Mod .. " + A", hl.dsp.layout("fit all"))
 
 -- Focus movement.
 hl.bind(Mod .. " + left",  hl.dsp.focus({ direction = "left"  }))

@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+#
+# Idle actions for hypridle. Exists so hypridle.conf holds plain commands
+# instead of nested shell quoting, and so the logic can be tested directly
+# with --dry-run.
+#
+# Usage:
+#   idle-action.sh lock  {battery|always}   lock the session
+#   idle-action.sh blank {battery|always}   turn the display off
+#   idle-action.sh wake                     turn the display back on
+#
+# "battery" means: do nothing when running on AC, because the later
+# unconditional listener handles that case.
+#
+#
+# ===========================================================================
+# THE TWO BUGS THIS SCRIPT EXISTS TO WORK AROUND
+# ===========================================================================
+#
+# 1. `hyprctl dispatch dpms off` DOES NOT WORK on Hyprland 0.56.
+#    `hyprctl dispatch` evaluates LUA, not the old space-separated string
+#    form, so the widely-copied form is a parse error:
+#        error: [string "return hl.dispatch(dpms off)"]:1: ')' expected near 'off'
+#    It fails SILENTLY - hypridle logs that it ran the command and the screen
+#    simply never blanks. The Lua form used below is the working equivalent.
+#
+# 2. `hl.dsp.dpms(...)` IGNORES ITS ARGUMENT AND TOGGLES.
+#    Verified on Hyprland 0.56.2: three consecutive dpms("on") calls produce
+#    dpmsStatus 1 -> 0 -> 1 -> 0, with or without a monitor name. "on" and
+#    "off" are interchangeable; the call is a flip.
+#
+#    This matters enormously because hypridle fires on-resume for EVERY armed
+#    listener simultaneously. Two unguarded toggles cancel out, leaving the
+#    display off while both calls log "ok" - which is precisely what stranded
+#    this machine on 2026-09-11: the screen blanked on schedule, a keypress
+#    fired two wake calls in the same second, and it never came back. The only
+#    way out was a VT switch.
+#
+#    Therefore every dpms change here reads the CURRENT state and only toggles
+#    when the state actually needs to change, under an flock so simultaneous
+#    callers serialise instead of racing.
+# ===========================================================================
+
+set -u
+
+AC_ONLINE=/sys/class/power_supply/ACAD/online
+LOCKFILE="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/idle-action.lock"
+
+DRY=0
+args=()
+for a in "$@"; do
+    case "$a" in
+        --dry-run) DRY=1 ;;
+        *)         args+=("$a") ;;
+    esac
+done
+action="${args[0]:-}"
+scope="${args[1]:-always}"
+
+log() { printf '[idle-action] %s\n' "$*"; }
+
+on_ac() {
+    [[ -r $AC_ONLINE ]] || return 1     # unreadable -> treat as battery
+    [[ $(< "$AC_ONLINE") == 1 ]]
+}
+
+dpms_state() {   # echoes 1 (on) or 0 (off), empty if unknown
+    hyprctl monitors 2>/dev/null | grep -o 'dpmsStatus: [01]' | head -1 | awk '{print $2}'
+}
+
+# set_dpms on|off - idempotent despite the underlying call being a toggle.
+set_dpms() {
+    local want="$1" want_num cur
+    [[ $want == on ]] && want_num=1 || want_num=0
+
+    exec 9>"$LOCKFILE"
+    flock 9
+
+    cur=$(dpms_state)
+    if [[ -z $cur ]]; then
+        log "cannot read dpmsStatus (is Hyprland running?) - skipping"
+        return 0
+    fi
+    if [[ $cur == "$want_num" ]]; then
+        log "display already ${want} (dpmsStatus=$cur) - nothing to do"
+        return 0
+    fi
+
+    if (( DRY )); then
+        log "would toggle display ${want} (currently dpmsStatus=$cur)"
+        return 0
+    fi
+
+    log "toggling display ${want} (was dpmsStatus=$cur)"
+    hyprctl dispatch 'hl.dsp.dpms("on")'   # argument is ignored; this flips
+}
+
+# Returns 0 if this action should proceed for the current power source.
+in_scope() {
+    case "$scope" in
+        always)  return 0 ;;
+        battery)
+            if on_ac; then
+                log "on AC - skipping, the later unconditional listener handles this"
+                return 1
+            fi
+            return 0
+            ;;
+        *) echo "unknown scope: $scope" >&2; exit 2 ;;
+    esac
+}
+
+case "$action" in
+    lock)
+        in_scope || exit 0
+        log "locking session (scope: $scope)"
+        if (( DRY )); then log "would run: loginctl lock-session"; else loginctl lock-session; fi
+        ;;
+    blank)
+        in_scope || exit 0
+        set_dpms off
+        ;;
+    wake)
+        set_dpms on
+        ;;
+    *)
+        echo "usage: $0 {lock|blank} {battery|always} [--dry-run]" >&2
+        echo "       $0 wake [--dry-run]" >&2
+        exit 2
+        ;;
+esac

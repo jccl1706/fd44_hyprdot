@@ -23,6 +23,9 @@ hypr/
 bin/
   power-mode.sh          applies power profile + brightness for the current
                          power source; `watch` mode reacts to the charger
+  idle-action.sh         lock/blank/wake actions called by hypridle; keeps the
+                         quoting out of hypridle.conf and is testable with
+                         --dry-run
 
 systemd/
   power-mode.service     user unit that runs power-mode.sh in watch mode
@@ -123,7 +126,10 @@ what `hl.*` accepts - more complete than the wiki for the Lua config format.
 | `SUPER+F` | fullscreen |
 | `SUPER+V` | toggle floating |
 | `SUPER+P` | pseudo-tile |
-| `SUPER+J` | toggle split (dwindle) |
+| `SUPER+J` | cycle column width (scrolling) |
+| `SUPER+[` | consume - pull next column's window into this column |
+| `SUPER+]` | expel - push focused window out to its own column |
+| `SUPER+A` | fit all - zoom out to show the whole strip |
 | `SUPER+arrows` | move focus |
 | `SUPER+SHIFT+arrows` | move window within the layout |
 | `SUPER+1..9,0` | focus workspace |
@@ -144,6 +150,39 @@ Laptop function keys (volume, brightness, media) are all bound with
 
 ## Gotchas specific to this machine
 
+- **`hl.dsp.dpms()` IGNORES its argument and TOGGLES.** Verified on 0.56.2:
+  three consecutive `dpms("on")` calls give dpmsStatus `1 -> 0 -> 1 -> 0`,
+  with or without a monitor name. Combined with the fact that hypridle fires
+  `on-resume` for *every* armed listener simultaneously, two unguarded wake
+  calls cancel out and leave the display off - while both log `ok`. That is
+  what stranded this machine on 2026-09-11: the screen blanked on schedule, a
+  keypress fired two wakes in the same second, and it never came back; only a
+  VT switch got out. `bin/idle-action.sh` therefore reads dpmsStatus and only
+  toggles when the state must actually change, under an `flock` so concurrent
+  callers serialise.
+- **Recovery if the display is ever stuck off**, from a TTY (Ctrl+Alt+F3):
+  ```sh
+  export HYPRLAND_INSTANCE_SIGNATURE=$(ls -t /run/user/1000/hypr | head -1)
+  hyprctl monitors | grep dpmsStatus        # 0 = off
+  hyprctl dispatch 'hl.dsp.dpms("on")'      # toggles; re-check, do not repeat blindly
+  ```
+- **`hyprctl dispatch` only accepts dispatchers.** For top-level `hl.*`
+  functions use `hyprctl eval '<lua>'`, or `hyprctl repl` for an interactive
+  Lua prompt.
+- **Restarting hypridle kills hyprlock.** `lock_cmd` spawns hyprlock as a
+  child of hypridle, in the same systemd cgroup, so
+  `systemctl --user restart hypridle` while locked takes the lock screen down
+  and leaves the desktop behind a stale frame.
+- **`hyprctl dispatch dpms off` does NOT work on Hyprland 0.56.** `hyprctl
+  dispatch` evaluates Lua, so the old space-separated form is a parse error:
+  `error: [string "return hl.dispatch(dpms off)"]:1: ')' expected near 'off'`.
+  It fails **silently** from hypridle's side - hypridle logs "Executing
+  hyprctl dispatch dpms off" and the screen simply never blanks. Nearly every
+  hypridle example online uses the broken form. The working one is
+  `hyprctl dispatch 'hl.dsp.dpms("off")'`, wrapped in `bin/idle-action.sh`.
+- **hypridle expands `$HOME`** in `on-timeout`/`on-resume` (verified - it
+  passes commands through a shell, which is also why `pidof hyprlock ||
+  hyprlock` works in `lock_cmd`), so config entries need no absolute paths.
 - **`brightnessctl` needs `-d amdgpu_bl1`.** Without it, it also picks up the
   ChromeOS EC LED classes (`chromeos:white:power` and friends) and errors on
   them, because those expose no readable brightness.
