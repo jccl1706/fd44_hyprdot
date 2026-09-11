@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Guided Fedora 44 installer                                v1.9  2026-09-11
+# Guided Fedora 44 installer                               v1.10  2026-09-11
 #   Btrfs + subvolumes  |  systemd-boot (UEFI)  |  optional LUKS2+LVM  |  hibernation
 #   Hyprland + quickshell only  |  AMD (Framework 13)  |  laptop
 #   No display manager: getty autologin + uwsm  |  Plymouth graphical boot
@@ -12,6 +12,25 @@
 # Arch script or add another branch yourself; this one is deliberately narrow.
 #
 # Changelog
+#   v1.10 The two fonts the quickshell config asks for by name. Both were
+#         documented in the README and installed by neither the script nor
+#         anything it pulls in, so a fresh install rendered the bar in the
+#         wrong typeface with empty boxes where the icons should be - and
+#         nothing reported an error, because a missing font is a silent
+#         substitution rather than a failure.
+#           - rsms-inter-vf-fonts, a plain Fedora package with no
+#             dependencies of its own. NOTE it registers the family as
+#             "Inter Variable", not "Inter"; asking for the latter silently
+#             falls back to Noto Sans.
+#           - Symbols Nerd Font, which Fedora does not package at all (the
+#             only Nerd Font in the repos is a TeX one). Downloaded from the
+#             upstream release as the symbols-only archive - ~2 MB rather
+#             than ~50 MB for a patched family, and the glyphs are all that
+#             is wanted since the text comes from Inter. This is the one
+#             thing the script fetches from outside the distro repos, and it
+#             is deliberately NON-FATAL: it warns and continues, because a
+#             missing font costs you some icons and failing the install over
+#             it - after the disk is already partitioned - would not.
 #   v1.9  Brought in line with the machine this actually built. Three
 #         changes, all from living with the result:
 #           - NO DISPLAY MANAGER. sddm and greetd are both gone, along with
@@ -184,14 +203,14 @@
 #   v1.0  Initial Fedora port of install_arch_v3_3.sh.
 #
 # Usage:
-#   ./install_fedora_v1_9.sh                 guided install (asks everything)
-#   ./install_fedora_v1_9.sh --preflight     report on this machine, change nothing
-#   ./install_fedora_v1_9.sh --check-repos   resolve every package name against the
+#   ./install_fedora_v1_10.sh                 guided install (asks everything)
+#   ./install_fedora_v1_10.sh --preflight     report on this machine, change nothing
+#   ./install_fedora_v1_10.sh --check-repos   resolve every package name against the
 #                                             real repos (incl. the Hyprland COPR),
 #                                             change nothing, no root needed
-#   ./install_fedora_v1_9.sh --dry-run       ask, then print every command, touch nothing
-#   ./install_fedora_v1_9.sh --unattended    no prompts, use the config block below
-#   ./install_fedora_v1_9.sh --unattended -y skip the countdown too
+#   ./install_fedora_v1_10.sh --dry-run       ask, then print every command, touch nothing
+#   ./install_fedora_v1_10.sh --unattended    no prompts, use the config block below
+#   ./install_fedora_v1_10.sh --unattended -y skip the countdown too
 #
 # Recommended first run:  --check-repos, then --preflight, then --dry-run, then for real.
 # Run this from a Fedora live/rescue environment (Fedora Everything netinst
@@ -504,7 +523,7 @@ wizard() {
     {
         printf '\n\033[1;36m'
         printf '  ┌──────────────────────────────────────────────┐\n'
-        printf '  │  Fedora 44 + Hyprland guided install   v1.9  │\n'
+        printf '  │  Fedora 44 + Hyprland guided install   v1.10 │\n'
         printf '  └──────────────────────────────────────────────┘\n'
         printf '\033[0m'
         printf '  Press Enter to accept the default shown for each question.\n'
@@ -690,6 +709,17 @@ depacs=(
     nautilus gvfs file-roller xdg-user-dirs
     xdg-desktop-portal xdg-desktop-portal-gtk
     google-noto-sans-mono-fonts
+
+    # The quickshell bar asks for this by name (Theme.font). Without it
+    # fontconfig silently substitutes Noto Sans and the bar merely looks
+    # slightly wrong, which is harder to notice than an outright failure.
+    #
+    # NOTE the family is "Inter Variable", NOT "Inter" - this package
+    # registers the variable font under that name, and asking for plain
+    # "Inter" falls back. Check with: fc-match "Inter Variable"
+    #
+    # Pulls nothing: noarch, no dependencies of its own.
+    rsms-inter-vf-fonts
 )
 # Plymouth: graphical boot splash, and a graphical LUKS passphrase prompt
 # instead of the bare text one. plymouth-system-theme pulls the bgrt theme,
@@ -822,7 +852,7 @@ check_live_tools
 # Preflight
 ###############################################################################
 preflight() {
-    log "Preflight  (installer v1.9)"
+    log "Preflight  (installer v1.10)"
 
     printf '\n  Disks on this machine:\n'
     lsblk -dno NAME,SIZE,TYPE,MODEL,TRAN 2>/dev/null \
@@ -1206,6 +1236,58 @@ log "Installing hardware, desktop and app packages"
 # what happened before this was caught.
 run dnf5 --installroot "$rootmnt" --releasever "$releasever" -y \
     install "${hwpacs[@]}" "${depacs[@]}" "${apppacs[@]}"
+
+###############################################################################
+# Symbols Nerd Font
+#
+# The bar's Fedora logo and the volume/brightness OSD icons are Nerd Font
+# glyphs (Theme.glyphFont). Fedora packages no Nerd Font other than a TeX
+# one, so this is the single thing here that comes from outside the distro
+# repos.
+#
+# Symbols-only, not a patched typeface: ~2 MB against ~50 MB for a full
+# family, and the glyphs are all that is wanted - text comes from Inter.
+#
+# Downloaded on the LIVE system rather than inside the chroot, because the
+# target has no curl until something happens to pull one in and there is no
+# reason to add one just for this.
+#
+# NON-FATAL BY DESIGN. A missing font means tofu boxes where the logo and
+# the OSD icons should be; it does not stop the desktop coming up, and
+# failing the whole install over it - after the disk has already been
+# partitioned - would be absurd. It warns and carries on, and the message
+# says exactly how to finish the job by hand.
+###############################################################################
+nerdfont_ver="v3.4.0"
+nerdfont_url="https://github.com/ryanoasis/nerd-fonts/releases/download/$nerdfont_ver/NerdFontsSymbolsOnly.tar.xz"
+nerdfont_dir="$rootmnt/usr/local/share/fonts/nerd-fonts-symbols"
+
+log "Installing Symbols Nerd Font ($nerdfont_ver)"
+if (( DRY )); then
+    run curl -fsSL "$nerdfont_url" -o "(tmp)/NerdFontsSymbolsOnly.tar.xz"
+    run tar -xJf "(tmp)/NerdFontsSymbolsOnly.tar.xz" -C "$nerdfont_dir" \
+        SymbolsNerdFont-Regular.ttf
+else
+    nerdfont_tmp="$(mktemp -d)"
+    if curl -fsSL --retry 2 --max-time 120 "$nerdfont_url" \
+            -o "$nerdfont_tmp/symbols.tar.xz" \
+       && mkdir -p "$nerdfont_dir" \
+       && tar -xJf "$nerdfont_tmp/symbols.tar.xz" -C "$nerdfont_dir" \
+            SymbolsNerdFont-Regular.ttf
+    then
+        # The cache is rebuilt in the target, not on the live system - it is
+        # the target's fontconfig that has to know about the file.
+        run fchroot fc-cache -f /usr/local/share/fonts >/dev/null 2>&1 || true
+        log "  /usr/local/share/fonts/nerd-fonts-symbols/SymbolsNerdFont-Regular.ttf"
+    else
+        warn "Symbols Nerd Font download failed - the bar's logo and the OSD"
+        warn "  icons will render as empty boxes. To fix after first boot:"
+        warn "    curl -fsSL $nerdfont_url | \\"
+        warn "      sudo tar -xJC /usr/local/share/fonts SymbolsNerdFont-Regular.ttf"
+        warn "    sudo fc-cache -f"
+    fi
+    rm -rf "$nerdfont_tmp"
+fi
 
 log "Generating fstab"
 runsh "genfstab -U $rootmnt >> $rootmnt/etc/fstab 2>/dev/null || \

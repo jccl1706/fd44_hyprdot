@@ -42,7 +42,7 @@ quickshell/
   Osd.qml                hidden volume/brightness indicator
 
 install/
-  install_fedora_v1_9.sh guided Fedora 44 installer that builds this machine
+  install_fedora_v1_10.sh guided Fedora 44 installer that builds this machine
                          from bare metal: Btrfs + systemd-boot + optional
                          LUKS, Hyprland/quickshell, autologin, Plymouth
   vm-test.sh             boots a throwaway UEFI VM to test the installer
@@ -113,27 +113,33 @@ Two QML traps worth knowing if you edit it:
 
 ### Font dependencies
 
-The bar needs two fonts that are NOT part of this repo:
+The bar needs two fonts that are not part of this repo. **The installer
+handles both** - this section is for when you are setting the config up on a
+machine it did not build.
 
 - **Inter Variable** - `sudo dnf install rsms-inter-vf-fonts`.
   NOTE the family is registered as `Inter Variable`, not `Inter`. Asking for
   `Inter` silently falls back to Noto Sans and merely looks slightly wrong.
   Check with `fc-match "Inter Variable"`.
 - **Symbols Nerd Font** - glyphs for the logo and the OSD icons. Not packaged
-  in Fedora; the official symbols-only release is ~2.3 MiB:
+  in Fedora at all; the official symbols-only release is ~2.2 MiB:
   ```sh
-  curl -fLO https://github.com/ryanoasis/nerd-fonts/releases/latest/download/NerdFontsSymbolsOnly.tar.xz
-  mkdir -p ~/.local/share/fonts && tar -xf NerdFontsSymbolsOnly.tar.xz -C ~/.local/share/fonts --wildcards '*.ttf'
-  fc-cache -f
+  curl -fsSL https://github.com/ryanoasis/nerd-fonts/releases/download/v3.4.0/NerdFontsSymbolsOnly.tar.xz \
+    | sudo tar -xJC /usr/local/share/fonts SymbolsNerdFont-Regular.ttf
+  sudo fc-cache -f
   ```
   Check with `fc-match ':charset=f30a'` - it should name SymbolsNerdFont, not
   Noto Sans. Without it the logo and OSD icons render as empty boxes;
   `Logo.qml` can fall back to an SVG by setting `useGlyph: false`, but the OSD
   icons have no fallback.
 
+Neither missing font produces an error. Fontconfig substitutes silently, so
+the failure looks like a styling mistake rather than a missing dependency -
+which is why both are installed explicitly rather than assumed.
+
 ## Rebuilding this machine
 
-`install/install_fedora_v1_9.sh` installs Fedora 44 + Hyprland from a live
+`install/install_fedora_v1_10.sh` installs Fedora 44 + Hyprland from a live
 environment. It asks for a dotfiles git URL; give it this repo's URL and it
 clones it, symlinks `~/.config/hypr` at `hypr/`, and enables the user units in
 `systemd/` - so the result is this setup, not a generic one.

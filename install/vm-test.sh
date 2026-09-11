@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Boot a throwaway UEFI VM to test install_fedora_v1_9.sh without touching
+# Boot a throwaway UEFI VM to test install_fedora_v1_10.sh without touching
 # this laptop. Nothing here writes outside $VMDIR.
 #
 # Usage:
@@ -14,11 +14,11 @@
 #
 # Once the VM is up, inside it:
 #
-#   curl -O http://10.0.2.2:8000/install_fedora_v1_9.sh     # 10.0.2.2 = this host
-#   chmod +x install_fedora_v1_9.sh
-#   ./install_fedora_v1_9.sh --check-repos                  # no root needed
-#   sudo ./install_fedora_v1_9.sh --dry-run                 # prints, touches nothing
-#   sudo ./install_fedora_v1_9.sh                           # the real thing
+#   curl -O http://10.0.2.2:8000/install_fedora_v1_10.sh     # 10.0.2.2 = this host
+#   chmod +x install_fedora_v1_10.sh
+#   ./install_fedora_v1_10.sh --check-repos                  # no root needed
+#   sudo ./install_fedora_v1_10.sh --dry-run                 # prints, touches nothing
+#   sudo ./install_fedora_v1_10.sh                           # the real thing
 #
 # The VM's disk is /dev/vda - pick that when the wizard asks, NOT anything else.
 
@@ -115,11 +115,11 @@ fi
 cat <<EOF
 
   Inside the VM:
-    curl -O http://10.0.2.2:$HTTP_PORT/$(basename "$SCRIPT_DIR"/install_fedora_v1_9.sh 2>/dev/null || echo install_fedora_v1_9.sh)
-    chmod +x install_fedora_v1_9.sh
-    ./install_fedora_v1_9.sh --check-repos
-    sudo ./install_fedora_v1_9.sh --dry-run
-    sudo ./install_fedora_v1_9.sh          # target disk is /dev/vda
+    curl -O http://10.0.2.2:$HTTP_PORT/$(basename "$SCRIPT_DIR"/install_fedora_v1_10.sh 2>/dev/null || echo install_fedora_v1_10.sh)
+    chmod +x install_fedora_v1_10.sh
+    ./install_fedora_v1_10.sh --check-repos
+    sudo ./install_fedora_v1_10.sh --dry-run
+    sudo ./install_fedora_v1_10.sh          # target disk is /dev/vda
 
   To drive the VM over ssh instead of the console, run this INSIDE it:
     sudo systemctl start sshd
