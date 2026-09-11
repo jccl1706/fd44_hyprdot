@@ -42,7 +42,7 @@ quickshell/
   Osd.qml                hidden volume/brightness indicator
 
 install/
-  install_fedora_v1_10.sh guided Fedora 44 installer that builds this machine
+  install_fedora_v1_11.sh guided Fedora 44 installer that builds this machine
                          from bare metal: Btrfs + systemd-boot + optional
                          LUKS, Hyprland/quickshell, autologin, Plymouth
   vm-test.sh             boots a throwaway UEFI VM to test the installer
@@ -139,7 +139,7 @@ which is why both are installed explicitly rather than assumed.
 
 ## Rebuilding this machine
 
-`install/install_fedora_v1_10.sh` installs Fedora 44 + Hyprland from a live
+`install/install_fedora_v1_11.sh` installs Fedora 44 + Hyprland from a live
 environment. It asks for a dotfiles git URL; give it this repo's URL and it
 clones it, symlinks `~/.config/hypr` at `hypr/`, and enables the user units in
 `systemd/` - so the result is this setup, not a generic one.

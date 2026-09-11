@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Boot a throwaway UEFI VM to test install_fedora_v1_10.sh without touching
+# Boot a throwaway UEFI VM to test install_fedora_v1_11.sh without touching
 # this laptop. Nothing here writes outside $VMDIR.
 #
 # Usage:
@@ -14,11 +14,11 @@
 #
 # Once the VM is up, inside it:
 #
-#   curl -O http://10.0.2.2:8000/install_fedora_v1_10.sh     # 10.0.2.2 = this host
-#   chmod +x install_fedora_v1_10.sh
-#   ./install_fedora_v1_10.sh --check-repos                  # no root needed
-#   sudo ./install_fedora_v1_10.sh --dry-run                 # prints, touches nothing
-#   sudo ./install_fedora_v1_10.sh                           # the real thing
+#   curl -O http://10.0.2.2:8000/install_fedora_v1_11.sh     # 10.0.2.2 = this host
+#   chmod +x install_fedora_v1_11.sh
+#   ./install_fedora_v1_11.sh --check-repos                  # no root needed
+#   sudo ./install_fedora_v1_11.sh --dry-run                 # prints, touches nothing
+#   sudo ./install_fedora_v1_11.sh                           # the real thing
 #
 # The VM's disk is /dev/vda - pick that when the wizard asks, NOT anything else.
 
@@ -26,6 +26,14 @@ set -euo pipefail
 
 VMDIR="${VMDIR:-$HOME/.local/share/fedora-vm-test}"
 DISK="$VMDIR/disk.qcow2"
+# qemu monitor socket. Lets the VM be driven without the GUI - most usefully
+# `sendkey`, which is the only way to deliver a keystroke to a guest that has
+# no sshd (the INSTALLED system deliberately has none) or whose display has
+# been blanked by its own idle daemon:
+#   echo 'sendkey ctrl' | socat - UNIX-CONNECT:$VMDIR/monitor.sock
+# or without socat, from python:
+#   s=socket.socket(socket.AF_UNIX); s.connect(path); s.sendall(b'sendkey ctrl\n')
+MONITOR="$VMDIR/monitor.sock"
 VARS="$VMDIR/OVMF_VARS.fd"
 DISK_SIZE="${DISK_SIZE:-40G}"
 RAM="${RAM:-8G}"
@@ -96,6 +104,25 @@ else
     ISO="${1:-}"
     [[ -n $ISO ]] || die "give me an ISO path, or --reboot / --clean. See the header."
     [[ -f $ISO ]] || die "no such ISO: $ISO"
+
+    # RESET THE UEFI VARIABLE STORE WHENEVER AN ISO IS GIVEN.
+    #
+    # `-boot order=d` is only a hint. Once the installer has run, systemd-boot
+    # has written a real Boot#### entry into this NVRAM file, and the firmware
+    # honours its own BootOrder ahead of the hint - so every later run with an
+    # ISO attached silently booted the INSTALLED SYSTEM instead of the live
+    # media. It looks like the ISO argument was ignored.
+    #
+    # Asking for an ISO means "boot installation media", so start the firmware
+    # from the pristine template with no boot entries at all. --reboot is the
+    # branch that wants the entries, and it keeps them.
+    if [[ -f $VARS ]] && cmp -s "$VARS" "$OVMF_VARS_SRC"; then
+        : # already pristine
+    elif [[ -f $VARS ]]; then
+        log "resetting UEFI boot entries so the ISO wins over the installed disk"
+        cp "$OVMF_VARS_SRC" "$VARS"
+    fi
+
     ISO_ARGS=(-cdrom "$ISO" -boot order=d,menu=on)
     log "booting from $ISO"
 fi
@@ -115,11 +142,11 @@ fi
 cat <<EOF
 
   Inside the VM:
-    curl -O http://10.0.2.2:$HTTP_PORT/$(basename "$SCRIPT_DIR"/install_fedora_v1_10.sh 2>/dev/null || echo install_fedora_v1_10.sh)
-    chmod +x install_fedora_v1_10.sh
-    ./install_fedora_v1_10.sh --check-repos
-    sudo ./install_fedora_v1_10.sh --dry-run
-    sudo ./install_fedora_v1_10.sh          # target disk is /dev/vda
+    curl -O http://10.0.2.2:$HTTP_PORT/$(basename "$SCRIPT_DIR"/install_fedora_v1_11.sh 2>/dev/null || echo install_fedora_v1_11.sh)
+    chmod +x install_fedora_v1_11.sh
+    ./install_fedora_v1_11.sh --check-repos
+    sudo ./install_fedora_v1_11.sh --dry-run
+    sudo ./install_fedora_v1_11.sh          # target disk is /dev/vda
 
   To drive the VM over ssh instead of the console, run this INSIDE it:
     sudo systemctl start sshd
@@ -139,6 +166,10 @@ cat <<EOF
   (The mechanism is the Wayland keyboard-shortcuts-inhibit protocol, which
   GDK implements and Hyprland honours.)
   Shut the VM down from inside, or just close the window.
+
+  MONITOR SOCKET: $MONITOR
+    Drive the guest without touching the window, e.g. wake a blanked screen:
+      echo 'sendkey ctrl' | socat - UNIX-CONNECT:$MONITOR
 
 EOF
 
@@ -167,6 +198,25 @@ else
         || log "  missing: virglrenderer"
     log "  the install will still work; Hyprland itself may not start."
 fi
+
+# ONE pointing device, and it is the ABSOLUTE one.
+#
+# virtio-tablet-pci reports absolute coordinates, so the guest cursor tracks
+# the host cursor position directly and qemu never has to grab or warp the
+# pointer. virtio-mouse-pci, which used to be listed here as well, is a
+# RELATIVE device - and offering the guest both is what broke the mouse.
+#
+# With both present the guest binds drivers to both and the two streams
+# disagree: absolute events place the cursor, relative events then move it
+# from wherever qemu thinks it is, and qemu falls back to relative grab mode
+# (its window title says "Press Ctrl+Alt+G to release grab" even after the
+# desktop is up, which is the giveaway). The result is a cursor that jumps,
+# sticks, or does not respond at all.
+#
+# GDK_BACKEND=x11 below is still needed, but it was never the whole story:
+# it fixes grabbing, and this removes the need to grab the pointer at all.
+# Keyboard grab-on-hover is unaffected, which is what SUPER passthrough
+# depends on.
 
 # Run qemu's GTK window through XWayland rather than natively on Wayland.
 #
@@ -205,6 +255,6 @@ exec qemu-system-x86_64 \
     -netdev user,id=net0,hostfwd=tcp::"$SSH_PORT"-:22 \
     -device virtio-net-pci,netdev=net0 \
     -device virtio-tablet-pci \
-    -device virtio-mouse-pci \
     -device virtio-keyboard-pci \
+    -monitor "unix:$MONITOR,server,nowait" \
     -audiodev none,id=snd0

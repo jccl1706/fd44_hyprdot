@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Guided Fedora 44 installer                               v1.10  2026-09-11
+# Guided Fedora 44 installer                               v1.11  2026-09-11
 #   Btrfs + subvolumes  |  systemd-boot (UEFI)  |  optional LUKS2+LVM  |  hibernation
 #   Hyprland + quickshell only  |  AMD (Framework 13)  |  laptop
 #   No display manager: getty autologin + uwsm  |  Plymouth graphical boot
@@ -12,6 +12,23 @@
 # Arch script or add another branch yourself; this one is deliberately narrow.
 #
 # Changelog
+#   v1.11 THE INSTALLED MACHINE COULD NOT LOG IN. Two bugs, both found by
+#         actually booting a VM install rather than by reading the script.
+#           - The account's password was force-expired (shadow field 3 = 0) on
+#             the belief that PAM would prompt for a change at first login. It
+#             does not: agetty --autologin runs `login -f`, and pam_unix
+#             REJECTS an expired password in account management with no
+#             interactive dialog. login exited, systemd respawned getty, and
+#             the machine looped forever - black screen, no shell, Hyprland
+#             never started. The forced change now lives in ~/.bash_profile,
+#             which runs after login succeeds and can actually prompt, and a
+#             post-install check asserts the password is NOT expired.
+#           - ~/.config/quickshell was never symlinked. Only hypr/ and
+#             systemd/ were, so a dotfiles repo's bar, frame and launcher were
+#             silently absent and the desktop came up bare.
+#         Also: the Nerd Font installed in v1.10 landed owned by the uid
+#         recorded in the upstream tarball (1001) rather than root, because
+#         tar as root restores archived ownership. Fixed with --no-same-owner.
 #   v1.10 The two fonts the quickshell config asks for by name. Both were
 #         documented in the README and installed by neither the script nor
 #         anything it pulls in, so a fresh install rendered the bar in the
@@ -203,14 +220,14 @@
 #   v1.0  Initial Fedora port of install_arch_v3_3.sh.
 #
 # Usage:
-#   ./install_fedora_v1_10.sh                 guided install (asks everything)
-#   ./install_fedora_v1_10.sh --preflight     report on this machine, change nothing
-#   ./install_fedora_v1_10.sh --check-repos   resolve every package name against the
+#   ./install_fedora_v1_11.sh                 guided install (asks everything)
+#   ./install_fedora_v1_11.sh --preflight     report on this machine, change nothing
+#   ./install_fedora_v1_11.sh --check-repos   resolve every package name against the
 #                                             real repos (incl. the Hyprland COPR),
 #                                             change nothing, no root needed
-#   ./install_fedora_v1_10.sh --dry-run       ask, then print every command, touch nothing
-#   ./install_fedora_v1_10.sh --unattended    no prompts, use the config block below
-#   ./install_fedora_v1_10.sh --unattended -y skip the countdown too
+#   ./install_fedora_v1_11.sh --dry-run       ask, then print every command, touch nothing
+#   ./install_fedora_v1_11.sh --unattended    no prompts, use the config block below
+#   ./install_fedora_v1_11.sh --unattended -y skip the countdown too
 #
 # Recommended first run:  --check-repos, then --preflight, then --dry-run, then for real.
 # Run this from a Fedora live/rescue environment (Fedora Everything netinst
@@ -343,13 +360,15 @@ username="jc"
 # This is the hash of the literal password "changeme", and it is PUBLIC - this
 # repository is public, so treat it as known to everyone.
 #
-# That is safe only because the script expires the password immediately after
-# creating the account (chage -d 0), so the first login is REQUIRED to set a
-# new one before it reaches a shell. Do not remove that expiry while this
-# default is in place.
+# That is safe only because ~/.bash_profile refuses to start a session until
+# the password has actually been changed - see the profile written near the
+# end of this script. Do not remove that gate while this default is in place.
+#
+# NOTE it is enforced there, in the profile, and NOT by expiring the password:
+# an expired password breaks autologin entirely. There is a long comment where
+# the account is created explaining exactly how.
 #
 # To ship your own instead:   mkpasswd -m sha-512
-# and drop the chage line if you do not want the forced change.
 #
 # Inside double quotes every $ must be backslash-escaped, e.g.
 #   user_password="\$6\$somesalt\$somehash..."
@@ -523,7 +542,7 @@ wizard() {
     {
         printf '\n\033[1;36m'
         printf '  ┌──────────────────────────────────────────────┐\n'
-        printf '  │  Fedora 44 + Hyprland guided install   v1.10 │\n'
+        printf '  │  Fedora 44 + Hyprland guided install   v1.11 │\n'
         printf '  └──────────────────────────────────────────────┘\n'
         printf '\033[0m'
         printf '  Press Enter to accept the default shown for each question.\n'
@@ -852,7 +871,7 @@ check_live_tools
 # Preflight
 ###############################################################################
 preflight() {
-    log "Preflight  (installer v1.10)"
+    log "Preflight  (installer v1.11)"
 
     printf '\n  Disks on this machine:\n'
     lsblk -dno NAME,SIZE,TYPE,MODEL,TRAN 2>/dev/null \
@@ -1252,6 +1271,13 @@ run dnf5 --installroot "$rootmnt" --releasever "$releasever" -y \
 # target has no curl until something happens to pull one in and there is no
 # reason to add one just for this.
 #
+# --no-same-owner matters: tar running as root otherwise restores the
+# ownership recorded IN THE ARCHIVE, and this one carries uid 1001 / gid 118.
+# That is nobody on the live system, but 1001 is very plausibly a second real
+# account on the installed one - which would leave a normal user owning a
+# font in /usr/local/share/fonts, able to replace it. Caught by checking the
+# file after a VM install rather than by assuming tar does the obvious thing.
+#
 # NON-FATAL BY DESIGN. A missing font means tofu boxes where the logo and
 # the OSD icons should be; it does not stop the desktop coming up, and
 # failing the whole install over it - after the disk has already been
@@ -1272,8 +1298,11 @@ else
     if curl -fsSL --retry 2 --max-time 120 "$nerdfont_url" \
             -o "$nerdfont_tmp/symbols.tar.xz" \
        && mkdir -p "$nerdfont_dir" \
-       && tar -xJf "$nerdfont_tmp/symbols.tar.xz" -C "$nerdfont_dir" \
-            SymbolsNerdFont-Regular.ttf
+       && tar --no-same-owner --no-same-permissions \
+              -xJf "$nerdfont_tmp/symbols.tar.xz" -C "$nerdfont_dir" \
+              SymbolsNerdFont-Regular.ttf \
+       && chown root:root "$nerdfont_dir/SymbolsNerdFont-Regular.ttf" \
+       && chmod 644 "$nerdfont_dir/SymbolsNerdFont-Regular.ttf"
     then
         # The cache is rebuilt in the target, not on the live system - it is
         # the target's fontconfig that has to know about the file.
@@ -1326,35 +1355,27 @@ run fchroot useradd -m -G wheel -s /bin/bash -p "$user_password" "$username"
 
 # Expire the password immediately, so the first login MUST set a new one.
 #
-# This is what makes shipping a publicly-known default hash acceptable. The
-# autologin path still works: agetty execs `login -f`, which skips
-# authentication but still runs PAM account management - that sees the expired
-# password and forces a change before handing over to the shell. So the first
-# boot shows one password prompt, then never again.
+# THE PASSWORD IS DELIBERATELY *NOT* EXPIRED HERE. Read this before adding
+# `chage -d 0` back, because it looks like an obvious omission and is not.
 #
-# Done by editing /etc/shadow directly rather than with `chage -d 0`, which
-# fails inside the chroot at this point with "chage: cannot open /etc/passwd".
-# Field 3 of a shadow entry is sp_lstchg, days since epoch of the last password
-# change; 0 means "must change at next login", which is exactly what chage -d 0
-# sets. Editing the file needs no chroot at all.
+# Expiring it (shadow field 3 = 0) makes the installed machine UNBOOTABLE.
+# agetty --autologin execs `login -f`, which skips authentication but still
+# runs PAM account management - and pam_unix REJECTS an expired password
+# outright there rather than prompting to change it. There is no interactive
+# dialog on that path. So login exits, systemd respawns getty, and the machine
+# loops forever without ever reaching a shell or starting Hyprland.
 #
-# If you replace user_password with your own private hash, you can drop this.
-expire_password() {
-    local shadow="$rootmnt/etc/shadow"
-    if (( DRY )); then
-        printf '   \033[2m|\033[0m expire password for %s in %s\n' "$username" "$shadow"
-        return 0
-    fi
-    [[ -f $shadow ]] || die "no $shadow - useradd did not run?"
-    awk -F: -v u="$username" 'BEGIN{OFS=":"} $1==u{$3=0} {print}' "$shadow" >"$shadow.new" \
-        || die "failed to rewrite $shadow"
-    # Preserve the original mode/owner rather than inheriting the shell's umask.
-    chmod --reference="$shadow" "$shadow.new"
-    chown --reference="$shadow" "$shadow.new"
-    mv "$shadow.new" "$shadow"
-    grep -q "^$username:[^:]*:0:" "$shadow" || die "password expiry did not take for $username"
-}
-expire_password
+# This was believed to work for several versions, and the comment here used to
+# assert that PAM "forces a change before handing over to the shell". A VM
+# install proved otherwise:
+#
+#   login[678]: pam_unix(login:account): expired password for user jc (root enforced)
+#   getty@tty1.service: Scheduled restart job, restart counter is at 3
+#   ... 13 restarts, 0 hyprland/uwsm lines in the whole journal
+#
+# The forced change still happens - it moved to ~/.bash_profile, which runs
+# after login has succeeded and CAN prompt interactively. See the profile
+# written further down.
 writefile 0440 "$rootmnt/etc/sudoers.d/10-wheel" <<'EOF'
 %wheel ALL=(ALL:ALL) ALL
 EOF
@@ -1545,6 +1566,30 @@ fi
 
 # User specific environment and startup programs
 
+# The account ships with the installer's publicly-known password. Force a real
+# one before anything else runs, and refuse to go further until it is set.
+#
+# THIS IS WHY THE PASSWORD IS NOT EXPIRED IN /etc/shadow. An expired password
+# is rejected by PAM account management under the `login -f` that
+# agetty --autologin uses - it never prompts, login just exits, and getty
+# respawns forever. Doing it here instead works because by this point login
+# has already succeeded and there is a real terminal to prompt on.
+#
+# The marker lives in ~/.local/state so a stray ~/.config wipe cannot silently
+# disarm the gate.
+_pw_marker="${XDG_STATE_HOME:-$HOME/.local/state}/password-changed"
+if [ ! -e "$_pw_marker" ]; then
+    printf '\n  This account still has the installer default password.\n'
+    printf '  Set a real one now - the desktop will not start until you do.\n\n'
+    while ! passwd; do
+        printf '\n  Password not changed. Try again.\n\n'
+    done
+    mkdir -p "$(dirname "$_pw_marker")"
+    : >"$_pw_marker"
+    printf '\n  Thank you. Starting the desktop.\n\n'
+fi
+unset _pw_marker
+
 # Start Hyprland automatically on VT1 after getty autologin.
 if uwsm check may-start -q; then
     _uwsm_state="${XDG_STATE_HOME:-$HOME/.local/state}"
@@ -1580,6 +1625,24 @@ if [[ -n "$dotfiles_repo" ]]; then
             log "   be inspected - on a real run they would be linked here)"
         else
             warn "  repo has no hypr/ directory - keeping the stock config"
+        fi
+
+        # Same again for the quickshell config - the bar, the screen frame
+        # and the application launcher. Without this the repo is cloned, the
+        # Hyprland side works, `qs -d` starts from autostart.lua... and then
+        # quickshell finds no ~/.config/quickshell/shell.qml and draws
+        # nothing. The result boots to a bare Hyprland desktop that looks
+        # like the dotfiles failed to apply, when in fact only half of them
+        # were linked. Caught by actually rebooting a VM install, not by
+        # reading the script.
+        if [[ -d "$rootmnt/home/$username/Work/$dotdir/quickshell" ]]; then
+            run rm -rf "$rootmnt/home/$username/.config/quickshell"
+            run fchroot sudo -u "$username" ln -s \
+                "/home/$username/Work/$dotdir/quickshell" \
+                "/home/$username/.config/quickshell"
+            log "  ~/.config/quickshell -> Work/$dotdir/quickshell"
+        elif (( ! DRY )); then
+            warn "  repo has no quickshell/ directory - no bar will be drawn"
         fi
 
         # Any user units the repo ships get linked and enabled.
@@ -1711,6 +1774,13 @@ check "quickshell installed"           "[[ -x '$rootmnt/usr/bin/quickshell' ]]"
 check "no display manager"             "[[ ! -e '$rootmnt/etc/systemd/system/display-manager.service' ]]"
 check "getty autologin drop-in"        "grep -q 'autologin $username' '$rootmnt/etc/systemd/system/getty@tty1.service.d/autologin.conf'"
 check "uwsm start hook in profile"     "grep -q 'uwsm check may-start' '$rootmnt/home/$username/.bash_profile'"
+check "forced password change in profile" "grep -q 'password-changed' '$rootmnt/home/$username/.bash_profile'"
+# The inverse of a check, and the important one: field 3 of the shadow entry
+# must NOT be 0. An expired password is rejected by PAM account management on
+# the `login -f` path that agetty --autologin uses, so the machine loops on
+# getty forever and never reaches a session. Guards against the expiry being
+# reintroduced as an apparently obvious hardening tweak.
+check "password NOT expired (breaks autologin)" "! grep -q '^$username:[^:]*:0:' '$rootmnt/etc/shadow'"
 check "plymouth in initrd"             "rpm --root='$rootmnt' -q plymouth >/dev/null 2>&1"
 check "rhgb on kernel cmdline"         "grep -q rhgb '$rootmnt/etc/kernel/cmdline'"
 check "browser installed"              "rpm --root='$rootmnt' -q '$browser' >/dev/null 2>&1"
@@ -1762,14 +1832,14 @@ cat <<EOF
   give you a normal login. The uwsm output goes to
   ~/.local/state/uwsm-start.log, not the screen.
 
-  QUICKSHELL SHIPS NO DEFAULT CONFIG. It is a QtQuick toolkit, not a bar -
-  you will have NOTHING on screen until you put a QML config in
-  ~/.config/quickshell/. Write one or clone a community config (e.g. one of
-  the "end-4"/caelestia-style quickshell configs floating around) to get a
-  working bar immediately.
+  QUICKSHELL SHIPS NO DEFAULT CONFIG. It is a QtQuick toolkit, not a bar, so
+  it draws NOTHING without a QML config in ~/.config/quickshell/. If you gave
+  this installer a dotfiles repo with a quickshell/ directory, that has been
+  symlinked for you and the bar, screen frame and launcher are already
+  running. Without one you get a bare Hyprland desktop and will need to write
+  a config or clone a community one.
 
-  NO LAUNCHER IS INSTALLED, deliberately - quickshell is meant to provide
-  one. Until it does, the launcher keybind does nothing. CHECK WHICH CONFIG
+  CHECK WHICH CONFIG
   FILE HYPRLAND ACTUALLY GENERATED before editing anything: this COPR ships
   a Hyprland new enough to use ~/.config/hypr/hyprland.lua (Lua syntax)
   rather than the classic hyprland.conf, and most guides online still assume
