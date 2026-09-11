@@ -1,0 +1,1594 @@
+#!/usr/bin/env bash
+#
+# Guided Fedora 44 installer                                v1.9  2026-09-11
+#   Btrfs + subvolumes  |  systemd-boot (UEFI)  |  optional LUKS2+LVM  |  hibernation
+#   Hyprland + quickshell only  |  AMD (Framework 13)  |  laptop
+#   No display manager: getty autologin + uwsm  |  Plymouth graphical boot
+#
+# Ported from install_arch_v3_3.sh. Same shape, same wizard/preflight/dry-run
+# plumbing, same Btrfs subvolume scheme and hibernation/zram logic - but the
+# desktop question is gone. This script only ever installs Hyprland with
+# quickshell as the bar. If you want GNOME/KDE/niri or waybar, go back to the
+# Arch script or add another branch yourself; this one is deliberately narrow.
+#
+# Changelog
+#   v1.9  Brought in line with the machine this actually built. Three
+#         changes, all from living with the result:
+#           - NO DISPLAY MANAGER. sddm and greetd are both gone, along with
+#             the login-manager wizard question. The session now starts from
+#             a getty autologin on tty1 plus a `uwsm check may-start` hook in
+#             ~/.bash_profile. SDDM was dropped because its Wayland greeter
+#             runs under Weston, and Weston 15 does not implement
+#             wp_cursor_shape_manager_v1 while Qt 6.11 wants it - so the
+#             greeter had no mouse cursor and no amount of CursorTheme
+#             configuration fixed it. Note the default target STAYS
+#             graphical.target: most autologin guides say multi-user.target,
+#             which breaks this, because `uwsm check may-start` requires
+#             graphical.target to have been reached. Not installing a DM is
+#             sufficient - display-manager.service is only Wanted by that
+#             target, not Required.
+#           - PLYMOUTH plus a quiet kernel cmdline (rhgb, loglevel=3,
+#             systemd.show_status=false and the rd.* equivalents). Note
+#             `quiet` alone does NOT suppress systemd's "[ OK ] Started ..."
+#             lines - systemd.show_status=false is the one that does, and it
+#             was the bulk of the text on screen. agetty also gets
+#             --noissue --nohostname -n and, importantly, NOT --noclear:
+#             --noclear is precisely what preserves leftover boot text.
+#           - OPTIONAL DOTFILES. The wizard asks for a git URL; if given it
+#             is cloned to ~/Work/<name>, ~/.config/hypr is symlinked at its
+#             hypr/ directory, and any user units in its systemd/ directory
+#             are linked and enabled. Blank skips all of it and the minimal
+#             stock config written by this script stays.
+#         Deliberately NOT included: RPM Fusion and mesa-va-drivers-freeworld.
+#         They give H.264/HEVC hardware decode, but nothing is broken without
+#         them and they mean a permanent third-party repo. Add by hand if you
+#         want them.
+#   v1.8  xorg-x11-server-Xwayland added to depacs. Same class of gap as
+#         the v1.7 Wi-Fi bugs: nothing in the minimal --installroot pulls
+#         it in, and Hyprland does NOT depend on it, so the installed
+#         system could not run a single X11 application - no Xwayland
+#         binary, no /tmp/.X11-unix socket, every X11 client just fails to
+#         open a display. Easy to miss because Hyprland reports
+#         `xwayland:enabled = true` and still advertises xwayland_shell_v1
+#         to clients regardless, so the compositor looks correctly
+#         configured while the binary behind it is simply absent.
+#         Note Hyprland only spawns Xwayland at compositor startup, so on
+#         an ALREADY-RUNNING session installing the package is not enough -
+#         you have to log out and back in. On a fresh install from this
+#         script that is moot, since it is present before first login.
+#   v1.7  Wi-Fi fixed. Found by auditing a machine this script actually
+#         built - it came up with NO working Wi-Fi at all, from two
+#         independent causes, the second hidden behind the first:
+#           - iwlwifi-mvm-firmware added to hwpacs. Fedora 44 SPLIT the
+#             iwlwifi blobs out of linux-firmware into separate
+#             iwlwifi-{mvm,mld,dvm}-firmware packages, so /usr/lib/firmware
+#             had zero iwlwifi ucode and the AX210 never bound a driver
+#             ("no suitable firmware found! iwlwifi-ty-a0-gf-a0-89 is
+#             required"). NOTE this invalidates part of the v1.1 note below:
+#             keeping weak deps is still right for amdgpu, but it no longer
+#             covers iwlwifi, because the firmware is not a weak dep of
+#             anything now - it has to be named explicitly. mvm is the
+#             op_mode for the AX210 in this Framework 13; add mld/dvm only
+#             if you ever put a different Intel card in.
+#           - NetworkManager-wifi added to basepacs. Bare NetworkManager
+#             has no Wi-Fi backend, so even once the firmware loaded, NM
+#             logged "'wifi' plugin not available; creating generic device"
+#             and left the radio permanently unmanaged. This subpackage
+#             pulls wpa_supplicant in as a dependency. Invisible until the
+#             firmware problem above was fixed first.
+#         Also iproute added to basepacs - nothing in the minimal
+#         --installroot pulls it in, so the installed system had no `ip`
+#         command at all. Same class of gap as `tar` in v1.1.
+#   v1.6  xdg-user-dirs added explicitly. It was only ever present as a
+#         dependency pulled in by nautilus - creates ~/Downloads,
+#         ~/Documents, ~/Pictures etc. at first login. Making it explicit
+#         so those folders keep getting created even if nautilus is ever
+#         dropped from a future install.
+#   v1.5  intel-media-driver dropped from the Intel GPU branch (and from
+#         check_repos()'s extras list) - same symptom as mesa-va-drivers in
+#         v1.1: listed in Fedora's package index but unresolvable against
+#         this live media's mirrors. Not required for the desktop to work;
+#         confirm the real name yourself with `dnf5 search vaapi` if you
+#         want Intel VAAPI acceleration.
+#   v1.4  hyprland-guiutils added (Hyprland's own dialogs need it - "runtime
+#         dependency for some dialogs" warning otherwise). Closing message no
+#         longer assumes ~/.config/hypr/hyprland.conf - Hyprland 0.55 (April
+#         2026) replaced the old hyprlang syntax with hyprland.lua by
+#         default, and this COPR already tracks that; the message now says
+#         to check which file actually exists rather than naming one.
+#   v1.3  wofi/mako removed again (net installer default: no launcher, no
+#         notification daemon, on request - was added back briefly in v1.2).
+#   v1.2  wofi + mako added to depacs, undoing part of an earlier trim - a
+#         desktop with no launcher and no notification daemon at all turned
+#         out to be more friction than the disk-space savings were worth.
+#   v1.1  Everything below came out of an actual install on the real
+#         hardware, not a read-through - each was a genuine failure, not a
+#         style choice:
+#           - tar added to basepacs. Nothing in a minimal --installroot
+#             pulls it in for free; the first post-install step that needed
+#             it (extracting anything) failed with "tar: command not found".
+#           - REMOVED --setopt=install_weak_deps=False from both dnf5 calls.
+#             This was the single biggest bug: Fedora ships this Framework's
+#             amdgpu AND iwlwifi firmware, and systemd's PAM/logind
+#             integration, only as Recommends - stripping weak deps left
+#             amdgpu unable to load ANY firmware ("Fatal error during GPU
+#             init", permanent black screen at boot) and sddm-helper unable
+#             to open a login session (no pam_systemd.so -> "could not open
+#             seat"). Two independent fatal failures, one cause.
+#           - dnf5 --use-host-config kept ONLY on the first --installroot
+#             call, dropped on the second. That flag reads the LIVE
+#             system's own repo list instead of the installroot's - correct
+#             before fedora-release exists in $rootmnt (zero repos of its
+#             own yet), wrong after (it would silently ignore the COPR repo
+#             file already sitting in $rootmnt/etc/yum.repos.d, and desktop
+#             packages would fail to resolve with no indication why).
+#           - Package name fixes, each found by actually hitting it:
+#             `systemd-boot` doesn't exist as a standalone package for a
+#             plain non-Secure-Boot install (systemd-boot-unsigned has
+#             bootctl and the EFI binaries) - dropped. `man-pages-overrides`
+#             is RHEL-only -> `man-pages`. `sof-firmware` -> the real name
+#             `alsa-sof-firmware`. `mesa-va-drivers` dropped entirely - Fedora
+#             lists it but it was unresolvable against this live media's
+#             mirrors, not required for the desktop to function.
+#             `greetd-tuigreet` (the Arch package name) -> plain `tuigreet`
+#             on Fedora.
+#           - python3-pyxdg and python3-dbus added explicitly - the COPR's
+#             uwsm RPM hard-imports both in its own Python code without
+#             declaring them as dependencies; uwsm crashed with
+#             ModuleNotFoundError the instant a session was started.
+#           - check_repos() now tests the UNION of every wizard branch
+#             (both login managers, both browsers, both GPU vendors), not
+#             just whatever the config defaults resolve to. --check-repos
+#             skips the wizard, so it was only ever validating the SDDM/
+#             chromium/AMD path - the wrong tuigreet package name went
+#             completely undetected by repeated --check-repos runs because
+#             greetd was never the path actually being checked.
+#           - "hyprland-uwsm session entry" verification check fixed to
+#             accept EITHER /usr/share/wayland-sessions (if the COPR's own
+#             package already ships one - it does) or the script's
+#             /usr/local/share fallback. Was a false FAIL on a system that
+#             was actually fine.
+#           - LVM deactivation (`vgchange -an`) added before `cryptsetup
+#             close` in the pre-partition cleanup. A previous interrupted
+#             run leaves the old LUKS+LVM stack unmounted but still ACTIVE
+#             at the device-mapper level; closing LUKS while the LVM VG on
+#             top of it is still active silently no-ops, and the next
+#             luksFormat then fails right after the passphrase prompt with
+#             no visible error.
+#           - Logging/exit-trap rewritten. `exec > >(tee -a "$logfile")`
+#             runs tee as a background process - if the script exits
+#             abruptly, bash does not wait for that background process to
+#             flush before the parent shell regains control, so `die()`'s
+#             own error message could be silently lost in the race. Fixed
+#             with a single on_exit trap that restores the original
+#             stdout/stderr and explicitly waits for tee before the process
+#             actually ends. (This one cost real time - it looked like a
+#             silent kill/systemd-oomd for several attempts before the
+#             actual cause turned out to be this logging race the whole
+#             time.)
+#           - chroot bind mounts switched from plain `--bind` to
+#             `--rbind` + `--make-rslave` for /dev and /sys, so submounts
+#             (devpts, efivars, etc.) are actually visible inside the
+#             chroot, not just the top-level mountpoint.
+#           - `.autorelabel` added. Every config file this script writes
+#             directly (fstab, sudoers, hypridle/hyprlock, zram, dracut,
+#             greetd) bypasses rpm's normal SELinux labeling.
+#           - check_live_tools() added: Fedora's live media does not ship
+#             sgdisk/gdisk by default (the Arch ISO does) - checked and
+#             installed on the LIVE system, before any partitioning, instead
+#             of failing mid-`Creating partitions` with a bare command-not-
+#             found and nothing else printed.
+#           - preflight now warns if systemd-oomd is active, with the mask
+#             command right there - a real, if ultimately not the actual,
+#             suspect chased during this same debugging session.
+#   v1.0  Initial Fedora port of install_arch_v3_3.sh.
+#
+# Usage:
+#   ./install_fedora_v1_9.sh                 guided install (asks everything)
+#   ./install_fedora_v1_9.sh --preflight     report on this machine, change nothing
+#   ./install_fedora_v1_9.sh --check-repos   resolve every package name against the
+#                                             real repos (incl. the Hyprland COPR),
+#                                             change nothing, no root needed
+#   ./install_fedora_v1_9.sh --dry-run       ask, then print every command, touch nothing
+#   ./install_fedora_v1_9.sh --unattended    no prompts, use the config block below
+#   ./install_fedora_v1_9.sh --unattended -y skip the countdown too
+#
+# Recommended first run:  --check-repos, then --preflight, then --dry-run, then for real.
+# Run this from a Fedora live/rescue environment (Fedora Everything netinst
+# or Server DVD booted to a shell both work; Workstation live also works).
+#
+# WHAT CHANGED PORTING FROM ARCH, AND WHY
+#
+#   Bootloader: Limine -> systemd-boot.
+#     Fedora's kernel package already writes Boot Loader Specification (BLS)
+#     entries on every kernel install/update via
+#     /usr/lib/kernel/install.d/90-loaderentry.install (part of systemd) and
+#     dracut's own install.d hook - this happens regardless of which
+#     bootloader consumes those entries. So "switch to systemd-boot" is
+#     mostly just: install the `systemd-boot-unsigned` package (there is no
+#     separate signed `systemd-boot` package for a plain non-Secure-Boot
+#     install - `bootctl` and the EFI binaries both live in `-unsigned`),
+#     run `bootctl install`,
+#     and make sure grub2 is never installed to the ESP. No config file is
+#     hand-written the way limine.conf was - entries under
+#     /boot/loader/entries/ are generated by kernel-install itself, and this
+#     script calls `kernel-install add` explicitly after pacstrapping instead
+#     of trusting RPM scriptlets alone (dnf --installroot runs scriptlets
+#     chrooted, which usually works, but a script that changes your disk
+#     shouldn't leave the bootability check implicit).
+#
+#   initramfs: mkinitcpio -> dracut.
+#     dracut's default hostonly mode inspects the actual block devices under
+#     the target root (LUKS, LVM, Btrfs) and pulls in the right modules on
+#     its own - there is no HOOKS array to assemble by hand the way
+#     mkinitcpio needed one. Microcode is handled the same way: installing
+#     `microcode_ctl` is enough, dracut folds it into the initramfs itself;
+#     unlike Limine there is no separate module_path line to write.
+#
+#   Package manager: pacman/pacstrap -> dnf5 --installroot.
+#     dnf5 --installroot bootstraps a target root much like pacstrap does,
+#     but Fedora's repo metadata (and RPM Fusion, and the Hyprland COPR) has
+#     to be reachable from inside that installroot, which is why the repo
+#     files below get written into $rootmnt/etc/yum.repos.d BEFORE the
+#     desktop package set is pulled - the same spot in the flow where the
+#     Arch script flipped on [multilib] mid-script.
+#
+#   Desktop packaging: Hyprland is NOT in Fedora's official repos for
+#     Fedora 43/44 (it shipped officially only through Fedora 42, then was
+#     dropped). quickshell was never in the official repos either. Both are
+#     pulled from a third-party COPR (nett00n/hyprland, chosen because as of
+#     writing it actively builds both hyprland AND quickshell against
+#     Fedora 43/44/45, where several other Hyprland COPRs have gone stale).
+#     THIS IS A THIRD-PARTY REPO YOU ARE TRUSTING - verify it still looks
+#     maintained before you run this for real:
+#       https://copr.fedorainfracloud.org/coprs/nett00n/hyprland/
+#     If it has gone stale, swap $hypr_copr below for whatever COPR is
+#     current; everything else in this script is COPR-agnostic.
+#
+#   LUKS/LVM cmdline: cryptdevice=...  ->  rd.luks.uuid=... rd.lvm.lv=...
+#     dracut's own kernel-cmdline syntax, not mkinitcpio's.
+#
+#   Nvidia: dropped entirely. This script targets a Framework 13 AMD, which
+#     has no discrete GPU to drive - the RPM Fusion nonfree add-on, the
+#     akmod-nvidia branch, the nouveau blacklist and the
+#     suspend/hibernate/resume unit wiring that the Arch script needed for
+#     Nvidia are all gone rather than carried as dead branches. GPU support
+#     is just the AMD path: mesa's RADV Vulkan driver and the in-kernel amdgpu
+#     driver, both already covered by the base package set.
+#
+#   Btrfs subvolume layout: switched to Fedora's OWN Anaconda convention
+#     instead of the Arch script's @-prefixed set. That convention is just
+#     two subvolumes, named "root" and "home" (no @, no /opt, /srv, /var/log,
+#     /var/cache, or /var/lib/libvirt/images split out, no snapshots
+#     subvolume) - because Fedora does not wire up automatic snapshotting
+#     the way openSUSE does with snapper, those extra subvolumes bought
+#     nothing here beyond bookkeeping. The other Fedora-native detail this
+#     copies: root is mounted via `btrfs subvolume set-default`, not a
+#     `subvol=root` mount option - which is why fstab's root line below has
+#     no subvol= on it and the kernel cmdline has no rootflags=subvol=
+#     either, matching a stock Fedora installer's own fstab exactly. /home
+#     is still the one explicit subvol=home mount, same as Anaconda does it.
+#     If you want /var/log, /var/cache or libvirt's image store nocow and
+#     snapshot-excluded later, that is a `btrfs subvolume create` + fstab
+#     edit any time after install - it does not need to happen now.
+#
+#   sudo group: unchanged. Fedora's install-time admin group is also `wheel`.
+#
+# NOTE ON PASSPHRASES
+#   The LUKS passphrase is never stored: cryptsetup prompts for it on the
+#   console when the script runs. The user login password is the hash in the
+#   config block below - regenerate it with `mkpasswd -m sha-512` (or
+#   `openssl passwd -6` if mkpasswd is not on your live media).
+#
+set -Eeuo pipefail
+
+###############################################################################
+# Config - these are the DEFAULTS. Interactive mode offers them as defaults
+# and lets you change them; --unattended uses them verbatim.
+###############################################################################
+target="/dev/nvme0n1"          # WHOLE DISK - it will be wiped
+esp_size="1024M"
+swap_size="32G"                # or "none" for no swap and no hibernation
+# zram is compressed swap in RAM: a pressure valve, NOT a hibernation target.
+# Independent of swap_size. Empty = no zram. Otherwise a zram-generator size
+# expression in MB, e.g. "min(ram / 2, 4096)" or "ram / 2".
+zram_size=""
+encrypt="yes"                  # yes | no
+machine="laptop"               # laptop | desktop
+cpu_vendor=""                  # amd | intel   (empty = autodetect)
+gpu_vendor="amd"               # amd | intel  (Framework 13 AMD has no discrete GPU)
+# Login manager. Empty = sddm (Hyprland has no GNOME/KDE session to derive a
+# default from here, unlike the Arch script). sddm | greetd
+# Dotfiles git URL. Left blank the installer sets up autologin and Plymouth
+# but writes only a minimal Hyprland config; supply a repo and it is cloned to
+# ~/Work/<name> and ~/.config/hypr is symlinked into it instead.
+dotfiles_repo=""
+browser="chromium"             # chromium | firefox
+terminal="kitty"
+
+releasever="44"
+fedora_arch="x86_64"
+# Third-party COPR providing hyprland + quickshell for Fedora 43/44/45.
+# CHECK THIS IS STILL MAINTAINED before a real install - see the note above.
+hypr_copr="nett00n/hyprland"
+
+rootmnt="/mnt"
+locale="en_US.UTF-8"
+keymap="us"
+timezone="America/New_York"
+hostname="fedora-hypr"
+username="jc"
+
+# SHA-512 crypt hash for the user account.
+#
+# DO NOT COMMIT A REAL HASH HERE. A crypt hash is offline-crackable, so
+# publishing one is publishing the password with a delay. This placeholder is
+# deliberately invalid and the script refuses to run until you replace it.
+#
+# Generate one with:   mkpasswd -m sha-512
+#              or:     openssl passwd -6
+#
+# Inside double quotes every $ must be backslash-escaped, e.g.
+#   user_password="\$6\$somesalt\$somehash..."
+user_password="CHANGEME"
+
+luks_label="CRYPTROOT"
+vg_name="vg0"
+mapper_name="cryptlvm"
+
+want_fallback=true
+btrfs_opts="noatime,compress=zstd:1,space_cache=v2"
+
+###############################################################################
+# Plumbing
+###############################################################################
+DRY=0; ASSUME_YES=0; PREFLIGHT_ONLY=0; UNATTENDED=0; CHECK_REPOS=0
+
+log()  { printf '\n\033[1;32m==>\033[0m \033[1m%s\033[0m\n' "$*"; }
+warn() { printf '\033[1;33m==> WARNING:\033[0m %s\n' "$*" >&2; }
+die()  {
+    printf '\n\033[1;31m==> ERROR:\033[0m %s\n' "$*" >&2
+    [[ -n "${logfile-}" ]] && printf '    full log: %s\n' "$logfile" >&2
+    exit 1
+}
+trap 'die "failed at line $LINENO: $BASH_COMMAND"' ERR
+
+run() {
+    if (( DRY )); then
+        local a out=""
+        for a in "$@"; do
+            if [[ -z "$a" || "$a" == *[[:space:]]* ]]; then out+=" '$a'"; else out+=" $a"; fi
+        done
+        printf '   \033[2m|\033[0m%s\n' "$out"
+        return 0
+    fi
+    "$@"
+}
+runsh() {
+    if (( DRY )); then printf '   \033[2m|\033[0m %s\n' "$1"; return 0; fi
+    eval "$1"
+}
+writefile() {
+    local mode="$1" path="$2" content
+    content="$(cat)"
+    if (( DRY )); then
+        printf '   \033[2m|\033[0m write %s (%s)\n' "$path" "$mode"
+        return 0
+    fi
+    install -Dm"$mode" /dev/null "$path"
+    printf '%s' "$content" > "$path"
+}
+
+have_tty() { [[ -e /dev/tty ]] && exec 3<>/dev/tty 2>/dev/null; }
+
+menu() {   # menu "Question" default_index "Label|value" ...
+    local prompt="$1" def="$2"; shift 2
+    local -a labels=() values=()
+    local i=0 opt
+    for opt in "$@"; do
+        i=$((i+1))
+        labels+=("${opt%%|*}")
+        values+=("${opt#*|}")
+    done
+    printf '\n\033[1m%s\033[0m\n' "$prompt" >/dev/tty
+    for ((i=0; i<${#labels[@]}; i++)); do
+        printf '  %s%d) %s\n' "$( (( i+1 == def )) && echo '* ' || echo '  ' )" "$((i+1))" "${labels[i]}" >/dev/tty
+    done
+    local a
+    while true; do
+        printf '  choice [\033[2m%s\033[0m]: ' "$def" >/dev/tty
+        read -r a </dev/tty || a=""
+        [[ -z "$a" ]] && a="$def"
+        if [[ "$a" =~ ^[0-9]+$ ]] && (( a >= 1 && a <= ${#values[@]} )); then
+            printf '%s' "${values[a-1]}"
+            return 0
+        fi
+        printf '  enter a number from 1 to %d\n' "${#values[@]}" >/dev/tty
+    done
+}
+
+ask_text() {   # ask_text "Question" "default"
+    local prompt="$1" def="$2" a
+    printf '\n\033[1m%s\033[0m [\033[2m%s\033[0m]: ' "$prompt" "$def" >/dev/tty
+    read -r a </dev/tty || a=""
+    printf '%s' "${a:-$def}"
+}
+
+###############################################################################
+# Argument parsing
+###############################################################################
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -n|--dry-run)     DRY=1 ;;
+        -p|--preflight)   PREFLIGHT_ONLY=1 ;;
+        -c|--check-repos) CHECK_REPOS=1 ;;
+        -u|--unattended)  UNATTENDED=1 ;;
+        -y|--yes)         ASSUME_YES=1 ;;
+        -d|--disk)        target="${2:?--disk needs an argument}"; shift ;;
+        -h|--help)        awk 'NR>1 && /^#/ {print; next} NR>1 {exit}' "$0"; exit 0 ;;
+        *)                die "unknown option: $1  (try --help)" ;;
+    esac
+    shift
+done
+
+(( DRY )) || (( PREFLIGHT_ONLY )) || (( CHECK_REPOS )) || [[ $UID -eq 0 ]] || die "This script needs to be run as root."
+
+logfile=""
+tee_pid=""
+if (( ! DRY )) && (( ! PREFLIGHT_ONLY )) && (( ! CHECK_REPOS )); then
+    logfile="/tmp/fedora-install.log"
+    exec 3>&1 4>&2
+    exec > >(tee -a "$logfile") 2>&1
+    tee_pid=$!
+fi
+
+# Single EXIT trap for the whole script (bash only honors the LAST one set,
+# so this has to cover everything, not just logging).
+#
+# `exec > >(tee ...)` above runs tee as a background process reading from a
+# pipe. If the script exits abruptly - a real error, not just reaching the
+# end - bash does NOT wait for that background tee to finish flushing its
+# buffered output before the parent shell regains control. The actual error
+# message from `die` can be lost in that race, leaving nothing but a bare
+# exit code with no explanation - which is exactly what happened chasing an
+# earlier failure in this script's history: it was never a silent kill,
+# `die` was firing correctly the whole time, its message just never made it
+# out before the process ended.
+on_exit() {
+    # Tear down chroot bind mounts, if that helper exists yet and was ever
+    # used - declare -F guards against firing before it's been defined,
+    # since an early failure can trigger this trap before later parts of
+    # the script have run.
+    declare -F umount_chroot >/dev/null && umount_chroot
+    if [[ -n "$tee_pid" ]]; then
+        exec 1>&3 2>&4 3>&- 4>&-
+        wait "$tee_pid" 2>/dev/null || true
+    fi
+}
+trap on_exit EXIT
+
+###############################################################################
+# Hardware autodetection
+###############################################################################
+detect_cpu() { grep -qm1 AuthenticAMD /proc/cpuinfo && echo amd || echo intel; }
+detect_gpu() {
+    local pci; pci="$(lspci -nn 2>/dev/null || true)"
+    if   grep -iE 'VGA|3D|Display' <<<"$pci" | grep -qiE 'amd|ati|radeon'; then echo amd
+    elif grep -iE 'VGA|3D|Display' <<<"$pci" | grep -qi intel; then echo intel
+    else detect_cpu; fi
+}
+detect_machine() {
+    if [[ -d /sys/class/power_supply ]] && compgen -G '/sys/class/power_supply/BAT*' >/dev/null; then
+        echo laptop
+    else
+        echo desktop
+    fi
+}
+
+[[ -n "$cpu_vendor" ]] || cpu_vendor="$(detect_cpu)"
+[[ -n "$gpu_vendor" ]] || gpu_vendor="$(detect_gpu)"
+
+ram_bytes=$(( $(awk '/^MemTotal:/{print $2}' /proc/meminfo) * 1024 ))
+ram_gib=$(( ram_bytes / 1024 / 1024 / 1024 ))
+
+###############################################################################
+# The wizard
+###############################################################################
+wizard() {
+    have_tty || die "no terminal available for the guided install - use --unattended"
+
+    {
+        printf '\n\033[1;36m'
+        printf '  ┌──────────────────────────────────────────────┐\n'
+        printf '  │  Fedora 44 + Hyprland guided install   v1.9  │\n'
+        printf '  └──────────────────────────────────────────────┘\n'
+        printf '\033[0m'
+        printf '  Press Enter to accept the default shown for each question.\n'
+        printf '  Desktop is fixed: Hyprland + quickshell, systemd-boot.\n'
+    } >/dev/tty
+
+    # ---- disk ----------------------------------------------------------
+    local -a diskopts=()
+    local name size rest n=0 defdisk=1
+    while read -r name size rest; do
+        [[ "$name" =~ ^(zram|loop|sr) ]] && continue
+        n=$((n+1))
+        diskopts+=("/dev/$name   $size   ${rest:-unknown model}|/dev/$name")
+        [[ "/dev/$name" == "$target" ]] && defdisk=$n
+    done < <(lsblk -dno NAME,SIZE,MODEL 2>/dev/null)
+    (( ${#diskopts[@]} )) || die "no disks found to install to"
+    target="$(menu "Which disk should be WIPED and installed to?" "$defdisk" "${diskopts[@]}")"
+
+    # ---- swap ----------------------------------------------------------
+    local suggested="${ram_gib}G"
+    swap_size="$(menu "Swap size?  (hibernation needs swap; RAM is ${ram_gib}G)" 2 \
+        "none - no swap, no hibernation|none" \
+        "${suggested} - matches RAM, hibernation always works|${suggested}" \
+        "$(( (ram_gib + 1) / 2 ))G - half of RAM, usually enough|$(( (ram_gib + 1) / 2 ))G" \
+        "8G|8G" "16G|16G" "32G|32G" \
+        "custom|CUSTOM")"
+    if [[ "$swap_size" == CUSTOM ]]; then
+        swap_size="$(ask_text "Swap size (e.g. 24G)" "${suggested}")"
+    fi
+
+    # ---- zram ------------------------------------------------------------
+    local zdef=1
+    [[ "$swap_size" == none ]] && zdef=2
+    zram_size="$(menu "Add zram?  (compressed swap in RAM - relieves memory pressure, cannot hibernate)" "$zdef" \
+        "No zram|" \
+        "Yes - up to 4G  (min(ram/2, 4096))|min(ram / 2, 4096)" \
+        "Yes - up to 8G  (min(ram/2, 8192))|min(ram / 2, 8192)" \
+        "Yes - half of RAM, uncapped|ram / 2")"
+
+    # ---- encryption ------------------------------------------------------
+    encrypt="$(menu "Full disk encryption?" "$( [[ $encrypt == yes ]] && echo 1 || echo 2 )" \
+        "Yes - LUKS2 container holding an LVM group (recommended for laptops)|yes" \
+        "No  - plain partitions, no passphrase at boot|no")"
+
+    # ---- machine type ------------------------------------------------------
+    local defmachine; defmachine="$(detect_machine)"
+    machine="$(menu "Machine type?  (detected: $defmachine)" "$( [[ $defmachine == laptop ]] && echo 1 || echo 2 )" \
+        "Laptop - power profiles, backlight, lid suspend/hibernate|laptop" \
+        "Desktop - none of the battery/lid handling|desktop")"
+
+    # ---- cpu ---------------------------------------------------------------
+    local defcpu; defcpu="$(detect_cpu)"
+    cpu_vendor="$(menu "CPU vendor?  (detected: $defcpu)" "$( [[ $defcpu == amd ]] && echo 1 || echo 2 )" \
+        "AMD   - microcode_ctl picks it up automatically|amd" \
+        "Intel - microcode_ctl picks it up automatically|intel")"
+
+    # ---- gpu -----------------------------------------------------------
+    local defgpu; defgpu="$(detect_gpu)" ; local gnum=1
+    case "$defgpu" in amd) gnum=1 ;; intel) gnum=2 ;; esac
+    gpu_vendor="$(menu "Graphics?  (detected: $defgpu)" "$gnum" \
+        "AMD    - mesa, RADV Vulkan|amd" \
+        "Intel  - mesa, ANV Vulkan, iHD VAAPI|intel")"
+
+    # ---- dotfiles --------------------------------------------------------
+    # There is no login-manager question any more: this installer always sets
+    # up getty autologin on tty1 plus uwsm, with no display manager at all.
+    dotfiles_repo="$(ask_text "Dotfiles git URL (blank = skip)" "$dotfiles_repo")"
+
+    # ---- apps ----------------------------------------------------------
+    browser="$(menu "Browser?" "$( [[ $browser == chromium ]] && echo 1 || echo 2 )" \
+        "Chromium|chromium" "Firefox|firefox")"
+
+    # ---- identity ------------------------------------------------------
+    hostname="$(ask_text "Hostname" "$hostname")"
+    username="$(ask_text "Username" "$username")"
+    timezone="$(ask_text "Timezone" "$timezone")"
+}
+
+(( UNATTENDED )) || (( PREFLIGHT_ONLY )) || (( CHECK_REPOS )) || wizard
+
+###############################################################################
+# Derived values
+###############################################################################
+[[ "$swap_size" == "none" ]] && want_swap=no || want_swap=yes
+
+partdev() {
+    case "$target" in
+        *nvme*|*mmcblk*|*loop*) printf '%sp%s' "$target" "$1" ;;
+        *)                      printf '%s%s'  "$target" "$1" ;;
+    esac
+}
+esppart="$(partdev 1)"
+if [[ "$encrypt" == yes ]]; then
+    cryptpart="$(partdev 2)"
+    mapperdev="/dev/mapper/$mapper_name"
+    rootdev="/dev/$vg_name/root"
+    swapdev="/dev/$vg_name/swap"
+else
+    if [[ "$want_swap" == yes ]]; then
+        swapdev="$(partdev 2)"; rootdev="$(partdev 3)"
+    else
+        swapdev=""; rootdev="$(partdev 2)"
+    fi
+fi
+
+# No display manager. The session starts from a getty autologin on tty1 that
+# execs uwsm from the user's shell profile - see the "Autologin" section far
+# below. SDDM and greetd were both dropped in v1.9.
+
+###############################################################################
+# Package sets
+###############################################################################
+basepacs=(
+    fedora-release
+    kernel kernel-core kernel-modules kernel-modules-extra
+    linux-firmware microcode_ctl
+    btrfs-progs
+    systemd-boot-unsigned efibootmgr dracut
+    NetworkManager NetworkManager-wifi
+    iproute
+    sudo nano vim-enhanced git
+    # shadow-utils provides useradd/usermod/groupadd/chpasswd. It is NOT pulled
+    # in by anything else in this list: until v1.9 it arrived only as an sddm
+    # dependency, so removing the display manager silently took it with it and
+    # the install died at "chroot: failed to run command 'useradd'". Explicit
+    # now. (The same trap bit this on a real machine when sddm was removed
+    # post-install - it needed `dnf mark user shadow-utils` to survive.)
+    shadow-utils
+    man-db man-pages texinfo
+    dnf5-plugins
+    zstd tar
+    glibc-langpack-en
+)
+[[ "$encrypt" == yes ]] && basepacs+=(cryptsetup lvm2)
+[[ -n "$zram_size" ]] && basepacs+=(zram-generator-defaults)
+
+hwpacs=(
+    iwlwifi-mvm-firmware
+    alsa-sof-firmware alsa-utils
+    pipewire pipewire-alsa pipewire-pulseaudio pipewire-jack-audio-connection-kit wireplumber
+    mesa-libGL mesa-vulkan-drivers mesa-libgbm
+    bluez bluez-tools
+    usbutils pciutils
+)
+if [[ "$machine" == laptop ]]; then
+    hwpacs+=(power-profiles-daemon brightnessctl fwupd upower)
+fi
+case "$gpu_vendor" in
+    # RADV Vulkan comes from mesa-vulkan-drivers above - that's what
+    # actually matters for Hyprland/quickshell rendering. VAAPI hardware
+    # video decode is left out for BOTH vendors: mesa-va-drivers (AMD) and
+    # intel-media-driver (Intel) both showed the same symptom under
+    # --check-repos - listed in Fedora's own package index, but
+    # unresolvable against this live media's current mirrors, which
+    # suggests a mirror sync lag rather than either name being wrong.
+    # Neither is required for the desktop to work. Once installed, confirm
+    # the real name with `dnf5 search vaapi` (or `mesa-va`/`intel-media` for
+    # the specific vendor) and add it if you want accelerated video decode.
+    amd)    : ;;
+    intel)  hwpacs+=(libva-utils) ;;
+esac
+
+# Hyprland + quickshell only. uwsm is REQUIRED here for the same reason it
+# was on Arch: Hyprland launched from a .desktop entry never starts
+# graphical-session.target on its own, so the polkit agent would be enabled
+# but never actually run.
+#
+# python3-pyxdg and python3-dbus are listed explicitly because the COPR's
+# uwsm RPM doesn't declare them as dependencies even though uwsm's own code
+# hard-imports both (uwsm/main.py imports xdg.BaseDirectory, uwsm/dbus.py
+# imports dbus) - without them uwsm crashes with ModuleNotFoundError the
+# instant you try to start a session, discovered by actually running it
+# rather than by anything dnf could have caught. If a future COPR update
+# still crashes on a DIFFERENT missing module, the fix is the same: find
+# the module name in the traceback, `sudo dnf5 install python3-<name>`.
+depacs=(
+    hyprland uwsm quickshell qt6-qtwayland
+    xorg-x11-server-Xwayland
+    python3-pyxdg python3-dbus
+    hyprpaper hyprlock hypridle hyprpolkitagent xdg-desktop-portal-hyprland
+    hyprland-guiutils
+    wl-clipboard cliphist grim slurp
+    nautilus gvfs file-roller xdg-user-dirs
+    xdg-desktop-portal xdg-desktop-portal-gtk
+    google-noto-sans-mono-fonts
+)
+# Plymouth: graphical boot splash, and a graphical LUKS passphrase prompt
+# instead of the bare text one. plymouth-system-theme pulls the bgrt theme,
+# which shows the firmware logo (on a Framework, the Framework logo).
+depacs+=(plymouth plymouth-system-theme)
+
+apppacs=("$browser" "$terminal" dejavu-sans-fonts google-noto-fonts-common google-noto-emoji-fonts)
+
+###############################################################################
+# Repo check
+#
+# Resolves every package name this run COULD install - the union of every
+# wizard branch, not just whatever the current defaults resolve to (see the
+# note inside check_repos() for why that distinction matters) - against the
+# real repo metadata (default Fedora repos plus the Hyprland/quickshell
+# COPR), without touching any disk and without root. This is what catches a renamed COPR
+# package or a typo'd name BEFORE the target disk has already been wiped,
+# instead of discovering it mid-transaction during the real install.
+#
+# It does NOT catch: a repo that resolves the name but is actually broken
+# (bad build, missing deps at install time), or a COPR that has gone stale
+# in ways short of removing the package entirely. It only proves the name
+# exists somewhere reachable right now.
+###############################################################################
+check_repos() {
+    log "Checking repos - resolving every package name, no changes made"
+    local tmp_cache; tmp_cache="$(mktemp -d)"
+    trap 'rm -rf "$tmp_cache"' RETURN
+    local copr_baseurl="https://download.copr.fedorainfracloud.org/results/${hypr_copr}/fedora-\$releasever-\$basearch/"
+
+    # --check-repos skips the wizard (same as --preflight), so basepacs/
+    # hwpacs/depacs/apppacs at this point only reflect whatever the config
+    # DEFAULTS resolve to (sddm, chromium, amd GPU, ...) - never whichever
+    # branch you'd actually pick if you answered the questions. A check
+    # that only covers the default path gives false confidence on every
+    # other one, which is exactly how the wrong "greetd-tuigreet" package
+    # name went undetected here despite this check passing repeatedly:
+    # greetd was never the resolved $dm during a --check-repos run, so its
+    # packages were never in the list being tested. The extras[] below are
+    # every package that ONLY appears down a non-default wizard branch,
+    # added explicitly so this check covers the union of every choice, not
+    # just today's defaults.
+    local -a extras=(
+        chromium firefox                              # both browsers
+        libva-utils                                    # Intel GPU branch
+    )
+    local -a allpkgs=("${basepacs[@]}" "${hwpacs[@]}" "${depacs[@]}" "${apppacs[@]}" "${extras[@]}")
+    local -A seen=()
+    local -a uniq=() missing=()
+    local p result found=0
+
+    for p in "${allpkgs[@]}"; do
+        [[ -n "${seen[$p]-}" ]] && continue
+        seen[$p]=1
+        uniq+=("$p")
+    done
+
+    for p in "${uniq[@]}"; do
+        result="$(dnf5 --setopt="cachedir=$tmp_cache" --releasever "$releasever" \
+                       --repofrompath="hyprcheck,$copr_baseurl" \
+                       repoquery --quiet "$p" 2>/dev/null || true)"
+        if [[ -n "$result" ]]; then
+            printf '  \033[32mok\033[0m      %s\n' "$p"
+            found=$((found+1))
+        else
+            printf '  \033[31mmissing\033[0m %s\n' "$p"
+            missing+=("$p")
+        fi
+    done
+
+    printf '\n  %d/%d package names resolved\n' "$found" "${#uniq[@]}"
+    if (( ${#missing[@]} )); then
+        printf '\n  MISSING - fix these names, or check whether %s still\n' "$hypr_copr"
+        printf '  builds them, before running this for real:\n'
+        printf '    %s\n' "${missing[@]}"
+        return 1
+    fi
+    printf '\n  All package names resolve against the default repos + %s.\n' "$hypr_copr"
+    printf '  This does not guarantee the COPR build is healthy - it only\n'
+    printf '  proves the name exists right now.\n'
+    return 0
+}
+
+if (( CHECK_REPOS )); then
+    if check_repos; then exit 0; else exit 1; fi
+fi
+
+###############################################################################
+# Live-environment tool check
+#
+# Unlike the Arch ISO (which ships sgdisk, dosfstools, btrfs-progs etc. out
+# of the box), Fedora's live media is deliberately minimal - several tools
+# this script needs to partition and format the disk are NOT installed by
+# default. Checked and installed on the LIVE system here (never the target
+# root) before any destructive action, rather than discovering one is
+# missing halfway through partitioning with a bare "command not found".
+###############################################################################
+declare -A tool_pkg=(
+    [sgdisk]=gdisk
+    [wipefs]=util-linux
+    [partprobe]=parted
+    [udevadm]=systemd-udev
+    [mkfs.vfat]=dosfstools
+    [mkfs.btrfs]=btrfs-progs
+    [btrfs]=btrfs-progs
+    [blkid]=util-linux
+    [chroot]=coreutils
+)
+[[ "$encrypt" == yes ]] && tool_pkg[cryptsetup]=cryptsetup
+[[ "$encrypt" == yes ]] && tool_pkg[pvcreate]=lvm2
+check_live_tools() {
+    local missing_pkgs=() t
+    for t in "${!tool_pkg[@]}"; do
+        command -v "$t" >/dev/null 2>&1 || missing_pkgs+=("${tool_pkg[$t]}")
+    done
+    (( ${#missing_pkgs[@]} == 0 )) && return 0
+    mapfile -t missing_pkgs < <(printf '%s\n' "${missing_pkgs[@]}" | sort -u)
+    warn "missing on this live system: ${missing_pkgs[*]}"
+    if (( DRY )) || (( PREFLIGHT_ONLY )); then
+        warn "would run: dnf5 install -y ${missing_pkgs[*]}"
+        return 0
+    fi
+    log "Installing missing live-system tools: ${missing_pkgs[*]}"
+    dnf5 install -y "${missing_pkgs[@]}" \
+        || die "failed to install required tools on the LIVE system (${missing_pkgs[*]}) - install them manually and re-run"
+}
+check_live_tools
+
+###############################################################################
+# Preflight
+###############################################################################
+preflight() {
+    log "Preflight  (installer v1.9)"
+
+    printf '\n  Disks on this machine:\n'
+    lsblk -dno NAME,SIZE,TYPE,MODEL,TRAN 2>/dev/null \
+        | awk '$3=="disk" && $1!~/^(zram|loop|sr)/ {$3=""; printf "    /dev/%s\n", $0}' || true
+
+    printf '\n  Firmware  : '
+    if [[ -d /sys/firmware/efi/efivars ]]; then echo "UEFI  ok"; else echo "BIOS/CSM  -- systemd-boot needs UEFI"; fi
+    printf '  CPU       : %s (%s)  ->  microcode_ctl\n' \
+        "$(awk -F': ' '/^model name/{print $2; exit}' /proc/cpuinfo)" "$cpu_vendor"
+    printf '  GPU       : %s\n' "$gpu_vendor"
+    printf '  RAM       : %s\n' "$(numfmt --to=iec "$ram_bytes")"
+    printf '  Network   : '
+    if ping -c1 -W3 fedoraproject.org >/dev/null 2>&1; then echo "ok"; else echo "NO ROUTE -- connect before installing"; fi
+    printf '  systemd-oomd: '
+    if systemctl is-active --quiet systemd-oomd 2>/dev/null; then
+        printf 'ACTIVE  -- known to silently SIGKILL long/disk-heavy scripts on live\n'
+        printf '    media under memory pressure, with no error message at all. If a\n'
+        printf '    real run dies with no ERROR line, this is the first suspect:\n'
+        printf '        sudo systemctl mask --now systemd-oomd\n'
+    else
+        echo "inactive/not present  ok"
+    fi
+
+    printf '\n  \033[1mPlan\033[0m\n'
+    printf '    Disk       : %s\n' "$target"
+    printf '    Machine    : %s\n' "$machine"
+    printf '    Encryption : %s\n' "$encrypt"
+    if [[ "$want_swap" == yes ]]; then
+        printf '    Swap       : %s on disk  (hibernation enabled)\n' "$swap_size"
+    else
+        printf '    Swap       : no disk swap  (no hibernation)\n'
+    fi
+    if [[ -n "$zram_size" ]]; then
+        printf '    zram       : %s  (compressed RAM swap, used before disk swap)\n' "$zram_size"
+    else
+        printf '    zram       : none\n'
+    fi
+    printf '    Desktop    : Hyprland + quickshell  (autologin on tty1, no display manager)\n'
+    printf '    Dotfiles   : %s\n' "${dotfiles_repo:-none}"
+    printf '    Apps       : %s, %s\n' "$browser" "$terminal"
+    printf '    Host/user  : %s / %s\n' "$hostname" "$username"
+    printf '    Hyprland/quickshell source: COPR %s - VERIFY IT IS STILL MAINTAINED\n' "$hypr_copr"
+
+    printf '\n    Layout:\n'
+    printf '      %s  ESP %s, vfat, mounted at /boot  (also holds systemd-boot + BLS entries)\n' "$esppart" "$esp_size"
+    if [[ "$encrypt" == yes ]]; then
+        printf '      %s  LUKS2 -> LVM %s -> ' "$cryptpart" "$vg_name"
+        [[ "$want_swap" == yes ]] && printf 'lv swap (%s) + ' "$swap_size"
+        printf 'lv root (Btrfs)\n'
+    else
+        [[ "$want_swap" == yes ]] && printf '      %s  swap %s\n' "$swapdev" "$swap_size"
+        printf '      %s  Btrfs root\n' "$rootdev"
+    fi
+
+    if [[ ! -d /sys/firmware/efi/efivars ]]; then
+        warn "not booted UEFI - this script cannot proceed"
+        return 1
+    fi
+
+    if [[ "$want_swap" == yes ]]; then
+        local sb; sb=$(numfmt --from=iec "$swap_size" 2>/dev/null || echo 0)
+        (( sb * 5 >= ram_bytes * 2 )) || warn "swap is under 2/5 of RAM - hibernation may fail under load"
+    fi
+    printf '\n'
+}
+
+if (( PREFLIGHT_ONLY )); then
+    if preflight; then exit 0; else exit 1; fi
+fi
+
+if (( DRY )); then
+    preflight || warn "preflight found problems - continuing anyway, this is only a dry run"
+else
+    preflight || die "preflight failed"
+    [[ -d /sys/firmware/efi/efivars ]] || die "Not booted in UEFI mode."
+    [[ -b "$target" ]] || die "Target disk $target does not exist."
+    livedev="$(findmnt -no SOURCE / || true)"
+    if [[ -n "$livedev" && "$livedev" == "$target"* ]]; then
+        die "$target appears to hold the running live system. Aborting."
+    fi
+fi
+
+###############################################################################
+# Confirm
+###############################################################################
+if (( DRY )); then
+    log "DRY RUN - nothing below is executed, only printed"
+else
+    log "About to ERASE $target"
+    lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINTS "$target" || true
+    if (( ! ASSUME_YES )); then
+        echo
+        for i in {10..1}; do printf '\r    starting in %2ds - Ctrl+C to abort ' "$i"; sleep 1; done
+        echo
+    fi
+fi
+
+###############################################################################
+# Partition
+###############################################################################
+log "Creating partitions"
+run swapoff -a || true
+runsh "umount -R $rootmnt 2>/dev/null || true"
+# A previous interrupted run can leave the target's OLD LUKS/LVM stack live:
+# unmounted (above) but still active at the device-mapper level. You cannot
+# `cryptsetup close` a LUKS device while an LVM volume group built on top of
+# it is still active - the LV stays active even after its filesystem is
+# unmounted, until explicitly deactivated. Skipping this step doesn't fail
+# loudly: cryptsetup close just silently no-ops on "device busy" (that's
+# what the `|| true` below was hiding), and the script would then plow into
+# wipefs/sgdisk with the old encrypted volume still live underneath -
+# harmless for the GPT header itself, but it makes the NEXT luksFormat call
+# fail right after you type the passphrase, since the partition is still
+# genuinely in use by the stale mapping.
+if [[ "$encrypt" == yes ]]; then
+    runsh "vgchange -an 2>/dev/null || true"
+    runsh "cryptsetup close $mapper_name 2>/dev/null || true"
+fi
+run wipefs -af "$target"
+run sgdisk -Z "$target"
+
+if [[ "$encrypt" == yes ]]; then
+    run sgdisk \
+        -n1:0:+"$esp_size" -t1:ef00 -c1:EFISYSTEM \
+        -n2:0:0            -t2:8309 -c2:"$luks_label" \
+        "$target"
+elif [[ "$want_swap" == yes ]]; then
+    run sgdisk \
+        -n1:0:+"$esp_size"  -t1:ef00 -c1:EFISYSTEM \
+        -n2:0:+"$swap_size" -t2:8200 -c2:SWAP \
+        -n3:0:0             -t3:8300 -c3:BTRFSROOT \
+        "$target"
+else
+    run sgdisk \
+        -n1:0:+"$esp_size" -t1:ef00 -c1:EFISYSTEM \
+        -n2:0:0            -t2:8300 -c2:BTRFSROOT \
+        "$target"
+fi
+run partprobe "$target"
+run udevadm settle
+
+log "Making file systems"
+run mkfs.vfat -F32 -n EFISYSTEM "$esppart"
+run udevadm settle
+
+if [[ "$encrypt" == yes ]]; then
+    log "Setting up LUKS2 + LVM"
+    {
+        echo
+        echo "  You will be prompted for the disk encryption passphrase:"
+        echo "  twice to set it, then once more to unlock it for the install."
+        echo "  It is not recoverable if you lose it."
+        echo
+    } >/dev/tty 2>/dev/null || true
+    run cryptsetup luksFormat --type luks2 --batch-mode --label "$luks_label" "$cryptpart"
+    run cryptsetup open "$cryptpart" "$mapper_name"
+    run udevadm settle
+
+    run pvcreate -f "$mapperdev"
+    run vgcreate "$vg_name" "$mapperdev"
+    [[ "$want_swap" == yes ]] && run lvcreate -L "$swap_size" -n swap "$vg_name"
+    run lvcreate -l 100%FREE -n root "$vg_name"
+    run udevadm settle
+fi
+
+[[ "$want_swap" == yes ]] && run mkswap -L SWAP "$swapdev"
+run mkfs.btrfs -f -L BTRFSROOT "$rootdev"
+run udevadm settle
+
+if (( DRY )); then
+    luks_uuid="00000000-0000-0000-0000-0000000luks"
+    root_uuid="00000000-0000-0000-0000-00000000root"
+    swap_uuid="00000000-0000-0000-0000-00000000swap"
+else
+    root_uuid="$(blkid -s UUID -o value "$rootdev")"
+    [[ -n "$root_uuid" ]] || die "could not read the root filesystem UUID"
+    swap_uuid=""
+    if [[ "$want_swap" == yes ]]; then
+        swap_uuid="$(blkid -s UUID -o value "$swapdev")"
+        [[ -n "$swap_uuid" ]] || die "could not read the swap UUID"
+    fi
+    luks_uuid=""
+    if [[ "$encrypt" == yes ]]; then
+        luks_uuid="$(blkid -s UUID -o value "$cryptpart")"
+        [[ -n "$luks_uuid" ]] || die "could not read the LUKS container UUID"
+    fi
+fi
+
+###############################################################################
+# Subvolumes  (Fedora's own root+home layout - see the header note)
+###############################################################################
+log "Creating Btrfs subvolumes"
+run mount "$rootdev" "$rootmnt"
+run btrfs subvolume create "$rootmnt/root"
+run btrfs subvolume create "$rootmnt/home"
+
+# Fedora mounts root via the filesystem's DEFAULT subvolume rather than a
+# subvol= option - set that now while the top-level subvolume (id 5) is
+# still what's mounted at $rootmnt, so every later mount of $rootdev with
+# no subvol= option lands on "root" automatically, exactly like a stock
+# Fedora fstab.
+if (( DRY )); then
+    root_subvolid="256"
+else
+    root_subvolid="$(btrfs subvolume list "$rootmnt" | awk '$NF=="root"{print $2}')"
+    [[ -n "$root_subvolid" ]] || die "could not find the id of the root subvolume just created"
+fi
+run btrfs subvolume set-default "$root_subvolid" "$rootmnt"
+run umount "$rootmnt"
+
+log "Mounting subvolumes"
+run mount -o "$btrfs_opts" "$rootdev" "$rootmnt"
+run mkdir -p "$rootmnt"/{home,boot}
+run mount -o "$btrfs_opts,subvol=home" "$rootdev" "$rootmnt/home"
+run mount "$esppart" "$rootmnt/boot"
+[[ "$want_swap" == yes ]] && run swapon "$swapdev"
+
+###############################################################################
+# chroot helper
+#
+# Fedora live media does not ship arch-chroot's convenience of bind-mounting
+# /dev, /proc, /sys and /run for you - dnf --installroot handles that for its
+# OWN transactions, but anything this script runs manually after the package
+# install (kernel-install, bootctl, useradd, systemctl --root does NOT need
+# this) does. fchroot mounts them once and reuses the mount for every call.
+###############################################################################
+_chroot_mounted=0
+mount_chroot() {
+    (( _chroot_mounted )) && return 0
+    (( DRY )) && { _chroot_mounted=1; return 0; }
+    # --rbind + --make-rslave (not a plain --bind) for /dev and /sys: both
+    # have their own submounts (devpts, shm, cgroup, efivars, etc.) that
+    # bootctl/dracut/kernel-install can need. A flat --bind only exposes the
+    # top mount, not what's mounted under it.
+    run mount --types proc /proc "$rootmnt/proc"
+    run mount --rbind /sys "$rootmnt/sys"
+    run mount --make-rslave "$rootmnt/sys"
+    run mount --rbind /dev "$rootmnt/dev"
+    run mount --make-rslave "$rootmnt/dev"
+    run mount --bind /run "$rootmnt/run"
+    _chroot_mounted=1
+}
+umount_chroot() {
+    (( _chroot_mounted )) || return 0
+    (( DRY )) || {
+        umount -R "$rootmnt/run" 2>/dev/null || true
+        umount -R "$rootmnt/sys" 2>/dev/null || true
+        umount -R "$rootmnt/dev" 2>/dev/null || true
+        umount -R "$rootmnt/proc" 2>/dev/null || true
+    }
+    _chroot_mounted=0
+}
+# Cleanup on any exit (die, signal, or normal completion) is handled by the
+# single on_exit trap set earlier, right after the log redirection - not
+# here, since a second `trap ... EXIT` would silently replace that one.
+fchroot() {
+    mount_chroot
+    if (( DRY )); then
+        printf '   \033[2m|\033[0m chroot %s %s\n' "$rootmnt" "$*"
+        return 0
+    fi
+    chroot "$rootmnt" "$@"
+}
+
+###############################################################################
+# Base system
+###############################################################################
+log "Bootstrapping the base system (this is the long part)"
+run mkdir -p "$rootmnt/etc/yum.repos.d"
+# NO --setopt=install_weak_deps=False anywhere in this script. It was here
+# originally to keep the install lean, but Fedora leans on Recommends (not
+# hard Requires) for things that matter far more than package count:
+# per-vendor firmware sub-packages (this Framework 13's amdgpu and iwlwifi
+# firmware BOTH come in only via Recommends - stripping weak deps left
+# amdgpu unable to load ANY firmware at all, "Fatal error during GPU init",
+# permanently black-screening the machine at boot) and systemd's PAM/logind
+# integration (also Recommends-only - without it sddm-helper can't open a
+# session, so SDDM's greeter compositor can't get a seat either, a second,
+# independent failure from the exact same cause). Two different fatal boot
+# failures traced back to this one flag; it's not worth the disk savings.
+run dnf5 --installroot "$rootmnt" --releasever "$releasever" --use-host-config -y \
+    install "${basepacs[@]}"
+
+log "Adding the Hyprland/quickshell COPR ($hypr_copr)"
+writefile 0644 "$rootmnt/etc/yum.repos.d/_copr_${hypr_copr//\//-}.repo" <<EOF
+[copr:copr.fedorainfracloud.org:${hypr_copr%%/*}:${hypr_copr##*/}]
+name=Copr repo for ${hypr_copr##*/} owned by ${hypr_copr%%/*}
+baseurl=https://download.copr.fedorainfracloud.org/results/${hypr_copr}/fedora-\$releasever-\$basearch/
+type=rpm-md
+skip_if_unavailable=True
+gpgcheck=1
+gpgkey=https://download.copr.fedorainfracloud.org/results/${hypr_copr}/pubkey.gpg
+repo_gpgcheck=0
+enabled=1
+enabled_metadata=1
+EOF
+
+log "Installing hardware, desktop and app packages"
+# --use-host-config is deliberately DROPPED for this call, unlike the first
+# one. That flag makes dnf5 read the LIVE system's own /etc/yum.repos.d
+# instead of the installroot's - correct for the first call above, when
+# $rootmnt starts with zero repo config of its own, but wrong here: the
+# fedora-release package just installed into $rootmnt has already dropped
+# real fedora.repo/fedora-updates.repo files into $rootmnt/etc/yum.repos.d,
+# and the COPR file above was written to that same directory - not the live
+# system's. Keeping --use-host-config here would silently read the LIVE
+# system's repo list instead (which has no idea this COPR exists), and the
+# COPR packages would fail to resolve with no explanation, which is exactly
+# what happened before this was caught.
+run dnf5 --installroot "$rootmnt" --releasever "$releasever" -y \
+    install "${hwpacs[@]}" "${depacs[@]}" "${apppacs[@]}"
+
+log "Generating fstab"
+runsh "genfstab -U $rootmnt >> $rootmnt/etc/fstab 2>/dev/null || \
+       { echo '# genfstab not on this media - writing fstab by hand'; }"
+if (( ! DRY )) && ! grep -q "$root_uuid" "$rootmnt/etc/fstab" 2>/dev/null; then
+    {
+        echo "UUID=$(blkid -s UUID -o value "$esppart")  /boot  vfat  umask=0077  0 2"
+        # No subvol= here on purpose - root mounts via the default subvolume
+        # set earlier, exactly like a stock Fedora fstab's root line.
+        echo "UUID=$root_uuid  /      btrfs  $btrfs_opts               0 0"
+        echo "UUID=$root_uuid  /home  btrfs  $btrfs_opts,subvol=home   0 0"
+        [[ "$want_swap" == yes ]] && echo "UUID=$swap_uuid  none  swap  defaults  0 0"
+    } >> "$rootmnt/etc/fstab"
+fi
+
+###############################################################################
+# Locale / hostname / users
+###############################################################################
+log "Setting up the environment"
+run rm -f "$rootmnt"/etc/{machine-id,localtime,hostname,locale.conf}
+run systemd-firstboot --root "$rootmnt" \
+    --keymap="$keymap" --locale="$locale" --locale-messages="$locale" \
+    --timezone="$timezone" --hostname="$hostname" \
+    --setup-machine-id --welcome=false
+
+writefile 0644 "$rootmnt/etc/hosts" <<EOF
+127.0.0.1   localhost
+::1         localhost
+127.0.1.1   $hostname.localdomain $hostname
+EOF
+
+log "Creating user $username"
+mount_chroot
+[[ "$user_password" == "CHANGEME" || -z "$user_password" ]] && die \
+    "user_password is still the placeholder. Generate a hash with
+  mkpasswd -m sha-512
+and set it in the config block (escape every \$ as \\\$). Never commit a real hash."
+run fchroot useradd -m -G wheel -s /bin/bash -p "$user_password" "$username"
+writefile 0440 "$rootmnt/etc/sudoers.d/10-wheel" <<'EOF'
+%wheel ALL=(ALL:ALL) ALL
+EOF
+run fchroot visudo -cf /etc/sudoers.d/10-wheel
+
+# Files this script writes directly (fstab, hosts, sudoers, and the dracut/
+# zram/greetd/hypridle/hyprlock configs still to come) bypass rpm's normal
+# SELinux labeling. Schedule a full relabel on first boot rather than
+# hand-labeling each one - expect the very first boot to take noticeably
+# longer than the rest because of it, that's the relabel, not a hang.
+run touch "$rootmnt/.autorelabel"
+
+###############################################################################
+# initramfs, cmdline, systemd-boot
+#
+# dracut's hostonly mode (the default) looks at the actual devices under
+# $rootmnt and includes crypt/lvm/btrfs support only if they are really
+# needed - there is no HOOKS array to hand-assemble here.
+###############################################################################
+log "Configuring the kernel command line and boot entries"
+cmdline="root=UUID=$root_uuid rw rootfstype=btrfs"
+if [[ "$encrypt" == yes ]]; then
+    cmdline="rd.luks.uuid=$luks_uuid rd.luks.name=$luks_uuid=$mapper_name rd.lvm.lv=$vg_name/root $cmdline"
+    [[ "$want_swap" == yes ]] && cmdline+=" rd.lvm.lv=$vg_name/swap"
+fi
+[[ "$want_swap"  == yes    ]] && cmdline+=" resume=UUID=$swap_uuid"
+# Quiet, graphical boot.
+#   rhgb                      activates Plymouth
+#   quiet + loglevel=3        suppress kernel chatter
+#   systemd.show_status=false suppress the "[ OK ] Started ..." lines, which
+#                             `quiet` does NOT cover - this is the big one
+#   rd.* variants             same, inside the initrd (i.e. around the LUKS
+#                             passphrase prompt)
+#   vt.global_cursor_default=0  no blinking block cursor on the console
+cmdline+=" quiet rhgb loglevel=3 systemd.show_status=false rd.systemd.show_status=false rd.udev.log_level=3 udev.log_level=3 vt.global_cursor_default=0"
+
+writefile 0644 "$rootmnt/etc/kernel/cmdline" <<<"$cmdline"
+
+log "Installing systemd-boot to the ESP"
+run fchroot bootctl --esp-path=/boot install
+
+log "Generating the initramfs and BLS boot entry"
+kver=""
+if (( ! DRY )); then
+    kver="$(fchroot rpm -q kernel-core --qf '%{VERSION}-%{RELEASE}.%{ARCH}\n' | tail -n1)"
+    [[ -n "$kver" ]] || die "could not determine the installed kernel version"
+fi
+# kernel-install runs dracut itself and writes /boot/loader/entries/<id>.conf.
+# The kernel RPM's own scriptlet usually already did this during the dnf5
+# --installroot transaction above; calling it again here is idempotent and
+# is the explicit safety net this script relies on rather than trusting that
+# silently.
+run fchroot kernel-install add "$kver" "/usr/lib/modules/$kver/vmlinuz"
+
+writefile 0644 "$rootmnt/boot/loader/loader.conf" <<'EOF'
+timeout 3
+console-mode max
+EOF
+
+if [[ -n "$zram_size" ]]; then
+    log "Configuring zram"
+    writefile 0644 "$rootmnt/etc/systemd/zram-generator.conf" <<EOF
+[zram0]
+zram-size = $zram_size
+compression-algorithm = zstd
+EOF
+    writefile 0644 "$rootmnt/etc/sysctl.d/99-zram.conf" <<'EOF'
+vm.swappiness = 180
+vm.page-cluster = 0
+vm.watermark_boost_factor = 0
+vm.watermark_scale_factor = 125
+EOF
+fi
+
+###############################################################################
+# Hyprland session configuration
+#
+# uwsm is what makes SDDM/greetd's .desktop launch actually start
+# graphical-session.target - without it the polkit agent and hypridle would
+# be enabled but never run, same reasoning as the Arch script.
+###############################################################################
+log "Configuring the Hyprland session"
+if (( DRY )) || [[ ! -f "$rootmnt/usr/share/wayland-sessions/hyprland-uwsm.desktop" ]]; then
+    writefile 0644 "$rootmnt/usr/local/share/wayland-sessions/hyprland-uwsm.desktop" <<'EOF'
+[Desktop Entry]
+Name=Hyprland (uwsm-managed)
+Comment=Hyprland started through the Universal Wayland Session Manager
+Exec=uwsm start -- hyprland.desktop
+Type=Application
+DesktopNames=Hyprland
+EOF
+fi
+
+writefile 0644 "$rootmnt/home/$username/.config/hypr/hypridle.conf" <<'EOF'
+general {
+    lock_cmd         = pidof hyprlock || hyprlock
+    before_sleep_cmd = loginctl lock-session
+    after_sleep_cmd  = hyprctl dispatch dpms on
+}
+listener {
+    timeout    = 300
+    on-timeout = loginctl lock-session
+}
+listener {
+    timeout    = 330
+    on-timeout = hyprctl dispatch dpms off
+    on-resume  = hyprctl dispatch dpms on
+}
+EOF
+
+writefile 0644 "$rootmnt/home/$username/.config/hypr/hyprlock.conf" <<'EOF'
+background {
+    monitor =
+    color   = rgba(1a1a1aff)
+}
+input-field {
+    monitor           =
+    size              = 300, 50
+    outline_thickness = 2
+    outer_color       = rgba(00000000)
+    inner_color       = rgba(ffffff1a)
+    font_color        = rgb(cccccc)
+    fade_on_empty     = false
+    placeholder_text  = <i>Password…</i>
+    position          = 0, -20
+    halign            = center
+    valign            = center
+}
+label {
+    monitor   =
+    text      = cmd[update:1000] date +"%H:%M"
+    font_size = 55
+    color     = rgb(cccccc)
+    position  = 0, 100
+    halign    = center
+    valign    = center
+}
+EOF
+
+run fchroot chown -R "$username:$username" "/home/$username/.config"
+
+###############################################################################
+# Autologin + session start (replaces the display manager)
+#
+# There is no greeter. getty autologins the user on tty1, and the user's shell
+# profile starts Hyprland through uwsm.
+#
+# Deliberate details:
+#   --noissue --nohostname  suppress the "Fedora Linux 44 / Kernel ..." banner
+#                           and the hostname, so nothing is printed over the
+#                           Plymouth handoff
+#   -n                      skip the login prompt entirely
+#   NO --noclear            agetty clears the screen before login, which wipes
+#                           any leftover boot text (the stock unit passes
+#                           --noclear, which is exactly what preserves it)
+#
+# The default target stays graphical.target. Most autologin guides say to use
+# multi-user.target; that BREAKS this setup, because `uwsm check may-start`
+# explicitly requires the system to have reached graphical.target. Simply not
+# installing a display manager is enough - display-manager.service is only
+# Wanted by that target, not Required.
+###############################################################################
+log "Setting up autologin on tty1"
+
+writefile 0644 "$rootmnt/etc/systemd/system/getty@tty1.service.d/autologin.conf" <<EOF
+[Service]
+ExecStart=
+ExecStart=-/usr/sbin/agetty -n --autologin $username --noissue --nohostname %I \$TERM
+EOF
+
+# uwsm start hook. `uwsm check may-start` verifies: login shell, user dbus up,
+# system at graphical.target, no graphical-session already active, and the
+# foreground VT is 1 - so it stays inert over ssh and on other VTs.
+#
+# Deliberately NOT exec: if the compositor fails to start we fall back to a
+# shell rather than ending the session and making getty's autologin respawn in
+# a loop that is awkward to break out of.
+# Written in full (rather than appended) so this goes through writefile and is
+# therefore dry-run aware and creates its own parent directory. The first half
+# reproduces Fedora's /etc/skel/.bash_profile.
+writefile 0644 "$rootmnt/home/$username/.bash_profile" <<'PROFILE'
+# .bash_profile
+
+# Get the aliases and functions
+if [ -f ~/.bashrc ]; then
+    . ~/.bashrc
+fi
+
+# User specific environment and startup programs
+
+# Start Hyprland automatically on VT1 after getty autologin.
+if uwsm check may-start -q; then
+    _uwsm_state="${XDG_STATE_HOME:-$HOME/.local/state}"
+    mkdir -p "$_uwsm_state"
+    if ! uwsm start -e -D Hyprland hyprland.desktop \
+            >"$_uwsm_state/uwsm-start.log" 2>&1; then
+        echo "Hyprland failed to start. See $_uwsm_state/uwsm-start.log"
+    fi
+    unset _uwsm_state
+fi
+PROFILE
+run fchroot chown "$username:$username" "/home/$username/.bash_profile"
+
+###############################################################################
+# Dotfiles (optional)
+###############################################################################
+if [[ -n "$dotfiles_repo" ]]; then
+    log "Cloning dotfiles from $dotfiles_repo"
+    dotdir="$(basename "${dotfiles_repo%.git}")"
+    if run fchroot sudo -u "$username" git clone --depth 1 "$dotfiles_repo" \
+            "/home/$username/Work/$dotdir"; then
+
+        # Symlink the Hyprland config dir at the repo, replacing the minimal
+        # one written above. Only if the repo actually has a hypr/ directory -
+        # otherwise leave the working stock config in place.
+        if [[ -d "$rootmnt/home/$username/Work/$dotdir/hypr" ]]; then
+            run rm -rf "$rootmnt/home/$username/.config/hypr"
+            run fchroot sudo -u "$username" ln -s \
+                "/home/$username/Work/$dotdir/hypr" "/home/$username/.config/hypr"
+            log "  ~/.config/hypr -> Work/$dotdir/hypr"
+        elif (( DRY )); then
+            log "  (dry run: nothing was cloned, so hypr/ and systemd/ cannot"
+            log "   be inspected - on a real run they would be linked here)"
+        else
+            warn "  repo has no hypr/ directory - keeping the stock config"
+        fi
+
+        # Any user units the repo ships get linked and enabled.
+        if [[ -d "$rootmnt/home/$username/Work/$dotdir/systemd" ]]; then
+            run fchroot sudo -u "$username" mkdir -p "/home/$username/.config/systemd/user"
+            for unit in "$rootmnt/home/$username/Work/$dotdir/systemd/"*.service; do
+                [[ -e "$unit" ]] || continue
+                u="$(basename "$unit")"
+                run fchroot sudo -u "$username" ln -sf \
+                    "/home/$username/Work/$dotdir/systemd/$u" \
+                    "/home/$username/.config/systemd/user/$u"
+                run fchroot systemctl --global enable "$u" \
+                    || warn "  could not enable $u"
+                log "  enabled user unit $u"
+            done
+        fi
+        run fchroot chown -R "$username:$username" "/home/$username/Work" \
+            "/home/$username/.config"
+    else
+        warn "dotfiles clone FAILED - the stock config is still in place"
+    fi
+fi
+
+###############################################################################
+# Services
+###############################################################################
+log "Enabling services"
+services=(NetworkManager bluetooth fstrim.timer systemd-timesyncd)
+[[ "$machine" == laptop ]] && services+=(power-profiles-daemon)
+run fchroot systemctl enable "${services[@]}"
+run fchroot systemctl --global enable hyprpolkitagent.service hypridle.service \
+    || warn "could not enable one of the Hyprland user units"
+
+if [[ "$machine" == laptop ]]; then
+    writefile 0644 "$rootmnt/etc/systemd/logind.conf.d/00-lid.conf" <<EOF
+[Login]
+HandleLidSwitch=$( [[ "$want_swap" == yes ]] && echo suspend-then-hibernate || echo suspend )
+HandleLidSwitchExternalPower=suspend
+EOF
+    if [[ "$want_swap" == yes ]]; then
+        writefile 0644 "$rootmnt/etc/systemd/sleep.conf.d/00-hibernate.conf" <<'EOF'
+[Sleep]
+HibernateDelaySec=45min
+EOF
+    fi
+fi
+
+run fchroot usermod -L root
+
+###############################################################################
+# Verification
+###############################################################################
+umount_chroot
+
+if (( DRY )); then
+    log "Dry run finished"
+    cat <<EOF
+
+  Nothing was written. $target was not touched.
+
+  Disk       : $target
+  Encryption : $encrypt
+  Swap       : $swap_size$( [[ -n "$zram_size" ]] && echo "   zram: $zram_size" )
+  Machine    : $machine        CPU: $cpu_vendor        GPU: $gpu_vendor
+  Desktop    : Hyprland + quickshell (autologin on tty1, no display manager)
+  Dotfiles   : ${dotfiles_repo:-none}
+  Apps       : $browser, $terminal
+  cmdline    : $cmdline
+
+  Run it for real with:   sudo $0 -d $target
+EOF
+    exit 0
+fi
+
+log "Verifying"
+fail=0
+check() { if eval "$2"; then printf '  \033[32mok\033[0m   %s\n' "$1"; else printf '  \033[31mFAIL\033[0m %s\n' "$1"; fail=1; fi; }
+
+check "kernel present"                 "compgen -G '$rootmnt/boot/loader/entries/*.conf' >/dev/null"
+check "initramfs referenced by an entry" "grep -rq '^initrd ' '$rootmnt/boot/loader/entries/' 2>/dev/null"
+check "systemd-boot on the ESP"        "[[ -f '$rootmnt/boot/EFI/systemd/systemd-bootx64.efi' ]]"
+check "loader.conf written"            "[[ -f '$rootmnt/boot/loader/loader.conf' ]]"
+check "root UUID matches fstab"        "grep -q '$root_uuid' '$rootmnt/etc/fstab'"
+check "firmware boot entry created"    "efibootmgr | grep -qi 'linux boot manager'"
+check "kernel cmdline written"         "[[ -f '$rootmnt/etc/kernel/cmdline' ]]"
+
+if [[ "$encrypt" == yes ]]; then
+    check "LUKS2 container on $cryptpart"  "cryptsetup isLuks '$cryptpart'"
+    check "rd.luks.uuid= in the entry"     "grep -rq 'rd.luks.uuid=$luks_uuid' '$rootmnt/boot/loader/entries/'"
+fi
+
+if [[ "$want_swap" == yes ]]; then
+    check "resume=UUID matches swap"   "grep -rq 'resume=UUID=$swap_uuid' '$rootmnt/boot/loader/entries/'"
+    check "swap in fstab"              "grep -q '$swap_uuid' '$rootmnt/etc/fstab'"
+    swap_bytes=$(blockdev --getsize64 "$swapdev")
+    printf '  info swap %s / RAM %s\n' "$(numfmt --to=iec "$swap_bytes")" "$(numfmt --to=iec "$ram_bytes")"
+    (( swap_bytes * 5 >= ram_bytes * 2 )) || warn "swap under 2/5 of RAM - hibernation may fail under load"
+fi
+
+if [[ -n "$zram_size" ]]; then
+    check "zram config written"        "grep -q 'zram-size' '$rootmnt/etc/systemd/zram-generator.conf'"
+    check "zram is not the resume dev" "! grep -rq 'resume=.*zram' '$rootmnt/boot/loader/entries/'"
+fi
+
+check "hyprland-uwsm session entry"    "[[ -f '$rootmnt/usr/share/wayland-sessions/hyprland-uwsm.desktop' || -f '$rootmnt/usr/local/share/wayland-sessions/hyprland-uwsm.desktop' ]]"
+check "hypridle config written"        "grep -q before_sleep_cmd '$rootmnt/home/$username/.config/hypr/hypridle.conf'"
+target_uid="$(awk -F: -v u="$username" '$1==u{print $3}' "$rootmnt/etc/passwd")"
+check "user owns their config dir"     "[[ -n '$target_uid' && \$(stat -c %u '$rootmnt/home/$username/.config') == '$target_uid' ]]"
+check "autorelabel scheduled"          "[[ -f '$rootmnt/.autorelabel' ]]"
+check "quickshell installed"           "[[ -x '$rootmnt/usr/bin/quickshell' ]]"
+check "no display manager"             "[[ ! -e '$rootmnt/etc/systemd/system/display-manager.service' ]]"
+check "getty autologin drop-in"        "grep -q 'autologin $username' '$rootmnt/etc/systemd/system/getty@tty1.service.d/autologin.conf'"
+check "uwsm start hook in profile"     "grep -q 'uwsm check may-start' '$rootmnt/home/$username/.bash_profile'"
+check "plymouth in initrd"             "rpm --root='$rootmnt' -q plymouth >/dev/null 2>&1"
+check "rhgb on kernel cmdline"         "grep -q rhgb '$rootmnt/etc/kernel/cmdline'"
+check "browser installed"              "rpm --root='$rootmnt' -q '$browser' >/dev/null 2>&1"
+check "terminal installed"             "[[ -x \"\$(fchroot which $terminal 2>/dev/null)\" ]] || rpm --root='$rootmnt' -q '$terminal' >/dev/null 2>&1"
+
+sync
+if (( fail )); then
+    die "some checks failed - fix them before rebooting (the system is still mounted at $rootmnt)"
+fi
+
+log "Install complete"
+run cp "$logfile" "$rootmnt/var/log/fedora-install.log"
+
+cat <<EOF
+
+  Disk       : $target
+  Encryption : $encrypt$( [[ "$encrypt" == yes ]] && echo "  (LUKS2 UUID=$luks_uuid -> LVM $vg_name)" )
+  Root       : UUID=$root_uuid  (default subvolume: root)
+  Swap       : $( [[ "$want_swap" == yes ]] && echo "UUID=$swap_uuid  ($swap_size on disk, hibernation enabled)" || echo "no disk swap" )
+  zram       : $( [[ -n "$zram_size" ]] && echo "$zram_size  (compressed, used before disk swap)" || echo "none" )
+  Machine    : $machine        CPU: $cpu_vendor        GPU: $gpu_vendor
+  Desktop    : Hyprland + quickshell (autologin on tty1, no display manager)
+  Dotfiles   : ${dotfiles_repo:-none}
+  Apps       : $browser, $terminal
+  User       : $username  (sudo requires the password; root is locked)
+
+  Next:
+    umount -R $rootmnt$( [[ "$want_swap" == yes ]] && echo " && swapoff -a" )$( [[ "$encrypt" == yes ]] && echo " && cryptsetup close $mapper_name" ) && reboot
+
+  FIRST BOOT WILL TAKE LONGER THAN USUAL - SELinux is relabeling the whole
+  filesystem (the .autorelabel this script scheduled, since fstab/sudoers/
+  hypridle/hyprlock/zram/dracut/autologin configs were all written directly
+  rather than through rpm). The machine reboots itself once when that
+  finishes. Normal, let it run.
+
+  THERE IS NO GREETER. The machine autologins $username on tty1 and starts
+  Hyprland from ~/.bash_profile via uwsm, which is what starts
+  graphical-session.target - the thing that makes the polkit agent, hypridle
+  and the portals work. Your LUKS passphrase is the only authentication at
+  boot; that is the deliberate trade.
+
+  If Hyprland ever fails to start you land at a shell on tty1 rather than a
+  respawn loop (the profile hook does not use exec), and tty2-tty6 always
+  give you a normal login. The uwsm output goes to
+  ~/.local/state/uwsm-start.log, not the screen.
+
+  QUICKSHELL SHIPS NO DEFAULT CONFIG. It is a QtQuick toolkit, not a bar -
+  you will have NOTHING on screen until you put a QML config in
+  ~/.config/quickshell/. Write one or clone a community config (e.g. one of
+  the "end-4"/caelestia-style quickshell configs floating around) to get a
+  working bar immediately.
+
+  NO LAUNCHER IS INSTALLED, deliberately - quickshell is meant to provide
+  one. Until it does, the launcher keybind does nothing. CHECK WHICH CONFIG
+  FILE HYPRLAND ACTUALLY GENERATED before editing anything: this COPR ships
+  a Hyprland new enough to use ~/.config/hypr/hyprland.lua (Lua syntax)
+  rather than the classic hyprland.conf, and most guides online still assume
+  the old format. Check with:
+    ls ~/.config/hypr/
+  $( [[ "$terminal" != kitty ]] && echo "You also chose $terminal - the same
+  \$terminal-style variable (or its Lua equivalent) needs updating in
+  whichever config file is actually present." )
+
+  NO NOTIFICATION DAEMON IS INSTALLED either - apps that send desktop
+  notifications will silently do nothing until you install one (mako,
+  dunst, swaync, ...) or quickshell grows one in its config.
+
+  If uwsm crashes with a Python ModuleNotFoundError the first time you
+  start a session, that is a real gap in the COPR's uwsm packaging (it has
+  hard-imported modules it doesn't declare as dependencies) - read the
+  module name out of the traceback and `sudo dnf5 install python3-<name>`.
+  python3-pyxdg and python3-dbus are already included above for exactly
+  this reason; if a COPR update introduces another one, same fix applies.
+
+$( [[ "$want_swap" == yes ]] && cat <<'HINT'
+  Confirm hibernation before you rely on it:
+    systemctl hibernate
+
+HINT
+)  First boot, before anything else:
+    sudo dnf upgrade --refresh
+
+  Hyprland/quickshell came from a third-party COPR ($hypr_copr) - if it
+  ever goes stale, "sudo dnf copr disable $hypr_copr" and swap in whatever
+  COPR has taken over as the maintained one.
+EOF

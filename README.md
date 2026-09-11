@@ -29,6 +29,13 @@ bin/
 
 systemd/
   power-mode.service     user unit that runs power-mode.sh in watch mode
+
+install/
+  install_fedora_v1_9.sh guided Fedora 44 installer that builds this machine
+                         from bare metal: Btrfs + systemd-boot + optional
+                         LUKS, Hyprland/quickshell, autologin, Plymouth
+  vm-test.sh             boots a throwaway UEFI VM to test the installer
+                         without reformatting anything real
 ```
 
 `require()` resolves relative to `hyprland.lua`'s directory, so `input.lua`
@@ -56,14 +63,50 @@ systemctl --user enable --now power-mode.service
 `power-mode.service` is `WantedBy=graphical-session.target`, so it starts and
 stops with the Hyprland session.
 
+## Rebuilding this machine
+
+`install/install_fedora_v1_9.sh` installs Fedora 44 + Hyprland from a live
+environment. It asks for a dotfiles git URL; give it this repo's URL and it
+clones it, symlinks `~/.config/hypr` at `hypr/`, and enables the user units in
+`systemd/` - so the result is this setup, not a generic one.
+
+Never run it against real hardware untested. `install/vm-test.sh` boots a
+throwaway UEFI VM for exactly that:
+
+```sh
+sudo dnf install qemu-system-x86-core qemu-img edk2-ovmf qemu-ui-gtk \
+                 qemu-device-display-virtio-gpu qemu-device-display-virtio-vga-gl \
+                 qemu-device-display-virtio-gpu-gl virglrenderer
+
+cd install && ./vm-test.sh /path/to/Fedora-Workstation-Live-*.iso
+```
+
+It serves this directory over HTTP so the VM can `curl` the installer at
+`10.0.2.2:8000`, and forwards host port 2222 to the VM's ssh. Inside the VM the
+target disk is `/dev/vda`. `--reboot` boots the installed disk, `--clean`
+throws it away.
+
+Both scripts have safe modes that change nothing: `--check-repos` resolves
+every package name, `--preflight` reports on the machine, `--dry-run` prints
+every command it would run.
+
 ## Power policy
 
 | | Battery | AC |
 |---|---|---|
 | Power profile | `power-saver` | `balanced` |
 | Brightness | 50% | 100% |
-| Lock | 5 min | 15 min |
-| Screen off | 5 min | 15 min |
+| Lock | 5:00 | 5:00 |
+| Display off | 5:30 | 15:30 |
+| Suspend | 15:00 | never (lid close only) |
+
+Locking is not power-dependent; only the display-off timeout is. On AC the
+machine deliberately stays awake so long downloads, builds and ssh sessions
+are not cut off - closing the lid still suspends, via logind's
+`HandleLidSwitchExternalPower`.
+
+The 30 second gap between locking and blanking is load-bearing - see the
+comment in `hypridle.conf`.
 
 Two independent mechanisms, deliberately:
 
@@ -72,11 +115,12 @@ Two independent mechanisms, deliberately:
 polling, and entirely unprivileged - `powerprofilesctl` and `brightnessctl`
 both work as the user here, so there is no udev rule and nothing in `/etc`.
 
-**Lock and screen-off timeouts** live in `hypridle.conf`. Both listeners are
-always armed and the 5-minute one tests `/sys/class/power_supply/ACAD/online`
-when it fires, doing nothing on AC so the 15-minute listener handles it. This
-avoids swapping config files and restarting hypridle on every plug event, and
-avoids a race if the charger moves while a timer is already running.
+**Lock, display-off and suspend timeouts** live in `hypridle.conf`, with the
+logic in `bin/idle-action.sh`. Every listener is always armed and the
+battery-scoped ones test `/sys/class/power_supply/ACAD/online` when they fire,
+doing nothing on AC. This avoids swapping config files and restarting hypridle
+on every plug event, and avoids a race if the charger moves while a timer is
+already running.
 
 Watch it react:
 
