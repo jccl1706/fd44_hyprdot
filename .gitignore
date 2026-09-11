@@ -1,0 +1,15 @@
+# Editor / OS noise
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Backups made while editing configs
+*.bak
+*.orig
+*.rej
+
+# Anything a tool generates into the config dir at runtime.
+# Hyprland itself writes nothing here, but hyprpm (plugin manager) does.
+hypr/hyprpm/
+hypr/.hyprpm*

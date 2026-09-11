@@ -1,0 +1,22 @@
+[Unit]
+# Applies power-source-dependent settings (power profile + screen brightness)
+# and keeps watching for the charger being plugged or unplugged.
+#
+# Bound to graphical-session.target so it starts with the Hyprland session and
+# stops with it - brightnessctl is pointless without a session, and there is
+# nothing to do while logged out.
+Description=Apply power profile and brightness based on AC/battery
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/Work/fd44_hyprdot/bin/power-mode.sh watch
+
+# The watcher is a pipeline around `udevadm monitor`; if that ever dies, the
+# service should come back rather than silently stop reacting to the charger.
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=graphical-session.target
