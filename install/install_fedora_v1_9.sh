@@ -321,16 +321,20 @@ username="jc"
 
 # SHA-512 crypt hash for the user account.
 #
-# DO NOT COMMIT A REAL HASH HERE. A crypt hash is offline-crackable, so
-# publishing one is publishing the password with a delay. This placeholder is
-# deliberately invalid and the script refuses to run until you replace it.
+# This is the hash of the literal password "changeme", and it is PUBLIC - this
+# repository is public, so treat it as known to everyone.
 #
-# Generate one with:   mkpasswd -m sha-512
-#              or:     openssl passwd -6
+# That is safe only because the script expires the password immediately after
+# creating the account (chage -d 0), so the first login is REQUIRED to set a
+# new one before it reaches a shell. Do not remove that expiry while this
+# default is in place.
+#
+# To ship your own instead:   mkpasswd -m sha-512
+# and drop the chage line if you do not want the forced change.
 #
 # Inside double quotes every $ must be backslash-escaped, e.g.
 #   user_password="\$6\$somesalt\$somehash..."
-user_password="CHANGEME"
+user_password="\$6\$zcrn5YwbNeft2Sd8\$3CdRbMzCFs0l6NjjWHTzpGD9X6snAgShzQePocq9OJ9CuiPtvvvLdGu3Y8ic6tuSdyOo3aAyuANcgLW2iwAEu."
 
 luks_label="CRYPTROOT"
 vg_name="vg0"
@@ -1163,11 +1167,19 @@ EOF
 
 log "Creating user $username"
 mount_chroot
-[[ "$user_password" == "CHANGEME" || -z "$user_password" ]] && die \
-    "user_password is still the placeholder. Generate a hash with
-  mkpasswd -m sha-512
-and set it in the config block (escape every \$ as \\\$). Never commit a real hash."
+[[ -z "$user_password" ]] && die "user_password is empty - set a hash in the config block"
 run fchroot useradd -m -G wheel -s /bin/bash -p "$user_password" "$username"
+
+# Expire the password immediately, so the first login MUST set a new one.
+#
+# This is what makes shipping a publicly-known default hash acceptable. The
+# autologin path still works: agetty execs `login -f`, which skips
+# authentication but still runs PAM account management - that sees the expired
+# password and forces a change before handing over to the shell. So the first
+# boot shows one password prompt, then never again.
+#
+# If you replace user_password with your own private hash, you can drop this.
+run fchroot chage -d 0 "$username"
 writefile 0440 "$rootmnt/etc/sudoers.d/10-wheel" <<'EOF'
 %wheel ALL=(ALL:ALL) ALL
 EOF
@@ -1540,6 +1552,11 @@ cat <<EOF
   hypridle/hyprlock/zram/dracut/autologin configs were all written directly
   rather than through rpm). The machine reboots itself once when that
   finishes. Normal, let it run.
+
+  FIRST LOGIN WILL ASK YOU TO CHANGE THE PASSWORD. The account ships with the
+  publicly-known password "changeme", expired on creation, so the very first
+  boot forces you to set a real one before it reaches a shell. Until you do,
+  treat the machine as having no password at all.
 
   THERE IS NO GREETER. The machine autologins $username on tty1 and starts
   Hyprland from ~/.bash_profile via uwsm, which is what starts

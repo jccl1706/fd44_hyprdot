@@ -70,6 +70,12 @@ environment. It asks for a dotfiles git URL; give it this repo's URL and it
 clones it, symlinks `~/.config/hypr` at `hypr/`, and enables the user units in
 `systemd/` - so the result is this setup, not a generic one.
 
+**The installed account ships with the password `changeme`, expired on
+creation.** It is in a public repo, so assume everyone knows it - that is fine
+only because `chage -d 0` forces a new password at the very first login,
+before a shell is reached. If you replace `user_password` with your own hash,
+drop the `chage` line too.
+
 Never run it against real hardware untested. `install/vm-test.sh` boots a
 throwaway UEFI VM for exactly that:
 
