@@ -79,7 +79,15 @@ Row {
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
-                onClicked: Hyprland.dispatch("workspace " + chip.wsId)
+
+                // Hyprland 0.56 EVALUATES DISPATCHES AS LUA, so the old
+                // string form "workspace 3" is a syntax error, not a command:
+                //   ')' expected near '3'
+                // It fails silently from the bar's point of view - the click
+                // simply does nothing - and only shows up in quickshell's log.
+                // Same call the keybinds use, see hypr/binds.lua.
+                onClicked: Hyprland.dispatch(
+                    "hl.dsp.focus({ workspace = " + chip.wsId + " })")
             }
         }
     }
