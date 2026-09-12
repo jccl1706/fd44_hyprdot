@@ -140,7 +140,16 @@ case "${1:-}" in
         ;;
 
     thumbdir)
-        printf '%s\n' "$thumb_dir"
+        # Prints NOTHING when there are no previews yet.
+        #
+        # The picker uses this to decide whether to show previews or fall back
+        # to the full-size originals, and an unconditional path defeats that:
+        # the directory exists but is empty, the picker points at it, and the
+        # result is an empty picker rather than a slow one. Reporting emptiness
+        # here keeps that decision with the code that knows about it.
+        if compgen -G "$thumb_dir/*.webp" >/dev/null 2>&1; then
+            printf '%s\n' "$thumb_dir"
+        fi
         ;;
 
     *)

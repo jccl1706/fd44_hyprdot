@@ -745,6 +745,13 @@ depacs=(
     # a silent fallback to the default mono font rather than an error.
     # Pulls nothing: noarch, no dependencies of its own.
     jetbrains-mono-fonts
+
+    # cwebp/dwebp, used by bin/wallpaper.sh to build the picker's preview
+    # thumbnails. Without it `wallpaper.sh thumbs` dies on every login and the
+    # picker has no previews to show - which is how a VM install came up with
+    # an empty wallpaper picker despite the wallpapers being cloned correctly.
+    # 289 KB, and everything it needs (libwebp) is already pulled in.
+    libwebp-tools
 )
 # Plymouth: graphical boot splash, and a graphical LUKS passphrase prompt
 # instead of the bare text one. plymouth-system-theme pulls the bgrt theme,

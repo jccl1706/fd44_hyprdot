@@ -162,6 +162,11 @@ PanelWindow {
         // also means the strip normally opens with slivers on BOTH sides
         // instead of a bare half-screen, which is what index 0 looks like.
         if (root.setterScript) currentReader.running = true
+        // Re-ask where the previews are. On a first login the thumbnails are
+        // still being generated when the shell starts, so the answer at
+        // startup is "none yet" - without this the picker would keep using
+        // the full-size originals for the rest of the session.
+        if (root.setterScript) thumbDirReader.running = true
     }
 
     Process {
