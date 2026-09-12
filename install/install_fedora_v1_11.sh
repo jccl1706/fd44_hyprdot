@@ -1322,11 +1322,12 @@ else
         run fchroot fc-cache -f /usr/local/share/fonts >/dev/null 2>&1 || true
         log "  /usr/local/share/fonts/nerd-fonts-symbols/SymbolsNerdFont-Regular.ttf"
     else
-        warn "Symbols Nerd Font download failed - the bar's logo and the OSD"
-        warn "  icons will render as empty boxes. To fix after first boot:"
-        warn "    curl -fsSL $nerdfont_url | \\"
-        warn "      sudo tar -xJC /usr/local/share/fonts SymbolsNerdFont-Regular.ttf"
-        warn "    sudo fc-cache -f"
+        warn "Symbols Nerd Font download failed - every glyph in the bar,"
+        warn "  launcher, OSD, power menu and lock screen will be an empty box."
+        warn "  To fix after first boot, from the dotfiles checkout:"
+        warn "    sudo bin/install-nerd-font.sh"
+        warn "  It reuses a copy already on the machine if there is one, and"
+        warn "  downloads only if there is not."
     fi
     rm -rf "$nerdfont_tmp"
 fi
