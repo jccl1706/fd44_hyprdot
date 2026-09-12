@@ -56,14 +56,28 @@ hl.env("HYPRCURSOR_SIZE", "24")
 --   pipewire, wireplumber, pipewire-pulse
 --   Xwayland              (spawned by Hyprland on demand)
 --
--- What is genuinely NOT running yet:
---   hyprpaper - installed but not started, so there is no wallpaper daemon
+-- Wallpaper. hyprpaper draws it; bin/wallpaper.sh remembers which one.
 --
--- Add it here once it is wanted:
+-- The two are separate on purpose: hyprpaper has no memory of its own, so a
+-- wallpaper set over IPC is forgotten the moment the daemon restarts. The
+-- script records the choice in ~/.local/state and `restore` re-applies it.
 --
--- hl.on("hyprland.start", function()
---     hl.exec_cmd("hyprpaper")
--- end)
+-- The sleep is not superstition - hyprpaper has to be up and listening on
+-- its IPC socket before `restore` can talk to it, and there is no readiness
+-- signal to wait on. If restore silently does nothing after a cold boot,
+-- this is the first thing to lengthen.
+hl.on("hyprland.start", function()
+    hl.exec_cmd("hyprpaper")
+    hl.exec_cmd("sh -c 'sleep 1; $HOME/Work/fd44_hyprdot/bin/wallpaper.sh restore'")
+
+    -- Refresh the picker's preview thumbnails. Safe to run every login: it
+    -- only regenerates previews that are missing or older than their source,
+    -- so the steady-state cost is about 80ms. The first run after adding
+    -- wallpapers takes a few seconds, in the background, and nothing waits
+    -- on it - the picker falls back to the full-size originals until it
+    -- finishes.
+    hl.exec_cmd("sh -c '$HOME/Work/fd44_hyprdot/bin/wallpaper.sh thumbs'")
+end)
 
 
 -- Quickshell: the bar, the screen frame and the application launcher

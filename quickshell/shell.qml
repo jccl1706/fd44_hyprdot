@@ -17,6 +17,7 @@
 
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 import QtQuick
 
 ShellRoot {
@@ -66,6 +67,26 @@ ShellRoot {
         Launcher {}
     }
 
+    // The wallpaper picker, same arrangement.
+    Variants {
+        id: wallpaperVariants
+        model: Quickshell.screens
+        WallpaperPicker {
+            onApplyRequested: (path, script) => shell.eachFade(f => {
+                f.setterScript = script
+                f.fadeTo(path)
+            })
+        }
+    }
+
+    // The crossfade surface. Unmapped except during a wallpaper change, and
+    // click-through even then.
+    Variants {
+        id: fadeVariants
+        model: Quickshell.screens
+        WallpaperFade {}
+    }
+
     // -----------------------------------------------------------------------
     // IPC - lets Hyprland's keybinds drive the OSD
     // -----------------------------------------------------------------------
@@ -79,6 +100,47 @@ ShellRoot {
     // it displays, so the two cannot disagree.
     //
     // List what a running instance exposes with:  qs ipc show
+    // --- global shortcuts --------------------------------------------------
+    //
+    // These register with Hyprland's global-shortcuts protocol, so a keypress
+    // is delivered straight into this running process.
+    //
+    // The IPC handlers below still exist and still work - they are the way to
+    // drive this from a script or a terminal. But they are the WRONG way to
+    // bind a key: `qs ipc call ...` spawns an entire quickshell process just
+    // to connect to the one already running, and that cost lands on every
+    // press. Measured at 113ms before the panel had even begun to appear,
+    // against a 60ms image decode - the dead time was nearly twice the work.
+    //
+    // Bound in hypr/binds.lua as:  hl.dsp.global("quickshell:launcher")
+    GlobalShortcut {
+        appid: "quickshell"
+        name: "launcher"
+        onPressed: shell.eachLauncher(l => l.toggle())
+    }
+
+    GlobalShortcut {
+        appid: "quickshell"
+        name: "wallpaper"
+        onPressed: shell.eachWallpaper(w => w.toggle())
+    }
+
+    IpcHandler {
+        target: "wallpaper"
+
+        function toggle(): void { shell.eachWallpaper(w => w.toggle()) }
+        function open(): void   { shell.eachWallpaper(w => w.open())   }
+        function close(): void  { shell.eachWallpaper(w => w.close())  }
+
+        // Step the selection without the keyboard - scriptable, and the only
+        // way to trigger the transition reproducibly for measurement.
+        function next(): void   { shell.eachWallpaper(w => w.move(1))  }
+        function prev(): void   { shell.eachWallpaper(w => w.move(-1)) }
+
+        // Apply whatever is currently centred - the same thing Return does.
+        function apply(): void  { shell.eachWallpaper(w => w.applySelected()) }
+    }
+
     IpcHandler {
         target: "launcher"
 
@@ -104,6 +166,20 @@ ShellRoot {
     // monitor from silently doing nothing.
     function eachLauncher(fn): void {
         const instances = launcherVariants.instances
+        for (let i = 0; i < instances.length; i++) {
+            if (instances[i]) fn(instances[i])
+        }
+    }
+
+    function eachFade(fn): void {
+        const instances = fadeVariants.instances
+        for (let i = 0; i < instances.length; i++) {
+            if (instances[i]) fn(instances[i])
+        }
+    }
+
+    function eachWallpaper(fn): void {
+        const instances = wallpaperVariants.instances
         for (let i = 0; i < instances.length; i++) {
             if (instances[i]) fn(instances[i])
         }
