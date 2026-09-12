@@ -21,6 +21,21 @@
 #                watch these over dbus and restyle themselves. No new theme
 #                package: Adwaita ships light and dark and picks by scheme.
 #
+#                This reaches further than GTK. xdg-desktop-portal republishes
+#                the setting as org.freedesktop.appearance color-scheme, and
+#                that is what Chromium, Electron apps and anything else
+#                portal-aware actually read - verified with:
+#                  busctl --user call org.freedesktop.portal.Desktop \
+#                    /org/freedesktop/portal/desktop \
+#                    org.freedesktop.portal.Settings ReadOne ss \
+#                    org.freedesktop.appearance color-scheme
+#                which returns 1 for dark and 2 for light as this switches.
+#                So Chromium follows the toggle with nothing installed, as
+#                long as its Appearance > Mode is left on Device (the
+#                default). It follows in generic light/dark, not in this
+#                palette: a Chrome theme is an extension, and no outside
+#                process can swap one without restarting the browser.
+#
 #   Hyprland     hyprctl eval, applied live. NOT `hyprctl keyword`, which
 #                this Hyprland refuses outright - "keyword can't work with
 #                non-legacy parsers, use eval" - because the config is Lua.
