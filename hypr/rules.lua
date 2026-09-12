@@ -43,29 +43,29 @@ hl.window_rule({
     no_focus = true,
 })
 
--- Steam's secondary windows float; its main window does not.
+-- The Steam client lives on workspace 5, floating.
 --
--- The Steam client is one X11 application that opens a lot of small
--- top-level windows - Friends List, Special Offers, Settings, the screenshot
--- uploader, one per chat - and every one of them arrives as a normal
--- toplevel with class "steam". In a tiling layout they take a column each.
--- Two of them were already doing it within a minute of the first login, which
--- is what prompted this rule.
+-- Steam is one X11 application that opens a lot of small top-level windows -
+-- Friends List, Special Offers, Settings, the screenshot uploader, one per
+-- chat - and every one of them arrives as a normal toplevel with class
+-- "steam". In a tiling layout they take a column each; two were already
+-- doing it within a minute of the first login. Giving the whole client a
+-- workspace of its own and floating it keeps the store, the library and
+-- every popup out of the way of actual work.
 --
--- `negative:` inverts a match, so this is "class steam, title anything but
--- exactly Steam". Both halves are measured rather than assumed: the class is
--- lowercase `steam` on XWayland (hyprctl clients), and the negative prefix
--- was checked behaviourally with two throwaway windows, because a rule that
--- merely PARSES is not a rule that works - the three other spellings tried
--- were rejected outright as unknown fields, which at least fails loudly.
+-- The class is measured, not assumed: lowercase `steam`, on XWayland, per
+-- hyprctl clients against a running client.
 --
--- Games are unaffected: a launched title gets class steam_app_<id>, not
--- steam.
+-- GAMES ARE DELIBERATELY NOT MATCHED. A launched title gets class
+-- steam_app_<id>, so it opens wherever you are and tiles or fullscreens
+-- normally. Floating a game, or pinning every game to one workspace, is not
+-- what "put Steam on workspace 5" means.
 hl.window_rule({
-    name  = "float-steam-popups",
-    match = { class = "^steam$", title = "negative:^Steam$" },
+    name  = "steam-workspace",
+    match = { class = "^steam$" },
 
-    float = true,
+    workspace = "5",
+    float     = true,
 })
 
 -- Do not lock the screen in the middle of a game.
