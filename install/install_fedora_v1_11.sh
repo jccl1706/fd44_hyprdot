@@ -739,6 +739,12 @@ depacs=(
     #
     # Pulls nothing: noarch, no dependencies of its own.
     rsms-inter-vf-fonts
+
+    # kitty asks for "JetBrains Mono" by name (kitty/kitty.conf). Same class
+    # of gap as Inter: named in a config, installed by nothing, and a miss is
+    # a silent fallback to the default mono font rather than an error.
+    # Pulls nothing: noarch, no dependencies of its own.
+    jetbrains-mono-fonts
 )
 # Plymouth: graphical boot splash, and a graphical LUKS passphrase prompt
 # instead of the bare text one. plymouth-system-theme pulls the bgrt theme,
@@ -1627,23 +1633,27 @@ if [[ -n "$dotfiles_repo" ]]; then
             warn "  repo has no hypr/ directory - keeping the stock config"
         fi
 
-        # Same again for the quickshell config - the bar, the screen frame
-        # and the application launcher. Without this the repo is cloned, the
-        # Hyprland side works, `qs -d` starts from autostart.lua... and then
-        # quickshell finds no ~/.config/quickshell/shell.qml and draws
-        # nothing. The result boots to a bare Hyprland desktop that looks
-        # like the dotfiles failed to apply, when in fact only half of them
-        # were linked. Caught by actually rebooting a VM install, not by
-        # reading the script.
-        if [[ -d "$rootmnt/home/$username/Work/$dotdir/quickshell" ]]; then
-            run rm -rf "$rootmnt/home/$username/.config/quickshell"
-            run fchroot sudo -u "$username" ln -s \
-                "/home/$username/Work/$dotdir/quickshell" \
-                "/home/$username/.config/quickshell"
-            log "  ~/.config/quickshell -> Work/$dotdir/quickshell"
-        elif (( ! DRY )); then
-            warn "  repo has no quickshell/ directory - no bar will be drawn"
-        fi
+        # Every other config directory the repo ships, linked the same way.
+        #
+        # A LIST, not a hardcoded case per directory. quickshell used to be
+        # missing here entirely: the repo was cloned, the Hyprland side
+        # worked, `qs -d` started from autostart.lua, and quickshell then
+        # found no ~/.config/quickshell/shell.qml and drew nothing. The result
+        # booted to a bare desktop that looked like the dotfiles had failed,
+        # when in fact only half of them had been linked. Adding a directory
+        # to the repo and forgetting to add a branch here is exactly how that
+        # happened, so adding one to this list is now the whole job.
+        for cfg in quickshell kitty; do
+            if [[ -d "$rootmnt/home/$username/Work/$dotdir/$cfg" ]]; then
+                run rm -rf "$rootmnt/home/$username/.config/$cfg"
+                run fchroot sudo -u "$username" ln -s \
+                    "/home/$username/Work/$dotdir/$cfg" \
+                    "/home/$username/.config/$cfg"
+                log "  ~/.config/$cfg -> Work/$dotdir/$cfg"
+            elif (( ! DRY )); then
+                warn "  repo has no $cfg/ directory - skipping"
+            fi
+        done
 
         # Any user units the repo ships get linked and enabled.
         if [[ -d "$rootmnt/home/$username/Work/$dotdir/systemd" ]]; then
