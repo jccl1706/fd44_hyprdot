@@ -4,8 +4,14 @@
 -- https://wiki.hypr.land/Configuring/Basics/Window-Rules/
 -- https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/
 --
--- match fields are Lua patterns matched against window properties. Find the
--- class/title of a running window with:  hyprctl clients
+-- match fields are REGULAR EXPRESSIONS, not Lua patterns, despite this being
+-- a Lua file. `%d` is a literal "%d" to the matcher; a digit is `\d`, which
+-- inside a Lua string is written "\\d". Checked behaviourally - two probe
+-- windows, one rule each, and only the regex spelling matched. Anything valid
+-- in both syntaxes (^kitty$, .*) hides the difference, which is how this note
+-- used to say "Lua patterns" and nobody noticed until a rule needed a
+-- character class. Find the class/title of a running window with:
+--   hyprctl clients
 
 
 -- -------------------------------------------------------------------------
@@ -56,10 +62,11 @@ hl.window_rule({
 -- The class is measured, not assumed: lowercase `steam`, on XWayland, per
 -- hyprctl clients against a running client.
 --
--- GAMES ARE DELIBERATELY NOT MATCHED. A launched title gets class
--- steam_app_<id>, so it opens wherever you are and tiles or fullscreens
--- normally. Floating a game, or pinning every game to one workspace, is not
--- what "put Steam on workspace 5" means.
+-- GAMES ARE DELIBERATELY NOT MATCHED, so a game is never forced to float. A
+-- game does still OPEN on workspace 5 in practice - not because of this rule,
+-- but because misc:initial_workspace_tracking (on by default) places a window
+-- on the workspace of the process that launched it, and every game descends
+-- from the Steam client: GameThread <- reaper <- steam, measured.
 hl.window_rule({
     name  = "steam-workspace",
     match = { class = "^steam$" },
@@ -84,13 +91,17 @@ hl.window_rule({
 -- machine locking behind a fullscreen video or a fullscreen terminal, which
 -- is a worse trade than it looks.
 --
--- `steam_app_<id>` is the class Steam gives a launched title. VERIFY IT on
--- the machine that games: start something, run `hyprctl clients`, and read
--- the real class. If it differs the rule is simply inert - it fails quietly,
--- which is exactly the failure mode to distrust here.
+-- `steam_app_<id>` is the class Steam gives a launched title - measured
+-- against ARC Raiders on the RX 9070 XT desktop: steam_app_1808500, on
+-- XWayland. Do not key anything on a game's title: that one fills its title
+-- with zero-width characters, presumably to defeat overlays that read it.
+--
+-- `\d`, NOT `%d` - see the note at the top of this file. This rule first
+-- shipped as `%d+`, loaded without a single error, and matched nothing: the
+-- game sat in true fullscreen for four minutes reporting inhibitingIdle=false.
 hl.window_rule({
     name  = "gaming-idle-inhibit",
-    match = { class = "^steam_app_%d+$" },
+    match = { class = "^steam_app_\\d+$" },
 
     idle_inhibit = "fullscreen",
 })
