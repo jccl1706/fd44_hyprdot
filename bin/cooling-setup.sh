@@ -83,6 +83,23 @@ od_cmdline() {
     fi
 }
 
+# Set liquidctl_integration = false in a CoolerControl config FILE, touching
+# nothing else. Idempotent. Records whether it changed anything, so the caller
+# restarts the daemon only when needed.
+_LIQ_CHANGED=0
+liquidctl_off() {
+    local f="$1"
+    if grep -q '^liquidctl_integration = true$' "$f"; then
+        sed -i 's/^liquidctl_integration = true$/liquidctl_integration = false/' "$f"
+        _LIQ_CHANGED=1; echo "set liquidctl_integration = false"
+    elif grep -q '^liquidctl_integration = false$' "$f"; then
+        echo "already liquidctl_integration = false"
+    else
+        echo "liquidctl_integration not found in $f - left alone"
+    fi
+}
+liquidctl_off_changed() { echo "$_LIQ_CHANGED"; }
+
 # True when every listening address on stdin (address:port, one per line) is
 # loopback, and there is at least one. The UI can change fan speeds; it has
 # no business answering the network.
@@ -129,7 +146,13 @@ printf '    amdgpu ppfeaturemask: %s\n' "$(cat /sys/module/amdgpu/parameters/ppf
 # Repository and package
 # -------------------------------------------------------------------------
 log "CoolerControl COPR"
-if dnf repolist --enabled 2>/dev/null | grep -q 'codifryed:CoolerControl'; then
+# grep -q FED BY A HERE-STRING, never by a pipe, everywhere in this script.
+# Under `set -o pipefail`, `cmd | grep -q x` is a coin toss: grep exits at the
+# first match, cmd dies of SIGPIPE, and the pipeline reports failure for a
+# match it FOUND. Measured on this very script's Quadro check: exit 141 in
+# five runs out of five, which is how the first run reported the Quadro
+# missing while the daemon's log named it twice.
+if grep -q 'codifryed:CoolerControl' <<<"$(dnf repolist --enabled 2>/dev/null)"; then
     printf '    already enabled\n'
 else
     run dnf "${ASSUME_YES[@]}" copr enable "$COPR"
@@ -140,6 +163,22 @@ run dnf install "${ASSUME_YES[@]}" coolercontrold -x lm_sensors -x python3-liqui
 
 log "service"
 run systemctl enable --now coolercontrold
+
+# liquidctl integration OFF. liquidctl is deliberately not installed (see the
+# header), and with the integration on, the daemon reports that as an error on
+# every start: "Python Environment Error: Python liquidctl system package not
+# detected ... liqctld exited with a non-zero exit code: 1". Its own message
+# names the fix. The daemon writes its config on first start, so this waits
+# for the file, flips the one key, and restarts it.
+log "liquidctl integration off (liquidctl is deliberately not installed)"
+cfg=/etc/coolercontrol/config.toml
+if (( DRY )); then
+    printf '\033[1;34mwould set:\033[0m liquidctl_integration = false in %s, then restart coolercontrold\n' "$cfg"
+else
+    for _ in $(seq 1 30); do [[ -f $cfg ]] && break; sleep 1; done
+    printf '    %s\n' "$(liquidctl_off "$cfg")"
+    [[ $(liquidctl_off_changed) == 1 ]] && systemctl restart coolercontrold
+fi
 
 
 # -------------------------------------------------------------------------
@@ -190,7 +229,7 @@ ok()   { printf '    \033[1;32mok\033[0m   %s\n' "$*"; pass=$((pass+1)); }
 bad()  { printf '    \033[1;31mFAIL\033[0m %s\n' "$*"; fail=$((fail+1)); }
 note() { printf '    \033[1;33mnote\033[0m %s\n' "$*"; }
 
-dnf repolist --enabled 2>/dev/null | grep -q 'codifryed:CoolerControl' \
+grep -q 'codifryed:CoolerControl' <<<"$(dnf repolist --enabled 2>/dev/null)" \
     && ok "COPR $COPR enabled" || bad "COPR $COPR not enabled"
 
 if rpm -q coolercontrold >/dev/null 2>&1; then
@@ -226,14 +265,38 @@ code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:$P
 [[ $code =~ ^[23] ]] && ok "UI answers at http://127.0.0.1:$PORT (HTTP $code)" \
                       || bad "UI did not answer at http://127.0.0.1:$PORT (HTTP ${code:-none})"
 
-# Did the daemon pick up the Quadro? Reported as a note rather than a
-# failure: the log wording is the daemon's, not ours, and the device list in
-# the UI is the authoritative answer.
-if journalctl -u coolercontrold -b --no-pager 2>/dev/null | grep -qi 'quadro'; then
-    ok "daemon log mentions the Quadro"
+# Did the daemon pick up the Quadro, and can it drive fan1-4? Read from the
+# CURRENT daemon run's log only - selected by its systemd invocation ID, since
+# -b would mix in the run before the liquidctl restart. The daemon lists what
+# it initialised ("Initialized Hwmon Devices: {...\"quadro\"...}") and names
+# every channel it cannot control ("Fan channel fanN at <path> is not
+# controllable: <reason>"). fan5 is the flow sensor and has no PWM at all.
+inv="$(systemctl show -p InvocationID --value coolercontrold 2>/dev/null || true)"
+for _ in $(seq 1 60); do
+    cclog="$(journalctl --no-pager "_SYSTEMD_INVOCATION_ID=$inv" 2>/dev/null || true)"
+    grep -q 'Initialization Complete' <<<"$cclog" && break
+    sleep 1
+done
+if [[ -z $quadro ]]; then
+    note "no Quadro on this machine - nothing to check"
+elif grep -q 'Initialized Hwmon Devices:.*"quadro"' <<<"$cclog"; then
+    blocked="$(grep -cE "Fan channel fan[1-4] at ${quadro} is not controllable" <<<"$cclog" || true)"
+    if (( blocked == 0 )); then
+        ok "daemon detected the Quadro; none of fan1-4 reported uncontrollable"
+    else
+        bad "daemon detected the Quadro but reports $blocked of fan1-4 uncontrollable"
+        grep -E "Fan channel fan[1-4] at ${quadro}" <<<"$cclog" | sed 's/^.*Fan channel/         Fan channel/' | head -4
+    fi
 else
-    note "the daemon log does not name the Quadro - check the device list in the UI;"
-    note "  if it is missing there too: sudo dnf install python3-liquidctl"
+    bad "the daemon did not initialise the Quadro - see: journalctl -u coolercontrold -b"
+fi
+
+grep -q '^liquidctl_integration = false$' /etc/coolercontrol/config.toml 2>/dev/null \
+    && ok "liquidctl integration off" || bad "liquidctl_integration is not false in /etc/coolercontrol/config.toml"
+if grep -q 'liquidctl system Python package not found' <<<"$cclog"; then
+    bad "the daemon still reports the missing liquidctl package"
+else
+    ok "no liquidctl error in the current daemon run"
 fi
 
 if (( GPU_OD )) || grep -q 'amdgpu.ppfeaturemask' /etc/kernel/cmdline 2>/dev/null; then

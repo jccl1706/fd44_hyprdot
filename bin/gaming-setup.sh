@@ -90,7 +90,10 @@ printf '    kernel : %s\n' "$(uname -r)"
 # amdgpu is the only GPU path this project supports - the installer dropped
 # the Nvidia branch entirely rather than carry it as dead code. Saying so
 # here is cheaper than letting someone discover it after a 2 GB download.
-if ! lsmod | grep -q '^amdgpu'; then
+# Here-string, not `lsmod | grep -q`: under pipefail grep's early exit kills
+# lsmod with SIGPIPE and a LOADED amdgpu reads as missing. Measured with the
+# same pattern in cooling-setup.sh: exit 141, five runs out of five.
+if ! grep -q '^amdgpu' <<<"$(lsmod)"; then
     warn "the amdgpu kernel module is not loaded."
     warn "  This script assumes Mesa's RADV driver. On Nvidia you would need"
     warn "  akmod-nvidia as well, which nothing in this repository sets up."
@@ -559,7 +562,7 @@ fi
 
 # Btrfs nodatacow on the library
 if [[ $fstype == btrfs && -d $steam_lib ]]; then
-    if lsattr -d "$steam_lib" 2>/dev/null | cut -d' ' -f1 | grep -q C; then
+    if grep -q C <<<"$(lsattr -d "$steam_lib" 2>/dev/null | cut -d' ' -f1)"; then
         ok "Steam library is nodatacow"
     else
         bad "Steam library is NOT nodatacow ($steam_lib)"
