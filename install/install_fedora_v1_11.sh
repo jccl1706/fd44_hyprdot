@@ -1806,10 +1806,22 @@ EOF
 # against the LIVE system's passwd, not the target's, and the two do not
 # agree - that is how the Nerd Font ended up owned by uid 1001 in an earlier
 # version. Read the id out of the target's own passwd.
+#
+# The awk is guarded with `|| true` and a file test. In a DRY RUN nothing was
+# ever installed, so $rootmnt/etc/passwd does not exist, and an unguarded awk
+# exits non-zero and takes the whole script down under `set -e`. That broke
+# --dry-run entirely, which is the one mode people run BEFORE trusting this
+# with a disk - found by dry-running against real hardware.
 if [[ "$browser" == chromium ]]; then
-    _cuid="$(awk -F: -v u="$username" '$1==u{print $3}' "$rootmnt/etc/passwd")"
-    _cgid="$(awk -F: -v u="$username" '$1==u{print $4}' "$rootmnt/etc/passwd")"
-    if [[ -n "$_cuid" && -n "$_cgid" ]]; then
+    _cuid=""; _cgid=""
+    if [[ -r "$rootmnt/etc/passwd" ]]; then
+        _cuid="$(awk -F: -v u="$username" '$1==u{print $3}' "$rootmnt/etc/passwd" 2>/dev/null || true)"
+        _cgid="$(awk -F: -v u="$username" '$1==u{print $4}' "$rootmnt/etc/passwd" 2>/dev/null || true)"
+    fi
+    if (( DRY )); then
+        run install -d -o "(uid of $username)" -g "(gid of $username)" -m 755 \
+            "$rootmnt/etc/chromium/policies/managed"
+    elif [[ -n "$_cuid" && -n "$_cgid" ]]; then
         run install -d -o "$_cuid" -g "$_cgid" -m 755 \
             "$rootmnt/etc/chromium/policies/managed"
     else
@@ -1895,7 +1907,11 @@ check "hyprland-uwsm session entry"    "[[ -f '$rootmnt/usr/share/wayland-sessio
 # symlink to an absolute path that is only valid in the target - read from the
 # live system as $rootmnt/... it dangles and the check fails spuriously.
 check "hypridle config written"        "fchroot grep -q before_sleep_cmd '/home/$username/.config/hypr/hypridle.conf'"
-target_uid="$(awk -F: -v u="$username" '$1==u{print $3}' "$rootmnt/etc/passwd")"
+# Same guard as above: no target passwd exists during a dry run, and an
+# unguarded awk would end the script before the verification block runs.
+target_uid=""
+[[ -r "$rootmnt/etc/passwd" ]] && \
+    target_uid="$(awk -F: -v u="$username" '$1==u{print $3}' "$rootmnt/etc/passwd" 2>/dev/null || true)"
 check "user owns their config dir"     "[[ -n '$target_uid' && \$(stat -c %u '$rootmnt/home/$username/.config') == '$target_uid' ]]"
 check "autorelabel scheduled"          "[[ -f '$rootmnt/.autorelabel' ]]"
 check "quickshell installed"           "[[ -x '$rootmnt/usr/bin/quickshell' ]]"
