@@ -77,6 +77,18 @@ hl.on("hyprland.start", function()
     -- on it - the picker falls back to the full-size originals until it
     -- finishes.
     hl.exec_cmd("sh -c '$HOME/.config/hypr/../bin/wallpaper.sh thumbs'")
+
+    -- Re-apply the remembered theme.
+    --
+    -- Most of what a theme switch writes survives a reboot on its own -
+    -- gsettings is persistent, kitty's theme.conf is a real file - so this is
+    -- not strictly required to come up in the right colours. It is here for
+    -- the two cases that are not covered: Hyprland's border and shadow
+    -- colours are set with hyprctl at runtime and are gone after a restart,
+    -- and a fresh checkout has no palette file at all, so the bar would use
+    -- its built-in dark fallback until something wrote one. Running this at
+    -- every login makes a half-configured machine correct itself.
+    hl.exec_cmd("sh -c '$HOME/.config/hypr/../bin/theme.sh restore'")
 end)
 
 

@@ -42,6 +42,18 @@ hl.bind(Mod .. " + E",      hl.dsp.exec_cmd(Apps.file_manager))
 hl.bind(Mod .. " + space", hl.dsp.global("quickshell:launcher"))
 hl.bind(Mod .. " + comma", hl.dsp.global("quickshell:wallpaper"))
 
+-- Theme. Flips the whole desktop between themes/dark.conf and
+-- themes/cream.conf - quickshell, kitty, GTK apps and Hyprland all at once.
+--
+-- exec_cmd rather than a quickshell global shortcut, unlike the launcher and
+-- the wallpaper picker: the switch is not quickshell's to make. Three of the
+-- four things it changes are other programs entirely, so it has to run out of
+-- a process that can write their config files and signal them. The bar's own
+-- colours follow along because Theme.qml watches the palette file.
+hl.bind(Mod .. " + T", hl.dsp.exec_cmd(
+    '"$HOME/.config/hypr/../bin/theme.sh" toggle'
+))
+
 -- Session actions. This used to run `hyprctl dispatch exit` directly, which
 -- ended the session on a single keystroke with nothing to catch a misfire.
 -- It now opens quickshell's power menu instead, where lock, suspend, log out,

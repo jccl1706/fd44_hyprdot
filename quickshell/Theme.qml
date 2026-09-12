@@ -9,10 +9,23 @@
 //
 // Use it from anywhere with no import of its own - `Theme.fg`, `Theme.font`.
 //
-// DELIBERATELY CONSTANTS ONLY.
-// Colours, fonts and metrics belong here. Mutable state does NOT - a global
-// that anything can write to is where this pattern starts causing problems
-// rather than solving them. If a module needs state, it owns it.
+// METRICS AND FONTS ARE CONSTANTS. COLOURS ARE NOT, ANY MORE.
+//
+// The palette is read from ~/.local/state/fd44-hyprdot/theme-active.conf,
+// which bin/theme.sh writes out of themes/<name>.conf. FileView watches that
+// path, so switching theme re-evaluates every colour binding in the shell and
+// the bar, frame, launcher and power menu all recolour in place. Nothing is
+// restarted: restarting the shell to change colour flashes the whole desktop.
+//
+// This is still not general mutable state. Nothing in the shell WRITES here -
+// the file is the only input, and it comes from outside. Modules that need
+// state of their own still own it themselves.
+//
+// Every colour has a hardcoded fallback, and they are the dark palette. They
+// are what you see if the state file is missing, unreadable or half-written -
+// a fresh checkout where theme.sh has never run, most obviously. A shell that
+// renders in the wrong palette is a much better failure than one that renders
+// black-on-black or not at all.
 //
 // The tradeoff accepted here: this is global, so two bars cannot have
 // different palettes without threading values again. Fine for one personal
@@ -21,18 +34,68 @@
 pragma Singleton
 
 import Quickshell
+import Quickshell.Io
 import QtQuick
 
 Singleton {
+    id: theme
+
+    // --- the active palette ----------------------------------------------
+
+    // Parsed key=value pairs from the theme file. Empty until the first read
+    // completes, which is why every lookup below has a fallback.
+    property var palette: ({})
+
+    // The theme's own name, for anything that wants to show which is active -
+    // the bar's toggle uses it to pick its glyph.
+    readonly property string name: theme.palette.name || "dark"
+    readonly property bool isDark: (theme.palette.appearance || "dark") !== "light"
+
+    FileView {
+        id: paletteFile
+        // Quickshell blackholes paths that escape the config directory, so
+        // this is an absolute path built from the environment rather than a
+        // relative one.
+        path: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state"))
+              + "/fd44-hyprdot/theme-active.conf"
+        watchChanges: true
+        onFileChanged: paletteFile.reload()
+        onLoaded: theme.palette = theme.parsePalette(paletteFile.text())
+        // Not an error worth shouting about: no theme has been applied yet.
+        onLoadFailed: theme.palette = ({})
+    }
+
+    // key=value, one per line, # for comments. Deliberately the same trivial
+    // format bin/theme.sh parses with sed - a format that needs a real parser
+    // would need two of them, one here and one in bash.
+    function parsePalette(text: string): var {
+        const out = {}
+        for (const raw of text.split("\n")) {
+            const line = raw.trim()
+            if (line.length === 0 || line.startsWith("#")) continue
+            const eq = line.indexOf("=")
+            if (eq <= 0) continue
+            out[line.substring(0, eq).trim()] = line.substring(eq + 1).trim()
+        }
+        return out
+    }
+
+    // Falls back whenever the key is absent OR empty, so a theme file with a
+    // key left blank behaves the same as one missing it.
+    function c(key: string, fallback: string): string {
+        const v = theme.palette[key]
+        return (v && v.length > 0) ? v : fallback
+    }
+
     // --- palette ---------------------------------------------------------
-    readonly property color bg:      "#11111b"
-    readonly property color fg:      "#cdd6f4"
-    readonly property color dim:     "#6c7086"
-    readonly property color accent:  "#89b4fa"
+    readonly property color bg:      c("bg",     "#11111b")
+    readonly property color fg:      c("fg",     "#cdd6f4")
+    readonly property color dim:     c("dim",    "#6c7086")
+    readonly property color accent:  c("accent", "#89b4fa")
 
     // For actions that end the session or lose work. Catppuccin Mocha red,
     // continuing the same palette the rest of these come from.
-    readonly property color danger:  "#f38ba8"
+    readonly property color danger:  c("danger", "#f38ba8")
 
     // --- tonal surfaces --------------------------------------------------
     // bg is the darkest tone, and until now it was the ONLY one - every
@@ -41,9 +104,9 @@ Singleton {
     // containers instead, and that needs tones between the background and the
     // foreground. These continue the same Catppuccin Mocha ramp bg came from:
     //   bg #11111b crust  ->  surface #1e1e2e base  ->  surfaceHigh #313244
-    readonly property color surface:     "#1e1e2e"   // module containers
-    readonly property color surfaceHigh: "#313244"   // hover / raised state
-    readonly property color outline:     "#45475a"   // hairlines, separators
+    readonly property color surface:     c("surface",     "#1e1e2e")  // module containers
+    readonly property color surfaceHigh: c("surfaceHigh", "#313244")  // hover / raised
+    readonly property color outline:     c("outline",     "#45475a")  // hairlines
 
     // --- depth -----------------------------------------------------------
     // DARK THEMES GET THEIR DEPTH FROM LIGHT, NOT FROM SHADOW.
@@ -58,13 +121,14 @@ Singleton {
     // strong enough that a pill reads as curved rather than stamped out. Both
     // are deliberately near the threshold of visibility - the moment either is
     // obvious it stops looking like depth and starts looking like a gradient.
-    readonly property color rim:        Qt.rgba(1, 1, 1, 0.055)
-    readonly property color surfaceTop: Qt.lighter(surface, 1.28)
+    readonly property color rim: Qt.alpha(c("rim", "#ffffff"),
+                                         parseFloat(c("rimAlpha", "0.055")))
+    readonly property color surfaceTop: c("surfaceTop", "#26263b")
 
     // The launcher card's lift. Its bottom stop MUST be exactly bg: the card
     // merges into the bottom frame, and any other value reappears as the seam
     // that took three rounds to get rid of.
-    readonly property color panelTop:   "#1e1e2e"
+    readonly property color panelTop:   c("panelTop", "#1e1e2e")
 
     // Text drawn on top of the accent colour (the focused workspace chip)
     // needs to be dark, not fg, or it disappears.
@@ -72,7 +136,7 @@ Singleton {
     // NOT named "onAccent": QML parses any identifier starting with "on" plus
     // a capital letter as a SIGNAL HANDLER, so `readonly property color
     // onAccent` fails with "Cannot assign a value to a signal".
-    readonly property color accentFg: "#11111b"
+    readonly property color accentFg: c("accentFg", "#11111b")
 
     // --- type ------------------------------------------------------------
     // NOTE: "Inter Variable", not "Inter". rsms-inter-vf-fonts registers it
@@ -165,7 +229,7 @@ Singleton {
     // Paired with a blur layer rule in hypr/rules.lua. Without the blur a
     // translucent panel over a terminal is genuinely hard to read - the text
     // behind it competes with the text on it.
-    readonly property real panelAlpha: 0.85
+    readonly property real panelAlpha: parseFloat(c("panelAlpha", "0.85"))
 
     // --- motion ----------------------------------------------------------
     // Kept short throughout: a bar should feel instant. Anything above about

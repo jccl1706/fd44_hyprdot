@@ -165,6 +165,14 @@ PanelWindow {
                     Clock {
                         anchors.verticalCenter: parent.verticalCenter
                     }
+
+                    // Inside the clock's pill rather than off in the right
+                    // region: it is a one-glyph control, and alone in a pill
+                    // of its own it would read as a second, unrelated module
+                    // rather than as a small switch.
+                    ThemeToggle {
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
                 }
             }
         }
