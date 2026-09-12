@@ -688,7 +688,19 @@ hwpacs=(
     usbutils pciutils
 )
 if [[ "$machine" == laptop ]]; then
-    hwpacs+=(power-profiles-daemon brightnessctl fwupd upower)
+    # python3-gobject is for powerprofilesctl, NOT for anything here directly.
+    # That CLI is a Python script - `from gi.repository import Gio, GLib` - and
+    # power-profiles-daemon declares only the C libraries it links against, not
+    # the Python bindings its own command-line tool imports. So the daemon
+    # installs, the CLI is present, and every call fails with
+    # ModuleNotFoundError until something else happens to pull the bindings in.
+    #
+    # On the development machine something did: nwg-panel. Removing that
+    # unwanted package silently broke the AC/battery power policy, and the
+    # breakage was invisible to any search of this repository, because nothing
+    # here imports gi - powerprofilesctl does. Third package in one day found
+    # to be surviving on someone else's weak dependency.
+    hwpacs+=(power-profiles-daemon python3-gobject brightnessctl fwupd upower)
 fi
 case "$gpu_vendor" in
     # RADV Vulkan comes from mesa-vulkan-drivers above - that's what
@@ -1906,6 +1918,12 @@ check "no display manager"             "[[ ! -e '$rootmnt/etc/systemd/system/dis
 # query, and this one went unnoticed long enough to be blamed on a package
 # that had already been removed.
 check "nwg-panel not installed"        "! fchroot rpm -q nwg-panel >/dev/null 2>&1"
+# Asserted by RUNNING it, not by checking the package is present: the failure
+# mode is an installed CLI that throws ModuleNotFoundError on every call, which
+# a package check would not notice.
+if [[ "$machine" == laptop ]]; then
+    check "powerprofilesctl works"     "fchroot powerprofilesctl get >/dev/null 2>&1"
+fi
 check "getty autologin drop-in"        "grep -q 'autologin $username' '$rootmnt/etc/systemd/system/getty@tty1.service.d/autologin.conf'"
 # Both halves of the power-button handover, because half of it is worse than
 # neither. logind reads the key straight from /dev/input, so if the drop-in is
