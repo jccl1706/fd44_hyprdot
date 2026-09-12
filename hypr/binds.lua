@@ -192,12 +192,17 @@ hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO
 hl.bind("XF86AudioMute",        hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle && qs ipc call osd volume"),     { locked = true, repeating = true })
 hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),   { locked = true, repeating = true })
 
--- brightnessctl -e4 uses a 4th-power curve so low-end steps feel even, and
--- -n2 stops it going fully dark (minimum 2).
--- -d amdgpu_bl1 is required: without it brightnessctl also picks up the
--- ChromeOS EC LED classes and errors on them.
-hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd("brightnessctl -d amdgpu_bl1 -e4 -n2 set 5%+ && qs ipc call osd brightness"), { locked = true, repeating = true })
-hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl -d amdgpu_bl1 -e4 -n2 set 5%- && qs ipc call osd brightness"), { locked = true, repeating = true })
+-- Through bin/backlight.sh rather than brightnessctl directly, because the
+-- device is not the same on every machine: this laptop's panel is
+-- `amdgpu_bl1`, an Intel one is `intel_backlight`, and A DESKTOP HAS NONE AT
+-- ALL. The script resolves it from /sys/class/backlight and exits 0 doing
+-- nothing when there is nothing to do, so these binds are correct on a
+-- machine without a backlight instead of needing to be deleted there.
+--
+-- The curve settings moved into the script with the device: -e4 is a 4th-power
+-- curve so low-end steps feel even, -n2 stops it going fully dark.
+hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd("$HOME/.config/hypr/../bin/backlight.sh set 5%+ && qs ipc call osd brightness"), { locked = true, repeating = true })
+hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("$HOME/.config/hypr/../bin/backlight.sh set 5%- && qs ipc call osd brightness"), { locked = true, repeating = true })
 
 -- Media keys.
 -- Via quickshell, which speaks MPRIS itself (quickshell/Media.qml), so a

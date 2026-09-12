@@ -20,10 +20,11 @@ set -u
 
 AC_ONLINE=/sys/class/power_supply/ACAD/online
 
-# brightnessctl must be told which device to use. Without -d it also picks up
-# the ChromeOS EC LED classes (chromeos:white:power and friends) and fails on
-# them, because those expose no brightness file to read.
-BACKLIGHT_DEVICE=amdgpu_bl1
+# The backlight device is RESOLVED, not named. bin/backlight.sh finds it in
+# /sys/class/backlight, which is this laptop's amdgpu_bl1, an Intel laptop's
+# intel_backlight, or nothing at all on a desktop - where it exits 0 and this
+# script simply sets a power profile and no brightness.
+BACKLIGHT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/backlight.sh"
 
 BATTERY_PROFILE=power-saver
 BATTERY_BRIGHTNESS=50%
@@ -61,10 +62,15 @@ apply() {
         log "$source: profile already $profile"
     fi
 
-    if brightnessctl -d "$BACKLIGHT_DEVICE" set "$brightness" >/dev/null 2>&1; then
-        log "$source: brightness -> $brightness"
+    # No backlight is the normal state on a desktop, not a failure, so it is
+    # reported differently from one that exists and refused to be set.
+    bl_device="$("$BACKLIGHT" device)"
+    if [[ -z $bl_device ]]; then
+        log "$source: no backlight on this machine - brightness skipped"
+    elif "$BACKLIGHT" set "$brightness"; then
+        log "$source: brightness -> $brightness ($bl_device)"
     else
-        log "$source: FAILED to set brightness on $BACKLIGHT_DEVICE"
+        log "$source: FAILED to set brightness on $bl_device"
     fi
 }
 

@@ -94,13 +94,33 @@ Item {
     readonly property bool muted:  Pipewire.defaultAudioSink?.audio?.muted ?? false
 
     // Backlight. Read on demand rather than watched - see the header note.
+    //
+    // THE DEVICE IS RESOLVED, NOT NAMED. It used to be `amdgpu_bl1`, which is
+    // this laptop's panel: an Intel machine calls it intel_backlight and a
+    // DESKTOP HAS NONE. bin/backlight.sh finds it in /sys/class/backlight and
+    // prints nothing when there is none, so on a machine without a backlight
+    // `backlightPath` stays empty, both FileViews have no path to read, and
+    // `brightness` falls back to 0 - which is only ever displayed if something
+    // asks for the brightness OSD, and nothing does, because the keys that
+    // trigger it also do nothing there.
+    property string backlightPath: ""
+
+    Process {
+        running: true
+        command: ["sh", "-c",
+                  "\"$(dirname \"$(readlink -f '" + Quickshell.shellDir + "')\")/bin/backlight.sh\" path"]
+        stdout: StdioCollector {
+            onStreamFinished: root.backlightPath = text.trim()
+        }
+    }
+
     FileView {
         id: brightnessFile
-        path: "/sys/class/backlight/amdgpu_bl1/brightness"
+        path: root.backlightPath ? root.backlightPath + "/brightness" : ""
     }
     FileView {
         id: maxBrightnessFile
-        path: "/sys/class/backlight/amdgpu_bl1/max_brightness"
+        path: root.backlightPath ? root.backlightPath + "/max_brightness" : ""
     }
 
     readonly property real brightness: {
