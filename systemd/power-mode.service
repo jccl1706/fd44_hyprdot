@@ -11,7 +11,14 @@ After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=%h/Work/fd44_hyprdot/bin/power-mode.sh watch
+# Reached through ~/.config/hypr, which is a symlink into the checkout: the
+# kernel resolves the symlink before applying "..", so this lands in the
+# repo's bin/ wherever the repo actually lives. The path used to be
+# %h/Work/fd44_hyprdot/bin, which was correct only because the installer
+# derives the clone directory from the repo URL's basename - a rename or a
+# fork installed under any other name would have broken this silently.
+# systemd keeps the ".." rather than normalising it away lexically; verified.
+ExecStart=%h/.config/hypr/../bin/power-mode.sh watch
 
 # The watcher is a pipeline around `udevadm monitor`; if that ever dies, the
 # service should come back rather than silently stop reacting to the charger.

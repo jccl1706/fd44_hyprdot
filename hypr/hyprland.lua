@@ -20,7 +20,9 @@
 -- Reload after editing with:  hyprctl reload
 -- Then always check:          hyprctl configerrors
 --
--- Real location: ~/Work/fd44_hyprdot/hypr/  (~/.config/hypr is a symlink to it)
+-- Real location: the checkout's hypr/ (~/.config/hypr is a symlink to it).
+-- Scripts are reached as ~/.config/hypr/../bin/, which follows that symlink
+-- and so does not care where the checkout lives.
 
 
 -- -------------------------------------------------------------------------

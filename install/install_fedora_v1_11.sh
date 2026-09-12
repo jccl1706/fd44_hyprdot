@@ -1813,6 +1813,23 @@ target_uid="$(awk -F: -v u="$username" '$1==u{print $3}' "$rootmnt/etc/passwd")"
 check "user owns their config dir"     "[[ -n '$target_uid' && \$(stat -c %u '$rootmnt/home/$username/.config') == '$target_uid' ]]"
 check "autorelabel scheduled"          "[[ -f '$rootmnt/.autorelabel' ]]"
 check "quickshell installed"           "[[ -x '$rootmnt/usr/bin/quickshell' ]]"
+# The font download is the one step here that reaches the public internet at
+# install time and is allowed to fail without aborting, so it is the one most
+# likely to be silently absent. Its warning scrolls past; a FAIL in this
+# summary does not. Without it every glyph in the bar, the launcher, the OSD
+# and the power menu renders as an empty box.
+#
+# Checked at its installed path, deliberately. On the development machine the
+# font also exists in ~/.local/share/fonts, hand-placed years-old leftover,
+# which is what fontconfig actually resolves there - so that machine renders
+# correctly for a reason a fresh install does not share and could never have
+# revealed a broken font step.
+check "Symbols Nerd Font installed"    "[[ -f '$rootmnt/usr/local/share/fonts/nerd-fonts-symbols/SymbolsNerdFont-Regular.ttf' ]]"
+# hypr/binds.lua binds the four XF86Audio keys to playerctl. It was missing
+# from the package list until it was noticed only because removing an
+# unrelated package offered to take it along - it had been present solely as
+# someone else's weak dependency.
+check "playerctl installed"            "[[ -x '$rootmnt/usr/bin/playerctl' ]]"
 check "no display manager"             "[[ ! -e '$rootmnt/etc/systemd/system/display-manager.service' ]]"
 check "getty autologin drop-in"        "grep -q 'autologin $username' '$rootmnt/etc/systemd/system/getty@tty1.service.d/autologin.conf'"
 check "uwsm start hook in profile"     "grep -q 'uwsm check may-start' '$rootmnt/home/$username/.bash_profile'"

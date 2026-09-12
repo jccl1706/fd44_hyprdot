@@ -68,7 +68,7 @@ hl.env("HYPRCURSOR_SIZE", "24")
 -- this is the first thing to lengthen.
 hl.on("hyprland.start", function()
     hl.exec_cmd("hyprpaper")
-    hl.exec_cmd("sh -c 'sleep 1; $HOME/Work/fd44_hyprdot/bin/wallpaper.sh restore'")
+    hl.exec_cmd("sh -c 'sleep 1; $HOME/.config/hypr/../bin/wallpaper.sh restore'")
 
     -- Refresh the picker's preview thumbnails. Safe to run every login: it
     -- only regenerates previews that are missing or older than their source,
@@ -76,7 +76,7 @@ hl.on("hyprland.start", function()
     -- wallpapers takes a few seconds, in the background, and nothing waits
     -- on it - the picker falls back to the full-size originals until it
     -- finishes.
-    hl.exec_cmd("sh -c '$HOME/Work/fd44_hyprdot/bin/wallpaper.sh thumbs'")
+    hl.exec_cmd("sh -c '$HOME/.config/hypr/../bin/wallpaper.sh thumbs'")
 end)
 
 
