@@ -183,16 +183,30 @@ run dnf install "${ASSUME_YES[@]}" "${packages[@]}"
 #
 # There is no mesa-vdpau-drivers-freeworld any more - Mesa dropped VDPAU
 # entirely. Guides that still tell you to swap it are out of date.
+# A SWAP IS NOT ALWAYS WHAT IS NEEDED. A machine built by this project's
+# installer has no mesa-va-drivers at all - nothing in the minimal package
+# set pulls it, and steam only Requires libva, which is the loader and not a
+# driver. Treating this purely as a swap would skip the whole step on
+# exactly the machines the script is written for, and the verification below
+# would then report a failure the script itself had caused.
+#
+# 64-bit gets the driver installed outright if it is missing. 32-bit only
+# gets SWAPPED if Fedora's build is already there: a 32-bit VA driver that
+# nothing asked for is one more package for a codec path almost no 32-bit
+# title uses.
 log "VA-API (hardware video decode)"
 for arch in x86_64 i686; do
-    if rpm -q "mesa-va-drivers.$arch" >/dev/null 2>&1; then
+    if rpm -q "mesa-va-drivers-freeworld.$arch" >/dev/null 2>&1; then
+        printf '    %-7s already the freeworld build\n' "$arch"
+    elif rpm -q "mesa-va-drivers.$arch" >/dev/null 2>&1; then
         printf '    %-7s swapping to the freeworld build\n' "$arch"
         run dnf swap "${ASSUME_YES[@]}" \
             "mesa-va-drivers.$arch" "mesa-va-drivers-freeworld.$arch"
-    elif rpm -q "mesa-va-drivers-freeworld.$arch" >/dev/null 2>&1; then
-        printf '    %-7s already the freeworld build\n' "$arch"
+    elif [[ $arch == x86_64 ]]; then
+        printf '    %-7s no Mesa VA driver at all - installing the freeworld build\n' "$arch"
+        run dnf install "${ASSUME_YES[@]}" "mesa-va-drivers-freeworld.$arch"
     else
-        printf '    %-7s no Mesa VA driver installed - skipping\n' "$arch"
+        printf '    %-7s no 32-bit VA driver, and not adding one\n' "$arch"
     fi
 done
 
@@ -341,9 +355,9 @@ fi
 # VA-API, by which driver is installed rather than by running vainfo -
 # vainfo means installing libva-utils, and one more package for one line of
 # output is not the trade this project makes.
-if rpm -q mesa-va-drivers-freeworld >/dev/null 2>&1; then
+if rpm -q mesa-va-drivers-freeworld.x86_64 >/dev/null 2>&1; then
     ok "VA-API: freeworld driver (H.264/HEVC enabled)"
-elif rpm -q mesa-va-drivers >/dev/null 2>&1; then
+elif rpm -q mesa-va-drivers.x86_64 >/dev/null 2>&1; then
     bad "VA-API: Fedora's mesa-va-drivers - no H.264/HEVC"
 else
     bad "VA-API: no Mesa VA driver at all"
