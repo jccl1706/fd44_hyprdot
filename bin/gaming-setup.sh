@@ -168,6 +168,30 @@ packages=(
 log "installing (${#packages[@]} requested, plus their 32-bit stack)"
 run dnf install "${ASSUME_YES[@]}" "${packages[@]}"
 
+# ntsync, loaded now rather than at the next boot.
+#
+# steam Recommends ntsync-autoload, which ships exactly one file:
+# /usr/lib/modules-load.d/ntsync.conf. That is read by
+# systemd-modules-load.service at BOOT, so installing the package leaves
+# /dev/ntsync absent until the machine is restarted - and nothing says so.
+# The first Proton session after a fresh setup then silently falls back to
+# fsync, which is the slower path, and looks like nothing at all.
+#
+# ntsync implements Windows' synchronisation primitives (events, semaphores,
+# mutexes) in the kernel, so Wine stops emulating them in userspace. It is
+# the single largest free win available to Proton on a modern kernel.
+#
+# Best-effort: a kernel without the module is not a failure, and the
+# verification pass reports the outcome either way.
+if (( ! DRY )) && [[ ! -e /dev/ntsync ]]; then
+    log "ntsync"
+    if modprobe ntsync 2>/dev/null && [[ -e /dev/ntsync ]]; then
+        printf '    loaded now (modules-load.d would otherwise wait for a reboot)\n'
+    else
+        printf '    not available in this kernel - Proton will use fsync\n'
+    fi
+fi
+
 # VA-API, swapped for the RPM Fusion build.
 #
 # Fedora's mesa-va-drivers has the H.264 and HEVC code compiled OUT for
