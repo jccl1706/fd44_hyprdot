@@ -104,7 +104,14 @@ apply() {
             disown
             sleep 0.3
             [[ -n $old ]] && kill $old 2>/dev/null || true
-            pgrep -x swaybg >/dev/null 2>&1 || die "swaybg did not stay running"
+            # The overwhelmingly likely cause is a missing WAYLAND_DISPLAY -
+            # swaybg needs it and says so, but its stderr is discarded above
+            # because it is a backgrounded daemon. Naming it here saves
+            # rediscovering it: everything that calls this normally runs
+            # inside the session, so it only bites when driving the script
+            # from somewhere that is not, such as ssh.
+            pgrep -x swaybg >/dev/null 2>&1 || \
+                die "swaybg did not stay running (WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-unset})"
             ;;
         *)
             die "no wallpaper backend: hyprpaper is not responding and swaybg is not installed"
