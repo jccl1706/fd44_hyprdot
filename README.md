@@ -180,8 +180,27 @@ themes/          dark.conf, cream.conf — one file per palette
 fonts/           Symbols Nerd Font, vendored (MIT)
 wallpapers/      resized, webp
 bin/             theme.sh · wallpaper.sh · power-mode.sh · idle-action.sh
+                 gaming-setup.sh — opt-in, not run by the installer
 install/         the installer, and vm-test.sh
 ```
+
+## Gaming
+
+Not part of the installer, on purpose: Steam is a feature set one machine
+wants, not something the base install is broken without. It lives in its own
+opt-in script, run by hand on the machine that wants it.
+
+```sh
+sudo bin/gaming-setup.sh --dry-run     # print every command, change nothing
+sudo bin/gaming-setup.sh               # RPM Fusion, Steam, gamemode, gamescope
+sudo bin/gaming-setup.sh --proton-ge   # and the latest GE-Proton
+```
+
+It ends with a verification pass that **runs** the tools rather than asking rpm
+whether they are installed — which Vulkan driver is actually loaded, whether
+the 32-bit ICD is there, whether `gamemoded` starts. It also marks the Steam
+library `nodatacow` before Steam's first run, which is the only moment Btrfs
+allows it.
 
 ## Power policy
 

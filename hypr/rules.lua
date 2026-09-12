@@ -43,6 +43,40 @@ hl.window_rule({
     no_focus = true,
 })
 
+-- Do not lock the screen in the middle of a game.
+--
+-- hypridle locks at 5:00 of idle, and "idle" means no input device activity.
+-- A gamepad is not one: libinput reports it, but a controller-only session
+-- produces no keyboard or pointer events at all, so a two-hour sitting reads
+-- as two hours away from the machine. The lock lands on top of the game.
+--
+-- `idleinhibit fullscreen` inhibits only while the matched window is
+-- fullscreen, so a windowed game or the Steam client itself still lets the
+-- machine idle normally.
+--
+-- SCOPED TO GAMES, not to every fullscreen window. The broader rule -
+-- class = ".*" - is what most configurations use and it also stops the
+-- machine locking behind a fullscreen video or a fullscreen terminal, which
+-- is a worse trade than it looks.
+--
+-- `steam_app_<id>` is the class Steam gives a launched title. VERIFY IT on
+-- the machine that games: start something, run `hyprctl clients`, and read
+-- the real class. If it differs the rule is simply inert - it fails quietly,
+-- which is exactly the failure mode to distrust here.
+hl.window_rule({
+    name  = "gaming-idle-inhibit",
+    match = { class = "^steam_app_%d+$" },
+
+    idle_inhibit = "fullscreen",
+})
+
+hl.window_rule({
+    name  = "gamescope-idle-inhibit",
+    match = { class = "^gamescope$" },
+
+    idle_inhibit = "fullscreen",
+})
+
 -- Hyprland's own run dialog (hyprland-guiutils): float it near the bottom
 -- left rather than tiling it.
 hl.window_rule({
