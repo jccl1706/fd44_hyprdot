@@ -9,7 +9,6 @@
 #   idle-action.sh blank   {battery|always}   turn the display off
 #   idle-action.sh suspend {battery|always}   suspend the machine
 #   idle-action.sh wake                       turn the display back on
-#   idle-action.sh presleep                   lock, and wait for it to paint
 #
 # "battery" means: do nothing when running on AC, because the later
 # unconditional listener handles that case.
@@ -122,34 +121,6 @@ case "$action" in
         log "locking session (scope: $scope)"
         if (( DRY )); then log "would run: loginctl lock-session"; else loginctl lock-session; fi
         ;;
-    presleep)
-        # Runs from hypridle's before_sleep_cmd, while it still holds a delay
-        # inhibitor, so sleeping here genuinely delays the suspend.
-        #
-        # Locking is not the slow part - the compositor stops showing clients
-        # the moment the session lock is acquired. PAINTING is. The panel is
-        # not blanked before an idle-suspend, so across s2idle it keeps
-        # scanning out the last composited frame; if hyprlock has not drawn
-        # one yet, that frame is the desktop and it is what comes back on
-        # resume. This waits for hyprlock to exist and then gives it a moment
-        # to put something on screen.
-        #
-        # BOUNDED, because this is holding up a suspend. systemd's
-        # InhibitDelayMaxSec is 5s by default and blowing through it means
-        # logind suspends anyway with the inhibitor ignored, so the total here
-        # stays far under that: at most 1.5s of polling plus 0.4s of settle.
-        log "locking before sleep"
-        if (( DRY )); then
-            log "would run: loginctl lock-session, then wait for hyprlock"
-        else
-            loginctl lock-session
-            for _ in $(seq 1 30); do
-                pidof hyprlock >/dev/null 2>&1 && break
-                sleep 0.05
-            done
-            sleep 0.4
-        fi
-        ;;
     blank)
         in_scope || exit 0
         set_dpms off
@@ -171,7 +142,7 @@ case "$action" in
         if (( DRY )); then log "would run: systemctl suspend"; else systemctl suspend; fi
         ;;
     *)
-        echo "usage: $0 {lock|blank|wake|presleep|suspend} [battery|always] [--dry-run]" >&2
+        echo "usage: $0 {lock|blank|wake|suspend} [battery|always] [--dry-run]" >&2
         echo "       $0 wake [--dry-run]" >&2
         exit 2
         ;;
