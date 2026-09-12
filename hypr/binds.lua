@@ -199,11 +199,24 @@ hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_S
 hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd("brightnessctl -d amdgpu_bl1 -e4 -n2 set 5%+ && qs ipc call osd brightness"), { locked = true, repeating = true })
 hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl -d amdgpu_bl1 -e4 -n2 set 5%- && qs ipc call osd brightness"), { locked = true, repeating = true })
 
--- Media keys. playerctl is installed.
-hl.bind("XF86AudioNext",  hl.dsp.exec_cmd("playerctl next"),       { locked = true })
-hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
-hl.bind("XF86AudioPlay",  hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
-hl.bind("XF86AudioPrev",  hl.dsp.exec_cmd("playerctl previous"),   { locked = true })
+-- Media keys.
+-- Via quickshell, which speaks MPRIS itself (quickshell/Media.qml), so a
+-- media key spawns NO process. These used to run playerctl, forking it once
+-- per press - the same cost the launcher and wallpaper picker were moved off
+-- exec_cmd to avoid, and the media keys were simply the ones left behind.
+--
+-- It also removed a package: playerctl was never in the installer's list and
+-- existed on the development machine only as a weak dependency of something
+-- unrelated, so the media keys worked there and would have been dead on any
+-- fresh install.
+--
+-- `locked = true` still: quickshell keeps running while hyprlock is up, so
+-- the keys keep working on a locked screen, which is where media keys are
+-- most useful.
+hl.bind("XF86AudioNext",  hl.dsp.global("quickshell:media-next"),   { locked = true })
+hl.bind("XF86AudioPause", hl.dsp.global("quickshell:media-toggle"), { locked = true })
+hl.bind("XF86AudioPlay",  hl.dsp.global("quickshell:media-toggle"), { locked = true })
+hl.bind("XF86AudioPrev",  hl.dsp.global("quickshell:media-prev"),   { locked = true })
 
 
 -- -------------------------------------------------------------------------

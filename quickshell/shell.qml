@@ -138,6 +138,41 @@ ShellRoot {
         onPressed: shell.eachPower(p => p.toggle())
     }
 
+    // Media transport. One shortcut per key, all reaching Media.qml, which
+    // speaks MPRIS directly - so a media key spawns no process at all, where
+    // it used to fork playerctl on every press.
+    GlobalShortcut {
+        appid: "quickshell"
+        name: "media-toggle"
+        onPressed: Media.togglePlaying()
+    }
+
+    GlobalShortcut {
+        appid: "quickshell"
+        name: "media-next"
+        onPressed: Media.next()
+    }
+
+    GlobalShortcut {
+        appid: "quickshell"
+        name: "media-prev"
+        onPressed: Media.previous()
+    }
+
+    IpcHandler {
+        target: "media"
+
+        function toggle(): void   { Media.togglePlaying() }
+        function next(): void     { Media.next() }
+        function previous(): void { Media.previous() }
+        function status(): string {
+            const p = Media.active
+            return p ? (p.identity + " playing=" + p.isPlaying
+                        + " next=" + p.canGoNext + " prev=" + p.canGoPrevious)
+                     : "no player"
+        }
+    }
+
     IpcHandler {
         target: "power"
 

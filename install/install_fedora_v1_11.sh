@@ -725,14 +725,6 @@ depacs=(
     hyprpaper hyprlock hypridle hyprpolkitagent xdg-desktop-portal-hyprland
     hyprland-guiutils
     wl-clipboard cliphist grim slurp
-    # hypr/binds.lua binds the four XF86Audio media keys to playerctl. It is
-    # NOT pulled in by anything else here: on the machine this was developed
-    # on it arrived only as a weak dependency of nwg-panel, which nothing
-    # asked for and which came in behind the since-dropped sddm. Removing
-    # nwg-panel offered to take playerctl with it and would have silently
-    # killed the media keys - the same shape of trap as shadow-utils
-    # disappearing with sddm. Explicit now.
-    playerctl
     nautilus gvfs file-roller xdg-user-dirs
     xdg-desktop-portal xdg-desktop-portal-gtk
     google-noto-sans-mono-fonts
@@ -1857,11 +1849,6 @@ check "quickshell installed"           "[[ -x '$rootmnt/usr/bin/quickshell' ]]"
 # correctly for a reason a fresh install does not share and could never have
 # revealed a broken font step.
 check "Symbols Nerd Font installed"    "[[ -f '$rootmnt/usr/local/share/fonts/nerd-fonts-symbols/SymbolsNerdFont-Regular.ttf' ]]"
-# hypr/binds.lua binds the four XF86Audio keys to playerctl. It was missing
-# from the package list until it was noticed only because removing an
-# unrelated package offered to take it along - it had been present solely as
-# someone else's weak dependency.
-check "playerctl installed"            "[[ -x '$rootmnt/usr/bin/playerctl' ]]"
 check "no display manager"             "[[ ! -e '$rootmnt/etc/systemd/system/display-manager.service' ]]"
 check "getty autologin drop-in"        "grep -q 'autologin $username' '$rootmnt/etc/systemd/system/getty@tty1.service.d/autologin.conf'"
 # Both halves of the power-button handover, because half of it is worse than
