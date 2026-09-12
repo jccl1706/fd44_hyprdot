@@ -1733,6 +1733,38 @@ HandlePowerKey=ignore
 HandlePowerKeyLongPress=poweroff
 EOF
 
+# Chromium's policy directory, owned by the user.
+#
+# bin/theme.sh colours the browser to match the desktop theme by writing an
+# enterprise policy file - Chromium reads policy only from /etc, and a theme
+# switch bound to a key cannot stop to ask for a password. Owning the
+# directory is what lets that write happen unprivileged.
+#
+# THIS IS A REAL GRANT, not a formality: anything running as this user can
+# now set Chromium policy, and policy can do more than pick a colour - it can
+# force-install extensions, for one. Treat it as part of the browser's trust
+# boundary. It is still the smaller of the two options, though: the
+# alternative is a passwordless sudoers rule for a helper script, and that
+# hands a script the ability to run as ROOT forever, where any flaw in it
+# becomes a root flaw. This grants exactly one power and no more.
+#
+# NUMERIC uid:gid, NOT the name. `install -o "$username"` resolves the name
+# against the LIVE system's passwd, not the target's, and the two do not
+# agree - that is how the Nerd Font ended up owned by uid 1001 in an earlier
+# version. Read the id out of the target's own passwd.
+if [[ "$browser" == chromium ]]; then
+    _cuid="$(awk -F: -v u="$username" '$1==u{print $3}' "$rootmnt/etc/passwd")"
+    _cgid="$(awk -F: -v u="$username" '$1==u{print $4}' "$rootmnt/etc/passwd")"
+    if [[ -n "$_cuid" && -n "$_cgid" ]]; then
+        run install -d -o "$_cuid" -g "$_cgid" -m 755 \
+            "$rootmnt/etc/chromium/policies/managed"
+    else
+        warn "could not resolve $username in the target passwd - skipping the"
+        warn "  Chromium policy directory; the browser will not follow themes"
+    fi
+    unset _cuid _cgid
+fi
+
 if [[ "$machine" == laptop ]]; then
     writefile 0644 "$rootmnt/etc/systemd/logind.conf.d/00-lid.conf" <<EOF
 [Login]
@@ -1840,6 +1872,11 @@ check "getty autologin drop-in"        "grep -q 'autologin $username' '$rootmnt/
 # the short press off safe at a console or when the session never starts.
 check "power key handed to the session" "grep -q '^HandlePowerKey=ignore' '$rootmnt/etc/systemd/logind.conf.d/00-power-key.conf'"
 check "power key long press powers off" "grep -q '^HandlePowerKeyLongPress=poweroff' '$rootmnt/etc/systemd/logind.conf.d/00-power-key.conf'"
+# Owned by the user, not merely present: root-owned is the package default and
+# is exactly the state in which the browser silently stops following themes.
+if [[ "$browser" == chromium ]]; then
+    check "chromium policy dir is the user's" "[[ -n '$target_uid' && \$(stat -c %u '$rootmnt/etc/chromium/policies/managed' 2>/dev/null) == '$target_uid' ]]"
+fi
 check "uwsm start hook in profile"     "grep -q 'uwsm check may-start' '$rootmnt/home/$username/.bash_profile'"
 check "forced password change in profile" "grep -q 'password-changed' '$rootmnt/home/$username/.bash_profile'"
 # The inverse of a check, and the important one: field 3 of the shadow entry
