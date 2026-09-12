@@ -207,6 +207,25 @@ layer itself (`VKD3D_FRAME_RATE` for DX12, `DXVK_CONFIG` for DX9/11), from
 `~/.config/uwsm/env.d/gaming`. That file is written into the gaming machine's
 home, not this repo — the laptop shares the repo and does not game.
 
+## Cooling
+
+Also opt-in, and also specific to one machine's hardware: every fan on the
+gaming desktop hangs off an Aquacomputer Quadro, which runs them at fixed
+speeds until something drives it. `bin/cooling-setup.sh` installs
+CoolerControl's daemon from its COPR and starts it.
+
+```sh
+sudo bin/cooling-setup.sh --dry-run
+sudo bin/cooling-setup.sh                   # fan curves for the Quadro
+sudo bin/cooling-setup.sh --gpu-overdrive   # also the GPU's own fan curve (reboot)
+```
+
+The daemon serves CoolerControl's full UI at `http://127.0.0.1:11987`, loopback
+only, so the desktop app — which costs `qt6-qtwebengine`, 277 MB — is skipped.
+`--gpu-overdrive` sets amdgpu's overdrive bit on the kernel command line rather
+than in `/etc/modprobe.d`: amdgpu loads from the initramfs here, where a
+modprobe option silently does nothing until the image is rebuilt.
+
 ## Power policy
 
 | | Battery | AC |
