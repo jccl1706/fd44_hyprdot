@@ -22,6 +22,7 @@
 #   - swaps Mesa's VA-API driver for RPM Fusion's, which has the H.264 and
 #     HEVC paths compiled in
 #   - marks the Steam library nodatacow on Btrfs
+#   - caps Proton games at 144 fps through the session environment
 #   - verifies all of it, including running the tools rather than only
 #     asking rpm whether they are installed
 #
@@ -144,11 +145,22 @@ packages=(
     # weak dependency: playerctl vanished the day the package that pulled it
     # in was removed, and nothing pointed at the cause. Both architectures,
     # because a 32-bit game preloads the 32-bit libgamemodeauto.
-    gamemode
+    #
+    # BOTH ARCHITECTURES SPELLED OUT, x86_64 included. This list used to say
+    # `gamemode gamemode.i686`, and dnf5 installed ONLY the i686 package -
+    # the transaction's own record reads "Install gamemode...i686" and
+    # nothing else. A bare name next to the same name with an explicit arch
+    # does not get you both. The result was that `gamemoderun` failed on
+    # every 64-bit game, which is nearly all of them:
+    #   ld.so: object 'libgamemodeauto.so.0' from LD_PRELOAD cannot be
+    #   preloaded (cannot open shared object file): ignored.
+    # while the verification pass reported ok, because `rpm -q gamemode` is
+    # satisfied by the i686 package and a 32-bit gamemoded runs fine.
+    gamemode.x86_64
     gamemode.i686
 
-    # The performance overlay. Same reasoning for the second architecture.
-    mangohud
+    # The performance overlay, with the same fix for the same reason.
+    mangohud.x86_64
     mangohud.i686
 
     # A nested compositor to run a game inside. This matters more here than
@@ -297,6 +309,51 @@ fi
 
 
 # -------------------------------------------------------------------------
+# Frame cap
+# -------------------------------------------------------------------------
+# Every game run through Proton is capped at FRAME_CAP, by the translation
+# layer itself - no overlay, no per-game launch options, nothing to install.
+#
+#   VKD3D_FRAME_RATE  read by vkd3d-proton, which is what DX12 games load
+#   DXVK_CONFIG       read by DXVK, which is what DX9/10/11 games load
+#
+# Both names were checked against the DLLs Proton actually ships rather than
+# taken from a guide: `grep -a` finds VKD3D_FRAME_RATE in d3d12core.dll, and
+# DXVK_CONFIG / dxgi.maxFrameRate / d3d9.maxFrameRate in DXVK's dxgi, d3d11
+# and d3d9. Native Linux games are not affected; they read neither.
+#
+# WHY A CAP AT ALL. With nothing limiting it, the RX 9070 XT rendered ARC
+# Raiders at 99-100% utilisation and 304 W - its full power limit, 94 C at
+# the junction - on a 144 Hz monitor. Frames past the refresh rate are never
+# shown; they are just heat.
+#
+# WHERE IT LIVES. uwsm sources ~/.config/uwsm/env.d/* when the session
+# starts and exports the result to systemd and D-Bus, so everything launched
+# in the session - the Steam client, and every game it starts - inherits it.
+# It is a file in THIS machine's home rather than in the repository on
+# purpose: the laptop shares the repo and does not game. Takes effect at the
+# next login.
+FRAME_CAP=144
+log "frame cap"
+cap_dir="$target_home/.config/uwsm/env.d"
+cap_file="$cap_dir/gaming"
+if (( DRY )); then
+    printf '\033[1;34mwould write:\033[0m %s (cap %s fps)\n' "$cap_file" "$FRAME_CAP"
+else
+    # As the user, every component - the lesson from the Steam library.
+    runuser -u "$target_user" -- mkdir -p "$cap_dir"
+    runuser -u "$target_user" -- tee "$cap_file" >/dev/null <<EOF
+# Written by bin/gaming-setup.sh. Sourced by uwsm at login.
+# Caps games run through Proton at $FRAME_CAP fps. Delete this file to remove
+# the cap; edit the numbers to change it. Both take effect at the next login.
+export VKD3D_FRAME_RATE=$FRAME_CAP
+export DXVK_CONFIG="dxgi.maxFrameRate = $FRAME_CAP; d3d9.maxFrameRate = $FRAME_CAP"
+EOF
+    printf '    %s fps, from the next login - %s\n' "$FRAME_CAP" "$cap_file"
+fi
+
+
+# -------------------------------------------------------------------------
 # Proton-GE (optional)
 # -------------------------------------------------------------------------
 # Valve's Proton covers most of the catalogue. GE-Proton is a community
@@ -365,7 +422,9 @@ done
 
 # Packages, both architectures where it matters
 rpm -q steam >/dev/null 2>&1 && ok "steam $(rpm -q --qf '%{version}' steam)" || bad "steam not installed"
-for p in gamemode gamemode.i686 mangohud mangohud.i686 gamescope vulkan-tools; do
+# By architecture. A bare `rpm -q mangohud` is satisfied by either one, which
+# is exactly how a missing x86_64 half passed this check once.
+for p in gamemode.x86_64 gamemode.i686 mangohud.x86_64 mangohud.i686 gamescope vulkan-tools; do
     rpm -q "$p" >/dev/null 2>&1 && ok "$p" || bad "$p not installed"
 done
 
@@ -419,6 +478,16 @@ else
     bad "gamemoded is installed but will not run"
 fi
 
+# gamemoderun, RUN, from a 64-bit program. The daemon starting proves nothing
+# about the client library a game preloads, and a missing one is not fatal -
+# ld.so prints an error and the game runs WITHOUT GameMode, silently.
+preload="$(gamemoderun /usr/bin/true 2>&1 || true)"
+if [[ $preload == *"cannot be preloaded"* ]]; then
+    bad "gamemoderun cannot preload into 64-bit programs (libgamemodeauto missing)"
+else
+    ok "gamemoderun preloads into 64-bit programs"
+fi
+
 # gamescope, RUN. --help needs no display, so this works over ssh.
 gamescope --help >/dev/null 2>&1 \
     && ok "gamescope runs" || bad "gamescope is installed but will not run"
@@ -442,6 +511,14 @@ mmc="$(cat /proc/sys/vm/max_map_count)"
 (( mmc >= 1048576 )) \
     && ok "vm.max_map_count = $mmc (already high enough; do not set it again)" \
     || bad "vm.max_map_count = $mmc - too low for some Proton titles"
+
+# The frame cap file, and that it says what it should.
+if [[ -f $cap_file ]] && grep -q "^export VKD3D_FRAME_RATE=$FRAME_CAP$" "$cap_file" \
+   && [[ $(stat -c %U "$cap_file") == "$target_user" ]]; then
+    ok "frame cap $FRAME_CAP fps in $cap_file (applies from next login)"
+else
+    bad "frame cap file missing, wrong, or not owned by $target_user: $cap_file"
+fi
 
 # OWNERSHIP OF THE WHOLE STEAM TREE, not just the leaf. A root-owned
 # directory anywhere in here stops Steam extracting its bootstrap, and the
