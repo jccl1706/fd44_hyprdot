@@ -1266,7 +1266,22 @@ log "Installing hardware, desktop and app packages"
 # system's repo list instead (which has no idea this COPR exists), and the
 # COPR packages would fail to resolve with no explanation, which is exactly
 # what happened before this was caught.
+# -x nwg-panel: it declares `Supplements: hyprland`, which is the REVERSE of
+# Recommends - "install me whenever hyprland is installed" - so it arrives
+# unasked on every install and cannot be traced by querying what recommends
+# it, because nothing does. It is a GTK3 panel, i.e. a second bar doing the
+# same job as quickshell's, and it drags in about 9MB of GTK and Python
+# including playerctl, gtk-layer-shell, python3-i3ipc and wlr-randr, none of
+# which anything here uses.
+#
+# Excluded by name rather than with --setopt=install_weak_deps=False: that
+# flag is deliberately NOT used anywhere in this script, for reasons written
+# out at length above the base install - this Framework's amdgpu and iwlwifi
+# firmware both arrive only via Recommends, and stripping weak deps left the
+# machine unable to load any firmware at all. One unwanted package is excluded
+# by name; the mechanism stays on.
 run dnf5 --installroot "$rootmnt" --releasever "$releasever" -y \
+    -x nwg-panel \
     install "${hwpacs[@]}" "${depacs[@]}" "${apppacs[@]}"
 
 ###############################################################################
@@ -1885,6 +1900,12 @@ check "quickshell installed"           "[[ -x '$rootmnt/usr/bin/quickshell' ]]"
 # revealed a broken font step.
 check "Symbols Nerd Font installed"    "[[ -f '$rootmnt/usr/local/share/fonts/nerd-fonts-symbols/SymbolsNerdFont-Regular.ttf' ]]"
 check "no display manager"             "[[ ! -e '$rootmnt/etc/systemd/system/display-manager.service' ]]"
+# nwg-panel declares Supplements: hyprland, so it installs itself unless
+# excluded by name. Asserted rather than assumed: a weak dependency that
+# arrives by reverse-dependency is invisible to every "what pulled this in"
+# query, and this one went unnoticed long enough to be blamed on a package
+# that had already been removed.
+check "nwg-panel not installed"        "! fchroot rpm -q nwg-panel >/dev/null 2>&1"
 check "getty autologin drop-in"        "grep -q 'autologin $username' '$rootmnt/etc/systemd/system/getty@tty1.service.d/autologin.conf'"
 # Both halves of the power-button handover, because half of it is worse than
 # neither. logind reads the key straight from /dev/input, so if the drop-in is
