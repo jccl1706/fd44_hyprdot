@@ -68,6 +68,15 @@ PanelWindow {
     // colour AND the second press - see `armed` above. Lock and Suspend are
     // both trivially undone, so they fire on the first press.
 
+    // The logind session to terminate on log out. Resolved from the
+    // environment because logind cannot work it out for itself from here:
+    // `loginctl terminate-session ""` means "the caller's session", but it
+    // fails with "Caller does not belong to any known session" when called
+    // from anything quickshell spawns - those live under user@1000.service,
+    // outside the login session's own cgroup. XDG_SESSION_ID is set by
+    // pam_systemd at login and inherited all the way down to here.
+    readonly property string sessionId: Quickshell.env("XDG_SESSION_ID") || ""
+
     readonly property var actions: [
         {
             name: "Lock",
@@ -90,13 +99,31 @@ PanelWindow {
         },
         {
             name: "Log out",
-            detail: "End this session",
+            detail: "End the session and start a fresh one",
             glyph: "\u{F0343}",
             danger: true,
-            // uwsm owns the session, so it is what should tear it down -
-            // killing Hyprland directly leaves graphical-session.target and
-            // everything bound to it running.
-            cmd: ["uwsm", "stop"]
+            // ENDS THE LOGIN SESSION, not just the compositor.
+            //
+            // `uwsm stop` was the obvious choice and is the wrong one here.
+            // There is no display manager: tty1 autologins and ~/.bash_profile
+            // starts Hyprland WITHOUT exec, so the login shell stays parked
+            // behind the compositor. Stopping graphical-session.target hands
+            // the terminal back to that shell and leaves you logged in at a
+            // text console - which is not a log out, and is a poor place to
+            // land if you pressed this to walk away from the machine.
+            //
+            // Terminating the session kills that shell too. getty then
+            // respawns, autologin fires, and the desktop comes back clean.
+            // With autologin a true log out is not possible anyway; what this
+            // can honestly offer is a session restart, so it does that rather
+            // than dumping you on a console.
+            //
+            // Falls back to uwsm if the session id is somehow unset, because
+            // `loginctl terminate-session` with an empty argument would mean
+            // something quite different from nothing.
+            cmd: root.sessionId
+                 ? ["loginctl", "terminate-session", root.sessionId]
+                 : ["uwsm", "stop"]
         },
         {
             name: "Restart",
