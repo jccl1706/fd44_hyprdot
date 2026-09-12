@@ -36,6 +36,12 @@
 #                palette: a Chrome theme is an extension, and no outside
 #                process can swap one without restarting the browser.
 #
+#   Chromium     an enterprise policy file under /etc, applied live with
+#                --refresh-platform-policy. Not an extension: nothing outside
+#                the browser can swap one of those without restarting it.
+#                Needs root, so it is attempted only when root happens to be
+#                free - see the comment at that step.
+#
 #   Hyprland     hyprctl eval, applied live. NOT `hyprctl keyword`, which
 #                this Hyprland refuses outright - "keyword can't work with
 #                non-legacy parsers, use eval" - because the config is Lua.
@@ -156,6 +162,27 @@ apply() {
         printf '[Settings]\ngtk-application-prefer-dark-theme=%d\n' "$prefer" \
             > "$d/settings.ini"
     done
+
+    # --- Chromium ------------------------------------------------------
+    #
+    # OPPORTUNISTIC, AND DELIBERATELY SO. Chromium reads policy only from
+    # /etc, so this write needs root, and this script must stay usable from a
+    # keybind that cannot stop to ask for a password. So it tries only when
+    # root is available without prompting, and otherwise does nothing at all:
+    # no prompt appearing from nowhere behind a keypress, no hang, no error.
+    #
+    # In practice the browser follows whenever a sudo timestamp happens to be
+    # warm, and silently does not the rest of the time. To make it follow
+    # every time, add a sudoers rule scoped to chrome-theme.sh alone. That is
+    # a standing passwordless-root grant and is not added here - it is a real
+    # security decision and belongs to whoever runs the machine, not to this.
+    #
+    # When it is skipped the browser keeps its last colour, which is wrong but
+    # harmless, and is corrected by the next switch that does have root.
+    local seed; seed="$(val "$file" browser_seed)"
+    if [[ -n $seed && -x "$repo/bin/chrome-theme.sh" ]] && sudo -n true 2>/dev/null; then
+        sudo -n "$repo/bin/chrome-theme.sh" "${seed#\#}" >/dev/null 2>&1 || true
+    fi
 
     # --- Hyprland ------------------------------------------------------
     if command -v hyprctl >/dev/null 2>&1 && [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
