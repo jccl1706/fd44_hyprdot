@@ -51,6 +51,20 @@ hl.bind(Mod .. " + comma", hl.dsp.global("quickshell:wallpaper"))
 -- as the launcher: `qs ipc call` spawns a whole process per press.
 hl.bind(Mod .. " + M", hl.dsp.global("quickshell:power"))
 
+-- The physical power button opens the same menu.
+--
+-- logind owns this key by default and its default is HandlePowerKey=poweroff:
+-- one press, immediate shutdown, nothing to catch a misfire - the same flaw
+-- Super+M had. A drop-in in /etc/systemd/logind.conf.d hands the key over by
+-- setting HandlePowerKey=ignore, which is what lets this binding see it at
+-- all, and moves a clean poweroff to HandlePowerKeyLongPress so holding the
+-- button still works when there is no session to show a menu.
+--
+-- NOT `locked = true`, deliberately: with the screen locked this binding stays
+-- inert, so the button cannot raise a shutdown menu over hyprlock. Holding it
+-- still powers off, which is logind's job by then, not ours.
+hl.bind("XF86PowerOff", hl.dsp.global("quickshell:power"))
+
 
 -- -------------------------------------------------------------------------
 -- Window management

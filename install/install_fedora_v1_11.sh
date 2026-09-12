@@ -1708,6 +1708,23 @@ run fchroot systemctl enable "${services[@]}"
 run fchroot systemctl --global enable hyprpolkitagent.service hypridle.service \
     || warn "could not enable one of the Hyprland user units"
 
+# The power button opens quickshell's power menu instead of shutting the
+# machine down on the spot. logind's default is HandlePowerKey=poweroff - one
+# press, immediate shutdown, no confirmation - and it reads the key straight
+# from /dev/input, so the compositor's own binding cannot override it. Setting
+# it to ignore hands the key to Hyprland, where hypr/binds.lua binds
+# XF86PowerOff to the menu.
+#
+# The long press is the fallback and the reason this is safe: it still powers
+# off cleanly, so the button keeps working at a text console, or if the
+# compositor never starts, or if quickshell has died. Not a laptop-only
+# setting - a desktop benefits from it at least as much.
+writefile 0644 "$rootmnt/etc/systemd/logind.conf.d/00-power-key.conf" <<'EOF'
+[Login]
+HandlePowerKey=ignore
+HandlePowerKeyLongPress=poweroff
+EOF
+
 if [[ "$machine" == laptop ]]; then
     writefile 0644 "$rootmnt/etc/systemd/logind.conf.d/00-lid.conf" <<EOF
 [Login]
