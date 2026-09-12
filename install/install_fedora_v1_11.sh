@@ -1884,15 +1884,23 @@ cat <<EOF
   finishes. Normal, let it run.
 
   FIRST LOGIN WILL ASK YOU TO CHANGE THE PASSWORD. The account ships with the
-  publicly-known password "changeme", expired on creation, so the very first
-  boot forces you to set a real one before it reaches a shell. Until you do,
-  treat the machine as having no password at all.
+  publicly-known password "changeme". The password is deliberately NOT
+  expired - agetty's autologin runs "login -f", and PAM rejects an expired
+  password on that path instead of prompting, which left the machine in a
+  getty respawn loop that never reached a desktop. The forced change lives
+  in ~/.bash_profile instead, which runs after login has already succeeded
+  and can actually prompt. Until you complete it, treat the machine as
+  having no password at all.
 
   THERE IS NO GREETER. The machine autologins $username on tty1 and starts
   Hyprland from ~/.bash_profile via uwsm, which is what starts
   graphical-session.target - the thing that makes the polkit agent, hypridle
-  and the portals work. Your LUKS passphrase is the only authentication at
-  boot; that is the deliberate trade.
+  and the portals work.$( [[ "$encrypt" == yes ]] \
+    && echo "  Your LUKS passphrase is the only
+  authentication at boot; that is the deliberate trade." \
+    || echo "  With encryption off there is NO authentication
+  at boot at all: powering the machine on lands straight in a session. The
+  disk is readable by anyone who can take it out of the case." )
 
   If Hyprland ever fails to start you land at a shell on tty1 rather than a
   respawn loop (the profile hook does not use exec), and tty2-tty6 always
