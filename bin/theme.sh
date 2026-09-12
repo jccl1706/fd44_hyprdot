@@ -165,23 +165,36 @@ apply() {
 
     # --- Chromium ------------------------------------------------------
     #
-    # OPPORTUNISTIC, AND DELIBERATELY SO. Chromium reads policy only from
-    # /etc, so this write needs root, and this script must stay usable from a
-    # keybind that cannot stop to ask for a password. So it tries only when
-    # root is available without prompting, and otherwise does nothing at all:
-    # no prompt appearing from nowhere behind a keypress, no hang, no error.
+    # No sudo. bin/chrome-theme.sh writes a policy file directly, which works
+    # because /etc/chromium/policies/managed is made user-owned once by hand -
+    # see the setup note in that script. That deliberately avoids a
+    # passwordless sudoers rule: such a rule would let a helper run as root
+    # forever, where owning one policy directory grants only the ability to
+    # write browser policy.
     #
-    # In practice the browser follows whenever a sudo timestamp happens to be
-    # warm, and silently does not the rest of the time. To make it follow
-    # every time, add a sudoers rule scoped to chrome-theme.sh alone. That is
-    # a standing passwordless-root grant and is not added here - it is a real
-    # security decision and belongs to whoever runs the machine, not to this.
-    #
-    # When it is skipped the browser keeps its last colour, which is wrong but
-    # harmless, and is corrected by the next switch that does have root.
-    local seed; seed="$(val "$file" browser_seed)"
-    if [[ -n $seed && -x "$repo/bin/chrome-theme.sh" ]] && sudo -n true 2>/dev/null; then
-        sudo -n "$repo/bin/chrome-theme.sh" "${seed#\#}" >/dev/null 2>&1 || true
+    # LUMINANCE GUARD. The seed's own brightness beats the colour scheme - a
+    # near-black seed under scheme "light" renders a near-black browser, the
+    # inverse of what was asked for. So a seed that contradicts its scheme is
+    # swapped for a mid-tone that cannot. Computed rather than hardcoded per
+    # theme, so a theme added later is covered without editing this.
+    local seed scheme safe_seed
+    seed="$(val "$file" browser_seed)"
+    scheme=dark; [[ $appearance == light ]] && scheme=light
+
+    if [[ -n $seed && -x "$repo/bin/chrome-theme.sh" ]]; then
+        safe_seed="$(SEED="$seed" FALLBACK="$(val "$file" outline)" SCHEME="$scheme" \
+            python3 -c '
+import os
+def lum(h):
+    h = h.lstrip("#")
+    return (0.299*int(h[0:2],16) + 0.587*int(h[2:4],16) + 0.114*int(h[4:6],16)) / 255
+seed, fb, scheme = os.environ["SEED"], os.environ["FALLBACK"], os.environ["SCHEME"]
+l = lum(seed)
+bad = (scheme == "dark" and l > 0.75) or (scheme == "light" and l < 0.25)
+print(fb if bad else seed)
+' 2>/dev/null)"
+        [[ -n $safe_seed ]] || safe_seed="$seed"
+        "$repo/bin/chrome-theme.sh" "${safe_seed#\#}" "$scheme" >/dev/null 2>&1 || true
     fi
 
     # --- Hyprland ------------------------------------------------------
