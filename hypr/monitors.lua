@@ -28,6 +28,31 @@ hl.monitor({
     scale    = "1",
 })
 
+-- Variable refresh rate, for fullscreen windows only.
+--
+-- 2 is FULLSCREEN ONLY, not 1 (always). With VRR on everywhere the panel's
+-- refresh rate follows whatever is drawing, so an idle desktop drags it to the
+-- bottom of the range, where many panels visibly flicker in brightness.
+-- Fullscreen is where frame pacing is the point, which is games.
+--
+-- GLOBAL, NOT ON THE MONITOR RULE - and that was measured, not chosen.
+-- hl.monitor accepts a `vrr` field and loads it without a word, but on
+-- Hyprland 0.56 it changed nothing. On the desktop's LG (DP-2, EDID range
+-- 48-144 Hz, reported vrr-capable by the DRM driver), with a game fullscreen
+-- and on screen, adaptive sync read as off with the monitor rule at either
+-- value. The global option is the one that does something:
+--
+--   monitor rule vrr = 1 or 2   desktop off   game off
+--   misc.vrr = 1                desktop on    game on
+--   misc.vrr = 2                desktop off   game on    <- this
+--   misc.vrr = 3                desktop off   game off   (wants a content-type
+--                                                        hint Proton games do
+--                                                        not send)
+--
+-- Being global, it reaches the laptop as well. That is fullscreen-only there
+-- too, and on a panel with no adaptive sync there is nothing for it to enable.
+hl.config({ misc = { vrr = 2 } })
+
 -- Internal laptop panels. scale 1.57 is what the stock config picked for the
 -- Framework's 2256x1504: 2256 / 1.57 = ~1437 logical px. Hyprland reports the
 -- applied scale as 1.5666667, because it snaps to a value that keeps the
