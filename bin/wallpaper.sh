@@ -82,9 +82,40 @@ case "${1:-}" in
         ;;
 
     restore)
-        # Nothing chosen yet is not an error - a fresh install has no state
-        # file and should simply come up with whatever hyprpaper.conf says.
-        [[ -f $state_file ]] || exit 0
+        # FIRST BOOT: nothing chosen yet. This used to exit 0 and leave it to
+        # hyprpaper.conf, but that config deliberately carries no wallpaper
+        # line - it only sets ipc/splash/unload - so hyprpaper came up with an
+        # empty list and the desktop showed Hyprland's built-in splash art
+        # instead. The wallpapers were installed the whole time; nothing ever
+        # named one. Only visible on a fresh install: a machine that has used
+        # the picker once has a state file and takes the branch below.
+        #
+        # First alphabetically, rather than a name hardcoded here, so adding
+        # or removing wallpapers never needs this script edited. The choice is
+        # then WRITTEN to the state file, which makes it stick: re-deriving it
+        # every boot would silently change the wallpaper the day someone adds
+        # one that sorts earlier.
+        if [[ ! -f $state_file ]]; then
+            src_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../wallpapers" 2>/dev/null && pwd)" || exit 0
+            shopt -s nullglob
+            candidates=("$src_dir"/*.webp "$src_dir"/*.png "$src_dir"/*.jpg "$src_dir"/*.jpeg)
+            shopt -u nullglob
+            # LC_ALL=C so the ordering is byte-order and identical on every
+            # machine - a locale-collated sort can disagree about case and
+            # punctuation, and this has to pick the same file everywhere.
+            first="$(printf '%s\n' "${candidates[@]}" | LC_ALL=C sort | head -1)"
+            # No wallpapers shipped is not an error - a clone without them
+            # should still boot to a working desktop.
+            [[ -n $first ]] || exit 0
+            # apply() first: it dies if hyprpaper is not listening, and a
+            # state file naming a wallpaper that was never applied would be a
+            # lie every subsequent boot then acts on.
+            apply "$first"
+            mkdir -p "$state_dir"
+            printf '%s\n' "$first" > "$state_file"
+            printf 'wallpaper: no choice yet, defaulting to %s\n' "$(basename "$first")" >&2
+            exit 0
+        fi
         img="$(< "$state_file")"
         # A wallpaper that has since been deleted should not take the session
         # down with it, nor leave a stale entry that fails on every boot.
