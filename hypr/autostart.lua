@@ -67,7 +67,12 @@ hl.env("HYPRCURSOR_SIZE", "24")
 -- signal to wait on. If restore silently does nothing after a cold boot,
 -- this is the first thing to lengthen.
 hl.on("hyprland.start", function()
-    hl.exec_cmd("hyprpaper")
+    -- Via the script, not "hyprpaper" directly: which wallpaper daemon a
+    -- machine can actually run is a property of the machine. hyprpaper is
+    -- preferred and used wherever it works; on hardware where it aborts on
+    -- startup - which this project has one example of - the script falls back
+    -- to swaybg. See the backend note in bin/wallpaper.sh.
+    hl.exec_cmd("sh -c '$HOME/.config/hypr/../bin/wallpaper.sh daemon'")
     hl.exec_cmd("sh -c 'sleep 1; $HOME/.config/hypr/../bin/wallpaper.sh restore'")
 
     -- Refresh the picker's preview thumbnails. Safe to run every login: it

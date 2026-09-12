@@ -734,7 +734,12 @@ depacs=(
     hyprland uwsm quickshell qt6-qtwayland
     xorg-x11-server-Xwayland
     python3-pyxdg python3-dbus
-    hyprpaper hyprlock hypridle hyprpolkitagent xdg-desktop-portal-hyprland
+    # swaybg is the wallpaper fallback, not a second choice for its own sake:
+    # hyprpaper 0.8.4 aborts on startup on some machines, every time, inside
+    # libhyprtoolkit's wl_seat handler. swaybg does no seat handling and
+    # cannot hit it. bin/wallpaper.sh picks whichever works at runtime, so
+    # both are installed and the machine decides. swaybg is ~50KB.
+    hyprpaper swaybg hyprlock hypridle hyprpolkitagent xdg-desktop-portal-hyprland
     hyprland-guiutils
     wl-clipboard cliphist grim slurp
     nautilus gvfs file-roller xdg-user-dirs

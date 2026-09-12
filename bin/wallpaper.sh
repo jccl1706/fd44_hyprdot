@@ -36,22 +36,107 @@ thumb_width=960
 
 die() { printf 'wallpaper: %s\n' "$*" >&2; exit 1; }
 
+# --- backends ------------------------------------------------------------
+#
+# TWO OF THEM, CHOSEN AT RUNTIME, not per host.
+#
+# hyprpaper is preferred: it has an IPC, so changing a wallpaper is a message
+# to a running daemon rather than a process restart, and it can be told about
+# one monitor at a time.
+#
+# swaybg is the fallback, and it exists because hyprpaper 0.8.4 cannot start
+# at all on some machines. On this project's desktop it aborts every single
+# time inside libhyprtoolkit's wl_seat capability handler - glibc catching
+# heap corruption, signal 6, a fresh coredump per attempt. It is not a race
+# and not the peripherals: unplugging devices changed nothing, and there is no
+# newer hyprpaper packaged in either Fedora or the COPR to move to. swaybg
+# does no seat handling whatsoever, so it structurally cannot hit that bug.
+#
+# Detected rather than configured, because "which wallpaper daemon works" is a
+# property of the machine, not a preference, and a per-host setting is one
+# more thing that has to be right on every clone.
+
+backend() {
+    # A responding hyprpaper wins. `listactive` is used as the probe rather
+    # than pgrep: a hyprpaper that is running but not answering its socket is
+    # no use, and that is a state this has actually been in.
+    if hyprctl hyprpaper listactive >/dev/null 2>&1; then
+        echo hyprpaper; return 0
+    fi
+    if pgrep -x swaybg >/dev/null 2>&1 || command -v swaybg >/dev/null 2>&1; then
+        echo swaybg; return 0
+    fi
+    echo none
+}
+
 apply() {
     local img="$1" mon applied=0
     [[ -f $img ]] || die "no such file: $img"
 
-    # NAME EVERY MONITOR EXPLICITLY. The documented `,path` form - empty
-    # monitor field, meaning "all of them" - is accepted by hyprctl without
-    # complaint on hyprpaper 0.8.4 and then does nothing at all: no error, no
-    # change, exit status 0. Passing the real output name works. Cost an hour
-    # of thinking the webp decoder was at fault.
-    while read -r mon; do
-        [[ -n $mon ]] || continue
-        hyprctl hyprpaper wallpaper "$mon,$img" >/dev/null 2>&1 && applied=1
-    done < <(hyprctl monitors -j 2>/dev/null \
-             | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p')
+    case "$(backend)" in
+        hyprpaper)
+            # NAME EVERY MONITOR EXPLICITLY. The documented `,path` form -
+            # empty monitor field, meaning "all of them" - is accepted by
+            # hyprctl without complaint on hyprpaper 0.8.4 and then does
+            # nothing at all: no error, no change, exit status 0. Passing the
+            # real output name works. Cost an hour of thinking the webp
+            # decoder was at fault.
+            while read -r mon; do
+                [[ -n $mon ]] || continue
+                hyprctl hyprpaper wallpaper "$mon,$img" >/dev/null 2>&1 && applied=1
+            done < <(hyprctl monitors -j 2>/dev/null \
+                     | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p')
+            (( applied )) || die "hyprpaper did not accept it - is it running, with ipc = on?"
+            ;;
+        swaybg)
+            # swaybg has no IPC, so a change means a new process. START THE
+            # NEW ONE FIRST, then kill the old: the reverse leaves a frame or
+            # two of bare compositor background, which reads as a flash. With
+            # no -o it covers every output.
+            local old
+            old="$(pgrep -x swaybg | tr '\n' ' ')"
+            swaybg -m fill -i "$img" >/dev/null 2>&1 &
+            disown
+            sleep 0.3
+            [[ -n $old ]] && kill $old 2>/dev/null || true
+            pgrep -x swaybg >/dev/null 2>&1 || die "swaybg did not stay running"
+            ;;
+        *)
+            die "no wallpaper backend: hyprpaper is not responding and swaybg is not installed"
+            ;;
+    esac
+}
 
-    (( applied )) || die "hyprpaper did not accept it - is the daemon running, with ipc = on?"
+# Starts whichever backend this machine can actually use. Called from
+# hypr/autostart.lua instead of running hyprpaper directly.
+start_daemon() {
+    if pgrep -x hyprpaper >/dev/null 2>&1 || pgrep -x swaybg >/dev/null 2>&1; then
+        log "a wallpaper daemon is already running"
+        return 0
+    fi
+
+    if command -v hyprpaper >/dev/null 2>&1; then
+        hyprpaper >/dev/null 2>&1 &
+        disown
+        # Give it a moment to either come up or die. hyprpaper's failure mode
+        # here is an immediate abort, so this does not need to be generous.
+        local i
+        for i in 1 2 3 4 5 6 7 8 9 10; do
+            sleep 0.2
+            hyprctl hyprpaper listactive >/dev/null 2>&1 && { log "backend: hyprpaper"; return 0; }
+        done
+        log "hyprpaper did not come up - falling back"
+    fi
+
+    if command -v swaybg >/dev/null 2>&1; then
+        # Started with whatever is remembered, or nothing - `restore` runs
+        # straight after this and will set the real one.
+        log "backend: swaybg"
+        return 0
+    fi
+
+    log "no wallpaper backend available"
+    return 0
 }
 
 case "${1:-}" in
@@ -127,6 +212,12 @@ case "${1:-}" in
         fi
         ;;
 
+    daemon)
+        start_daemon
+        ;;
+    backend)
+        backend
+        ;;
     current)
         [[ -f $state_file ]] && cat "$state_file"
         ;;
