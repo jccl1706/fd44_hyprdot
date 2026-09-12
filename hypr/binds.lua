@@ -42,10 +42,14 @@ hl.bind(Mod .. " + E",      hl.dsp.exec_cmd(Apps.file_manager))
 hl.bind(Mod .. " + space", hl.dsp.global("quickshell:launcher"))
 hl.bind(Mod .. " + comma", hl.dsp.global("quickshell:wallpaper"))
 
--- Exit. Prefers hyprshutdown if it is installed, otherwise exits directly.
-hl.bind(Mod .. " + M", hl.dsp.exec_cmd(
-    "command -v hyprshutdown >/dev/null 2>&1 && hyprshutdown || hyprctl dispatch 'hl.dsp.exit()'"
-))
+-- Session actions. This used to run `hyprctl dispatch exit` directly, which
+-- ended the session on a single keystroke with nothing to catch a misfire.
+-- It now opens quickshell's power menu instead, where lock, suspend, log out,
+-- restart and shut down are separate deliberate choices.
+--
+-- Via the global-shortcuts protocol rather than exec_cmd, for the same reason
+-- as the launcher: `qs ipc call` spawns a whole process per press.
+hl.bind(Mod .. " + M", hl.dsp.global("quickshell:power"))
 
 
 -- -------------------------------------------------------------------------

@@ -30,6 +30,10 @@ Singleton {
     readonly property color dim:     "#6c7086"
     readonly property color accent:  "#89b4fa"
 
+    // For actions that end the session or lose work. Catppuccin Mocha red,
+    // continuing the same palette the rest of these come from.
+    readonly property color danger:  "#f38ba8"
+
     // --- tonal surfaces --------------------------------------------------
     // bg is the darkest tone, and until now it was the ONLY one - every
     // module sat directly on it, so the bar read as loose items scattered on

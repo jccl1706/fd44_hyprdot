@@ -79,6 +79,13 @@ ShellRoot {
         }
     }
 
+    // Session actions, sliding out of the right frame.
+    Variants {
+        id: powerVariants
+        model: Quickshell.screens
+        PowerMenu {}
+    }
+
     // The crossfade surface. Unmapped except during a wallpaper change, and
     // click-through even then.
     Variants {
@@ -125,6 +132,20 @@ ShellRoot {
         onPressed: shell.eachWallpaper(w => w.toggle())
     }
 
+    GlobalShortcut {
+        appid: "quickshell"
+        name: "power"
+        onPressed: shell.eachPower(p => p.toggle())
+    }
+
+    IpcHandler {
+        target: "power"
+
+        function toggle(): void { shell.eachPower(p => p.toggle()) }
+        function open(): void   { shell.eachPower(p => p.open())   }
+        function close(): void  { shell.eachPower(p => p.close())  }
+    }
+
     IpcHandler {
         target: "wallpaper"
 
@@ -166,6 +187,13 @@ ShellRoot {
     // monitor from silently doing nothing.
     function eachLauncher(fn): void {
         const instances = launcherVariants.instances
+        for (let i = 0; i < instances.length; i++) {
+            if (instances[i]) fn(instances[i])
+        }
+    }
+
+    function eachPower(fn): void {
+        const instances = powerVariants.instances
         for (let i = 0; i < instances.length; i++) {
             if (instances[i]) fn(instances[i])
         }
