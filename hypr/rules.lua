@@ -144,3 +144,19 @@ hl.layer_rule({
 -- So it is blur or a crisp frame, and the frame wins: it is on screen all the
 -- time, the launcher is not. Theme.panelAlpha still gives the panel its
 -- translucency.
+
+
+-- The WALLPAPER PICKER does get blur, because its surface is not full-screen.
+--
+-- It deliberately omits ExclusionMode.Ignore, so the bar's and the frame's
+-- exclusive zones shrink it to the content well - and a layer's blur reaches
+-- only as far as its own surface. The frame sits outside that surface, so it
+-- keeps its hard edge while everything behind the picker is blurred.
+--
+-- This is the same rule that was wrong for the launcher, made right by
+-- changing the surface rather than the rule.
+hl.layer_rule({
+    name  = "wallpaper-picker-blur",
+    match = { namespace = "^quickshell-wallpapers$" },
+    blur  = true,
+})

@@ -124,7 +124,19 @@ PanelWindow {
                                           : WlrKeyboardFocus.None
 
     anchors { left: true; right: true; top: true; bottom: true }
-    exclusionMode: ExclusionMode.Ignore
+
+    // NO ExclusionMode.Ignore here, unlike the launcher - the surface is
+    // deliberately allowed to be shrunk to the content well (4,38 1432x918)
+    // by the bar's and frame's exclusive zones.
+    //
+    // That is what makes the background blur possible. Hyprland's layer blur
+    // applies to a whole SURFACE, not to the parts of it that are painted, so
+    // a full-screen picker would blur the frame along with everything else -
+    // the frame's hard 1px edge turned to a 4.5px mush when this was tried on
+    // the launcher. Confined to the well, the blur cannot reach the frame.
+    //
+    // The cost is that clicking the 4px frame or the bar no longer dismisses
+    // the picker. Clicking anywhere else still does.
     color: "transparent"
     visible: false
 
@@ -258,9 +270,13 @@ PanelWindow {
     // with the strip.
 
     Rectangle {
+        // Fills the surface exactly: the surface IS the content well now, so
+        // the insets this used to carry would double up.
         anchors.fill: parent
         color: "#000000"
-        opacity: root.revealed ? 0.45 : 0
+        // Lighter now that the compositor is blurring behind this as well -
+        // blur and a heavy scrim together just make the desktop mud.
+        opacity: root.revealed ? 0.30 : 0
         Behavior on opacity {
             NumberAnimation { duration: Theme.animReveal; easing.type: Easing.InOutCubic }
         }
@@ -461,12 +477,30 @@ PanelWindow {
     Text {
         anchors { horizontalCenter: parent.horizontalCenter
                   top: bandWrap.bottom; topMargin: 18 }
-        text: files.count > 0
-              ? String(files.get(root.selected, "fileName") || "").replace(/\.[^.]+$/, "")
-              : "No images in wallpapers/"
+        // A filename dressed up as a caption: drop the extension, turn the
+        // separators into spaces and title-case it, so "catppuccin-blue-eye"
+        // reads as "Catppuccin Blue Eye". The files are named for sorting;
+        // this is the only place a human looks at them.
+        text: {
+            if (files.count === 0) return "No images in wallpapers/"
+            const raw = String(files.get(root.selected, "fileName") || "")
+            return raw.replace(/\.[^.]+$/, "")
+                      .replace(/[-_]+/g, " ")
+                      .replace(/\b\w/g, c => c.toUpperCase())
+        }
+
         font.family: Theme.font
-        font.weight: Theme.weightMedium
-        font.pixelSize: Theme.fontSizeTitle
+        // Light, at display size. A caption sitting on a photograph wants to
+        // be legible without competing with it - weight carries that better
+        // than size does, and Inter Variable has the axis to do it. The
+        // shadow below is what keeps it readable over a bright image.
+        font.weight: Theme.weightLight
+        font.pixelSize: Theme.fontSizeDisplay
+        font.letterSpacing: 1.6
+        // Inter's optical-size axis is not applied by Qt on its own, so
+        // without this the caption is drawn with letterforms meant for 14px
+        // body text.
+        font.variableAxes: ({ "opsz": Theme.fontSizeDisplay })
         color: "#ffffff"
         opacity: root.revealed ? 1 : 0
         Behavior on opacity {

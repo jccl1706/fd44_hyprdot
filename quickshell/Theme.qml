@@ -88,6 +88,7 @@ Singleton {
     // bold - there is no emphasis left to spend.
     //
     // Four steps, each with a job:
+    readonly property int weightLight:  300   // display-size text only
     readonly property int weightNormal: 400   // subtitles, secondary text
     readonly property int weightMedium: 500   // default UI text
     readonly property int weightSemi:   600   // titles, the focused workspace
@@ -102,6 +103,11 @@ Singleton {
     readonly property int fontSize:      12   // default bar text
     readonly property int fontSizeSmall: 10   // workspace numbers, subtitles
     readonly property int fontSizeClock: 16
+
+    // Display size: captions and titles that sit on their own rather than in
+    // a panel. Large enough that a light weight still reads, which is the
+    // whole reason to have a weight axis.
+    readonly property int fontSizeDisplay: 26
 
     // List-row titles. Deliberately 3px clear of fontSizeSmall: at 11 against
     // 10 the only thing separating a title from its subtitle was weight and
