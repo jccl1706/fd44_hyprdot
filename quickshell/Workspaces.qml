@@ -52,6 +52,11 @@ Row {
             height: 18
             radius: height / 2
 
+            // A STATE LAYER, in the Material sense: hover does not swap the
+            // colour, it adds a translucent film over whatever the chip
+            // already is. That way an occupied chip and an empty one both
+            // respond to the pointer, and neither has to know what the other
+            // looks like.
             color: focused  ? Theme.accent
                  : exists   ? Qt.rgba(Theme.fg.r, Theme.fg.g, Theme.fg.b, 0.25)
                             : "transparent"
@@ -69,15 +74,26 @@ Row {
                 text: chip.wsId
                 font.family: Theme.font
                 font.pixelSize: Theme.fontSizeSmall
-                font.bold: Theme.bold || chip.focused
+                font.weight: chip.focused ? Theme.weightSemi : Theme.weightMedium
+                font.letterSpacing: Theme.trackingLoose
                 color: chip.focused ? Theme.accentFg
                      : chip.exists  ? Theme.fg
                                     : Theme.dim
                 visible: chip.focused || chip.exists
             }
 
-            MouseArea {
+            Rectangle {
                 anchors.fill: parent
+                radius: parent.radius
+                color: Theme.fg
+                opacity: hover.containsMouse && !chip.focused ? 0.12 : 0
+                Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+            }
+
+            MouseArea {
+                id: hover
+                anchors.fill: parent
+                hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
 
                 // Hyprland 0.56 EVALUATES DISPATCHES AS LUA, so the old

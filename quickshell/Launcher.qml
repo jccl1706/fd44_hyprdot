@@ -243,7 +243,27 @@ PanelWindow {
         id: card
 
         width: 560
-        height: 420
+
+        // Tallest the card is allowed to get. Beyond this the list scrolls
+        // instead of the panel growing further.
+        readonly property int maxHeight: 420
+
+        // Everything that is not the results list: the search row and its
+        // margins, the divider, and the list's own insets.
+        readonly property int chromeHeight:
+            Theme.barPadding + searchRow.height + Theme.barPadding
+            + divider.height + 6 + 6 + Theme.frameThickness
+
+        // FITS ITS CONTENTS rather than standing at a fixed 420. With a
+        // handful of apps installed the old fixed height left half the panel
+        // empty, which reads as unfinished rather than spacious - and the
+        // emptiness grew as you typed and the list shrank.
+        height: Math.min(maxHeight, chromeHeight + list.contentHeight)
+
+        Behavior on height {
+            NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic }
+        }
+
         anchors.horizontalCenter: parent.horizontalCenter
 
         // Runs all the way to the bottom of the SCREEN, not to the top of the
@@ -259,7 +279,13 @@ PanelWindow {
         // against a stale height, then jump when the real one arrived. That
         // jump was most of the clunkiness. The margin is relative to an anchor
         // that tracks the parent by itself and never needs the height at all.
-        anchors.bottomMargin: root.revealed ? 0 : -height
+        // -maxHeight, NOT -height: the closed offset has to be a CONSTANT.
+        // Bound to `height` it would be re-evaluated every time the results
+        // list changed size, which restarts this Behavior - and its
+        // onRunningChanged is what unmaps the surface. Filtering while closed
+        // could then unmap a panel that was opening. maxHeight always clears
+        // the screen, since height can never exceed it.
+        anchors.bottomMargin: root.revealed ? 0 : -maxHeight
 
         Behavior on anchors.bottomMargin {
             NumberAnimation {
@@ -310,7 +336,16 @@ PanelWindow {
                 anchors.fill: parent
                 anchors.leftMargin:  Theme.cornerRadius
                 anchors.rightMargin: Theme.cornerRadius
-                color: Theme.bg
+
+                // Same lift as the bar pills, with one hard constraint: the
+                // bottom stop is exactly Theme.bg, because this card merges
+                // into the bottom frame and any other value would put the
+                // seam straight back. No border either - a rim would draw a
+                // line across that junction.
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: Theme.panelTop }
+                    GradientStop { position: 1.0; color: Theme.bg }
+                }
 
                 // Rounded on top only - the mirror of the bar, which is
                 // rounded on the bottom only. The bottom edge is flat because
@@ -379,8 +414,12 @@ PanelWindow {
                     verticalCenter: parent.verticalCenter
                 }
                 font.family: Theme.font
-                font.bold: Theme.bold
+                // Medium, not bold. At 16px a bold input reads as a heading
+                // rather than a field you are meant to type into.
+                font.weight: Theme.weightMedium
                 font.pixelSize: Theme.fontSizeClock
+                font.letterSpacing: Theme.trackingTight
+                font.variableAxes: ({ "opsz": Theme.fontSizeClock })
                 color: Theme.fg
                 selectionColor: Theme.accent
                 selectedTextColor: Theme.accentFg
@@ -453,7 +492,31 @@ PanelWindow {
                 radius: 8
 
                 readonly property bool active: row.index === root.selected
-                color: row.active ? Theme.accent : "transparent"
+
+                // A WASH, NOT A SLAB. Filling the whole row with solid accent
+                // made the selection the loudest thing on screen - louder than
+                // the panel containing it - and forced the text to invert,
+                // which broke the type hierarchy on exactly the one row you
+                // were looking at. A tint plus the marker below says the same
+                // thing without shouting, and lets the text keep its colours.
+                color: row.active
+                       ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.14)
+                       : "transparent"
+
+                Behavior on color { ColorAnimation { duration: Theme.animFast } }
+
+                // The actual selection marker.
+                Rectangle {
+                    anchors { left: parent.left; leftMargin: 2
+                              verticalCenter: parent.verticalCenter }
+                    width: 3
+                    height: row.active ? 20 : 0
+                    radius: 1.5
+                    color: Theme.accent
+                    Behavior on height {
+                        NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic }
+                    }
+                }
 
                 Image {
                     id: icon
@@ -477,7 +540,7 @@ PanelWindow {
                     text: "\u{F0349}"
                     font.family: Theme.glyphFont
                     font.pixelSize: Theme.glyphSize
-                    color: row.active ? Theme.accentFg : Theme.dim
+                    color: Theme.dim
                 }
 
                 Column {
@@ -492,21 +555,32 @@ PanelWindow {
                         width: parent.width
                         text: row.modelData.name
                         font.family: Theme.font
-                        font.bold: Theme.bold
-                        font.pixelSize: Theme.fontSize
-                        color: row.active ? Theme.accentFg : Theme.fg
+                        font.weight: Theme.weightSemi
+                        font.pixelSize: Theme.fontSizeTitle
+                        color: Theme.fg
                         elide: Text.ElideRight
                     }
 
+                    // ONLY THE SELECTED ROW SHOWS ITS DESCRIPTION. Every row
+                    // carrying two lines is a wall of text once there are more
+                    // than a handful of results, and the description is only
+                    // ever useful for the one you are about to launch.
+                    //
+                    // Faded rather than hidden, and the space is reserved
+                    // whether or not it shows: collapsing it would move the
+                    // title, so every arrow-key press would jiggle two rows.
+                    // This way nothing moves - the subtitle simply appears.
                     Text {
                         width: parent.width
-                        visible: text !== ""
                         text: row.modelData.comment || row.modelData.genericName || ""
                         font.family: Theme.font
+                        font.weight: Theme.weightNormal
                         font.pixelSize: Theme.fontSizeSmall
-                        color: row.active ? Theme.accentFg : Theme.dim
-                        opacity: row.active ? 0.75 : 1
+                        font.letterSpacing: Theme.trackingLoose
+                        color: Theme.dim
+                        opacity: row.active ? 1 : 0
                         elide: Text.ElideRight
+                        Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
                     }
                 }
 

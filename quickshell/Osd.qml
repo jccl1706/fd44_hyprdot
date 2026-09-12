@@ -29,22 +29,60 @@ Item {
     // How long the OSD stays up after the last keypress.
     property int hideDelay: 1500
 
-    // "volume" | "brightness" | "" (hidden)
+    // "volume" | "brightness" | "" (hidden). This decides VISIBILITY ONLY.
     property string mode: ""
 
     readonly property bool shown: mode !== ""
 
-    // Collapses to nothing when hidden so it takes no space in the bar's row.
-    implicitWidth: shown ? content.implicitWidth : 0
+    // What to DRAW. Deliberately a separate property, and deliberately never
+    // cleared.
+    //
+    // These two used to be one. `mode` going to "" on hide did not just start
+    // the fade, it also changed the content underneath it: `glyph` and `value`
+    // both fell through their brightness branches to the volume ones, and the
+    // filled track - which has a Behavior of its own - then animated from the
+    // brightness level to the volume level while the whole thing was fading
+    // out. So dismissing a brightness OSD showed you a volume OSD for 200ms on
+    // the way out. That was the skip.
+    //
+    // Keeping the last mode means the indicator fades out showing exactly what
+    // it was showing when it was asked to go away.
+    property string drawMode: "volume"
+
+    // THE LEADING GAP BELONGS TO THIS ITEM, not to the Row's spacing.
+    //
+    // This used to sit inside the bar's Row and rely on Row.spacing for the
+    // gap between it and the workspaces. A positioner stops allocating
+    // spacing for a child once that child's width reaches 0 - and it does so
+    // on the next layout pass, instantly and unanimated. So the width would
+    // collapse smoothly over its full 220ms, finish, and then a frame later
+    // the pill would snap a further 12px shut. Every curve in here animated
+    // the part that was already smooth; the snap was the one piece of the
+    // motion that was never animated at all.
+    //
+    // Owning the gap means it collapses on the same curve as everything else.
+    readonly property int leadGap: Theme.itemSpacing
+
+    // Collapses to nothing when hidden so it takes no space in the bar.
+    implicitWidth: shown ? leadGap + content.implicitWidth : 0
     implicitHeight: 18
     clip: true
 
+    // ONE CURVE FOR THE WHOLE REVEAL.
+    //
+    // This was three animations on three different durations: the width on
+    // animSlow, the opacity on animNormal with NO easing specified - so
+    // Easing.Linear, the least fluid curve there is - and the bar pill that
+    // contains it on a third. Nothing landed at the same moment, which is what
+    // read as stutter rather than as slowness.
     Behavior on implicitWidth {
-        NumberAnimation { duration: Theme.animSlow; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: Theme.animReveal; easing.type: Easing.InOutCubic }
     }
 
     opacity: shown ? 1 : 0
-    Behavior on opacity { NumberAnimation { duration: Theme.animNormal } }
+    Behavior on opacity {
+        NumberAnimation { duration: Theme.animReveal; easing.type: Easing.InOutCubic }
+    }
 
     // --- sources ---------------------------------------------------------
 
@@ -73,12 +111,12 @@ Item {
     }
 
     // What the bar should currently display.
-    readonly property real value: mode === "brightness" ? brightness
-                                : muted                 ? 0
-                                                        : volume
+    readonly property real value: drawMode === "brightness" ? brightness
+                                : muted                     ? 0
+                                                            : volume
 
     readonly property string glyph: {
-        if (mode === "brightness") return "\u{F00DE}"        // nf-md-brightness_7
+        if (drawMode === "brightness") return "\u{F00DE}"    // nf-md-brightness_7
         if (muted)                 return "\u{F075F}"        // nf-md-volume_off
         if (volume < 0.34)         return "\u{F057F}"        // nf-md-volume_low
         if (volume < 0.67)         return "\u{F0580}"        // nf-md-volume_medium
@@ -94,6 +132,9 @@ Item {
             brightnessFile.reload()
             maxBrightnessFile.reload()
         }
+        // drawMode first: it must already be correct before anything that
+        // reacts to `mode` starts drawing.
+        root.drawMode = which
         root.mode = which
         hideTimer.restart()
     }
@@ -108,15 +149,29 @@ Item {
 
     Row {
         id: content
+        x: root.leadGap
         anchors.verticalCenter: parent.verticalCenter
         spacing: 8
+
+        // The content SLIDES, it is not merely unveiled. With clip:true and
+        // only the width animating, the glyph was uncovered by a hard edge
+        // sweeping across it while the glyph itself stayed put - the eye reads
+        // that as a wipe, not as movement. Translating it in just behind the
+        // opening edge is what makes the indicator look like it came out of
+        // the workspaces beside it.
+        transform: Translate {
+            x: root.shown ? 0 : -12
+            Behavior on x {
+                NumberAnimation { duration: Theme.animReveal; easing.type: Easing.InOutCubic }
+            }
+        }
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
             text: root.glyph
             font.family: Theme.glyphFont
             font.pixelSize: 14
-            color: root.muted && root.mode === "volume" ? Theme.dim : Theme.fg
+            color: root.muted && root.drawMode === "volume" ? Theme.dim : Theme.fg
         }
 
         // Track with a filled portion. Fixed width so the bar does not jitter
@@ -132,18 +187,18 @@ Item {
                 height: parent.height
                 radius: parent.radius
                 width: parent.width * Math.max(0, Math.min(1, root.value))
-                color: root.muted && root.mode === "volume" ? Theme.dim : Theme.accent
+                color: root.muted && root.drawMode === "volume" ? Theme.dim : Theme.accent
                 Behavior on width { NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic } }
             }
         }
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.muted && root.mode === "volume"
+            text: root.muted && root.drawMode === "volume"
                   ? "muted"
                   : Math.round(root.value * 100) + "%"
             font.family: Theme.font
-            font.bold: Theme.bold
+            font.weight: Theme.weightMedium
             font.pixelSize: Theme.fontSize
             font.features: { "tnum": 1 }
             color: Theme.fg

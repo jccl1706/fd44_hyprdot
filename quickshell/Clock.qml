@@ -40,7 +40,15 @@ Item {
         color: Theme.fg
         font.family: Theme.font
         font.pixelSize: Theme.fontSizeClock
-        font.bold: true
+        font.weight: Theme.weightBold
+        font.letterSpacing: Theme.trackingTight
+
+        // Inter carries an optical-size axis (opsz 14-32) and Qt does NOT
+        // apply it on its own - left alone the clock is drawn with letterforms
+        // meant for 14px body text. Matching opsz to the rendered size is what
+        // the axis is for: tighter spacing and slightly finer joins at display
+        // sizes. Needs Qt 6.7+; this is 6.11.
+        font.variableAxes: ({ "opsz": Theme.fontSizeClock })
 
         // Digits are drawn at a fixed advance width so the label does not
         // shift as the numbers change - without this, 11:11 is narrower than
