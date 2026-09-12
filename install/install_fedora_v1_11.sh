@@ -1832,6 +1832,14 @@ check "Symbols Nerd Font installed"    "[[ -f '$rootmnt/usr/local/share/fonts/ne
 check "playerctl installed"            "[[ -x '$rootmnt/usr/bin/playerctl' ]]"
 check "no display manager"             "[[ ! -e '$rootmnt/etc/systemd/system/display-manager.service' ]]"
 check "getty autologin drop-in"        "grep -q 'autologin $username' '$rootmnt/etc/systemd/system/getty@tty1.service.d/autologin.conf'"
+# Both halves of the power-button handover, because half of it is worse than
+# neither. logind reads the key straight from /dev/input, so if the drop-in is
+# missing the compositor's binding cannot win and the button silently powers
+# the machine off mid-session - exactly what the power menu exists to prevent.
+# The long-press line is checked too: it is the fallback that makes turning
+# the short press off safe at a console or when the session never starts.
+check "power key handed to the session" "grep -q '^HandlePowerKey=ignore' '$rootmnt/etc/systemd/logind.conf.d/00-power-key.conf'"
+check "power key long press powers off" "grep -q '^HandlePowerKeyLongPress=poweroff' '$rootmnt/etc/systemd/logind.conf.d/00-power-key.conf'"
 check "uwsm start hook in profile"     "grep -q 'uwsm check may-start' '$rootmnt/home/$username/.bash_profile'"
 check "forced password change in profile" "grep -q 'password-changed' '$rootmnt/home/$username/.bash_profile'"
 # The inverse of a check, and the important one: field 3 of the shadow entry
