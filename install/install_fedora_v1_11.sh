@@ -228,6 +228,9 @@
 #   ./install_fedora_v1_11.sh --dry-run       ask, then print every command, touch nothing
 #   ./install_fedora_v1_11.sh --unattended    no prompts, use the config block below
 #   ./install_fedora_v1_11.sh --unattended -y skip the countdown too
+#   ./install_fedora_v1_11.sh --desktop       no battery, no lid: machine=desktop,
+#                                             no disk swap, no encryption, zram on
+#   ./install_fedora_v1_11.sh --dotfiles URL  clone this repo and link its configs
 #
 # Recommended first run:  --check-repos, then --preflight, then --dry-run, then for real.
 # Run this from a Fedora live/rescue environment (Fedora Everything netinst
@@ -384,7 +387,7 @@ btrfs_opts="noatime,compress=zstd:1,space_cache=v2"
 ###############################################################################
 # Plumbing
 ###############################################################################
-DRY=0; ASSUME_YES=0; PREFLIGHT_ONLY=0; UNATTENDED=0; CHECK_REPOS=0
+DRY=0; ASSUME_YES=0; PREFLIGHT_ONLY=0; UNATTENDED=0; CHECK_REPOS=0; DESKTOP=0
 
 log()  { printf '\n\033[1;32m==>\033[0m \033[1m%s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m==> WARNING:\033[0m %s\n' "$*" >&2; }
@@ -467,11 +470,35 @@ while [[ $# -gt 0 ]]; do
         -u|--unattended)  UNATTENDED=1 ;;
         -y|--yes)         ASSUME_YES=1 ;;
         -d|--disk)        target="${2:?--disk needs an argument}"; shift ;;
+        --desktop)        DESKTOP=1 ;;
+        --dotfiles)       dotfiles_repo="${2:?--dotfiles needs a git URL}"; shift ;;
         -h|--help)        awk 'NR>1 && /^#/ {print; next} NR>1 {exit}' "$0"; exit 0 ;;
         *)                die "unknown option: $1  (try --help)" ;;
     esac
     shift
 done
+
+# --desktop: the four config values that differ on a machine with no battery
+# and no lid. Applied AFTER parsing so an explicit --disk still wins, and
+# before the wizard so its defaults are the desktop ones.
+#
+# These are not arbitrary. A desktop has nothing to hibernate for, so disk
+# swap buys only a 32G hole; zram gives the pressure valve instead, capped
+# because it costs real RAM to hold compressed pages. Encryption is left off
+# because a machine that never leaves the house gains little from a passphrase
+# it must be present to type - turn it back on with the wizard if that is not
+# your threat model.
+#
+# The machine type would be DETECTED correctly anyway - detect_machine() looks
+# for a battery - but detection only reaches the wizard's default, and an
+# unattended install never runs the wizard. This is what makes --unattended
+# usable on a desktop without editing the file.
+if (( DESKTOP )); then
+    machine="desktop"
+    swap_size="none"
+    encrypt="no"
+    zram_size="min(ram / 2, 8192)"
+fi
 
 (( DRY )) || (( PREFLIGHT_ONLY )) || (( CHECK_REPOS )) || [[ $UID -eq 0 ]] || die "This script needs to be run as root."
 
