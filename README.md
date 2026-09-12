@@ -9,6 +9,13 @@ including the installer that builds the machine from bare metal.
 no display manager &nbsp;·&nbsp; no panel toolkit &nbsp;·&nbsp; no notification daemon &nbsp;·&nbsp; the shell is QML
 </sub>
 
+<p>
+<img alt="Fedora 44" src="https://img.shields.io/badge/Fedora-44-51A2DA?style=for-the-badge&logo=fedora&logoColor=white">
+<img alt="Hyprland 0.56" src="https://img.shields.io/badge/Hyprland-0.56-58E1FF?style=for-the-badge&logo=hyprland&logoColor=black">
+<img alt="Quickshell 0.3" src="https://img.shields.io/badge/Quickshell-0.3-1D99F3?style=for-the-badge&logo=qt&logoColor=white">
+<img alt="Framework 13 AMD" src="https://img.shields.io/badge/Framework%2013-AMD-FF5B21?style=for-the-badge&logo=framework&logoColor=white">
+</p>
+
 </div>
 
 ---
