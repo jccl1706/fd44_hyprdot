@@ -438,14 +438,29 @@ else
     bad "no steam udev rules in /usr/lib/udev/rules.d - controllers will not work"
 fi
 
-# RADV, actually loaded. vulkaninfo is x86_64, so this answers for 64-bit.
-radv="$(vulkaninfo --summary 2>/dev/null | sed -n 's/.*deviceName *= *//p' | head -1 || true)"
-drv="$(vulkaninfo --summary 2>/dev/null | sed -n 's/.*driverName *= *//p' | head -1 || true)"
+# RADV, actually loaded - AS THE USER WHO PLAYS, not as root.
+#
+# This used to run vulkaninfo as root, straight from the sudo'd script. On the
+# RX 9070 XT desktop that reported no Vulkan device at all, while the same two
+# lines run as jc a minute later - same pipeline, same shell options, even with
+# the stripped environment sudo leaves - found RADV eight times out of eight,
+# and the kernel logged no GPU fault. Root's Vulkan view is not what a game
+# gets, so it was never the right thing to test. The player's is.
+#
+# RADV SPECIFICALLY, not "a device". Mesa also ships llvmpipe, a CPU renderer
+# that enumerates as a Vulkan device too; a machine where only llvmpipe loads
+# used to pass this check with a warning, and would run games at a few frames
+# a second. vulkaninfo now runs once, and its own messages are kept, so a
+# failure says why instead of only that. vulkaninfo is x86_64, so this answers
+# for 64-bit.
+vk="$(runuser -u "$target_user" -- vulkaninfo --summary 2>&1 || true)"
+radv="$(printf '%s\n' "$vk" | grep -m1 'deviceName.*RADV' | sed 's/.*deviceName *= *//' || true)"
 if [[ -n $radv ]]; then
-    ok "Vulkan: $radv (${drv:-unknown driver})"
-    [[ $drv == *radv* ]] || warn "  expected the radv driver on AMD"
+    ok "Vulkan (as $target_user): $radv"
 else
-    bad "vulkaninfo reports no Vulkan device - RADV is not loading"
+    found="$(printf '%s\n' "$vk" | sed -n 's/.*deviceName *= *//p' | paste -sd, - || true)"
+    bad "no RADV device for $target_user - found: ${found:-nothing}"
+    printf '%s\n' "$vk" | grep -iE 'error|fail|cannot' | head -5 | sed 's/^/         /' || true
 fi
 
 # 32-bit Vulkan cannot be probed with the 64-bit vulkaninfo, so check that
