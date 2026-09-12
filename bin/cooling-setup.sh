@@ -108,6 +108,37 @@ liquidctl_off() {
     fi
 }
 
+# Stop the daemon, turn liquidctl off, validate, start it again - only when
+# needed, and never by `restart`. Needed when the file says true, OR when the
+# running daemon predates the file: then it may still hold true in memory,
+# and stopping it writes that back, which is exactly why the edit comes AFTER
+# the stop. If `coolercontrold check` rejects the edited file, the original is
+# restored and started, so a failed edit never leaves the fans unmanaged.
+apply_liquidctl_off() {
+    local cfg="$1" out bak
+    if ! grep -q '^liquidctl_integration = true$' "$cfg" && ! daemon_older_than "$cfg"; then
+        printf '    already liquidctl_integration = false, and the running daemon has loaded it\n'
+        return 0
+    fi
+    systemctl stop coolercontrold               # it saves its in-memory settings HERE
+    bak="$cfg.cooling-setup.bak"
+    cp -p "$cfg" "$bak"
+    liquidctl_off "$cfg"
+    printf '    %s\n' "$_LIQ_MSG"
+    if out="$(coolercontrold check 2>&1)"; then
+        rm -f "$bak"
+        systemctl start coolercontrold
+        printf '    daemon stopped, config edited, validated, daemon started\n'
+        return 0
+    fi
+    cp -p "$bak" "$cfg"
+    rm -f "$bak"
+    systemctl start coolercontrold
+    printf '    coolercontrold check REJECTED the edit - original restored and started:\n'
+    printf '%s\n' "$out" | tail -5 | sed 's/^/      /'
+    return 1
+}
+
 # True when the running coolercontrold started BEFORE FILE was last changed,
 # i.e. it is running with a config it has not read. This is what makes a
 # re-run repair a machine the earlier bug left behind: there, the config
@@ -187,20 +218,24 @@ run systemctl enable --now coolercontrold
 # header), and with the integration on, the daemon reports that as an error on
 # every start: "Python Environment Error: Python liquidctl system package not
 # detected ... liqctld exited with a non-zero exit code: 1". Its own message
-# names the fix. The daemon writes its config on first start, so this waits
-# for the file, flips the one key, and restarts it.
+# names the fix.
+#
+# STOP, EDIT, VALIDATE, START - never edit-then-restart. The daemon owns this
+# file and WRITES ITS IN-MEMORY SETTINGS BACK TO IT WHEN IT SHUTS DOWN. The
+# second version of this step edited the file and then restarted, and the
+# restart put the old value straight back: config.toml was written at
+# 19:19:20.0245, inside the old process's shutdown (stopping began 19:19:19.55,
+# "Shutdown Complete" at 19:19:20.0258), before the new one started at .043.
+# The file's own header says as much: "it is recommended to stop the daemon
+# when doing so". No environment variable controls liquidctl - all fifteen
+# the daemon reads were checked - so the file is the only way short of the UI.
 log "liquidctl integration off (liquidctl is deliberately not installed)"
 cfg=/etc/coolercontrol/config.toml
 if (( DRY )); then
     printf '\033[1;34mwould set:\033[0m liquidctl_integration = false in %s, then restart coolercontrold\n' "$cfg"
 else
     for _ in $(seq 1 30); do [[ -f $cfg ]] && break; sleep 1; done
-    liquidctl_off "$cfg"
-    printf '    %s\n' "$_LIQ_MSG"
-    if (( _LIQ_CHANGED )) || daemon_older_than "$cfg"; then
-        systemctl restart coolercontrold
-        printf '    coolercontrold restarted, so it runs with this setting\n'
-    fi
+    apply_liquidctl_off "$cfg" || warn "liquidctl integration left as it was"
 fi
 
 
