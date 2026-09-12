@@ -1270,67 +1270,6 @@ run dnf5 --installroot "$rootmnt" --releasever "$releasever" -y \
     install "${hwpacs[@]}" "${depacs[@]}" "${apppacs[@]}"
 
 ###############################################################################
-# Symbols Nerd Font
-#
-# The bar's Fedora logo and the volume/brightness OSD icons are Nerd Font
-# glyphs (Theme.glyphFont). Fedora packages no Nerd Font other than a TeX
-# one, so this is the single thing here that comes from outside the distro
-# repos.
-#
-# Symbols-only, not a patched typeface: ~2 MB against ~50 MB for a full
-# family, and the glyphs are all that is wanted - text comes from Inter.
-#
-# Downloaded on the LIVE system rather than inside the chroot, because the
-# target has no curl until something happens to pull one in and there is no
-# reason to add one just for this.
-#
-# --no-same-owner matters: tar running as root otherwise restores the
-# ownership recorded IN THE ARCHIVE, and this one carries uid 1001 / gid 118.
-# That is nobody on the live system, but 1001 is very plausibly a second real
-# account on the installed one - which would leave a normal user owning a
-# font in /usr/local/share/fonts, able to replace it. Caught by checking the
-# file after a VM install rather than by assuming tar does the obvious thing.
-#
-# NON-FATAL BY DESIGN. A missing font means tofu boxes where the logo and
-# the OSD icons should be; it does not stop the desktop coming up, and
-# failing the whole install over it - after the disk has already been
-# partitioned - would be absurd. It warns and carries on, and the message
-# says exactly how to finish the job by hand.
-###############################################################################
-nerdfont_ver="v3.4.0"
-nerdfont_url="https://github.com/ryanoasis/nerd-fonts/releases/download/$nerdfont_ver/NerdFontsSymbolsOnly.tar.xz"
-nerdfont_dir="$rootmnt/usr/local/share/fonts/nerd-fonts-symbols"
-
-log "Installing Symbols Nerd Font ($nerdfont_ver)"
-if (( DRY )); then
-    run curl -fsSL "$nerdfont_url" -o "(tmp)/NerdFontsSymbolsOnly.tar.xz"
-    run tar -xJf "(tmp)/NerdFontsSymbolsOnly.tar.xz" -C "$nerdfont_dir" \
-        SymbolsNerdFont-Regular.ttf
-else
-    nerdfont_tmp="$(mktemp -d)"
-    if curl -fsSL --retry 2 --max-time 120 "$nerdfont_url" \
-            -o "$nerdfont_tmp/symbols.tar.xz" \
-       && mkdir -p "$nerdfont_dir" \
-       && tar --no-same-owner --no-same-permissions \
-              -xJf "$nerdfont_tmp/symbols.tar.xz" -C "$nerdfont_dir" \
-              SymbolsNerdFont-Regular.ttf \
-       && chown root:root "$nerdfont_dir/SymbolsNerdFont-Regular.ttf" \
-       && chmod 644 "$nerdfont_dir/SymbolsNerdFont-Regular.ttf"
-    then
-        # The cache is rebuilt in the target, not on the live system - it is
-        # the target's fontconfig that has to know about the file.
-        run fchroot fc-cache -f /usr/local/share/fonts >/dev/null 2>&1 || true
-        log "  /usr/local/share/fonts/nerd-fonts-symbols/SymbolsNerdFont-Regular.ttf"
-    else
-        warn "Symbols Nerd Font download failed - every glyph in the bar,"
-        warn "  launcher, OSD, power menu and lock screen will be an empty box."
-        warn "  To fix after first boot, from the dotfiles checkout:"
-        warn "    sudo bin/install-nerd-font.sh"
-        warn "  It reuses a copy already on the machine if there is one, and"
-        warn "  downloads only if there is not."
-    fi
-    rm -rf "$nerdfont_tmp"
-fi
 
 log "Generating fstab"
 runsh "genfstab -U $rootmnt >> $rootmnt/etc/fstab 2>/dev/null || \
@@ -1697,6 +1636,101 @@ if [[ -n "$dotfiles_repo" ]]; then
     else
         warn "dotfiles clone FAILED - the stock config is still in place"
     fi
+fi
+
+# Symbols Nerd Font
+#
+# The bar's Fedora logo and the volume/brightness OSD icons are Nerd Font
+# glyphs (Theme.glyphFont). Fedora packages no Nerd Font other than a TeX
+# one, so this is the single thing here that comes from outside the distro
+# repos.
+#
+# Symbols-only, not a patched typeface: ~2 MB against ~50 MB for a full
+# family, and the glyphs are all that is wanted - text comes from Inter.
+#
+# Downloaded on the LIVE system rather than inside the chroot, because the
+# target has no curl until something happens to pull one in and there is no
+# reason to add one just for this.
+#
+# --no-same-owner matters: tar running as root otherwise restores the
+# ownership recorded IN THE ARCHIVE, and this one carries uid 1001 / gid 118.
+# That is nobody on the live system, but 1001 is very plausibly a second real
+# account on the installed one - which would leave a normal user owning a
+# font in /usr/local/share/fonts, able to replace it. Caught by checking the
+# file after a VM install rather than by assuming tar does the obvious thing.
+#
+# NON-FATAL BY DESIGN. A missing font means tofu boxes where the logo and
+# the OSD icons should be; it does not stop the desktop coming up, and
+# failing the whole install over it - after the disk has already been
+# partitioned - would be absurd. It warns and carries on, and the message
+# says exactly how to finish the job by hand.
+###############################################################################
+nerdfont_ver="v3.4.0"
+nerdfont_url="https://github.com/ryanoasis/nerd-fonts/releases/download/$nerdfont_ver/NerdFontsSymbolsOnly.tar.xz"
+nerdfont_dir="$rootmnt/usr/local/share/fonts/nerd-fonts-symbols"
+
+# PREFER THE COPY IN THE DOTFILES CHECKOUT. This runs after the clone for
+# exactly that reason - it used to sit a few hundred lines earlier, before
+# there was anything to copy from.
+#
+# Fedora packages no Symbols Nerd Font, so it has to come from somewhere, and
+# downloading it made this the one step in the whole install that reached the
+# public internet and was allowed to fail. When it failed, every glyph in the
+# bar, launcher, OSD, power menu and lock screen rendered as an empty box. The
+# font is committed at fonts/nerd-fonts-symbols/ (MIT, licence committed
+# beside it), so a dotfiles repo that carries it removes the network from this
+# step entirely - and pins the version, which a download does not: the repair
+# script used to reuse whatever copy it found and installed 3.5.1 against a
+# pin of 3.4.0 without anyone noticing.
+#
+# The download stays as the fallback, for an install with no dotfiles repo -
+# it is optional - or one whose repo predates the font being committed.
+vendored_font=""
+if [[ -n "$dotfiles_repo" ]]; then
+    vendored_font="$rootmnt/home/$username/Work/$(basename "${dotfiles_repo%.git}")/fonts/nerd-fonts-symbols/SymbolsNerdFont-Regular.ttf"
+fi
+
+log "Installing Symbols Nerd Font ($nerdfont_ver)"
+if (( DRY )); then
+    run curl -fsSL "$nerdfont_url" -o "(tmp)/NerdFontsSymbolsOnly.tar.xz"
+    run tar -xJf "(tmp)/NerdFontsSymbolsOnly.tar.xz" -C "$nerdfont_dir" \
+        SymbolsNerdFont-Regular.ttf
+else
+    if [[ -n "$vendored_font" && -f "$vendored_font" ]]; then
+        mkdir -p "$nerdfont_dir"
+        if install -m 0644 -o root -g root "$vendored_font" \
+                "$nerdfont_dir/SymbolsNerdFont-Regular.ttf"; then
+            run fchroot fc-cache -f /usr/local/share/fonts >/dev/null 2>&1 || true
+            log "  from the dotfiles checkout, no download needed"
+            nerdfont_done=1
+        fi
+    fi
+
+    nerdfont_tmp="$(mktemp -d)"
+    if (( ${nerdfont_done:-0} )); then
+        :
+    elif curl -fsSL --retry 2 --max-time 120 "$nerdfont_url" \
+            -o "$nerdfont_tmp/symbols.tar.xz" \
+       && mkdir -p "$nerdfont_dir" \
+       && tar --no-same-owner --no-same-permissions \
+              -xJf "$nerdfont_tmp/symbols.tar.xz" -C "$nerdfont_dir" \
+              SymbolsNerdFont-Regular.ttf \
+       && chown root:root "$nerdfont_dir/SymbolsNerdFont-Regular.ttf" \
+       && chmod 644 "$nerdfont_dir/SymbolsNerdFont-Regular.ttf"
+    then
+        # The cache is rebuilt in the target, not on the live system - it is
+        # the target's fontconfig that has to know about the file.
+        run fchroot fc-cache -f /usr/local/share/fonts >/dev/null 2>&1 || true
+        log "  /usr/local/share/fonts/nerd-fonts-symbols/SymbolsNerdFont-Regular.ttf"
+    else
+        warn "Symbols Nerd Font download failed - every glyph in the bar,"
+        warn "  launcher, OSD, power menu and lock screen will be an empty box."
+        warn "  To fix after first boot, from the dotfiles checkout:"
+        warn "    sudo bin/install-nerd-font.sh"
+        warn "  It installs the copy committed at fonts/nerd-fonts-symbols/,"
+        warn "  so it needs no network at all."
+    fi
+    rm -rf "$nerdfont_tmp"
 fi
 
 ###############################################################################

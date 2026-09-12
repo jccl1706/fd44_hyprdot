@@ -23,10 +23,17 @@
 # nothing on that machine could have revealed it. So this removes the user
 # copy rather than leaving both.
 #
+# The font is COMMITTED to this repo, at fonts/nerd-fonts-symbols/, so the
+# normal path copies it out of the checkout and never touches the network. The
+# download below is only for a machine that somehow has this script without
+# the rest of the repository.
+#
 # The version is pinned to match install_fedora_v1_11.sh. If one changes the
 # other should too, or a reinstall will quietly move the font backwards.
 
 set -euo pipefail
+
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 VERSION="v3.4.0"
 URL="https://github.com/ryanoasis/nerd-fonts/releases/download/$VERSION/NerdFontsSymbolsOnly.tar.xz"
@@ -49,21 +56,28 @@ fi
 
 mkdir -p "$DEST"
 
-if [[ -f "$DEST/$FILE" ]]; then
-    log "already installed: $DEST/$FILE"
-else
-    # Reuse a copy that is already on the machine before going to the network.
-    # The usual case for this script is a font that is present but in the
-    # wrong place, and re-downloading 2.4MB to replace a file that is already
-    # correct is pointless.
-    found=""
-    if [[ -n $target_home && -f "$target_home/.local/share/fonts/$FILE" ]]; then
-        found="$target_home/.local/share/fonts/$FILE"
-    fi
+vendored="$repo/fonts/nerd-fonts-symbols/$FILE"
 
-    if [[ -n $found ]]; then
-        log "reusing the copy already at $found"
-        install -m 0644 -o root -g root "$found" "$DEST/$FILE"
+# ALREADY PRESENT IS NOT THE SAME AS CORRECT. If the installed file differs
+# from the one committed here, replace it - that is the whole job of a repair
+# script. Skipping on mere existence is how this machine ended up running
+# 3.5.1 against a pin of 3.4.0 and nobody noticed.
+if [[ -f "$DEST/$FILE" && -f $vendored ]] && cmp -s "$DEST/$FILE" "$vendored"; then
+    log "already correct: $DEST/$FILE"
+elif [[ -f "$DEST/$FILE" && ! -f $vendored ]]; then
+    log "already installed (no vendored copy to compare against): $DEST/$FILE"
+else
+    [[ -f "$DEST/$FILE" ]] && log "installed copy differs from the one in this repo - replacing"
+
+    # THE VENDORED COPY, never one found lying around on the machine. An
+    # earlier version of this reused whatever it found in
+    # ~/.local/share/fonts, which seemed thrifty and was wrong: that copy was
+    # Nerd Fonts 3.5.1 while this script pinned 3.4.0, so it silently
+    # installed a version nobody had asked for. A file of unknown provenance
+    # is not a saving.
+    if [[ -f $vendored ]]; then
+        log "installing the copy committed to this repo"
+        install -m 0644 -o root -g root "$vendored" "$DEST/$FILE"
     else
         log "downloading Symbols Nerd Font $VERSION"
         tmp="$(mktemp -d)"
