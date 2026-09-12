@@ -93,8 +93,13 @@ apply() {
             # NEW ONE FIRST, then kill the old: the reverse leaves a frame or
             # two of bare compositor background, which reads as a flash. With
             # no -o it covers every output.
+            # `|| true` is load-bearing: pgrep exits 1 when nothing matches,
+            # and under `set -o pipefail` that fails the whole pipeline and
+            # kills the script - silently, since the failure is an exit status
+            # and not a message. On the very first run there is no swaybg yet,
+            # so the common case IS the failing one.
             local old
-            old="$(pgrep -x swaybg | tr '\n' ' ')"
+            old="$(pgrep -x swaybg | tr '\n' ' ' || true)"
             swaybg -m fill -i "$img" >/dev/null 2>&1 &
             disown
             sleep 0.3
