@@ -202,7 +202,7 @@ the 32-bit ICD is there, whether `gamemoded` starts. It also marks the Steam
 library `nodatacow` before Steam's first run, which is the only moment Btrfs
 allows it.
 
-It also caps every game run through Proton at 144 fps, inside the translation
+It also caps every game run through Proton at 120 fps, inside the translation
 layer itself (`VKD3D_FRAME_RATE` for DX12, `DXVK_CONFIG` for DX9/11), from
 `~/.config/uwsm/env.d/gaming`. That file is written into the gaming machine's
 home, not this repo — the laptop shares the repo and does not game.

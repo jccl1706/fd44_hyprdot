@@ -22,7 +22,7 @@
 #   - swaps Mesa's VA-API driver for RPM Fusion's, which has the H.264 and
 #     HEVC paths compiled in
 #   - marks the Steam library nodatacow on Btrfs
-#   - caps Proton games at 144 fps through the session environment
+#   - caps Proton games at 120 fps through the session environment
 #   - verifies all of it, including running the tools rather than only
 #     asking rpm whether they are installed
 #
@@ -327,13 +327,22 @@ fi
 # the junction - on a 144 Hz monitor. Frames past the refresh rate are never
 # shown; they are just heat.
 #
+# WHY 120, NOT 144. 144 was tried first and measured with MangoHud, in 5-second
+# windows. In lighter scenes it held exactly - median 144.0 fps, GPU 86-88%,
+# 177-247 W. In heavy ones the card was already rendering BELOW it, 136-141 fps
+# at 100% and 302-304 W, so the cap never acted and the heat stayed. 120 sits
+# under what the GPU manages in heavy scenes too, so it saves power in both.
+# It also keeps frames inside the monitor's VRR range (48-144 Hz): a cap at the
+# very top - 144 on a 143.97 Hz panel - parks frames at the ceiling, where
+# adaptive sync drops out.
+#
 # WHERE IT LIVES. uwsm sources ~/.config/uwsm/env.d/* when the session
 # starts and exports the result to systemd and D-Bus, so everything launched
 # in the session - the Steam client, and every game it starts - inherits it.
 # It is a file in THIS machine's home rather than in the repository on
 # purpose: the laptop shares the repo and does not game. Takes effect at the
 # next login.
-FRAME_CAP=144
+FRAME_CAP=120
 log "frame cap"
 cap_dir="$target_home/.config/uwsm/env.d"
 cap_file="$cap_dir/gaming"
