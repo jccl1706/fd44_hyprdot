@@ -43,6 +43,31 @@ hl.window_rule({
     no_focus = true,
 })
 
+-- Steam's secondary windows float; its main window does not.
+--
+-- The Steam client is one X11 application that opens a lot of small
+-- top-level windows - Friends List, Special Offers, Settings, the screenshot
+-- uploader, one per chat - and every one of them arrives as a normal
+-- toplevel with class "steam". In a tiling layout they take a column each.
+-- Two of them were already doing it within a minute of the first login, which
+-- is what prompted this rule.
+--
+-- `negative:` inverts a match, so this is "class steam, title anything but
+-- exactly Steam". Both halves are measured rather than assumed: the class is
+-- lowercase `steam` on XWayland (hyprctl clients), and the negative prefix
+-- was checked behaviourally with two throwaway windows, because a rule that
+-- merely PARSES is not a rule that works - the three other spellings tried
+-- were rejected outright as unknown fields, which at least fails loudly.
+--
+-- Games are unaffected: a launched title gets class steam_app_<id>, not
+-- steam.
+hl.window_rule({
+    name  = "float-steam-popups",
+    match = { class = "^steam$", title = "negative:^Steam$" },
+
+    float = true,
+})
+
 -- Do not lock the screen in the middle of a game.
 --
 -- hypridle locks at 5:00 of idle, and "idle" means no input device activity.
