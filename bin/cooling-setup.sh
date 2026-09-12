@@ -84,21 +84,40 @@ od_cmdline() {
 }
 
 # Set liquidctl_integration = false in a CoolerControl config FILE, touching
-# nothing else. Idempotent. Records whether it changed anything, so the caller
-# restarts the daemon only when needed.
+# nothing else. Idempotent. Reports through two globals, _LIQ_CHANGED and
+# _LIQ_MSG, and prints nothing.
+#
+# CALL IT DIRECTLY, NEVER AS "$(liquidctl_off ...)". Command substitution runs
+# the function in a subshell, so the flag it sets dies with that subshell. The
+# first version was called exactly that way: it edited the config, reported
+# success, lost the flag, and never restarted the daemon - which went on
+# running with liquidctl enabled and logging the error. Measured: flag 0
+# inside $(...), 1 when called directly.
 _LIQ_CHANGED=0
+_LIQ_MSG=""
 liquidctl_off() {
     local f="$1"
+    _LIQ_CHANGED=0
     if grep -q '^liquidctl_integration = true$' "$f"; then
         sed -i 's/^liquidctl_integration = true$/liquidctl_integration = false/' "$f"
-        _LIQ_CHANGED=1; echo "set liquidctl_integration = false"
+        _LIQ_CHANGED=1; _LIQ_MSG="set liquidctl_integration = false"
     elif grep -q '^liquidctl_integration = false$' "$f"; then
-        echo "already liquidctl_integration = false"
+        _LIQ_MSG="already liquidctl_integration = false"
     else
-        echo "liquidctl_integration not found in $f - left alone"
+        _LIQ_MSG="liquidctl_integration not found in $f - left alone"
     fi
 }
-liquidctl_off_changed() { echo "$_LIQ_CHANGED"; }
+
+# True when the running coolercontrold started BEFORE FILE was last changed,
+# i.e. it is running with a config it has not read. This is what makes a
+# re-run repair a machine the earlier bug left behind: there, the config
+# already says false, so nothing changes now - but the daemon predates it.
+daemon_older_than() {
+    local started cfgtime
+    started="$(date -d "$(systemctl show -p ActiveEnterTimestamp --value coolercontrold 2>/dev/null)" +%s 2>/dev/null)" || return 1
+    cfgtime="$(stat -c %Y "$1" 2>/dev/null)" || return 1
+    (( cfgtime > started ))
+}
 
 # True when every listening address on stdin (address:port, one per line) is
 # loopback, and there is at least one. The UI can change fan speeds; it has
@@ -176,8 +195,12 @@ if (( DRY )); then
     printf '\033[1;34mwould set:\033[0m liquidctl_integration = false in %s, then restart coolercontrold\n' "$cfg"
 else
     for _ in $(seq 1 30); do [[ -f $cfg ]] && break; sleep 1; done
-    printf '    %s\n' "$(liquidctl_off "$cfg")"
-    [[ $(liquidctl_off_changed) == 1 ]] && systemctl restart coolercontrold
+    liquidctl_off "$cfg"
+    printf '    %s\n' "$_LIQ_MSG"
+    if (( _LIQ_CHANGED )) || daemon_older_than "$cfg"; then
+        systemctl restart coolercontrold
+        printf '    coolercontrold restarted, so it runs with this setting\n'
+    fi
 fi
 
 
