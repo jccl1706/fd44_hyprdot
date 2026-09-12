@@ -263,11 +263,32 @@ elif [[ -d $steam_lib ]] && [[ -n "$(ls -A "$steam_lib" 2>/dev/null)" ]]; then
     warn "  chattr +C cannot be applied retroactively. Leaving it alone."
     warn "  To convert it you would have to move the games out and back in."
 elif (( DRY )); then
-    printf '\033[1;34mwould run:\033[0m install -d -o %s -g %s %s && chattr +C %s\n' \
-        "$target_user" "$target_user" "$steam_lib" "$steam_lib"
+    printf '\033[1;34mwould run:\033[0m runuser -u %s -- mkdir -p %s && chattr +C %s\n' \
+        "$target_user" "$steam_lib" "$steam_lib"
 else
-    install -d -o "$target_user" -g "$target_user" "$steam_lib"
-    if chattr +C "$steam_lib" 2>/dev/null; then
+    # CREATED AS THE USER, EVERY COMPONENT OF IT.
+    #
+    # This was `install -d -o jc -g jc .../Steam/steamapps`, which looks like
+    # it does the right thing and does not: install -d creates the missing
+    # parents too, but applies the ownership only to the final component. So
+    # ~/.local/share/Steam came out root:root with a correctly-owned
+    # steamapps inside it, and Steam's first run died extracting its own
+    # bootstrap:
+    #
+    #   tar: clientui: Cannot mkdir: Permission denied
+    #   tar: ubuntu12_32: Cannot mkdir: Permission denied
+    #   Failed to extract bootstraplinux_ubuntu12_32.tar.xz, aborting
+    #
+    # Which is not a permissions message anyone would trace back to here.
+    # Worse, the state is not self-repairing: the user cannot delete the
+    # directory to start over, because removing steamapps needs write
+    # permission on the root-owned parent. It takes a root chown to undo.
+    #
+    # mkdir -p as the user cannot get this wrong - every directory it
+    # creates is owned by whoever ran it. chattr likewise runs as the user,
+    # who owns the directory and does not need root to set a flag on it.
+    runuser -u "$target_user" -- mkdir -p "$steam_lib"
+    if runuser -u "$target_user" -- chattr +C "$steam_lib" 2>/dev/null; then
         printf '    nodatacow set on %s\n' "$steam_lib"
     else
         warn "could not set nodatacow on $steam_lib (non-fatal)"
@@ -297,7 +318,10 @@ if (( PROTON_GE )); then
             printf '    %s already installed\n' "$tag"
         else
             printf '    installing %s\n' "$tag"
-            install -d -o "$target_user" -g "$target_user" "$tools_dir"
+            # As the user, for the same reason as the Steam library above:
+            # install -d would leave the intermediate ~/.steam and
+            # ~/.steam/root owned by root.
+            runuser -u "$target_user" -- mkdir -p "$tools_dir"
             tmp="$(mktemp -d)"
             trap 'rm -rf "$tmp"' EXIT
             url="https://github.com/GloriousEggroll/proton-ge-custom/releases/download/$tag/$tag.tar.gz"
@@ -418,6 +442,19 @@ mmc="$(cat /proc/sys/vm/max_map_count)"
 (( mmc >= 1048576 )) \
     && ok "vm.max_map_count = $mmc (already high enough; do not set it again)" \
     || bad "vm.max_map_count = $mmc - too low for some Proton titles"
+
+# OWNERSHIP OF THE WHOLE STEAM TREE, not just the leaf. A root-owned
+# directory anywhere in here stops Steam extracting its bootstrap, and the
+# error it prints names tar, not permissions.
+steam_root="$target_home/.local/share/Steam"
+if [[ -d $steam_root ]]; then
+    bad_owner="$(find "$steam_root" -maxdepth 1 ! -user "$target_user" -printf '%p ' 2>/dev/null || true)"
+    if [[ -z $bad_owner ]]; then
+        ok "Steam tree is owned by $target_user"
+    else
+        bad "not owned by $target_user: $bad_owner"
+    fi
+fi
 
 # Btrfs nodatacow on the library
 if [[ $fstype == btrfs && -d $steam_lib ]]; then
