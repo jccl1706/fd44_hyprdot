@@ -1,174 +1,177 @@
+<div align="center">
+
 # fd44_hyprdot
 
-Dotfiles for Fedora 44 + Hyprland on a Framework 13 (AMD Ryzen 7040 series).
+**Fedora 44 · Hyprland · Quickshell** — a complete desktop for the Framework 13 (AMD),
+including the installer that builds the machine from bare metal.
 
-No display manager: the session is started by **uwsm** from a getty autologin
-on tty1. Quickshell is intended to provide the bar, launcher and notification
-popups, so no separate launcher or notification daemon is installed.
+<sub>
+no display manager &nbsp;·&nbsp; no panel toolkit &nbsp;·&nbsp; no notification daemon &nbsp;·&nbsp; the shell is QML
+</sub>
 
-## Layout
+</div>
 
-```
-hypr/
-  hyprland.lua           entry point - shared values, then requires the modules
-  monitors.lua           outputs, resolution, scaling
-  look.lua               colors, general, decoration, animations, layouts, misc
-  input.lua              keyboard, touchpad, gestures, per-device tweaks
-  binds.lua              keybindings
-  rules.lua              window, workspace and layer rules
-  autostart.lua          environment variables, permissions, startup programs
-  hypridle.conf          idle -> lock -> screen off (AC/battery aware)
-  hyprlock.conf          lock screen appearance
+---
 
-bin/
-  power-mode.sh          applies power profile + brightness for the current
-                         power source; `watch` mode reacts to the charger
-  idle-action.sh         lock/blank/wake actions called by hypridle; keeps the
-                         quoting out of hypridle.conf and is testable with
-                         --dry-run
+## Themes
 
-systemd/
-  power-mode.service     user unit that runs power-mode.sh in watch mode
+Two palettes, switched live with `SUPER+T` or the sun/moon beside the clock.
+The bar, frame, launcher, power menu, lock screen, kitty, GTK apps and Chromium
+all follow — nothing restarts.
 
-quickshell/
-  Theme.qml              SINGLETON - every colour, font and metric lives here
-                         and nowhere else. Change the bar's look from one file.
-  shell.qml              entry point - one Bar per monitor, plus the IpcHandler
-                         that Hyprland's keybinds call
-  Bar.qml                the panel: left / centre / right regions
-  Logo.qml               Fedora mark (Nerd Font glyph, SVG fallback)
-  Workspaces.qml         five fixed slots, live state from Hyprland IPC
-  Clock.qml              24h clock, SystemClock-driven
-  Osd.qml                hidden volume/brightness indicator
+<table>
+<tr>
+<td width="50%" valign="top">
+<img src="docs/theme-dark.png" alt="dark theme">
+<p align="center"><sub><b>dark</b> — Catppuccin Mocha</sub></p>
+</td>
+<td width="50%" valign="top">
+<img src="docs/theme-cream.png" alt="cream theme">
+<p align="center"><sub><b>cream</b> — Rosé Pine Dawn</sub></p>
+</td>
+</tr>
+</table>
 
-install/
-  install_fedora_v1_11.sh guided Fedora 44 installer that builds this machine
-                         from bare metal: Btrfs + systemd-boot + optional
-                         LUKS, Hyprland/quickshell, autologin, Plymouth
-  vm-test.sh             boots a throwaway UEFI VM to test the installer
-                         without reformatting anything real
-```
+A theme is one file of 45 key/value pairs in [`themes/`](themes/). `bin/theme.sh`
+reads it and fans the values out to five consumers, each with its own idea of
+what a config file is:
 
-`require()` resolves relative to `hyprland.lua`'s directory, so `input.lua`
-next to it is required as `require("input")` with no path.
+| target | mechanism | live? |
+|---|---|---|
+| quickshell | `Theme.qml` watches a generated palette with `FileView` | yes |
+| kitty | generated `theme.conf` + `SIGUSR1` | yes |
+| GTK apps | `gsettings`, republished by xdg-desktop-portal | yes |
+| Hyprland | `hyprctl eval` — **not** `keyword`, which the Lua parser refuses | yes |
+| Chromium | `BrowserThemeColor` policy + `--refresh-platform-policy` | yes |
+| hyprlock | generated colour variables it `source`s | next lock |
+
+Adding a third theme means adding a file. Nothing else changes.
+
+## What it gives you
+
+- **Bar** — workspaces, clock, theme toggle, and an OSD that slides out of the
+  left pill for volume and brightness
+- **Frame** — a 4px border drawn around the whole screen, with concave fillets
+  where the panels meet it
+- **Launcher** (`SUPER+Space`) — rises out of the bottom frame, fuzzy app search
+- **Wallpaper picker** (`SUPER+,`) — a coverflow strip of sheared tiles, with a
+  crossfade when a wallpaper is applied
+- **Power menu** (`SUPER+M` or the physical power button) — icon-only circles;
+  log out, restart and shut down arm on the first press and fire on the second
+- **Lock screen** — themed hyprlock, with battery
+- **Media keys** — quickshell speaks MPRIS directly, so a media key spawns no
+  process at all
 
 ## Install
 
-`~/.config/hypr` is a **symlink to `hypr/`** in this repo, so edits are live
-immediately - there is no copy step and nothing to keep in sync.
+The installer builds the whole machine: Btrfs + systemd-boot, optional LUKS,
+Hyprland, quickshell, autologin, Plymouth. It asks for a dotfiles git URL —
+give it this repo and the result is this desktop, not a generic one.
 
 ```sh
-git clone <this repo> ~/Work/fd44_hyprdot
+# from a Fedora Workstation live ISO
+curl -O http://<host>/install_fedora_v1_11.sh
+chmod +x install_fedora_v1_11.sh
 
-# Hyprland config
-ln -s ~/Work/fd44_hyprdot/hypr ~/.config/hypr
-
-# AC/battery power policy
-mkdir -p ~/.config/systemd/user
-ln -s ~/Work/fd44_hyprdot/systemd/power-mode.service \
-      ~/.config/systemd/user/power-mode.service
-systemctl --user daemon-reload
-systemctl --user enable --now power-mode.service
+./install_fedora_v1_11.sh --check-repos   # resolve every package name, no root
+sudo ./install_fedora_v1_11.sh --dry-run  # print every command, change nothing
+sudo ./install_fedora_v1_11.sh            # the real thing
 ```
 
-`power-mode.service` is `WantedBy=graphical-session.target`, so it starts and
-stops with the Hyprland session.
+It finishes with a verification pass — boot entries, fstab, autologin, the
+font, the policy directory, the absence of packages that install themselves.
+Twenty-eight of them run on a default install; a few more with LUKS or zram.
 
-## Quickshell bar
+> **The account ships with the password `changeme`.** This is a public repo, so
+> assume everyone knows it. That is safe only because `~/.bash_profile` refuses
+> to start a session until the password has been changed. The password is
+> deliberately **not** expired: `agetty --autologin` runs `login -f`, and PAM
+> rejects an expired password on that path rather than prompting, which leaves
+> the machine in a getty respawn loop that never reaches a desktop.
 
-`~/.config/quickshell` is a symlink to `quickshell/` here, same as the Hyprland
-config. Run it with `qs`; it watches its own files and reloads on save.
-
-```
-[ logo | 1 2 3 4 5   <osd> ]        [ 13:47 ]        [ ... ]
-```
-
-The OSD is hidden until a volume or brightness key is pressed. Those keybinds
-change the value and then call `qs ipc call osd volume` / `... brightness` -
-see the bottom of `hypr/binds.lua`. The OSD reads the real value from PipeWire
-or `/sys/class/backlight` at display time, so it cannot drift out of sync, and
-if quickshell is not running the call fails harmlessly and the key still works.
-
-Inspect a running instance:
-
-```sh
-qs ipc show                       # what IPC targets exist
-hyprctl layers                    # confirm the layer surface (namespace: quickshell)
-```
-
-### Changing the look
-
-Everything visual is in `quickshell/Theme.qml` - colours, fonts, sizes,
-spacing, corner radius, animation durations. Components read `Theme.accent`
-directly rather than declaring their own properties, so there is nothing to
-thread through and no second copy to forget.
-
-Two QML traps worth knowing if you edit it:
-
-- `color` needs `import QtQuick`; with only `import Quickshell` it fails with
-  "color is not a type".
-- An identifier starting with `on` plus a capital letter is parsed as a SIGNAL
-  HANDLER, not a property. `readonly property color onAccent` fails with
-  "Cannot assign a value to a signal" - hence `accentFg`.
-
-### Font dependencies
-
-The bar needs two fonts that are not part of this repo. **The installer
-handles both** - this section is for when you are setting the config up on a
-machine it did not build.
-
-- **Inter Variable** - `sudo dnf install rsms-inter-vf-fonts`.
-  NOTE the family is registered as `Inter Variable`, not `Inter`. Asking for
-  `Inter` silently falls back to Noto Sans and merely looks slightly wrong.
-  Check with `fc-match "Inter Variable"`.
-- **Symbols Nerd Font** - glyphs for the logo and the OSD icons. Not packaged
-  in Fedora at all; the official symbols-only release is ~2.2 MiB:
-  ```sh
-  curl -fsSL https://github.com/ryanoasis/nerd-fonts/releases/download/v3.4.0/NerdFontsSymbolsOnly.tar.xz \
-    | sudo tar -xJC /usr/local/share/fonts SymbolsNerdFont-Regular.ttf
-  sudo fc-cache -f
-  ```
-  Check with `fc-match ':charset=f30a'` - it should name SymbolsNerdFont, not
-  Noto Sans. Without it the logo and OSD icons render as empty boxes;
-  `Logo.qml` can fall back to an SVG by setting `useGlyph: false`, but the OSD
-  icons have no fallback.
-
-Neither missing font produces an error. Fontconfig substitutes silently, so
-the failure looks like a styling mistake rather than a missing dependency -
-which is why both are installed explicitly rather than assumed.
-
-## Rebuilding this machine
-
-`install/install_fedora_v1_11.sh` installs Fedora 44 + Hyprland from a live
-environment. It asks for a dotfiles git URL; give it this repo's URL and it
-clones it, symlinks `~/.config/hypr` at `hypr/`, and enables the user units in
-`systemd/` - so the result is this setup, not a generic one.
-
-**The installed account ships with the password `changeme`, expired on
-creation.** It is in a public repo, so assume everyone knows it - that is fine
-only because `chage -d 0` forces a new password at the very first login,
-before a shell is reached. If you replace `user_password` with your own hash,
-drop the `chage` line too.
-
-Never run it against real hardware untested. `install/vm-test.sh` boots a
-throwaway UEFI VM for exactly that:
+### Testing it without hardware
 
 ```sh
 sudo dnf install qemu-system-x86-core qemu-img edk2-ovmf qemu-ui-gtk \
                  qemu-device-display-virtio-gpu qemu-device-display-virtio-vga-gl \
                  qemu-device-display-virtio-gpu-gl virglrenderer
 
-cd install && ./vm-test.sh /path/to/Fedora-Workstation-Live-*.iso
+install/vm-test.sh /path/to/Fedora-Workstation-Live-*.iso
 ```
 
-It serves this directory over HTTP so the VM can `curl` the installer at
-`10.0.2.2:8000`, and forwards host port 2222 to the VM's ssh. Inside the VM the
-target disk is `/dev/vda`. `--reboot` boots the installed disk, `--clean`
-throws it away.
+Serves this directory over HTTP so the guest can `curl` the installer at
+`10.0.2.2:8000`, and forwards host port 2222 to the guest's ssh. The target disk
+is `/dev/vda`. `--reboot` boots the installed disk; `--clean` throws it away.
 
-Both scripts have safe modes that change nothing: `--check-repos` resolves
-every package name, `--preflight` reports on the machine, `--dry-run` prints
-every command it would run.
+### On a machine the installer did not build
+
+`~/.config/hypr`, `~/.config/quickshell` and `~/.config/kitty` are **symlinks**
+into this checkout, so edits are live and there is nothing to keep in sync.
+
+```sh
+git clone https://github.com/jccl1706/fd44_hyprdot ~/Work/fd44_hyprdot
+cd ~/Work/fd44_hyprdot
+
+for d in hypr quickshell kitty; do ln -s "$PWD/$d" ~/.config/$d; done
+
+mkdir -p ~/.config/systemd/user
+ln -s "$PWD/systemd/power-mode.service" ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user enable --now power-mode.service
+
+sudo dnf install rsms-inter-vf-fonts jetbrains-mono-fonts
+sudo bin/install-nerd-font.sh        # installs the copy committed in fonts/
+bin/theme.sh restore                 # generate the palette files
+```
+
+## Keybindings
+
+| Key | Action |
+|---|---|
+| `SUPER+Return` | terminal (kitty) |
+| `SUPER+B` / `+E` | browser / file manager |
+| `SUPER+Space` | app launcher |
+| `SUPER+,` | wallpaper picker |
+| `SUPER+T` | toggle theme |
+| `SUPER+M` | power menu (also the physical power button) |
+| `SUPER+W` / `+F` / `+V` / `+P` | close / fullscreen / float / pseudo-tile |
+| `SUPER+J` | cycle column width |
+| `SUPER+[` / `+]` | consume / expel a window from its column |
+| `SUPER+A` | fit all — zoom out to the whole strip |
+| `SUPER+arrows` | move focus (`+SHIFT` moves the window) |
+| `SUPER+1..0` | focus workspace (`+SHIFT` sends the window) |
+| `SUPER+Tab` | next workspace (`+SHIFT` previous) |
+| `SUPER+S` | scratchpad (`+SHIFT` send) |
+| `SUPER+Escape` | passthrough — hand every key to the focused window, e.g. a VM |
+| `Print` | screenshot to clipboard |
+| `SUPER+CTRL+P` | screenshot region to `~/Pictures/` |
+
+Volume, brightness and media keys are bound with `locked = true`, so they keep
+working on the lock screen.
+
+> `SUPER+Escape` is a submap. While it is active **no other bind exists** — that
+> is the point — so a stuck passthrough looks exactly like a broken keyboard.
+> `hyprctl submap` says which is active; the same key gets you out.
+
+## Layout
+
+```
+hypr/            Hyprland config, in Lua (0.56+)
+  hyprland.lua     entry point; requires the modules below
+  monitors · look · input · binds · rules · autostart
+  hypridle.conf    idle → lock → screen off, AC/battery aware
+  hyprlock.conf    lock screen; colours come from the theme
+
+quickshell/      the shell itself, QML
+  Theme.qml        SINGLETON — every colour, font and metric
+  shell.qml        entry point; one Bar per monitor, IPC, global shortcuts
+  Bar · Frame · Launcher · WallpaperPicker · PowerMenu · Osd · Media
+
+themes/          dark.conf, cream.conf — one file per palette
+fonts/           Symbols Nerd Font, vendored (MIT)
+wallpapers/      resized, webp
+bin/             theme.sh · wallpaper.sh · power-mode.sh · idle-action.sh
+install/         the installer, and vm-test.sh
+```
 
 ## Power policy
 
@@ -181,50 +184,24 @@ every command it would run.
 | Suspend | 15:00 | never (lid close only) |
 
 Locking is not power-dependent; only the display-off timeout is. On AC the
-machine deliberately stays awake so long downloads, builds and ssh sessions
-are not cut off - closing the lid still suspends, via logind's
-`HandleLidSwitchExternalPower`.
+machine stays awake so long downloads and ssh sessions are not cut off — closing
+the lid still suspends, via logind's `HandleLidSwitchExternalPower`.
 
-The 30 second gap between locking and blanking is load-bearing - see the
-comment in `hypridle.conf`.
+Two independent mechanisms. **Profile and brightness** come from
+`bin/power-mode.sh`, driven by `udevadm monitor` on the `power_supply` subsystem
+— event-driven, and entirely unprivileged. **Timeouts** live in `hypridle.conf`
+with the logic in `bin/idle-action.sh`, where every listener is always armed and
+the battery-scoped ones test the power source when they fire.
 
-Two independent mechanisms, deliberately:
-
-**Profile and brightness** are applied by `bin/power-mode.sh`, driven by
-`udevadm monitor` on the `power_supply` subsystem. Event-driven rather than
-polling, and entirely unprivileged - `powerprofilesctl` and `brightnessctl`
-both work as the user here, so there is no udev rule and nothing in `/etc`.
-
-**Lock, display-off and suspend timeouts** live in `hypridle.conf`, with the
-logic in `bin/idle-action.sh`. Every listener is always armed and the
-battery-scoped ones test `/sys/class/power_supply/ACAD/online` when they fire,
-doing nothing on AC. This avoids swapping config files and restarting hypridle
-on every plug event, and avoids a race if the charger moves while a timer is
-already running.
-
-Watch it react:
-
-```sh
-journalctl --user -u power-mode.service -f
-```
+A machine with **no battery at all** counts as permanently on AC. That is not
+pedantry: without it a desktop suspends itself on idle because it cannot find a
+battery.
 
 ## Editing
 
 ```sh
-hyprctl reload         # apply changes
-hyprctl configerrors   # ALWAYS check - reload reports "ok" even when a
-                       # module failed to load
-```
-
-Useful while writing rules:
-
-```sh
-hyprctl clients        # class/title of open windows, for window rules
-hyprctl layers         # layer-shell surfaces, for layer rules
-hyprctl devices        # exact device names, for per-device input config
-hyprctl binds          # every registered keybind
-hyprctl monitors       # outputs, modes, applied scale
-hyprctl animations     # which curve and speed each leaf resolved to
+hyprctl reload         # apply
+hyprctl configerrors   # ALWAYS check - reload says "ok" even when a module failed
 ```
 
 `hyprctl dispatch` evaluates **Lua**, not the old string syntax, which makes it
@@ -232,100 +209,64 @@ the fastest way to test a dispatcher before binding it:
 
 ```sh
 hyprctl dispatch 'hl.dsp.window.fullscreen()'
-hyprctl dispatch 'hl.dsp.window.move({ direction = "left" })'
+hyprctl eval 'hl.config({ general = { gaps_in = 8 } })'   # for non-dispatchers
 ```
 
-The full Lua API is documented in the stub shipped with Hyprland:
-`/usr/share/hypr/stubs/hl.meta.lua`. It is the authoritative reference for
-what `hl.*` accepts - more complete than the wiki for the Lua config format.
+The authoritative Lua reference is the stub Hyprland ships:
+`/usr/share/hypr/stubs/hl.meta.lua` — more complete than the wiki for the Lua
+config format.
 
-## Keybindings
+Quickshell watches its own files and reloads on save. `qs ipc show` lists the IPC
+targets; `qs log` is the running instance's log.
 
-| Key | Action |
-|---|---|
-| `SUPER+Return` | terminal (kitty) |
-| `SUPER+B` | browser (chromium) |
-| `SUPER+E` | file manager (nautilus) |
-| `SUPER+W` | close window |
-| `SUPER+F` | fullscreen |
-| `SUPER+V` | toggle floating |
-| `SUPER+P` | pseudo-tile |
-| `SUPER+J` | cycle column width (scrolling) |
-| `SUPER+[` | consume - pull next column's window into this column |
-| `SUPER+]` | expel - push focused window out to its own column |
-| `SUPER+A` | fit all - zoom out to show the whole strip |
-| `SUPER+arrows` | move focus |
-| `SUPER+SHIFT+arrows` | move window within the layout |
-| `SUPER+1..9,0` | focus workspace |
-| `SUPER+SHIFT+1..9,0` | send window to workspace |
-| `SUPER+Tab` / `+SHIFT` | next / previous workspace |
-| `SUPER+S` / `+SHIFT` | scratchpad toggle / send |
-| `SUPER+M` | exit Hyprland |
-| `SUPER+SHIFT+P` | screenshot region to clipboard |
-| `Print` | screenshot screen to clipboard |
-| `SUPER+CTRL+P` | screenshot region to `~/Pictures/` |
+## Gotchas
 
-`SUPER+R` is reserved for a launcher and is **not bound** - `Apps.menu` in
-`hyprland.lua` is `nil`, and `binds.lua` skips the bind rather than wiring a
-key to an empty command. Set `Apps.menu` once Quickshell provides one.
+Each of these cost real time, and none produced an error message.
 
-Laptop function keys (volume, brightness, media) are all bound with
-`locked = true`, so they keep working on the lock screen.
+**Hyprland / hyprlang**
 
-## Gotchas specific to this machine
+- `hyprctl dispatch dpms off` does **not** work on 0.56 — `dispatch` evaluates
+  Lua, so the space-separated form is a parse error. It fails *silently* from
+  hypridle's side. Nearly every example online uses the broken form.
+- `hl.dsp.dpms()` **ignores its argument and toggles.** Two unguarded wake calls
+  cancel out and leave the display off, both logging `ok`.
+- `hyprctl keyword` is refused outright: *"keyword can't work with non-legacy
+  parsers. Use eval."* Use `hyprctl eval` with a real `hl.config{}` call.
+- Hyprlang `source` resolves against the **working directory**, not the file
+  doing the sourcing, so a relative path silently loads nothing.
+- Hyprlang has no statement separator — `;` is read as part of the value.
 
-- **`hl.dsp.dpms()` IGNORES its argument and TOGGLES.** Verified on 0.56.2:
-  three consecutive `dpms("on")` calls give dpmsStatus `1 -> 0 -> 1 -> 0`,
-  with or without a monitor name. Combined with the fact that hypridle fires
-  `on-resume` for *every* armed listener simultaneously, two unguarded wake
-  calls cancel out and leave the display off - while both log `ok`. That is
-  what stranded this machine on 2026-09-11: the screen blanked on schedule, a
-  keypress fired two wakes in the same second, and it never came back; only a
-  VT switch got out. `bin/idle-action.sh` therefore reads dpmsStatus and only
-  toggles when the state must actually change, under an `flock` so concurrent
-  callers serialise.
-- **Recovery if the display is ever stuck off**, from a TTY (Ctrl+Alt+F3):
-  ```sh
-  export HYPRLAND_INSTANCE_SIGNATURE=$(ls -t /run/user/1000/hypr | head -1)
-  hyprctl monitors | grep dpmsStatus        # 0 = off
-  hyprctl dispatch 'hl.dsp.dpms("on")'      # toggles; re-check, do not repeat blindly
-  ```
-- **`hyprctl dispatch` only accepts dispatchers.** For top-level `hl.*`
-  functions use `hyprctl eval '<lua>'`, or `hyprctl repl` for an interactive
-  Lua prompt.
-- **Restarting hypridle kills hyprlock.** `lock_cmd` spawns hyprlock as a
-  child of hypridle, in the same systemd cgroup, so
-  `systemctl --user restart hypridle` while locked takes the lock screen down
-  and leaves the desktop behind a stale frame.
-- **`hyprctl dispatch dpms off` does NOT work on Hyprland 0.56.** `hyprctl
-  dispatch` evaluates Lua, so the old space-separated form is a parse error:
-  `error: [string "return hl.dispatch(dpms off)"]:1: ')' expected near 'off'`.
-  It fails **silently** from hypridle's side - hypridle logs "Executing
-  hyprctl dispatch dpms off" and the screen simply never blanks. Nearly every
-  hypridle example online uses the broken form. The working one is
-  `hyprctl dispatch 'hl.dsp.dpms("off")'`, wrapped in `bin/idle-action.sh`.
-- **hypridle expands `$HOME`** in `on-timeout`/`on-resume` (verified - it
-  passes commands through a shell, which is also why `pidof hyprlock ||
-  hyprlock` works in `lock_cmd`), so config entries need no absolute paths.
-- **`brightnessctl` needs `-d amdgpu_bl1`.** Without it, it also picks up the
-  ChromeOS EC LED classes (`chromeos:white:power` and friends) and errors on
-  them, because those expose no readable brightness.
-- **One plug event emits several `power_supply` udev events** - ACAD plus each
-  USB-C port's `ucsi-source-psy` device - so `power-mode.sh` debounces on the
-  resulting AC state rather than reacting per event.
-- **`speed` is required on every `hl.animation`**, including spring ones where
-  the physics, not the timeline, sets the duration. Omitting it is a config
-  error.
+**Fonts**
+
+- A weight appended to a family name does not resolve. `Inter Variable Bold`
+  falls back to **Noto Sans**, silently. Use pango markup for weight.
+- Fontconfig prefers `~/.local/share/fonts`, so a hand-placed copy can make a
+  machine render perfectly while a fresh install of the same config has no
+  glyphs at all. `bin/install-nerd-font.sh` removes the user copy rather than
+  adding to it.
+
+**Packaging**
+
+- `nwg-panel` declares `Supplements: hyprland` — the *reverse* of Recommends —
+  so it installs itself on every machine and is invisible to any "what pulled
+  this in" query. It is excluded by name.
+- `--setopt=install_weak_deps=False` is deliberately **never** used: this
+  Framework's amdgpu and iwlwifi firmware both arrive only via Recommends, and
+  stripping weak deps left the machine unable to load any firmware at all.
+
+**Misc**
+
+- The kernel truncates process names to 15 characters, so `pgrep -x
+  chromium-browser` (16) matches nothing, silently.
+- `brightnessctl` needs `-d amdgpu_bl1`, or it also picks up the ChromeOS EC LED
+  classes and errors on them.
 - Variables that systemd user services need belong in **uwsm's** environment,
-  not `autostart.lua` - uwsm exports its environment before Hyprland runs, so
-  anything set in the Hyprland config arrives too late for them.
-- **Do not try to dismiss the Plymouth splash from Hyprland.** Plymouth holds
-  DRM master; masking `plymouth-quit*` so the splash outlives
-  `graphical.target` deadlocks the boot - Hyprland dies immediately with
-  `CBackend::create() failed!` and nothing is left to quit the splash. See the
-  note at the bottom of `autostart.lua`.
+  not `autostart.lua` — uwsm exports before Hyprland runs.
+- Do not try to dismiss the Plymouth splash from Hyprland. Plymouth holds DRM
+  master; masking `plymouth-quit*` deadlocks the boot.
 
 ## Not yet done
 
-- `~/.config/quickshell` is empty - no bar, launcher or notification daemon.
-- `hyprpaper` is installed but not started, so there is no wallpaper daemon.
+- The bar's right region is still a placeholder — no battery, network or tray.
+- No notification daemon, so apps that send notifications get silence.
+- Nothing indicates when the `passthrough` submap is active.
