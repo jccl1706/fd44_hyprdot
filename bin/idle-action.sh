@@ -61,7 +61,26 @@ scope="${args[1]:-always}"
 log() { printf '[idle-action] %s\n' "$*"; }
 
 on_ac() {
-    [[ -r $AC_ONLINE ]] || return 1     # unreadable -> treat as battery
+    # NO BATTERY AT ALL means permanently on mains - a desktop, or a VM. That
+    # is NOT the same as "the AC file is unreadable", which is how this used to
+    # decide, and the difference matters a great deal: every battery-scoped
+    # listener fired on such a machine, including the idle SUSPEND. A desktop
+    # that suspends itself because it cannot find a battery is worse than one
+    # that never suspends at all.
+    #
+    # Found by a VM test - the guest has neither ACAD nor BAT*, idled into the
+    # battery lock at 5:00 and the battery blank at 5:30, and the display did
+    # not come back. The installer supports machine=desktop, so this was
+    # reachable on real hardware too, not only under qemu.
+    #
+    # Checked before the AC file, because a machine with no battery has no
+    # meaningful AC state either - some report AC offline regardless.
+    compgen -G '/sys/class/power_supply/BAT*' >/dev/null || return 0
+
+    # There IS a battery. Now an unreadable AC file genuinely does mean
+    # "assume battery" - the cautious reading, since guessing AC on a laptop
+    # means never suspending and flattening it in a bag.
+    [[ -r $AC_ONLINE ]] || return 1
     [[ $(< "$AC_ONLINE") == 1 ]]
 }
 
