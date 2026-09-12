@@ -70,8 +70,9 @@ hl.on("hyprland.start", function()
     -- Via the script, not "hyprpaper" directly: which wallpaper daemon a
     -- machine can actually run is a property of the machine. hyprpaper is
     -- preferred and used wherever it works; on hardware where it aborts on
-    -- startup - which this project has one example of - the script falls back
-    -- to swaybg. See the backend note in bin/wallpaper.sh.
+    -- startup - the RX 9070 XT desktop, and any qemu guest on virtio-gpu -
+    -- the script falls back to swaybg. See the backend note in
+    -- bin/wallpaper.sh.
     hl.exec_cmd("sh -c '$HOME/.config/hypr/../bin/wallpaper.sh daemon'")
     hl.exec_cmd("sh -c 'sleep 1; $HOME/.config/hypr/../bin/wallpaper.sh restore'")
 

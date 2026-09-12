@@ -185,9 +185,11 @@ EOF
 #
 # So check for the module and the library directly rather than trusting the
 # device to fail cleanly.
+GL_ON=0
 if [[ -e /usr/lib64/qemu/hw-display-virtio-gpu-gl.so ]] \
    && ls /usr/lib64/libvirglrenderer.so.* >/dev/null 2>&1; then
     VIDEO=(-device virtio-vga-gl -display gtk,gl=on,grab-on-hover=on)
+    GL_ON=1
     log "3D acceleration available (virglrenderer present)"
 else
     VIDEO=(-device virtio-vga -display gtk,grab-on-hover=on)
@@ -213,25 +215,48 @@ fi
 # desktop is up, which is the giveaway). The result is a cursor that jumps,
 # sticks, or does not respond at all.
 #
-# GDK_BACKEND=x11 below is still needed, but it was never the whole story:
-# it fixes grabbing, and this removes the need to grab the pointer at all.
-# Keyboard grab-on-hover is unaffected, which is what SUPER passthrough
-# depends on.
+# Because the pointer is absolute, GDK_BACKEND=x11 below is now only about
+# the KEYBOARD grab, and only matters when 3D is off. Keyboard grab-on-hover
+# is unaffected by either backend, which is what SUPER passthrough depends on.
 
-# Run qemu's GTK window through XWayland rather than natively on Wayland.
+# GL AND XWAYLAND TOGETHER GIVE A BLACK WINDOW. Pick one.
 #
-# GTK3's Wayland backend implements NEITHER zwp_pointer_constraints_v1 NOR
-# zwp_relative_pointer_manager_v1 (0 references in libgdk-3.so.0), so when
-# qemu grabs input it cannot lock the pointer or receive relative motion:
-# the keyboard grab works - that is a different protocol, which GDK does
-# have - but the mouse stops moving inside the guest entirely.
+# This cost a whole afternoon of "the installed disk will not boot". It did
+# boot, every time. The guest ran the full desktop - bar, wallpaper, kitty -
+# and qemu simply never painted it:
 #
-# X11 has native XGrabPointer and needs no such protocol, so under XWayland
-# the grab works fully. Hyprland still composites the window; this only
-# changes which toolkit backend GTK uses. Costs one translation layer.
+#   gl=on  + GDK_BACKEND=x11   black from the moment Hyprland starts
+#   gl=on  + native Wayland    correct
+#   gl=off + GDK_BACKEND=x11   correct
 #
-# Needs xorg-x11-server-Xwayland installed (it is, on this machine).
-if [[ -n "${WAYLAND_DISPLAY:-}" ]] && [[ -n "${DISPLAY:-}" ]]; then
+# The tell is that the FIRMWARE and the PLYMOUTH SPLASH draw fine and the
+# screen only goes black at hand-off. Those use the DRM dumb-buffer path,
+# which qemu presents as an ordinary 2D surface; once Hyprland takes over,
+# the guest scans out through virgl and the frame is a GL texture, which the
+# GTK window has to import - and that import silently produces nothing when
+# GTK is running on XWayland. Nothing is logged, on either side.
+#
+# The second tell, from the monitor socket: `screendump` answers
+#
+#   Error: no surface
+#
+# for the whole black period. That is not a blanked display - it is qemu
+# saying the scanout is a GL texture and there is no 2D surface to dump. A
+# host-side `grim` of the qemu window is what shows what is really there.
+#
+# GL wins the tie. Software rendering makes Hyprland unusably slow in the
+# guest, while the X11 backend now buys only the keyboard grab.
+#
+# Why XWayland was here at all: GTK3's Wayland backend implements NEITHER
+# zwp_pointer_constraints_v1 NOR zwp_relative_pointer_manager_v1 (0
+# references in libgdk-3.so.0), so a qemu pointer grab could not lock the
+# pointer. virtio-tablet-pci removed the need to grab the pointer, so that
+# reason is spent.
+if (( GL_ON )); then
+    if [[ -n "${DISPLAY:-}" ]]; then
+        log "3D is on - keeping the qemu window on Wayland (XWayland + gl=on renders black)"
+    fi
+elif [[ -n "${WAYLAND_DISPLAY:-}" ]] && [[ -n "${DISPLAY:-}" ]]; then
     log "using XWayland for the qemu window (working pointer grab)"
     export GDK_BACKEND=x11
 elif [[ -n "${WAYLAND_DISPLAY:-}" ]]; then

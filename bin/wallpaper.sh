@@ -52,6 +52,11 @@ die() { printf 'wallpaper: %s\n' "$*" >&2; exit 1; }
 # newer hyprpaper packaged in either Fedora or the COPR to move to. swaybg
 # does no seat handling whatsoever, so it structurally cannot hit that bug.
 #
+# It is not one odd machine, either. A qemu guest on virtio-gpu does the same
+# thing, with the same backtrace through CAsyncResourceGatherer - so the VM
+# test exercises this fallback on every run, which is exactly the coverage a
+# fallback needs.
+#
 # Detected rather than configured, because "which wallpaper daemon works" is a
 # property of the machine, not a preference, and a per-host setting is one
 # more thing that has to be right on every clone.

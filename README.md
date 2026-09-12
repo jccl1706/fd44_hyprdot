@@ -110,6 +110,9 @@ Serves this directory over HTTP so the guest can `curl` the installer at
 `10.0.2.2:8000`, and forwards host port 2222 to the guest's ssh. The target disk
 is `/dev/vda`. `--reboot` boots the installed disk; `--clean` throws it away.
 
+hyprpaper cannot start on virtio-gpu either, so every VM run also exercises the
+swaybg fallback.
+
 ### On a machine the installer did not build
 
 `~/.config/hypr`, `~/.config/quickshell` and `~/.config/kitty` are **symlinks**
@@ -263,6 +266,11 @@ Each of these cost real time, and none produced an error message.
 
 **Misc**
 
+- In the test VM, `gl=on` plus `GDK_BACKEND=x11` paints a **black window** from
+  the moment Hyprland starts — the guest is fine, qemu just never imports the
+  GL scanout through XWayland. The firmware and the Plymouth splash draw
+  normally, which makes it look like a boot failure. `vm-test.sh` now keeps the
+  window on Wayland whenever 3D is on.
 - The kernel truncates process names to 15 characters, so `pgrep -x
   chromium-browser` (16) matches nothing, silently.
 - `brightnessctl` needs `-d amdgpu_bl1`, or it also picks up the ChromeOS EC LED
