@@ -725,6 +725,14 @@ depacs=(
     hyprpaper hyprlock hypridle hyprpolkitagent xdg-desktop-portal-hyprland
     hyprland-guiutils
     wl-clipboard cliphist grim slurp
+    # hypr/binds.lua binds the four XF86Audio media keys to playerctl. It is
+    # NOT pulled in by anything else here: on the machine this was developed
+    # on it arrived only as a weak dependency of nwg-panel, which nothing
+    # asked for and which came in behind the since-dropped sddm. Removing
+    # nwg-panel offered to take playerctl with it and would have silently
+    # killed the media keys - the same shape of trap as shadow-utils
+    # disappearing with sddm. Explicit now.
+    playerctl
     nautilus gvfs file-roller xdg-user-dirs
     xdg-desktop-portal xdg-desktop-portal-gtk
     google-noto-sans-mono-fonts
