@@ -8,6 +8,8 @@
 #   idle-action.sh lock    {battery|always}   lock the session
 #   idle-action.sh blank   {battery|always}   turn the display off
 #   idle-action.sh suspend {battery|always}   suspend the machine
+#   idle-action.sh suspend-if-idle            suspend if on battery with the
+#                                             display still idle-blanked
 #   idle-action.sh wake                       turn the display back on
 #
 # "battery" means: do nothing when running on AC, because the later
@@ -158,6 +160,30 @@ case "$action" in
         # No on-resume is needed for this listener: hypridle's after_sleep_cmd
         # already runs "idle-action.sh wake" when the machine comes back.
         log "suspending (scope: $scope)"
+        if (( DRY )); then log "would run: systemctl suspend"; else systemctl suspend; fi
+        ;;
+    suspend-if-idle)
+        # Scheduled by power-mode.sh when the charger is pulled out while the
+        # display is already idle-blanked: the case where hypridle's own
+        # suspend listener has ALREADY fired this idle period - on AC, so it
+        # skipped - and will not fire again. See the note in power-mode.sh.
+        #
+        # Both conditions are re-read now rather than trusted from when this
+        # was scheduled. The display being off is what "still idle" means
+        # here: any input since the blank ran hypridle's wake and turned it on.
+        if on_ac; then
+            log "back on AC - not suspending"
+            exit 0
+        fi
+        cur=$(dpms_state)
+        if [[ $cur == 1 ]]; then
+            log "display is on again - someone came back, not suspending"
+            exit 0
+        elif [[ -z $cur ]]; then
+            log "cannot read the display state - not suspending"
+            exit 0
+        fi
+        log "still idle on battery since the charger was pulled - suspending"
         if (( DRY )); then log "would run: systemctl suspend"; else systemctl suspend; fi
         ;;
     *)
