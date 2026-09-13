@@ -239,6 +239,183 @@ It only restores onto the machine the backup came from: device IDs are hashes of
 the hardware, so it refuses if the Quadro in the backup is not present, or if the
 installed CoolerControl version differs.
 
+## Rebuilding the desktop
+
+How to take the gaming desktop (ASRock B650I, Ryzen 7 9700X, RX 9070 XT,
+Aquacomputer Quadro) from a wiped disk back to exactly its current state.
+Steps 1–4 are scripted and each ends with its own verification pass; step 5 is
+the handful of things this repo deliberately does not do.
+
+### 0. Before you wipe it
+
+The installer erases the whole target disk, including `/home`. First:
+
+1. **Push everything in this repo.** `git -C ~/Work/fd44_hyprdot status` should
+   be clean and not ahead of `origin`.
+2. **Refresh the fan-curve backup** if you changed curves in CoolerControl since
+   the last commit. `--restore-curves` restores the newest directory in
+   `cooling/coolercontrol-backup/`:
+
+   ```sh
+   sudo coolercontrold backup
+   sudo coolercontrold list                        # note the newest TIMESTAMP
+   sudo cp -r /etc/coolercontrol/backups/<TIMESTAMP> ~/Work/fd44_hyprdot/cooling/coolercontrol-backup/
+   sudo chown -R "$USER": ~/Work/fd44_hyprdot/cooling/coolercontrol-backup
+   ```
+
+   Read the new files before committing — the repo is public. The daemon leaves
+   passwords and tokens out unless `--include-secrets` is passed; check that
+   `manifest.toml` says `includes_secrets = false`.
+3. **Copy off anything that is not in the repo** and that you want back: the
+   Steam library (`~/.local/share/Steam/steamapps`, optional — games can be
+   re-downloaded), Claude Code's saved preferences
+   (`~/.claude/projects/-home-jc-Work-fd44-hyprdot/memory/`), and personal files.
+
+### 1. Install the base system
+
+Boot a Fedora 44 Workstation live ISO, open a terminal, and fetch the installer:
+
+```sh
+curl -O https://raw.githubusercontent.com/jccl1706/fd44_hyprdot/master/install/install_fedora_v1_11.sh
+chmod +x install_fedora_v1_11.sh
+```
+
+Then, in the order the installer recommends:
+
+```sh
+./install_fedora_v1_11.sh --check-repos     # every package name resolves; no root, no changes
+./install_fedora_v1_11.sh --preflight       # report on this machine; no changes
+sudo ./install_fedora_v1_11.sh --desktop --dotfiles https://github.com/jccl1706/fd44_hyprdot --dry-run
+sudo ./install_fedora_v1_11.sh --desktop --dotfiles https://github.com/jccl1706/fd44_hyprdot
+```
+
+- **`--desktop`** sets the values for a machine with no battery and no lid:
+  desktop machine type, no disk swap, no encryption, zram on (half of RAM, at
+  most 8 GB).
+- **`--dotfiles`** clones this repo to `~/Work/fd44_hyprdot`, links `hypr`,
+  `quickshell` and `kitty` into `~/.config`, and enables the repo's systemd user
+  units. Nothing needs linking by hand afterwards.
+- The wizard still asks for the target disk — pick the NVMe — and the rest.
+- It ends with its own verification pass. Reboot when it finishes.
+
+### 2. First login
+
+The machine autologins on the console, and the account's password is the
+public `changeme`. `~/.bash_profile` will not start Hyprland until that password
+has been changed — run `passwd` when it asks. The desktop starts after that.
+
+### 3. Gaming — before opening Steam
+
+Run this **before Steam's first launch**: it marks the Steam library
+`nodatacow`, which Btrfs only allows while the directory is still empty.
+
+```sh
+cd ~/Work/fd44_hyprdot
+sudo bin/gaming-setup.sh --dry-run     # print every command, change nothing
+sudo bin/gaming-setup.sh
+```
+
+It restores: RPM Fusion, Steam with its 32-bit stack, GameMode and MangoHud
+(64- and 32-bit), gamescope, the freeworld VA-API driver, the `nodatacow`
+Steam library, the **120 fps cap** for Proton games, and the **250 W GPU power
+limit** at boot and after every resume. Expect **26 checks** passed.
+
+Then:
+
+1. **Log out and back in** (`SUPER+M` → log out; autologin returns you) so the
+   frame cap is loaded into the session. `echo $VKD3D_FRAME_RATE` should print
+   `120`.
+2. Open Steam, log in, and enable **Settings → Compatibility → Enable Steam Play
+   for all other titles**.
+3. Re-download games, or put the saved `steamapps` back while Steam is closed.
+
+### 4. Cooling
+
+```sh
+cd ~/Work/fd44_hyprdot
+sudo bin/cooling-setup.sh --restore-curves
+```
+
+This installs CoolerControl's daemon from its COPR, turns its liquidctl
+integration off, and restores the committed fan setup: the CPU fan follows CPU
+temperature; the exhausts and the side intake follow case air, with GPU edge
+temperature as a safety net. Expect `restored <timestamp>` and **10 checks**
+passed. The UI is at `http://127.0.0.1:11987` — it may ask you to log in or set
+a password on first visit.
+
+The restore **refuses** in two situations, on purpose:
+
+- **CoolerControl was updated since the backup.** Compare
+  `coolercontrold --version` with
+  `grep daemon_version cooling/coolercontrol-backup/*/manifest.toml`. If you
+  are happy to load an older backup into a newer daemon, restore by hand and
+  check the curves in the UI:
+
+  ```sh
+  sudo systemctl stop coolercontrold
+  sudo coolercontrold restore -y cooling/coolercontrol-backup/2026-09-13T10-41-19
+  sudo systemctl start coolercontrold
+  ```
+
+- **The hardware changed** (a different Quadro, board or GPU). CoolerControl
+  identifies devices by a hash of the hardware, so the saved assignments would
+  point at devices that no longer exist. Recreate the curves in the UI instead,
+  then refresh the backup as in step 0.
+
+### 5. What the repo does not do
+
+These were set up by hand on the current machine. None is needed for the desktop
+itself.
+
+**SSH from the laptop.** On the desktop:
+
+```sh
+sudo dnf install openssh-server
+sudo systemctl enable --now sshd
+```
+
+Then on the laptop — the reinstall gives the desktop a new host key, so the old
+one has to go first:
+
+```sh
+ssh-keygen -R <desktop-ip>
+ssh-copy-id -i ~/.ssh/fd44-desktop.pub jc@<desktop-ip>
+```
+
+**Pushing to GitHub from the desktop:**
+
+```sh
+sudo dnf install gh
+gh auth login --hostname github.com --git-protocol https --web
+gh auth setup-git
+git -C ~/Work/fd44_hyprdot config user.name  "Your Name"
+git -C ~/Work/fd44_hyprdot config user.email "you@example.com"
+```
+
+The installer's clone is shallow (`--depth 1`); pushing works as it is, and
+`git -C ~/Work/fd44_hyprdot fetch --unshallow` brings back the full history.
+
+**Claude Code**, with the preferences saved in step 0:
+
+```sh
+curl -fsSL https://claude.ai/install.sh | bash
+mkdir -p ~/.claude/projects/-home-jc-Work-fd44-hyprdot
+cp -r <saved>/memory ~/.claude/projects/-home-jc-Work-fd44-hyprdot/
+```
+
+### 6. Check it is all back
+
+```sh
+echo $VKD3D_FRAME_RATE                              # 120
+grep -H . /sys/class/hwmon/hwmon*/power1_cap        # the amdgpu one: 250000000
+systemctl is-enabled fd44-gpu-power-limit.service   # enabled
+hyprctl getoption misc:vrr                          # int: 2  (VRR for fullscreen)
+systemctl is-active coolercontrold                  # active
+```
+
+Both setup scripts are safe to run again at any time — they skip what is already
+done and end with the same verification passes.
+
 ## Power policy
 
 | | Battery | AC |
