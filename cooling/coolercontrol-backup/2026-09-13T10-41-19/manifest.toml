@@ -1,0 +1,6 @@
+format_version = 1
+daemon_version = "5.0.0"
+created = "2026-09-13T10:41:19.207088637-04:00"
+hostname = "fedora-hypr"
+includes_secrets = false
+files = ["config.toml", "config-ui.json", "alerts.json", "modes.json", "calibrations.json"]

@@ -3,7 +3,7 @@
 # cooling-setup.sh - fan curves for the gaming desktop, with CoolerControl
 # =========================================================================
 #
-# Usage:  sudo bin/cooling-setup.sh [--dry-run] [--gpu-overdrive] [-y]
+# Usage:  sudo bin/cooling-setup.sh [--dry-run] [--gpu-overdrive] [--restore-curves] [-y]
 #
 # Opt-in, and not part of the installer or of gaming-setup.sh: fan control
 # is specific to one machine's hardware. On the ASRock B650I / RX 9070 XT
@@ -15,6 +15,9 @@
 #   - enables the codifryed/CoolerControl COPR (CoolerControl is packaged
 #     nowhere else - not Fedora, not RPM Fusion)
 #   - installs coolercontrold ONLY, and starts it
+#   - with --restore-curves: restores this repo's CoolerControl backup
+#     (cooling/coolercontrol-backup/) - the fan curves and which fan follows
+#     what - on the machine they were made for
 #   - with --gpu-overdrive: adds amdgpu's overdrive bit to the kernel
 #     command line, which the GPU's own fan curve needs. Reboot required.
 #   - verifies all of it
@@ -45,6 +48,7 @@ set -euo pipefail
 
 DRY=0
 GPU_OD=0
+RESTORE=0
 ASSUME_YES=()
 COPR="codifryed/CoolerControl"
 PORT=11987
@@ -54,6 +58,7 @@ while (( $# )); do
     case "$1" in
         --dry-run)       DRY=1 ;;
         --gpu-overdrive) GPU_OD=1 ;;
+        --restore-curves) RESTORE=1 ;;
         -y|--yes)        ASSUME_YES=(-y) ;;
         -h|--help)       sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) printf 'cooling-setup: unknown option: %s\n' "$1" >&2; exit 1 ;;
@@ -137,6 +142,50 @@ apply_liquidctl_off() {
     printf '    coolercontrold check REJECTED the edit - original restored and started:\n'
     printf '%s\n' "$out" | tail -5 | sed 's/^/      /'
     return 1
+}
+
+# The newest backup directory under ROOT (<timestamp>/manifest.toml, the layout
+# CoolerControl itself writes). Prints nothing if there is none.
+newest_backup() {
+    local root="$1" d best=""
+    for d in "$root"/*/; do
+        [[ -f ${d}manifest.toml ]] || continue
+        best="${d%/}"                      # the glob is sorted; timestamps sort by time
+    done
+    printf '%s' "$best"
+}
+
+# Would restoring BACKUP_DIR land on this hardware? Checks two things against the
+# live config the daemon generated at startup:
+#   - every device that carries fan assignments in the backup exists here
+#     (CoolerControl device IDs are hashes of the hardware, so a different
+#     Quadro, or a different machine, gets a different ID and the assignments
+#     would point at nothing)
+#   - the backup was made by the installed daemon version
+# Prints the reason and returns 1 on a mismatch.
+backup_fits() {
+    local bk="$1" live="$2" installed="$3" want have uid
+    want="$(sed -n 's/^daemon_version = "\(.*\)"$/\1/p' "$bk/manifest.toml")"
+    if [[ -n $installed && $want != "$installed" ]]; then
+        echo "backup is from coolercontrold $want, installed is $installed"; return 1
+    fi
+    for uid in $(sed -n 's/^\[device-settings\.\([0-9a-f]\{64\}\)\]$/\1/p' "$bk/config.toml"); do
+        if ! grep -q "^$uid = " "$live"; then
+            have="$(grep -m1 "^$uid = " "$bk/config.toml" | cut -d'"' -f2)"
+            echo "device ${have:-$uid} from the backup is not on this machine (ID ${uid:0:12}...)"; return 1
+        fi
+    done
+    return 0
+}
+
+# Stop the daemon, restore, start it again - and start it even if the restore
+# fails, so a bad restore never leaves the fans without their controller.
+restore_backup() {
+    local src="$1" rc=0
+    systemctl stop coolercontrold
+    coolercontrold restore -y "$src" || rc=$?
+    systemctl start coolercontrold
+    return "$rc"
 }
 
 # True when the running coolercontrold started BEFORE FILE was last changed,
@@ -229,6 +278,50 @@ run systemctl enable --now coolercontrold
 # The file's own header says as much: "it is recommended to stop the daemon
 # when doing so". No environment variable controls liquidctl - all fifteen
 # the daemon reads were checked - so the file is the only way short of the UI.
+# ---------------------------------------------------------------------------
+# Restore the committed fan curves (optional)
+# ---------------------------------------------------------------------------
+# cooling/coolercontrol-backup/<timestamp>/ is a `coolercontrold backup` of
+# this desktop, reviewed before commit: curves, smoothing functions, fan
+# assignments, settings, UI layout - and no credentials (the daemon leaves its
+# .passwd and .tokens out unless --include-secrets is given, and its manifest
+# records includes_secrets = false).
+#
+# It fits ONE machine. CoolerControl identifies devices by a hash of the
+# hardware, so on anything else the assignments would point at devices that do
+# not exist; the restore is refused unless every device that has assignments in
+# the backup is present here, and unless the daemon version matches the one that
+# wrote it. `coolercontrold restore` wants the daemon stopped, so it is stopped,
+# restored and started - and started again even if the restore fails.
+#
+# To refresh the committed copy after changing curves in the UI:
+#   sudo coolercontrold backup
+#   sudo cp -r /etc/coolercontrol/backups/<newest> cooling/coolercontrol-backup/
+#   sudo chown -R "$USER": cooling/coolercontrol-backup
+# then review it and commit. The newest directory is the one restored.
+if (( RESTORE )); then
+    log "restore committed fan curves"
+    repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    bk="$(newest_backup "$repo/cooling/coolercontrol-backup")"
+    if [[ -z $bk ]]; then
+        warn "no backup under $repo/cooling/coolercontrol-backup - nothing restored"
+    elif (( DRY )); then
+        printf '\033[1;34mwould restore:\033[0m %s (stop, coolercontrold restore -y, start)\n' "$bk"
+    else
+        for _ in $(seq 1 30); do [[ -f /etc/coolercontrol/config.toml ]] && break; sleep 1; done
+        installed="$(rpm -q --qf '%{version}' coolercontrold 2>/dev/null || true)"
+        if why="$(backup_fits "$bk" /etc/coolercontrol/config.toml "$installed")"; then
+            if restore_backup "$bk"; then
+                printf '    restored %s\n' "${bk##*/}"
+            else
+                warn "coolercontrold restore failed - daemon restarted on its existing config"
+            fi
+        else
+            warn "not restoring ${bk##*/}: $why"
+        fi
+    fi
+fi
+
 log "liquidctl integration off (liquidctl is deliberately not installed)"
 cfg=/etc/coolercontrol/config.toml
 if (( DRY )); then

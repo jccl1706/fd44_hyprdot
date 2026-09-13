@@ -182,6 +182,7 @@ wallpapers/      resized, webp
 bin/             theme.sh · wallpaper.sh · power-mode.sh · idle-action.sh
                  gaming-setup.sh — opt-in, not run by the installer
 install/         the installer, and vm-test.sh
+cooling/         CoolerControl backup of the desktop's fan curves (reviewed, no credentials)
 ```
 
 ## Gaming
@@ -230,6 +231,13 @@ only, so the desktop app — which costs `qt6-qtwebengine`, 277 MB — is skippe
 `--gpu-overdrive` sets amdgpu's overdrive bit on the kernel command line rather
 than in `/etc/modprobe.d`: amdgpu loads from the initramfs here, where a
 modprobe option silently does nothing until the image is rebuilt.
+
+`--restore-curves` restores the fan curves committed in
+`cooling/coolercontrol-backup/` — made with `coolercontrold backup`, reviewed
+before commit, no credentials (the daemon leaves `.passwd` and `.tokens` out).
+It only restores onto the machine the backup came from: device IDs are hashes of
+the hardware, so it refuses if the Quadro in the backup is not present, or if the
+installed CoolerControl version differs.
 
 ## Power policy
 
