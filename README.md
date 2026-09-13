@@ -213,6 +213,8 @@ quickshell/      the shell itself, QML
   Bar · Frame · Launcher · WallpaperPicker · PowerMenu · Osd · Media
   AudioButton · AudioPanel       volume and output/input selection
   NetworkButton · NetworkPanel   Wi-Fi and Ethernet
+  CaffeineButton · Caffeine      coffee cup: stay awake - no idle lock, screen-off
+                                 or suspend while on (lid close still suspends)
   DropPanel        the slide-down card both panels are built on
   BarLayout · BarZone   movable plugins: press and hold a glyph, drag it along
                    the bar, drop it; its panel then opens under it. Saved per

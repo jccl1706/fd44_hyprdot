@@ -235,9 +235,21 @@ ShellRoot {
         function resetLayout(): void { BarLayout.reset() }
         function layout(): string    { return JSON.stringify(BarLayout.current) }
 
-        // Click a plugin by id ("audio", "network", "theme") wherever it sits,
-        // so its panel opens under it:  qs ipc call bar activate audio
+        // Click a plugin by id ("audio", "network", "theme", "caffeine")
+        // wherever it sits, so its panel opens under it:
+        //   qs ipc call bar activate audio
         function activate(id: string): void { shell.eachBar(b => b.activateId(id)) }
+    }
+
+    // The stay-awake switch (Caffeine.qml), for scripts and keybinds:
+    //   qs ipc call caffeine toggle | on | off | status
+    IpcHandler {
+        target: "caffeine"
+
+        function toggle(): void   { Caffeine.toggle() }
+        function on(): void       { Caffeine.setActive(true) }
+        function off(): void      { Caffeine.setActive(false) }
+        function status(): string { return Caffeine.active ? "on" : "off" }
     }
 
     IpcHandler {

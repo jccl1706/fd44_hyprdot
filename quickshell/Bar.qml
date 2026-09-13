@@ -63,6 +63,7 @@ PanelWindow {
     Component { id: audioPlugin;   AudioButton {} }
     Component { id: networkPlugin; NetworkButton {} }
     Component { id: themePlugin;   ThemeToggle {} }
+    Component { id: caffeinePlugin; CaffeineButton {} }
 
     // Where a dragged icon will land: a faint ring the size of a glyph.
     Component {
@@ -88,6 +89,7 @@ PanelWindow {
         case "audio":       return audioPlugin
         case "network":     return networkPlugin
         case "theme":       return themePlugin
+        case "caffeine":    return caffeinePlugin
         case "placeholder": return placeholderPlugin
         }
         return null
@@ -99,6 +101,7 @@ PanelWindow {
         if (id === "audio")                    root.audioRequested(x)
         else if (id === "network")             root.networkRequested(x)
         else if (id === "theme" && slot.item)  slot.item.activate()
+        else if (id === "caffeine")            Caffeine.toggle()
     }
 
     // The same as clicking plugin `id` wherever it currently sits - for IPC

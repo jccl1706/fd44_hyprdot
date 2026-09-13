@@ -18,7 +18,10 @@
 // The file is read back through normalise(), so a hand-edited or stale file
 // cannot lose a plugin or show one twice: unknown ids are dropped, duplicates
 // keep their first position, and a plugin the file does not mention (a newly
-// added one, say) appears where the defaults put it.
+// added one, say) appears BESIDE THE PLUGIN IT FOLLOWS IN THE DEFAULTS,
+// wherever that one has been dragged to - so the coffee cup lands next to the
+// theme toggle on a machine where the toggle was moved - or, with nothing to
+// follow, where the defaults put it.
 //
 // Reset from a terminal:  qs ipc call bar resetLayout
 
@@ -38,7 +41,7 @@ Singleton {
     readonly property var defaults: ({
         left: [],
         centerLeft: [],
-        centerRight: ["theme"],
+        centerRight: ["theme", "caffeine"],
         right: ["network", "audio"]
     })
 
@@ -86,11 +89,19 @@ Singleton {
             }
         }
         for (const z of layout.zones) {
-            for (const id of layout.defaults[z]) {
-                if (!seen[id]) {
-                    seen[id] = true
+            const defs = layout.defaults[z]
+            for (let i = 0; i < defs.length; i++) {
+                const id = defs[i]
+                if (seen[id]) continue
+                seen[id] = true
+                // Right after the plugin it follows in the defaults, if that
+                // one is placed; otherwise at the end of its default zone.
+                const prev = i > 0 ? defs[i - 1] : ""
+                const home = prev ? layout.zones.find(zz => out[zz].includes(prev)) : undefined
+                if (home !== undefined)
+                    out[home].splice(out[home].indexOf(prev) + 1, 0, id)
+                else
                     out[z].push(id)
-                }
             }
         }
         return out
