@@ -358,9 +358,16 @@ PanelWindow {
                                 width: 32
                                 height: 32
                                 radius: width / 2
-                                color: muteArea.containsMouse ? Theme.surfaceHigh
-                                                              : Qt.rgba(Theme.surfaceHigh.r, Theme.surfaceHigh.g,
-                                                                        Theme.surfaceHigh.b, 0.6)
+                                // A red wash behind the red glyph while
+                                // muted, so the button reads as switched OFF
+                                // rather than merely recoloured.
+                                color: section.muted
+                                       ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b,
+                                                 muteArea.containsMouse ? 0.26 : 0.16)
+                                       : muteArea.containsMouse
+                                         ? Theme.surfaceHigh
+                                         : Qt.rgba(Theme.surfaceHigh.r, Theme.surfaceHigh.g,
+                                                   Theme.surfaceHigh.b, 0.6)
                                 Behavior on color { ColorAnimation { duration: Theme.animFast } }
 
                                 Text {
@@ -373,7 +380,10 @@ PanelWindow {
                                           : (section.muted ? "\u{F036D}" : "\u{F036C}")
                                     font.family: Theme.glyphFont
                                     font.pixelSize: 16
-                                    color: section.muted ? Theme.dim : Theme.fg
+                                    // Red while muted, matching the bar's
+                                    // AudioButton.
+                                    color: section.muted ? Theme.danger : Theme.fg
+                                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
                                 }
 
                                 MouseArea {
