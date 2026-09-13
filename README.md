@@ -370,7 +370,7 @@ sudo bin/gaming-setup.sh
 It restores: RPM Fusion, Steam with its 32-bit stack, GameMode and MangoHud
 (64- and 32-bit), gamescope, the freeworld VA-API driver, the `nodatacow`
 Steam library, the **120 fps cap** for Proton games, and the **250 W GPU power
-limit** at boot and after every resume. Expect **26 checks** passed.
+limit** at boot and after every resume. Expect **31 checks** passed.
 
 Then:
 

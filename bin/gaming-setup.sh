@@ -24,6 +24,8 @@
 #   - marks the Steam library nodatacow on Btrfs
 #   - caps Proton games at 120 fps through the session environment
 #   - limits the AMD GPU to 250 W, at boot and after every resume
+#   - adds you to the gamemode group, so GameMode can switch the CPU governor
+#   - restores the CPU energy preference after every GameMode session
 #   - verifies all of it, including running the tools rather than only
 #     asking rpm whether they are installed
 #
@@ -45,7 +47,7 @@ while (( $# )); do
         --proton-ge) PROTON_GE=1 ;;
         -y|--yes)    ASSUME_YES=(-y) ;;
         -h|--help)
-            sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,36p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) printf 'gaming-setup: unknown option: %s\n' "$1" >&2; exit 1 ;;
@@ -249,6 +251,24 @@ for arch in x86_64 i686; do
         printf '    %-7s no 32-bit VA driver, and not adding one\n' "$arch"
     fi
 done
+
+# GameMode's reason for existing, switching the CPU governor to performance
+# while a game runs, is done by a root helper through pkexec - and the polkit
+# rule gamemode ships allows it ONLY for members of the `gamemode` group.
+# Installing the package adds nobody to that group.
+#
+# Without it `gamemoderun %command%` still starts the game, the daemon still
+# runs and logs a client, and pkexec answers "Not authorized" in the journal:
+# the game plays in the default balance_performance EPP and nothing on screen
+# says so. Found on the desktop, where both games had gamemoderun in their
+# launch options and `gamemoded -t` failed "Verifying CPU governor setting".
+log "GameMode permissions"
+if grep -qx gamemode <<<"$(id -nG "$target_user" | tr ' ' '\n')"; then
+    printf '    %s is already in the gamemode group\n' "$target_user"
+else
+    printf '    adding %s to the gamemode group (lets GameMode switch the CPU governor)\n' "$target_user"
+    run usermod -aG gamemode "$target_user"
+fi
 
 
 # -------------------------------------------------------------------------
@@ -466,6 +486,120 @@ fi
 
 
 # -------------------------------------------------------------------------
+# CPU energy preference after GameMode
+# -------------------------------------------------------------------------
+# WHY. GameMode switches the CPU governor to performance while a game runs and
+# back to powersave afterwards. On amd-pstate-epp the performance governor also
+# forces the energy_performance_preference (EPP) to "performance" - and
+# switching the governor back does NOT restore it. Measured on the 9700X:
+# balance_performance on all 16 threads before a `gamemoded -t`, governor back
+# to powersave after it, EPP still "performance", and it stays there until a
+# reboot. So the first game after boot left the CPU in performance mode for
+# the rest of the day. GameMode 1.8.2 has no setting for EPP.
+#
+# HOW. A GameMode end hook in /etc/gamemode.ini (gamemoded merges it over its
+# own defaults) writes EPP_DEFAULT back. The hook runs as the player and EPP is
+# root-only in sysfs, so a tmpfiles.d rule makes it writable by the gamemode
+# group - the group GameMode's own polkit rule already trusts with the
+# governor, and which the step above put the player in.
+#
+# The value is FIXED, not saved when a game starts: nothing records whether
+# gamemoded runs start hooks before or after it switches the governor, and a
+# hook saving afterwards would faithfully restore "performance".
+#
+# The hook returns at once and restores from a background child that waits
+# for the governor to leave performance first: the kernel refuses an EPP change
+# while the performance governor holds it, and gamemoded waits for end scripts
+# (up to script_timeout) - a hook that waited inline could be what the governor
+# reset was waiting behind.
+#
+# NO RELOGIN NEEDED, and none would help. sysfs checks the writing PROCESS's
+# groups, and gamemoded - with every other app in the session - is started by
+# the systemd user manager, which keeps the group list it had at boot. Logging
+# out does not refresh it: autologin returns faster than logind's user-stop
+# delay, so the manager never stops. Measured on the desktop after a logout:
+# user@1000 still up since boot, and a Hyprland started 15:48:30 still without
+# the gamemode group. So the hook re-runs itself through `sg gamemode`, which
+# reads the group database instead - no password for a listed member.
+EPP_DEFAULT=balance_performance
+epp_file=/sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference
+epp_rule="$R/etc/tmpfiles.d/fd44-cpu-epp.conf"
+epp_hook="$R/usr/local/bin/fd44-epp"
+gm_ini="$R/etc/gamemode.ini"
+log "CPU energy preference after GameMode"
+if [[ ! -e $epp_file ]]; then
+    printf '    this CPU driver exposes no energy preference - nothing to restore\n'
+elif (( DRY )); then
+    printf '\033[1;34mwould write:\033[0m %s, %s and %s, apply the rule, set EPP to %s\n' \
+        "$epp_rule" "$epp_hook" "$gm_ini" "$EPP_DEFAULT"
+else
+    install -d "$(dirname "$epp_rule")" "$(dirname "$epp_hook")" "$(dirname "$gm_ini")"
+    cat > "$epp_rule" <<'RULE'
+# Written by bin/gaming-setup.sh (fd44_hyprdot). Lets the gamemode group set
+# the CPU energy preference, so GameMode's end hook can put it back after a
+# game - the performance governor forces it to "performance" and leaving that
+# governor does not restore it.
+z /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference 0664 root gamemode -
+RULE
+    cat > "$epp_hook" <<'HOOK'
+#!/bin/sh
+# Written by bin/gaming-setup.sh (fd44_hyprdot). GameMode end hook:
+#   fd44-epp <preference>     e.g. fd44-epp balance_performance
+# Returns immediately; a background child waits (up to 10 s) for the governor
+# to leave "performance" - the kernel will not change EPP under it - then
+# writes the preference to every CPU.
+want="${1:-balance_performance}"
+cpu="${CPU_ROOT:-/sys/devices/system/cpu}"      # test prefix; the real tree by default
+
+# gamemoded usually runs with a group list older than the player's gamemode
+# membership - it is started by the systemd user manager, which a logout does
+# not restart - and sysfs checks this process's groups. sg takes the group
+# from the group database instead, without a password for a listed member.
+case " $(id -Gn) " in
+    *" gamemode "*) ;;
+    *) exec sg gamemode -c "'$0' '$want'" </dev/null ;;
+esac
+(
+    n=0
+    while [ "$n" -lt 50 ] && [ "$(cat "$cpu/cpu0/cpufreq/scaling_governor" 2>/dev/null)" = performance ]; do
+        sleep 0.2
+        n=$((n + 1))
+    done
+    for f in "$cpu"/cpu*/cpufreq/energy_performance_preference; do
+        printf '%s' "$want" > "$f" 2>/dev/null
+    done
+) </dev/null >/dev/null 2>&1 &
+exit 0
+HOOK
+    chmod 0755 "$epp_hook"
+
+    # Not over someone else's GameMode config: say what to add instead.
+    if [[ -f $gm_ini ]] && ! grep -q 'fd44-epp' "$gm_ini"; then
+        warn "$gm_ini exists and was not written by this script - add to its [custom] section:"
+        warn "  end=/usr/local/bin/fd44-epp $EPP_DEFAULT"
+    else
+        cat > "$gm_ini" <<INI
+; Written by bin/gaming-setup.sh (fd44_hyprdot). gamemoded merges this over
+; /usr/share/gamemode/gamemode.ini, so only what differs is here.
+[custom]
+; Put the CPU energy preference back after a game - see fd44-epp.
+end=/usr/local/bin/fd44-epp $EPP_DEFAULT
+INI
+    fi
+
+    # The rule now, not only from the next boot, and the preference back to its
+    # default in case an earlier game already left it at performance.
+    systemd-tmpfiles --create "$epp_rule"
+    if [[ $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor) != performance ]]; then
+        for f in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
+            printf '%s' "$EPP_DEFAULT" > "$f"
+        done
+    fi
+    printf '    restored to %s after every game\n' "$EPP_DEFAULT"
+fi
+
+
+# -------------------------------------------------------------------------
 # Proton-GE (optional)
 # -------------------------------------------------------------------------
 # Valve's Proton covers most of the catalogue. GE-Proton is a community
@@ -613,6 +747,62 @@ if [[ $preload == *"cannot be preloaded"* ]]; then
     bad "gamemoderun cannot preload into 64-bit programs (libgamemodeauto missing)"
 else
     ok "gamemoderun preloads into 64-bit programs"
+fi
+
+# The permission GameMode needs for the one thing it is mostly used for - see
+# "GameMode permissions" above. Membership first, because it is the cause...
+if grep -qx gamemode <<<"$(id -nG "$target_user" | tr ' ' '\n')"; then
+    ok "$target_user is in the gamemode group"
+else
+    bad "$target_user is not in the gamemode group - GameMode cannot switch the CPU governor"
+fi
+
+# ...and then the effect, RUN: gamemoded's own self-test switches the governor
+# to performance and back, as the player, over the player's session bus.
+# Membership alone was not proof enough to stop here - the polkit rule could
+# change under it - and a passing test is exactly what a game will get.
+gm_uid="$(id -u "$target_user")"
+gm_test="$(runuser -u "$target_user" -- env XDG_RUNTIME_DIR="/run/user/$gm_uid" \
+    DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$gm_uid/bus" gamemoded -t 2>&1 || true)"
+#
+# The test RE-EXECS ITSELF, so its output holds several rounds, each with its
+# own "Verifying CPU governor setting" line followed by Passed or Failed. Pass
+# only if every round reported and none failed.
+gov_results="$(grep -A1 'Verifying CPU governor setting' <<<"$gm_test" | grep -vE 'Verifying|^--$' || true)"
+if [[ -n $gov_results ]] && ! grep -q 'Failed' <<<"$gov_results" \
+   && ! grep -q 'Governor was not set' <<<"$gm_test"; then
+    ok "GameMode switches the CPU governor (gamemoded -t)"
+else
+    bad "GameMode could not switch the CPU governor (gamemoded -t) - games run without it"
+fi
+
+# The energy preference comes back after GameMode - see "CPU energy preference
+# after GameMode". The self-test just above ran a full GameMode session, so its
+# end hook has already fired.
+if [[ -e $epp_file ]]; then
+    if [[ -f /etc/tmpfiles.d/fd44-cpu-epp.conf && $(stat -c '%a %G' "$epp_file") == "664 gamemode" ]]; then
+        ok "CPU energy preference writable by the gamemode group"
+    else
+        bad "CPU energy preference is $(stat -c '%a %G' "$epp_file") - the tmpfiles rule is missing or not applied"
+    fi
+
+    if [[ -x /usr/local/bin/fd44-epp ]] && grep -q '^end=/usr/local/bin/fd44-epp' /etc/gamemode.ini 2>/dev/null; then
+        ok "GameMode end hook restores the energy preference"
+    else
+        bad "GameMode end hook missing (/usr/local/bin/fd44-epp or its line in /etc/gamemode.ini)"
+    fi
+
+    # RUN. Give the hook's background child its few seconds, then read it back.
+    for _ in $(seq 1 25); do
+        [[ $(cat "$epp_file") == "$EPP_DEFAULT" ]] && break
+        sleep 0.2
+    done
+    epp_now="$(cat "$epp_file")"
+    if [[ $epp_now == "$EPP_DEFAULT" ]]; then
+        ok "energy preference is back to $EPP_DEFAULT after a GameMode session"
+    else
+        bad "energy preference is $epp_now after a GameMode session, expected $EPP_DEFAULT"
+    fi
 fi
 
 # gamescope, RUN. --help needs no display, so this works over ssh.
