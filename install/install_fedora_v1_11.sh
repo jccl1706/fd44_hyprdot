@@ -2021,6 +2021,11 @@ fi
 log "Install complete"
 run cp "$logfile" "$rootmnt/var/log/fedora-install.log"
 
+# UNQUOTED on purpose - the summary interpolates $target, $username and the
+# rest - which means every backtick and $( ) in the text below RUNS, as root.
+# Write commands in plain quotes. A backticked `sudo dnf5 install
+# python3-<name>` in here was executed while the message printed, and only
+# failed harmlessly because <name> parsed as a redirect from a missing file.
 cat <<EOF
 
   Disk       : $target
@@ -2091,7 +2096,7 @@ cat <<EOF
   If uwsm crashes with a Python ModuleNotFoundError the first time you
   start a session, that is a real gap in the COPR's uwsm packaging (it has
   hard-imported modules it doesn't declare as dependencies) - read the
-  module name out of the traceback and `sudo dnf5 install python3-<name>`.
+  module name out of the traceback and "sudo dnf5 install python3-<name>".
   python3-pyxdg and python3-dbus are already included above for exactly
   this reason; if a COPR update introduces another one, same fix applies.
 

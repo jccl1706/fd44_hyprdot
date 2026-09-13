@@ -45,8 +45,13 @@ HTTP_PORT="${HTTP_PORT:-8000}"
 SSH_PORT="${SSH_PORT:-2222}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
-log() { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
+die()  { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
+log()  { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
+# Used by the no-3D, no-XWayland branch near the end. It was called there but
+# never defined, so under `set -e` that branch died with "warn: command not
+# found" instead of printing its advice - unnoticed only because every host
+# this has run on so far had 3D.
+warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2; }
 
 # --- locate OVMF (UEFI firmware) -----------------------------------------
 # The installer uses systemd-boot and an ESP, so the VM MUST be UEFI. A
