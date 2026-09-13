@@ -189,11 +189,12 @@ hl.layer_rule({
     no_anim = true,
 })
 
--- The audio panel is the same arrangement - a full-screen overlay whose card
--- slides down out of the bar - so the same reasoning applies.
+-- The bar's drop-down panels (quickshell/DropPanel.qml - audio, network) are
+-- the same arrangement - a full-screen overlay whose card slides down out of
+-- the bar - so the same reasoning applies.
 hl.layer_rule({
-    name    = "audio-panel-no-anim",
-    match   = { namespace = "^quickshell-audio$" },
+    name    = "drop-panels-no-anim",
+    match   = { namespace = "^quickshell-(audio|network)$" },
     no_anim = true,
 })
 

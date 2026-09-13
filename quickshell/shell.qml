@@ -41,12 +41,15 @@ ShellRoot {
         // assigning to it here fails with "Bar does not have a property
         // called modelData".
         //
-        // The audio glyph opens the panel on the bar's OWN monitor only - a
-        // click is about the screen you clicked on, unlike a keybind.
+        // The right pill's glyphs open their panel on the bar's OWN monitor
+        // only - a click is about the screen you clicked on, unlike a keybind.
         Bar {
             id: bar
             onAudioRequested: shell.eachAudio(a => {
                 if (a.modelData === bar.modelData) a.toggle()
+            })
+            onNetworkRequested: shell.eachNetwork(n => {
+                if (n.modelData === bar.modelData) n.toggle()
             })
         }
     }
@@ -100,6 +103,14 @@ ShellRoot {
         id: audioVariants
         model: Quickshell.screens
         AudioPanel {}
+    }
+
+    // Wi-Fi and Ethernet, the same kind of panel. Opened from the network
+    // glyph beside the speaker.
+    Variants {
+        id: networkVariants
+        model: Quickshell.screens
+        NetworkPanel {}
     }
 
     // The crossfade surface. Unmapped except during a wallpaper change, and
@@ -206,6 +217,14 @@ ShellRoot {
     }
 
     IpcHandler {
+        target: "network"
+
+        function toggle(): void { shell.eachNetwork(n => n.toggle()) }
+        function open(): void   { shell.eachNetwork(n => n.open())   }
+        function close(): void  { shell.eachNetwork(n => n.close())  }
+    }
+
+    IpcHandler {
         target: "wallpaper"
 
         function toggle(): void { shell.eachWallpaper(w => w.toggle()) }
@@ -260,6 +279,13 @@ ShellRoot {
 
     function eachAudio(fn): void {
         const instances = audioVariants.instances
+        for (let i = 0; i < instances.length; i++) {
+            if (instances[i]) fn(instances[i])
+        }
+    }
+
+    function eachNetwork(fn): void {
+        const instances = networkVariants.instances
         for (let i = 0; i < instances.length; i++) {
             if (instances[i]) fn(instances[i])
         }

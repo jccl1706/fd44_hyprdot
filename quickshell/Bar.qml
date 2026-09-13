@@ -15,9 +15,11 @@ PanelWindow {
     // Exposed so the IpcHandler in shell.qml can trigger it.
     property alias osd: osd
 
-    // The audio glyph was clicked. shell.qml owns the panels and opens the
-    // one on this bar's monitor; the bar does not reach for windows itself.
+    // A glyph in the right pill was clicked. shell.qml owns the panels and
+    // opens the one on this bar's monitor; the bar does not reach for windows
+    // itself.
     signal audioRequested()
+    signal networkRequested()
 
     // Variants sets this, one instance per monitor. The name must be exactly
     // `modelData` - that is what Variants assigns into the delegate.
@@ -205,6 +207,12 @@ PanelWindow {
                 id: rightRow
                 anchors.centerIn: parent
                 spacing: 10
+
+                // Opens NetworkPanel on this monitor - see networkRequested.
+                NetworkButton {
+                    anchors.verticalCenter: parent.verticalCenter
+                    onActivated: root.networkRequested()
+                }
 
                 // Opens AudioPanel on this monitor - see audioRequested.
                 AudioButton {
