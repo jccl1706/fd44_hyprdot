@@ -207,6 +207,11 @@ layer itself (`VKD3D_FRAME_RATE` for DX12, `DXVK_CONFIG` for DX9/11), from
 `~/.config/uwsm/env.d/gaming`. That file is written into the gaming machine's
 home, not this repo — the laptop shares the repo and does not game.
 
+It also limits the GPU to 250 W, at boot and after every resume, through a
+small systemd unit. With the GPU maxed out that took its own fans from about
+2,000 rpm to 1,650 and its junction from 93 °C to 88 °C median, measured over
+two long ARC Raiders sessions.
+
 ## Cooling
 
 Also opt-in, and also specific to one machine's hardware: every fan on the

@@ -23,6 +23,7 @@
 #     HEVC paths compiled in
 #   - marks the Steam library nodatacow on Btrfs
 #   - caps Proton games at 120 fps through the session environment
+#   - limits the AMD GPU to 250 W, at boot and after every resume
 #   - verifies all of it, including running the tools rather than only
 #     asking rpm whether they are installed
 #
@@ -366,6 +367,105 @@ fi
 
 
 # -------------------------------------------------------------------------
+# GPU power limit
+# -------------------------------------------------------------------------
+# WHY. With the 120 fps cap in place, heavy scenes still held the RX 9070 XT at
+# its 304 W default limit - below 120 fps, so the cap never acted - and that is
+# where its own fans got loud. Measured in two 20-35 minute ARC Raiders
+# sessions, comparing only the stretches where the GPU was maxed out:
+#
+#                          304 W          250 W
+#   GPU fans, median     2012 rpm       1653 rpm
+#   GPU fans, peak       2134 rpm       1791 rpm
+#   junction, median/max  93 / 97 C      88 / 91 C
+#   junction >= 95 C      6.7% of play   0%
+#
+# with the CPU fan, case fans, CPU and case air unchanged. The frame cost was
+# not measured. Under sustained load this card holds about 5% above whatever
+# limit is set (the PPT reading sat near 264 W at 250 W), so set a lower
+# number if the reading itself must stay under a figure.
+#
+# HOW. A small helper writes power1_cap; a oneshot unit runs it at boot and
+# again after resume - After= plus WantedBy= the sleep targets is what fires
+# a unit on the way back up. It deliberately has no RemainAfterExit, or it
+# would stay "active" from boot and never run again. Whether amdgpu keeps the
+# limit across suspend was not verified; reapplying it is harmless either way.
+#
+# The helper changes EVERY amdgpu hwmon that exposes power1_cap and nothing
+# else - a 9700X has an integrated GPU, which amdgpu would also bind if it
+# were enabled, and it has no power cap to set. The value is checked against
+# the card's own power1_cap_min/max, and read back after writing.
+#
+# GPU_POWER_LIMIT is the one line to change. Delete the unit to remove it:
+#   systemctl disable --now fd44-gpu-power-limit.service
+GPU_POWER_LIMIT=250
+R="${FD44_ROOT:-}"                                      # test prefix; empty for real
+pl_helper="$R/usr/local/sbin/fd44-gpu-power-limit"
+pl_unit="$R/etc/systemd/system/fd44-gpu-power-limit.service"
+log "GPU power limit (${GPU_POWER_LIMIT} W)"
+if (( DRY )); then
+    printf '\033[1;34mwould write:\033[0m %s and %s, then enable and start it\n' "$pl_helper" "$pl_unit"
+else
+    install -d "$(dirname "$pl_helper")" "$(dirname "$pl_unit")"
+    cat > "$pl_helper" <<'HELPER'
+#!/bin/sh
+# Written by bin/gaming-setup.sh (fd44_hyprdot). Sets the AMD GPU power limit.
+# WATTS comes from fd44-gpu-power-limit.service. Applies to every amdgpu hwmon
+# that exposes power1_cap, checks the card's allowed range, reads back.
+set -eu
+W="${WATTS:?WATTS not set}"
+ROOT="${HWMON_ROOT:-/sys/class/hwmon}"
+TRIES="${TRIES:-30}"
+want=$((W * 1000000))
+n=0
+while [ "$n" -lt "$TRIES" ]; do
+    applied=0
+    for h in "$ROOT"/hwmon*; do
+        [ "$(cat "$h/name" 2>/dev/null)" = amdgpu ] || continue
+        [ -e "$h/power1_cap" ] || continue
+        min=$(cat "$h/power1_cap_min"); max=$(cat "$h/power1_cap_max")
+        if [ "$want" -lt "$min" ] || [ "$want" -gt "$max" ]; then
+            echo "fd44-gpu-power-limit: $W W is outside $((min / 1000000))-$((max / 1000000)) W for $h - not applied" >&2
+            exit 1
+        fi
+        echo "$want" > "$h/power1_cap"
+        got=$(cat "$h/power1_cap")
+        if [ "$got" != "$want" ]; then
+            echo "fd44-gpu-power-limit: wrote $want to $h/power1_cap but it reads $got" >&2
+            exit 1
+        fi
+        echo "fd44-gpu-power-limit: $h power limit $W W"
+        applied=$((applied + 1))
+    done
+    [ "$applied" -gt 0 ] && exit 0
+    n=$((n + 1)); sleep 1
+done
+echo "fd44-gpu-power-limit: no amdgpu device with a power limit found" >&2
+exit 1
+HELPER
+    chmod 0755 "$pl_helper"
+    cat > "$pl_unit" <<UNIT
+# Written by bin/gaming-setup.sh (fd44_hyprdot).
+[Unit]
+Description=AMD GPU power limit (${GPU_POWER_LIMIT} W) - boot and resume
+After=systemd-modules-load.service suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+
+[Service]
+Type=oneshot
+Environment=WATTS=${GPU_POWER_LIMIT}
+ExecStart=/usr/local/sbin/fd44-gpu-power-limit
+
+[Install]
+WantedBy=multi-user.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+UNIT
+    systemctl daemon-reload
+    systemctl enable fd44-gpu-power-limit.service
+    systemctl start fd44-gpu-power-limit.service
+    printf '    applied now, and at every boot and resume\n'
+fi
+
+
+# -------------------------------------------------------------------------
 # Proton-GE (optional)
 # -------------------------------------------------------------------------
 # Valve's Proton covers most of the catalogue. GE-Proton is a community
@@ -546,6 +646,23 @@ if [[ -f $cap_file ]] && grep -q "^export VKD3D_FRAME_RATE=$FRAME_CAP$" "$cap_fi
 else
     bad "frame cap file missing, wrong, or not owned by $target_user: $cap_file"
 fi
+
+# GPU power limit: installed, enabled for boot AND resume, and in effect now.
+if [[ -x /usr/local/sbin/fd44-gpu-power-limit && -f /etc/systemd/system/fd44-gpu-power-limit.service ]]; then
+    ok "GPU power-limit helper and unit installed"
+else
+    bad "GPU power-limit helper or unit missing"
+fi
+[[ $(systemctl is-enabled fd44-gpu-power-limit.service 2>/dev/null) == enabled ]] \
+    && ok "GPU power-limit unit enabled at boot" || bad "GPU power-limit unit not enabled"
+[[ -L /etc/systemd/system/suspend.target.wants/fd44-gpu-power-limit.service ]] \
+    && ok "GPU power-limit unit reapplies after resume" || bad "GPU power-limit unit not hooked to suspend.target"
+pl_now=""
+for h in /sys/class/hwmon/hwmon*; do
+    [[ $(cat "$h/name" 2>/dev/null) == amdgpu && -e $h/power1_cap ]] && pl_now=$(( $(cat "$h/power1_cap") / 1000000 ))
+done
+[[ $pl_now == "$GPU_POWER_LIMIT" ]] \
+    && ok "GPU power limit is ${GPU_POWER_LIMIT} W now" || bad "GPU power limit reads ${pl_now:-nothing}, expected ${GPU_POWER_LIMIT} W"
 
 # OWNERSHIP OF THE WHOLE STEAM TREE, not just the leaf. A root-owned
 # directory anywhere in here stops Steam extracting its bootstrap, and the
