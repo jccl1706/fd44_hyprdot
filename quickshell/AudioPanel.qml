@@ -19,6 +19,11 @@
 // none of which carry audio controls. What is left is exactly the list
 // `wpctl status` prints under Sinks and Sources.
 //
+// OUTPUTS ARE LISTED, INPUTS ARE A DROPDOWN. Outputs get switched - speakers,
+// headphones, the monitor - so they stay one click away. Inputs are set once
+// and left, and the EVO4 alone exposes five of them, three of which are
+// loopbacks; listed in full they were most of the panel.
+//
 // SELECTING A DEVICE sets PipeWire's CONFIGURED default, the same thing
 // `wpctl set-default` does - WirePlumber stores it, so the choice survives a
 // reboot, and every app following the default moves with it.
@@ -35,6 +40,9 @@ PanelWindow {
     screen: modelData
 
     property bool revealed: false
+
+    // The input dropdown. Always starts closed.
+    property bool inputsOpen: false
 
     // --- window ----------------------------------------------------------
 
@@ -63,6 +71,7 @@ PanelWindow {
     // --- public API ------------------------------------------------------
 
     function open(): void {
+        root.inputsOpen = false
         root.visible = true
         // Before `revealed`, always - see the duration note in PowerMenu.qml.
         root.slideDuration = root.openDuration
@@ -113,15 +122,17 @@ PanelWindow {
     }
 
     function title(n): string {
+        if (!n) return ""
         return root.nickLeads(n) ? n.nickname : (n.description || n.name)
     }
 
     function subtitle(n): string {
+        if (!n) return ""
         return root.nickLeads(n) ? (n.description || "") : ""
     }
 
     function deviceGlyph(n): string {
-        if (!n.isSink) return "\u{F036C}"                        // nf-md-microphone
+        if (!n || !n.isSink) return "\u{F036C}"                  // nf-md-microphone
         const s = (n.name + " " + n.description).toLowerCase()
         if (s.includes("hdmi") || s.includes("displayport"))
             return "\u{F0379}"                                   // nf-md-monitor
@@ -181,14 +192,17 @@ PanelWindow {
             // The extra frameThickness runs under the right frame strip, as
             // in PowerMenu.qml, so the card and the frame are one shape.
             width: 340 + Theme.frameThickness
+
+            // Tracks the content every frame, so the dropdown opening grows
+            // the card on the dropdown's own curve rather than a second one.
             height: content.implicitHeight + pad * 2
 
             anchors.right: parent.right
             anchors.top: parent.top
 
             // Closed offset includes the fillet that hangs below the card.
-            // Bound to `height`, which only changes when a device comes or
-            // goes; while closed that merely re-runs an invisible slide.
+            // Bound to `height`, which only changes while closed when a device
+            // comes or goes; that merely re-runs an invisible slide.
             anchors.topMargin: root.revealed ? 0 : -(height + Theme.cornerRadius)
 
             Behavior on anchors.topMargin {
@@ -202,7 +216,11 @@ PanelWindow {
             }
 
             focus: true
-            Keys.onEscapePressed: root.close()
+            // Esc backs out one level: the dropdown first, then the panel.
+            Keys.onEscapePressed: {
+                if (root.inputsOpen) root.inputsOpen = false
+                else root.close()
+            }
             Keys.onRightPressed:  root.setVolume(Pipewire.defaultAudioSink,
                                                  (Pipewire.defaultAudioSink?.audio?.volume ?? 0) + 0.05)
             Keys.onLeftPressed:   root.setVolume(Pipewire.defaultAudioSink,
@@ -268,7 +286,6 @@ PanelWindow {
                     left: parent.left;   leftMargin: card.pad
                     right: parent.right; rightMargin: card.pad + Theme.frameThickness
                 }
-                spacing: 0
 
                 Repeater {
                     model: [
@@ -276,6 +293,11 @@ PanelWindow {
                         { label: "Input",  output: false }
                     ]
 
+                    // SPACING 0, gaps built into the children instead. A
+                    // positioner drops the spacing around a child the moment
+                    // its height reaches 0, unanimated - so the collapsing
+                    // dropdown would finish its curve and then snap shut by a
+                    // few more pixels. Same trap as the OSD in Osd.qml.
                     delegate: Column {
                         id: section
 
@@ -289,8 +311,11 @@ PanelWindow {
                         readonly property real volume: node?.audio?.volume ?? 0
                         readonly property bool muted:  node?.audio?.muted ?? false
 
+                        // Inputs hide their devices behind a dropdown.
+                        readonly property bool collapsible: !output
+                        readonly property bool listShown: !collapsible || root.inputsOpen
+
                         width: parent.width
-                        spacing: 2
 
                         // Divider between the two sections.
                         Item {
@@ -369,8 +394,55 @@ PanelWindow {
                                 }
                                 height: 24
 
-                                readonly property real value: Math.max(0, Math.min(1, section.volume))
-                                readonly property bool engaged: dragArea.pressed || dragArea.containsMouse
+                                // THE KNOB IS NOT DRAWN FROM PIPEWIRE WHILE
+                                // YOU DRAG IT.
+                                //
+                                // It used to be: every mouse move set the
+                                // volume, and the knob moved when PipeWire
+                                // reported the new value back. That round
+                                // trip is asynchronous and the reports arrive
+                                // late and in bursts, so the knob lurched
+                                // along behind the pointer instead of sitting
+                                // under it.
+                                //
+                                // Now the pointer owns the drawn value while
+                                // pressed - and for a moment after release,
+                                // until PipeWire has caught up - and the
+                                // volume is sent on a steady tick behind it.
+                                readonly property bool held: dragArea.pressed || settle.running
+                                property real dragValue: 0
+                                property real lastSent: -1
+
+                                // Everything else - wheel, arrow keys, wpctl,
+                                // another app - glides instead of jumping.
+                                property real smoothed: Math.max(0, Math.min(1, section.volume))
+                                Behavior on smoothed {
+                                    NumberAnimation { duration: Theme.animNormal; easing.type: Easing.OutCubic }
+                                }
+
+                                readonly property real shown: held ? dragValue : smoothed
+
+                                function send(): void {
+                                    if (Math.abs(slider.dragValue - slider.lastSent) < 0.001) return
+                                    slider.lastSent = slider.dragValue
+                                    root.setVolume(section.node, slider.dragValue)
+                                }
+
+                                // ~30 updates a second: smooth to the ear,
+                                // and not one PipeWire param change per
+                                // pointer event.
+                                Timer {
+                                    id: sender
+                                    interval: 33
+                                    repeat: true
+                                    running: dragArea.pressed
+                                    onTriggered: slider.send()
+                                }
+
+                                Timer {
+                                    id: settle
+                                    interval: 300
+                                }
 
                                 Rectangle {
                                     anchors.verticalCenter: parent.verticalCenter
@@ -396,15 +468,12 @@ PanelWindow {
                                     width: 14
                                     height: 14
                                     radius: width / 2
-                                    x: slider.value * (slider.width - width)
+                                    x: slider.shown * (slider.width - width)
                                     color: section.muted ? Theme.dim : Theme.accent
-                                    scale: slider.engaged ? 1.2 : 1
+                                    scale: dragArea.pressed || dragArea.containsMouse ? 1.2 : 1
                                     Behavior on scale { NumberAnimation { duration: Theme.animFast } }
                                 }
 
-                                // No Behavior on the value: a slider that eases
-                                // towards the pointer feels like it is lagging
-                                // behind the drag.
                                 MouseArea {
                                     id: dragArea
                                     anchors.fill: parent
@@ -412,13 +481,21 @@ PanelWindow {
                                     preventStealing: true
                                     cursorShape: Qt.PointingHandCursor
 
-                                    function seek(x: real): void {
-                                        root.setVolume(section.node,
-                                                       (x - knob.width / 2) / (width - knob.width))
+                                    function track(x: real): void {
+                                        slider.dragValue = Math.max(0, Math.min(1,
+                                            (x - knob.width / 2) / (width - knob.width)))
                                     }
 
-                                    onPressed: mouse => seek(mouse.x)
-                                    onPositionChanged: mouse => { if (pressed) seek(mouse.x) }
+                                    onPressed: mouse => {
+                                        settle.stop()
+                                        track(mouse.x)
+                                        slider.send()
+                                    }
+                                    onPositionChanged: mouse => { if (pressed) track(mouse.x) }
+                                    onReleased: {
+                                        slider.send()
+                                        settle.restart()
+                                    }
                                     onWheel: wheel => root.setVolume(section.node,
                                         section.volume + (wheel.angleDelta.y > 0 ? 0.05 : -0.05))
                                 }
@@ -429,7 +506,8 @@ PanelWindow {
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                                 width: 40
                                 horizontalAlignment: Text.AlignRight
-                                text: section.muted ? "muted" : Math.round(section.volume * 100) + "%"
+                                text: section.muted ? "muted"
+                                    : Math.round((slider.held ? slider.dragValue : section.volume) * 100) + "%"
                                 font.family: Theme.font
                                 font.weight: Theme.weightMedium
                                 font.pixelSize: Theme.fontSize
@@ -438,110 +516,215 @@ PanelWindow {
                             }
                         }
 
+                        // --- dropdown (inputs) ---------------------------------
+                        //
+                        // The current device, standing in for the list until
+                        // it is asked for.
+
+                        Rectangle {
+                            id: picker
+                            visible: section.collapsible
+                            width: parent.width
+                            height: 40
+                            radius: 8
+                            color: pickerArea.containsMouse || root.inputsOpen
+                                   ? Theme.surfaceHigh
+                                   : Qt.rgba(Theme.surfaceHigh.r, Theme.surfaceHigh.g,
+                                             Theme.surfaceHigh.b, 0.6)
+                            Behavior on color { ColorAnimation { duration: Theme.animFast } }
+
+                            Text {
+                                id: pickerGlyph
+                                anchors { left: parent.left; leftMargin: 12
+                                          verticalCenter: parent.verticalCenter }
+                                width: 20
+                                horizontalAlignment: Text.AlignHCenter
+                                text: root.deviceGlyph(section.node)
+                                font.family: Theme.glyphFont
+                                font.pixelSize: 16
+                                color: Theme.accent
+                            }
+
+                            Text {
+                                anchors {
+                                    left: pickerGlyph.right; leftMargin: 10
+                                    right: chevron.left;     rightMargin: 8
+                                    verticalCenter: parent.verticalCenter
+                                }
+                                text: section.node ? root.title(section.node) : "No input device"
+                                font.family: Theme.font
+                                font.weight: Theme.weightMedium
+                                font.pixelSize: Theme.fontSize
+                                color: section.node ? Theme.fg : Theme.dim
+                                elide: Text.ElideRight
+                            }
+
+                            Text {
+                                id: chevron
+                                anchors { right: parent.right; rightMargin: 12
+                                          verticalCenter: parent.verticalCenter }
+                                text: "\u{F0140}"                    // nf-md-chevron_down
+                                font.family: Theme.glyphFont
+                                font.pixelSize: 16
+                                color: Theme.dim
+                                rotation: root.inputsOpen ? 180 : 0
+                                Behavior on rotation {
+                                    NumberAnimation { duration: Theme.animReveal; easing.type: Easing.InOutCubic }
+                                }
+                            }
+
+                            MouseArea {
+                                id: pickerArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.inputsOpen = !root.inputsOpen
+                            }
+                        }
+
                         // --- devices ------------------------------------------
+                        //
+                        // Always laid out; a dropdown reveals it by animating
+                        // the clip height, so the card grows on the same
+                        // curve as the list rather than jumping.
 
-                        Repeater {
-                            model: section.list
+                        Item {
+                            id: listBox
+                            width: parent.width
+                            clip: true
 
-                            delegate: Rectangle {
-                                id: row
+                            // The gap under the dropdown button lives inside
+                            // this height, so it closes with the list.
+                            readonly property int lead: section.collapsible ? 4 : 0
 
-                                required property var modelData
+                            height: section.listShown ? devicesCol.implicitHeight + lead : 0
+                            Behavior on height {
+                                enabled: section.collapsible
+                                NumberAnimation { duration: Theme.animReveal; easing.type: Easing.InOutCubic }
+                            }
 
-                                // By id: two JS wrappers of one node are not
-                                // guaranteed to compare identical.
-                                readonly property bool current:
-                                    section.node !== null && modelData.id === section.node.id
+                            opacity: section.listShown ? 1 : 0
+                            Behavior on opacity {
+                                enabled: section.collapsible
+                                NumberAnimation { duration: Theme.animReveal; easing.type: Easing.InOutCubic }
+                            }
 
-                                width: section.width
-                                height: root.subtitle(modelData) ? 44 : 36
-                                radius: 8
+                            Column {
+                                id: devicesCol
+                                y: listBox.lead
+                                width: parent.width
+                                spacing: 2
 
-                                // The launcher's selection wash and marker, so
-                                // "current device" and "selected app" read as
-                                // the same idea.
-                                color: row.current
-                                       ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.14)
-                                       : rowArea.containsMouse
-                                         ? Qt.rgba(Theme.surfaceHigh.r, Theme.surfaceHigh.g,
-                                                   Theme.surfaceHigh.b, 0.6)
-                                         : "transparent"
-                                Behavior on color { ColorAnimation { duration: Theme.animFast } }
+                                Repeater {
+                                    model: section.list
 
-                                Rectangle {
-                                    anchors { left: parent.left; leftMargin: 2
-                                              verticalCenter: parent.verticalCenter }
-                                    width: 3
-                                    height: row.current ? 18 : 0
-                                    radius: 1.5
-                                    color: Theme.accent
-                                    Behavior on height {
-                                        NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic }
+                                    delegate: Rectangle {
+                                        id: row
+
+                                        required property var modelData
+
+                                        // By id: two JS wrappers of one node
+                                        // are not guaranteed to compare
+                                        // identical.
+                                        readonly property bool current:
+                                            section.node !== null && modelData.id === section.node.id
+
+                                        width: devicesCol.width
+                                        height: root.subtitle(modelData) ? 44 : 36
+                                        radius: 8
+
+                                        // The launcher's selection wash and
+                                        // marker, so "current device" and
+                                        // "selected app" read as one idea.
+                                        color: row.current
+                                               ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.14)
+                                               : rowArea.containsMouse
+                                                 ? Qt.rgba(Theme.surfaceHigh.r, Theme.surfaceHigh.g,
+                                                           Theme.surfaceHigh.b, 0.6)
+                                                 : "transparent"
+                                        Behavior on color { ColorAnimation { duration: Theme.animFast } }
+
+                                        Rectangle {
+                                            anchors { left: parent.left; leftMargin: 2
+                                                      verticalCenter: parent.verticalCenter }
+                                            width: 3
+                                            height: row.current ? 18 : 0
+                                            radius: 1.5
+                                            color: Theme.accent
+                                            Behavior on height {
+                                                NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic }
+                                            }
+                                        }
+
+                                        Text {
+                                            id: rowGlyph
+                                            anchors { left: parent.left; leftMargin: 12
+                                                      verticalCenter: parent.verticalCenter }
+                                            width: 20
+                                            horizontalAlignment: Text.AlignHCenter
+                                            text: root.deviceGlyph(row.modelData)
+                                            font.family: Theme.glyphFont
+                                            font.pixelSize: 16
+                                            color: row.current ? Theme.accent : Theme.dim
+                                        }
+
+                                        Column {
+                                            anchors {
+                                                left: rowGlyph.right; leftMargin: 10
+                                                right: parent.right;  rightMargin: 10
+                                                verticalCenter: parent.verticalCenter
+                                            }
+                                            spacing: 1
+
+                                            Text {
+                                                width: parent.width
+                                                text: root.title(row.modelData)
+                                                font.family: Theme.font
+                                                font.weight: row.current ? Theme.weightSemi : Theme.weightMedium
+                                                font.pixelSize: Theme.fontSize
+                                                color: Theme.fg
+                                                elide: Text.ElideRight
+                                            }
+
+                                            Text {
+                                                visible: text !== ""
+                                                width: parent.width
+                                                text: root.subtitle(row.modelData)
+                                                font.family: Theme.font
+                                                font.weight: Theme.weightNormal
+                                                font.pixelSize: Theme.fontSizeSmall
+                                                font.letterSpacing: Theme.trackingLoose
+                                                color: Theme.dim
+                                                elide: Text.ElideRight
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: rowArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                root.setDefault(row.modelData)
+                                                // A choice made closes the
+                                                // dropdown it was made in.
+                                                if (section.collapsible) root.inputsOpen = false
+                                            }
+                                        }
                                     }
                                 }
 
                                 Text {
-                                    id: rowGlyph
-                                    anchors { left: parent.left; leftMargin: 12
-                                              verticalCenter: parent.verticalCenter }
-                                    width: 20
-                                    horizontalAlignment: Text.AlignHCenter
-                                    text: root.deviceGlyph(row.modelData)
-                                    font.family: Theme.glyphFont
-                                    font.pixelSize: 16
-                                    color: row.current ? Theme.accent : Theme.dim
-                                }
-
-                                Column {
-                                    anchors {
-                                        left: rowGlyph.right; leftMargin: 10
-                                        right: parent.right;  rightMargin: 10
-                                        verticalCenter: parent.verticalCenter
-                                    }
-                                    spacing: 1
-
-                                    Text {
-                                        width: parent.width
-                                        text: root.title(row.modelData)
-                                        font.family: Theme.font
-                                        font.weight: row.current ? Theme.weightSemi : Theme.weightMedium
-                                        font.pixelSize: Theme.fontSize
-                                        color: Theme.fg
-                                        elide: Text.ElideRight
-                                    }
-
-                                    Text {
-                                        visible: text !== ""
-                                        width: parent.width
-                                        text: root.subtitle(row.modelData)
-                                        font.family: Theme.font
-                                        font.weight: Theme.weightNormal
-                                        font.pixelSize: Theme.fontSizeSmall
-                                        font.letterSpacing: Theme.trackingLoose
-                                        color: Theme.dim
-                                        elide: Text.ElideRight
-                                    }
-                                }
-
-                                MouseArea {
-                                    id: rowArea
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.setDefault(row.modelData)
+                                    visible: section.list.length === 0
+                                    leftPadding: 4
+                                    height: 32
+                                    verticalAlignment: Text.AlignVCenter
+                                    text: section.output ? "No output devices" : "No input devices"
+                                    font.family: Theme.font
+                                    font.pixelSize: Theme.fontSize
+                                    color: Theme.dim
                                 }
                             }
-                        }
-
-                        Text {
-                            visible: section.list.length === 0
-                            leftPadding: 4
-                            height: 32
-                            verticalAlignment: Text.AlignVCenter
-                            text: section.output ? "No output devices" : "No input devices"
-                            font.family: Theme.font
-                            font.pixelSize: Theme.fontSize
-                            color: Theme.dim
                         }
                     }
                 }
