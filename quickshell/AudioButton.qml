@@ -19,8 +19,10 @@ Item {
 
     signal activated()
 
-    implicitWidth: 20
-    implicitHeight: 20
+    // 22, not ThemeToggle's 20: alone in its pill it has nothing beside it to
+    // borrow presence from, and at 14px the speaker read as a speck.
+    implicitWidth: 22
+    implicitHeight: 22
 
     PwObjectTracker { objects: [Pipewire.defaultAudioSink] }
 
@@ -39,8 +41,8 @@ Item {
     // Hover backdrop, behind the glyph so hovering never resizes the pill.
     Rectangle {
         anchors.centerIn: parent
-        width: 20
-        height: 20
+        width: 22
+        height: 22
         radius: width / 2
         color: Theme.surfaceHigh
         opacity: hover.hovered ? 1 : 0
@@ -51,7 +53,10 @@ Item {
         anchors.centerIn: parent
         text: root.glyph
         font.family: Theme.glyphFont
-        font.pixelSize: 14
+        // 20, above Theme.glyphSize: the speaker glyphs fill only part of
+        // their em box - the "low" one, with no waves, most of all - so at 18
+        // it still drew about 11px across in a 26px pill.
+        font.pixelSize: 20
         color: hover.hovered ? Theme.fg : Theme.dim
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
     }
