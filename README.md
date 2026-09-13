@@ -155,6 +155,7 @@ bin/theme.sh restore                 # generate the palette files
 | `SUPER+1..0` | focus workspace (`+SHIFT` sends the window) |
 | `SUPER+Tab` | next workspace (`+SHIFT` previous) |
 | `SUPER+S` | scratchpad (`+SHIFT` send) |
+| ``SUPER+` `` | btop, floating, in its own scratchpad (needs `sudo dnf install btop`) |
 | `SUPER+Escape` | passthrough — hand every key to the focused window, e.g. a VM |
 | `Print` | screenshot to clipboard |
 | `SUPER+CTRL+P` | screenshot region to `~/Pictures/` |

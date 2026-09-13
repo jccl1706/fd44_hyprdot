@@ -123,6 +123,19 @@ hl.window_rule({
     float = true,
 })
 
+-- btop's scratchpad terminal (SUPER + `, see binds.lua; launched by the
+-- special:btop workspace rule below). Floating and centred, big enough for
+-- btop's full layout - CPU graph, memory, network and the process list - to
+-- fit without it collapsing panels.
+hl.window_rule({
+    name  = "btop-scratchpad",
+    match = { class = "^btop$" },
+
+    float  = true,
+    size   = "monitor_w*0.6 monitor_h*0.7",
+    center = true,
+})
+
 
 -- -------------------------------------------------------------------------
 -- Workspace rules
@@ -138,6 +151,8 @@ hl.window_rule({
 -- Uncomment all four together - enabling only half looks wrong.
 --
 -- hl.workspace_rule({ workspace = "w[tv1]", gaps_out = 0, gaps_in = 0 })
+--
+-- (The btop scratchpad's rule is further down, after this commented block.)
 -- hl.workspace_rule({ workspace = "f[1]",   gaps_out = 0, gaps_in = 0 })
 --
 -- hl.window_rule({
@@ -152,6 +167,18 @@ hl.window_rule({
 --     border_size = 0,
 --     rounding    = 0,
 -- })
+
+-- The btop scratchpad (SUPER + `). Whenever special:btop is opened with
+-- nothing on it - the first press after login, or after quitting btop - this
+-- starts it, in a kitty whose class the "btop-scratchpad" window rule above
+-- floats and centres.
+--
+-- btop is not part of the base install. Rather than a terminal that flashes
+-- open and shut, a machine without it gets a window saying how to add it.
+hl.workspace_rule({
+    workspace        = "special:btop",
+    on_created_empty = [[kitty --class btop -e sh -c 'command -v btop >/dev/null && exec btop || { printf "btop is not installed.\n\n    sudo dnf install btop\n\nPress Enter to close."; read -r _; }']],
+})
 
 
 -- -------------------------------------------------------------------------

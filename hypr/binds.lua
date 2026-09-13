@@ -161,6 +161,12 @@ end
 hl.bind(Mod .. " + S",         hl.dsp.workspace.toggle_special("magic"))
 hl.bind(Mod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:magic" }))
 
+-- btop in a scratchpad of its own: a floating system monitor over whatever
+-- is on screen, gone again on the same key. Nothing has to be started first -
+-- the workspace rule in rules.lua launches btop whenever this opens empty,
+-- so quitting btop (q) just means the next press starts a fresh one.
+hl.bind(Mod .. " + grave",     hl.dsp.workspace.toggle_special("btop"))
+
 -- Cycle workspaces from the keyboard. "e+1"/"e-1" step to the next/previous
 -- EXISTING workspace, skipping empty ones, rather than to literal id+1.
 hl.bind(Mod .. " + Tab",           hl.dsp.focus({ workspace = "e+1" }))
