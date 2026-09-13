@@ -796,6 +796,19 @@ depacs=(
     # an empty wallpaper picker despite the wallpapers being cloned correctly.
     # 289 KB, and everything it needs (libwebp) is already pulled in.
     libwebp-tools
+
+    # Qt's WebP decoder (libqwebp.so). The picker's previews are .webp, and so
+    # are the wallpapers; without this plugin quickshell logs "Unsupported image
+    # format" for every one of them and the picker shows empty tiles - even
+    # though libwebp-tools above generated the previews correctly. Nothing in
+    # the Qt or quickshell stack requires or recommends it: the laptop only had
+    # it as someone else's dependency, and the gaming desktop's fresh install
+    # came up with an empty picker. swaybg decodes WebP on its own, so the
+    # wallpaper itself still showed, which is why it went unnoticed.
+    # 446 KB, plus jasper-libs, libmng and cmake-filesystem (~0.9 MB) for its
+    # other formats; the version is locked to qt6-qtbase, so it never pulls a
+    # different Qt.
+    qt6-qtimageformats
 )
 # Plymouth: graphical boot splash, and a graphical LUKS passphrase prompt
 # instead of the bare text one. plymouth-system-theme pulls the bgrt theme,
@@ -1959,6 +1972,7 @@ check "quickshell installed"           "[[ -x '$rootmnt/usr/bin/quickshell' ]]"
 # correctly for a reason a fresh install does not share and could never have
 # revealed a broken font step.
 check "Symbols Nerd Font installed"    "[[ -f '$rootmnt/usr/local/share/fonts/nerd-fonts-symbols/SymbolsNerdFont-Regular.ttf' ]]"
+check "Qt WebP image plugin (picker previews)" "[[ -f '$rootmnt/usr/lib64/qt6/plugins/imageformats/libqwebp.so' ]]"
 check "no display manager"             "[[ ! -e '$rootmnt/etc/systemd/system/display-manager.service' ]]"
 # nwg-panel declares Supplements: hyprland, so it installs itself unless
 # excluded by name. Asserted rather than assumed: a weak dependency that
