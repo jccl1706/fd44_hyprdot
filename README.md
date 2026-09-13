@@ -87,7 +87,9 @@ sudo ./install_fedora_v1_11.sh            # the real thing
 
 It finishes with a verification pass — boot entries, fstab, autologin, the
 font, the policy directory, the absence of packages that install themselves.
-Twenty-eight of them run on a default install; a few more with LUKS or zram.
+Twenty-six always run; up to eight more depend on the choices made — LUKS
+encryption and disk swap add two each, zram two, a laptop one
+(`powerprofilesctl`), and Chromium as the browser one (its policy directory).
 
 > **The account ships with the password `changeme`.** This is a public repo, so
 > assume everyone knows it. That is safe only because `~/.bash_profile` refuses
@@ -501,6 +503,10 @@ Each of these cost real time, and none produced an error message.
 - `nwg-panel` declares `Supplements: hyprland` — the *reverse* of Recommends —
   so it installs itself on every machine and is invisible to any "what pulled
   this in" query. It is excluded by name.
+- `qt6-qtimageformats` is required by nothing in the Qt or quickshell stack, yet
+  without it Qt cannot decode WebP and the wallpaper picker shows empty tiles —
+  while swaybg, which decodes WebP itself, keeps the wallpaper looking fine. The
+  laptop had it by accident; a fresh install did not. Now installed explicitly.
 - `--setopt=install_weak_deps=False` is deliberately **never** used: this
   Framework's amdgpu and iwlwifi firmware both arrive only via Recommends, and
   stripping weak deps left the machine unable to load any firmware at all.
