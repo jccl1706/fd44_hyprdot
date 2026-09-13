@@ -189,6 +189,14 @@ hl.layer_rule({
     no_anim = true,
 })
 
+-- The audio panel is the same arrangement - a full-screen overlay whose card
+-- slides down out of the bar - so the same reasoning applies.
+hl.layer_rule({
+    name    = "audio-panel-no-anim",
+    match   = { namespace = "^quickshell-audio$" },
+    no_anim = true,
+})
+
 
 -- NO BLUR ON THE LAUNCHER. It was tried and removed; this note is here so it
 -- does not get added back on the assumption that it was simply overlooked.

@@ -40,7 +40,15 @@ ShellRoot {
         // That name is fixed by Variants - declaring some other name and
         // assigning to it here fails with "Bar does not have a property
         // called modelData".
-        Bar {}
+        //
+        // The audio glyph opens the panel on the bar's OWN monitor only - a
+        // click is about the screen you clicked on, unlike a keybind.
+        Bar {
+            id: bar
+            onAudioRequested: shell.eachAudio(a => {
+                if (a.modelData === bar.modelData) a.toggle()
+            })
+        }
     }
 
     // The three remaining edges of the frame. The Bar is the top edge.
@@ -84,6 +92,14 @@ ShellRoot {
         id: powerVariants
         model: Quickshell.screens
         PowerMenu {}
+    }
+
+    // Volume and device selection, sliding down out of the bar's top-right
+    // corner. Opened from the speaker glyph in the bar.
+    Variants {
+        id: audioVariants
+        model: Quickshell.screens
+        AudioPanel {}
     }
 
     // The crossfade surface. Unmapped except during a wallpaper change, and
@@ -182,6 +198,14 @@ ShellRoot {
     }
 
     IpcHandler {
+        target: "audio"
+
+        function toggle(): void { shell.eachAudio(a => a.toggle()) }
+        function open(): void   { shell.eachAudio(a => a.open())   }
+        function close(): void  { shell.eachAudio(a => a.close())  }
+    }
+
+    IpcHandler {
         target: "wallpaper"
 
         function toggle(): void { shell.eachWallpaper(w => w.toggle()) }
@@ -229,6 +253,13 @@ ShellRoot {
 
     function eachPower(fn): void {
         const instances = powerVariants.instances
+        for (let i = 0; i < instances.length; i++) {
+            if (instances[i]) fn(instances[i])
+        }
+    }
+
+    function eachAudio(fn): void {
+        const instances = audioVariants.instances
         for (let i = 0; i < instances.length; i++) {
             if (instances[i]) fn(instances[i])
         }

@@ -15,6 +15,10 @@ PanelWindow {
     // Exposed so the IpcHandler in shell.qml can trigger it.
     property alias osd: osd
 
+    // The audio glyph was clicked. shell.qml owns the panels and opens the
+    // one on this bar's monitor; the bar does not reach for windows itself.
+    signal audioRequested()
+
     // Variants sets this, one instance per monitor. The name must be exactly
     // `modelData` - that is what Variants assigns into the delegate.
     required property var modelData
@@ -202,12 +206,10 @@ PanelWindow {
                 anchors.centerIn: parent
                 spacing: 10
 
-                Text {
-                    text: "right"
-                    color: Theme.dim
-                    font.family: Theme.font
-                    font.weight: Theme.weightMedium
-                    font.pixelSize: Theme.fontSize
+                // Opens AudioPanel on this monitor - see audioRequested.
+                AudioButton {
+                    anchors.verticalCenter: parent.verticalCenter
+                    onActivated: root.audioRequested()
                 }
             }
             }

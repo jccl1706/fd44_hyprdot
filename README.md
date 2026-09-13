@@ -177,6 +177,7 @@ quickshell/      the shell itself, QML
   Theme.qml        SINGLETON — every colour, font and metric
   shell.qml        entry point; one Bar per monitor, IPC, global shortcuts
   Bar · Frame · Launcher · WallpaperPicker · PowerMenu · Osd · Media
+  AudioButton · AudioPanel   volume and output/input selection
 
 themes/          dark.conf, cream.conf — one file per palette
 fonts/           Symbols Nerd Font, vendored (MIT)
