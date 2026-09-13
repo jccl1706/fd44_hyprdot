@@ -300,9 +300,17 @@ sudo ./install_fedora_v1_11.sh --desktop --dotfiles https://github.com/jccl1706/
 
 ### 2. First login
 
-The machine autologins on the console, and the account's password is the
-public `changeme`. `~/.bash_profile` will not start Hyprland until that password
-has been changed — run `passwd` when it asks. The desktop starts after that.
+The machine autologins on the console, and the account still has the public
+installer password `changeme`. Before starting Hyprland, `~/.bash_profile`
+prints *"This account still has the installer default password. Set a real one
+now - the desktop will not start until you do."* and runs `passwd` for you:
+
+1. **Current password:** `changeme`
+2. **New password**, then the same again to confirm.
+
+If the change fails it simply asks again. Once it succeeds it prints *"Thank you.
+Starting the desktop."* and Hyprland starts. It only happens once — it leaves a
+marker at `~/.local/state/password-changed`.
 
 ### 3. Gaming — before opening Steam
 
