@@ -117,14 +117,16 @@ swaybg fallback.
 
 ### On a machine the installer did not build
 
-`~/.config/hypr`, `~/.config/quickshell` and `~/.config/kitty` are **symlinks**
-into this checkout, so edits are live and there is nothing to keep in sync.
+`~/.config/hypr`, `~/.config/quickshell`, `~/.config/kitty` and
+`~/.config/wireplumber` are **symlinks** into this checkout, so edits are live
+and there is nothing to keep in sync.
 
 ```sh
 git clone https://github.com/jccl1706/fd44_hyprdot ~/Work/fd44_hyprdot
 cd ~/Work/fd44_hyprdot
 
-for d in hypr quickshell kitty; do ln -s "$PWD/$d" ~/.config/$d; done
+for d in hypr quickshell kitty wireplumber; do ln -s "$PWD/$d" ~/.config/$d; done
+systemctl --user restart wireplumber   # picks up wireplumber/ rules
 
 mkdir -p ~/.config/systemd/user
 ln -s "$PWD/systemd/power-mode.service" ~/.config/systemd/user/
@@ -186,6 +188,7 @@ bin/             theme.sh · wallpaper.sh · power-mode.sh · idle-action.sh
                  gaming-setup.sh — opt-in, not run by the installer
 install/         the installer, and vm-test.sh
 cooling/         CoolerControl backup of the desktop's fan curves (reviewed, no credentials)
+wireplumber/     audio rules — the EVO4 uses software volume (matches only that device)
 ```
 
 ## Gaming

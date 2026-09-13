@@ -1662,7 +1662,7 @@ if [[ -n "$dotfiles_repo" ]]; then
         # when in fact only half of them had been linked. Adding a directory
         # to the repo and forgetting to add a branch here is exactly how that
         # happened, so adding one to this list is now the whole job.
-        for cfg in quickshell kitty; do
+        for cfg in quickshell kitty wireplumber; do
             if [[ -d "$rootmnt/home/$username/Work/$dotdir/$cfg" ]]; then
                 run rm -rf "$rootmnt/home/$username/.config/$cfg"
                 run fchroot sudo -u "$username" ln -s \
