@@ -225,6 +225,7 @@ themes/          dark.conf, cream.conf — one file per palette
 fonts/           Symbols Nerd Font, vendored (MIT)
 wallpapers/      resized, webp
 bin/             theme.sh · wallpaper.sh · power-mode.sh · idle-action.sh · icon-theme.sh
+                 qs-restart.sh — restart quickshell safely (one instance, verified)
                  gaming-setup.sh — opt-in, not run by the installer
 install/         the installer, and vm-test.sh
 cooling/         CoolerControl backup of the desktop's fan curves (reviewed, no credentials)
@@ -516,6 +517,18 @@ config format.
 Quickshell watches its own files and reloads on save. `qs ipc show` lists the IPC
 targets; `qs log` is the running instance's log.
 
+When a reload is not enough — a `git pull` that adds new QML files, a change to
+the `//@ pragma` line, a shell that looks stuck — restart it:
+
+```sh
+bin/qs-restart.sh      # kills every quickshell of yours, starts one, verifies it
+```
+
+Not `qs kill`: see Gotchas. The script works from a terminal and over ssh,
+starts the shell inside Hyprland's session, and fails loudly unless exactly one
+instance comes back with its config loaded. An open panel closes and the coffee
+cup turns off.
+
 ## Gotchas
 
 Each of these cost real time, and none produced an error message.
@@ -532,6 +545,17 @@ Each of these cost real time, and none produced an error message.
 - Hyprlang `source` resolves against the **working directory**, not the file
   doing the sourcing, so a relative path silently loads nothing.
 - Hyprlang has no statement separator — `;` is read as part of the value.
+
+**Quickshell**
+
+- `qs kill` can **segfault** on quickshell 0.3.1: the exit destroys the
+  `GlobalShortcut` objects after their Wayland proxy is gone. The crash handler
+  then relaunches the shell by itself, so `qs kill; qs -d` leaves **two**
+  instances — stacked bars, every shortcut and IPC target doubled. Nothing on
+  screen says so. `bin/qs-restart.sh` uses SIGKILL, which skips the teardown.
+- A reload triggered mid-`git pull` can load `shell.qml` before a new file it
+  references exists (`NetworkPanel is not a type`), and it does not retry when
+  the file arrives. Restart after pulls that add QML files.
 
 **Fonts**
 
@@ -573,6 +597,6 @@ Each of these cost real time, and none produced an error message.
 
 ## Not yet done
 
-- The bar's right region is still a placeholder — no battery, network or tray.
+- No battery indicator or system tray in the bar yet.
 - No notification daemon, so apps that send notifications get silence.
 - Nothing indicates when the `passthrough` submap is active.

@@ -21,7 +21,9 @@
 // unless this file creates it. Everything here is built one piece at a time.
 //
 // Reload after editing: quickshell watches its config and reloads by itself,
-// so a save is usually enough. To restart by hand:  pkill -x qs && qs -d
+// so a save is usually enough. To restart by hand:  bin/qs-restart.sh
+// (not `qs kill` - quickshell 0.3.1 can segfault on exit and relaunch
+// itself, leaving two shells; the script explains)
 //
 // Inspect what it actually created:  hyprctl layers
 // (look for namespace "quickshell")
