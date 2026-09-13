@@ -57,7 +57,11 @@ Item {
         // their em box - the "low" one, with no waves, most of all - so at 18
         // it still drew about 11px across in a 26px pill.
         font.pixelSize: 20
-        color: hover.hovered ? Theme.fg : Theme.dim
+        // Red while muted, whatever the pointer is doing: silence you did not
+        // mean is the one state worth noticing from across the room.
+        color: root.muted      ? Theme.danger
+             : hover.hovered   ? Theme.fg
+                               : Theme.dim
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
     }
 
