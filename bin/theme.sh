@@ -17,9 +17,11 @@
 #                documented "re-read your config" signal. Instant, and it
 #                does not disturb what is on screen.
 #
-#   GTK apps     gsettings color-scheme + gtk-theme. GTK3 and GTK4 apps both
-#                watch these over dbus and restyle themselves. No new theme
-#                package: Adwaita ships light and dark and picks by scheme.
+#   GTK apps     gsettings color-scheme + gtk-theme + icon-theme. GTK3 and
+#                GTK4 apps all watch these over dbus and restyle themselves.
+#                No new GTK theme package: Adwaita ships light and dark and
+#                picks by scheme. Icons are the palette's icon_theme (Reversal,
+#                installed by bin/icon-theme.sh), or Adwaita until it is.
 #
 #                This reaches further than GTK. xdg-desktop-portal republishes
 #                the setting as org.freedesktop.appearance color-scheme, and
@@ -100,6 +102,20 @@ current() {
 val() {
     local file="$1" key="$2"
     sed -n "s/^${key}=\(.*\)$/\1/p" "$file" | head -1
+}
+
+# Is icon theme $1 installed anywhere GTK looks? The same search path GTK
+# uses: the user's data dir, the legacy ~/.icons, then every XDG data dir.
+icon_theme_installed() {
+    local d
+    local -a dirs=("${XDG_DATA_HOME:-$HOME/.local/share}/icons" "$HOME/.icons")
+    local IFS=:
+    for d in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do dirs+=("$d/icons"); done
+    unset IFS
+    for d in "${dirs[@]}"; do
+        [[ -f "$d/$1/index.theme" ]] && return 0
+    done
+    return 1
 }
 
 apply() {
@@ -197,12 +213,25 @@ apply() {
 
     # --- GTK -----------------------------------------------------------
     local appearance; appearance="$(val "$file" appearance)"
+
+    # Icon theme: the palette's icon_theme if it is actually installed,
+    # Adwaita otherwise. CHECKED, not trusted - gsettings accepts any string,
+    # and naming a theme that is not there leaves GTK apps drawing
+    # missing-image icons. Reversal is opt-in (bin/icon-theme.sh), so a
+    # machine without it must still come out looking right.
+    local icons; icons="$(val "$file" icon_theme)"
+    if [[ -z $icons ]] || ! icon_theme_installed "$icons"; then
+        icons=Adwaita
+    fi
+
     if command -v gsettings >/dev/null 2>&1; then
         local scheme=prefer-dark gtk=Adwaita-dark
         if [[ $appearance == light ]]; then scheme=prefer-light; gtk=Adwaita; fi
         local iface=org.gnome.desktop.interface
         gsettings set "$iface" color-scheme "$scheme" 2>/dev/null || true
         gsettings set "$iface" gtk-theme    "$gtk"    2>/dev/null || true
+        # Live: running GTK apps watch this over dbus and swap icons in place.
+        gsettings set "$iface" icon-theme   "$icons"  2>/dev/null || true
     fi
 
     # GTK3 apps that predate the dbus setting read this file at startup. It
@@ -213,8 +242,8 @@ apply() {
     local d
     for d in "$g3" "$g4"; do
         mkdir -p "$d"
-        printf '[Settings]\ngtk-application-prefer-dark-theme=%d\n' "$prefer" \
-            > "$d/settings.ini"
+        printf '[Settings]\ngtk-application-prefer-dark-theme=%d\ngtk-icon-theme-name=%s\n' \
+            "$prefer" "$icons" > "$d/settings.ini"
     done
 
     # --- Chromium ------------------------------------------------------

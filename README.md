@@ -39,7 +39,7 @@ all follow — nothing restarts.
 </tr>
 </table>
 
-A theme is one file of 45 key/value pairs in [`themes/`](themes/). `bin/theme.sh`
+A theme is one file of 46 key/value pairs in [`themes/`](themes/). `bin/theme.sh`
 reads it and fans the values out to five consumers, each with its own idea of
 what a config file is:
 
@@ -47,12 +47,27 @@ what a config file is:
 |---|---|---|
 | quickshell | `Theme.qml` watches a generated palette with `FileView` | yes |
 | kitty | generated `theme.conf` + `SIGUSR1` | yes |
-| GTK apps | `gsettings`, republished by xdg-desktop-portal | yes |
+| GTK apps | `gsettings` (colour scheme, icon theme), republished by xdg-desktop-portal | yes |
 | Hyprland | `hyprctl eval` — **not** `keyword`, which the Lua parser refuses | yes |
 | Chromium | `BrowserThemeColor` policy + `--refresh-platform-policy` | yes |
 | hyprlock | generated colour variables it `source`s | next lock |
 
 Adding a third theme means adding a file. Nothing else changes.
+
+**Icons** are [Reversal](https://github.com/yeyushengfan258/Reversal-icon-theme)
+(GPL-3.0): grey folders on dark, purple on cream, named by each theme's
+`icon_theme` key, and the launcher's app icons too. It is opt-in - the desktop
+is complete without it, and until it is installed GTK apps keep Adwaita's icons:
+
+```sh
+bin/icon-theme.sh            # ~275 MB on disk in ~/.local/share/icons, no root
+bin/icon-theme.sh --status   # what the themes want vs what is installed
+bin/icon-theme.sh --remove
+```
+
+It installs the colour sets the theme files name, from a pinned upstream
+commit, so changing a theme's `icon_theme` and running it again is the whole
+job of switching colours.
 
 ## What it gives you
 
@@ -207,7 +222,7 @@ quickshell/      the shell itself, QML
 themes/          dark.conf, cream.conf — one file per palette
 fonts/           Symbols Nerd Font, vendored (MIT)
 wallpapers/      resized, webp
-bin/             theme.sh · wallpaper.sh · power-mode.sh · idle-action.sh
+bin/             theme.sh · wallpaper.sh · power-mode.sh · idle-action.sh · icon-theme.sh
                  gaming-setup.sh — opt-in, not run by the installer
 install/         the installer, and vm-test.sh
 cooling/         CoolerControl backup of the desktop's fan curves (reviewed, no credentials)

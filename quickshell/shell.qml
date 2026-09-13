@@ -1,3 +1,14 @@
+//@ pragma IconTheme Reversal-grey
+// ^ Keep that the FIRST line: quickshell reads pragmas from the top of the
+//   root file, and only at launch - a change needs a restart, not a reload.
+//   It picks the icon theme the launcher's app icons come from: Reversal,
+//   installed by bin/icon-theme.sh. Measured with Quickshell.iconPath - under
+//   Qt's default hicolor theme firefox resolved to nothing; under this every
+//   probed app resolved.
+//   Fixed, not following the palette, and it does not need to: Reversal's
+//   colour sets share one set of app icons and differ only in folders and
+//   symbolic icons, which the launcher never draws. On a machine without
+//   Reversal, Qt falls back to hicolor - exactly as before this line.
 // =========================================================================
 // Quickshell - entry point
 // =========================================================================
