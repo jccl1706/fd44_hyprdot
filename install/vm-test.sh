@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Boot a throwaway UEFI VM to test install_fedora_v1_11.sh without touching
-# this laptop. Nothing here writes outside $VMDIR.
+# this machine. Nothing here writes outside $VMDIR.
 #
 # Usage:
 #   ./vm-test.sh /path/to/Fedora-Workstation-Live-x86_64-44-*.iso
@@ -83,8 +83,12 @@ case "${1:-}" in
         ;;
 esac
 
+# The two -x exclusions are weak dependencies with no use here: qatlib-service
+# is a daemon for Intel QuickAssist accelerator cards, and edk2-shell-x64 is a
+# UEFI shell the VM never boots. The rest is 36 packages, ~162 MB installed.
 command -v qemu-system-x86_64 >/dev/null || die "qemu not installed. Run:
-  sudo dnf install qemu-system-x86-core qemu-img edk2-ovmf qemu-ui-gtk \\
+  sudo dnf install -x qatlib-service -x edk2-shell-x64 \\
+                   qemu-system-x86-core qemu-img edk2-ovmf qemu-ui-gtk \\
                    qemu-device-display-virtio-gpu qemu-device-display-virtio-vga-gl \\
                    qemu-device-display-virtio-gpu-gl virglrenderer"
 

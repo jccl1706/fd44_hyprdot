@@ -101,16 +101,32 @@ encryption and disk swap add two each, zram two, a laptop one
 ### Testing it without hardware
 
 ```sh
-sudo dnf install qemu-system-x86-core qemu-img edk2-ovmf qemu-ui-gtk \
+# 36 packages, ~162 MB. The two -x skip weak dependencies with no use here:
+# an Intel QuickAssist daemon and a UEFI shell.
+sudo dnf install -x qatlib-service -x edk2-shell-x64 \
+                 qemu-system-x86-core qemu-img edk2-ovmf qemu-ui-gtk \
                  qemu-device-display-virtio-gpu qemu-device-display-virtio-vga-gl \
                  qemu-device-display-virtio-gpu-gl virglrenderer
 
 install/vm-test.sh /path/to/Fedora-Workstation-Live-*.iso
 ```
 
-Serves this directory over HTTP so the guest can `curl` the installer at
-`10.0.2.2:8000`, and forwards host port 2222 to the guest's ssh. The target disk
-is `/dev/vda`. `--reboot` boots the installed disk; `--clean` throws it away.
+Works on either machine (both have AMD-V and a GPU virgl can use). Serves this
+directory over HTTP so the guest can `curl` the installer at `10.0.2.2:8000`,
+and forwards host port 2222 to the guest's ssh. The target disk is `/dev/vda`.
+`--reboot` boots the installed disk; `--clean` throws it away.
+
+A full install with no questions to answer, inside the VM:
+
+```sh
+curl -O http://10.0.2.2:8000/install_fedora_v1_11.sh && chmod +x install_fedora_v1_11.sh
+sudo ./install_fedora_v1_11.sh --unattended --yes --desktop --disk /dev/vda \
+     --dotfiles https://github.com/jccl1706/fd44_hyprdot
+```
+
+`--desktop` matters in a VM even for testing laptop changes: it turns off
+encryption (the LUKS passphrase would be prompted for mid-install) and the 32G
+swap partition, which a 40G test disk cannot spare.
 
 hyprpaper cannot start on virtio-gpu either, so every VM run also exercises the
 swaybg fallback.
