@@ -44,6 +44,23 @@ DEST="${XDG_DATA_HOME:-$HOME/.local/share}/icons"
 # "" is its default, blue-folder set, which it names plain "Reversal".
 COLOURS=" black blue brown cyan green grey lightblue orange pink purple red "
 
+# Apps Reversal has no icon for, drawn with one of its own icons instead, as
+# "<icon the app asks for>=<Reversal icon it borrows>". Without an alias such
+# an app falls back to its packaged icon and sits in the launcher in a
+# different style from everything around it.
+#
+# Symlinks in the light set's apps/scalable, re-added on every run (upstream's
+# installer replaces the whole directory). The -dark variants reach that
+# directory through a symlink of their own, so they need nothing extra.
+#
+# btop is the only app on either machine without a Reversal icon (checked
+# against every displayed desktop entry - `--status` repeats that check). It
+# borrows htop's: the same kind of program, and a terminal monitor rather than
+# the GNOME-style graph utilities-system-monitor draws.
+ALIASES=(
+    "btop=htop"
+)
+
 die() { printf 'icon-theme: %s\n' "$*" >&2; exit 1; }
 log() { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
 
@@ -96,6 +113,59 @@ status() {
             printf '  %-24s MISSING\n' "$name"
         fi
     done < <(keep_set)
+
+    local gaps; gaps="$(icon_gaps)"
+    printf '\napps with no Reversal icon (add an alias to ALIASES):\n%s\n' "${gaps:-  none}"
+}
+
+apply_aliases() {
+    local name dir pair missing target
+    while read -r name; do
+        dir="$DEST/$name/apps/scalable"
+        # A -dark variant's apps/scalable IS the light set's, through a
+        # symlink - linking there too would only write the same file twice.
+        [[ -d $dir && ! -L $dir ]] || continue
+        for pair in "${ALIASES[@]}"; do
+            missing="${pair%%=*}"
+            target="${pair#*=}"
+            if [[ ! -e "$dir/$target.svg" ]]; then
+                printf 'icon-theme: alias %s: %s has no %s.svg to borrow\n' "$missing" "$name" "$target" >&2
+                continue
+            fi
+            # Upstream shipped a real icon since the alias was written - use it.
+            if [[ -e "$dir/$missing.svg" && ! -L "$dir/$missing.svg" ]]; then
+                continue
+            fi
+            ln -sfn "$target.svg" "$dir/$missing.svg"
+        done
+    done < <(keep_set)
+
+    # GTK and Qt both trust icon-theme.cache over the directory itself, so a
+    # cache written before the links were made hides them. Rebuild every set,
+    # -dark included: its cache indexes the light set's icons through the link.
+    while read -r name; do
+        if [[ -d "$DEST/$name" ]]; then
+            gtk-update-icon-cache -q -f "$DEST/$name" >/dev/null 2>&1 || true
+        fi
+    done < <(keep_set)
+}
+
+# Displayed desktop entries whose Icon= the first installed Reversal set has
+# no app icon for. Those fall back to their own, differently styled icon.
+icon_gaps() {
+    local set="" name f icon
+    while read -r name; do
+        [[ -d "$DEST/$name/apps/scalable" ]] && { set="$DEST/$name/apps/scalable"; break; }
+    done < <(keep_set)
+    [[ -n $set ]] || return 0
+    for f in /usr/share/applications/*.desktop \
+             "${XDG_DATA_HOME:-$HOME/.local/share}"/applications/*.desktop; do
+        [[ -f $f ]] || continue
+        grep -q '^NoDisplay=true' "$f" && continue
+        icon="$(sed -n 's/^Icon=//p' "$f" | head -1)"
+        [[ -z $icon || $icon == /* ]] && continue
+        [[ -e "$set/$icon.svg" ]] || printf '  %-36s Icon=%s\n' "$(basename "$f")" "$icon"
+    done
 }
 
 reapply() {
@@ -181,6 +251,7 @@ install_themes() {
         [[ -f "$DEST/$name/index.theme" ]] || die "install finished but $DEST/$name is missing"
     done
 
+    apply_aliases
     reapply
     printf '\n'
     status
