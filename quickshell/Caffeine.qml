@@ -57,8 +57,10 @@ Singleton {
             + " do sleep 2; done' caffeine \"$qs\""]
 
         onExited: (code, status) => {
-            // 143 is the SIGTERM this object sends to turn it off.
-            if (code !== 0 && code !== 143)
+            // Turning it off SIGTERMs systemd-inhibit, and quickshell reports
+            // that as code 15 - the signal number, not a shell's 143. Both
+            // mean "stopped on purpose"; anything else is a real failure.
+            if (code !== 0 && code !== 15 && code !== 143)
                 console.warn("caffeine: systemd-inhibit exited with", code)
         }
     }

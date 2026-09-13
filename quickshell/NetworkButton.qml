@@ -74,10 +74,12 @@ Item {
         anchors.centerIn: parent
         text: root.glyph
         font.family: Theme.glyphFont
-        // Matches AudioButton. The ethernet port is a filled shape and reads
-        // heavier than the bars at the same size, which is fine: it is also
-        // the state that least needs attention.
-        font.pixelSize: 20
+        // 16, not AudioButton's 20: the Wi-Fi fan fills far more of its em box
+        // than the speaker does. At 20 it measured 19.2 px wide beside the
+        // speaker's 15.0 and read as the bigger icon. The ethernet port is a
+        // filled shape and reads heavier still, which is fine: it is also the
+        // state that least needs attention.
+        font.pixelSize: 16
         color: root.offline     ? Theme.danger
              : hover.hovered    ? Theme.fg
                                 : Theme.dim
