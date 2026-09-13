@@ -41,15 +41,16 @@ ShellRoot {
         // assigning to it here fails with "Bar does not have a property
         // called modelData".
         //
-        // The right pill's glyphs open their panel on the bar's OWN monitor
-        // only - a click is about the screen you clicked on, unlike a keybind.
+        // A plugin glyph opens its panel on the bar's OWN monitor only - a
+        // click is about the screen you clicked on, unlike a keybind - and
+        // under the glyph, wherever it has been dragged to.
         Bar {
             id: bar
-            onAudioRequested: shell.eachAudio(a => {
-                if (a.modelData === bar.modelData) a.toggle()
+            onAudioRequested: x => shell.eachAudio(a => {
+                if (a.modelData === bar.modelData) a.toggle(x)
             })
-            onNetworkRequested: shell.eachNetwork(n => {
-                if (n.modelData === bar.modelData) n.toggle()
+            onNetworkRequested: x => shell.eachNetwork(n => {
+                if (n.modelData === bar.modelData) n.toggle(x)
             })
         }
     }
@@ -216,6 +217,18 @@ ShellRoot {
         function close(): void  { shell.eachAudio(a => a.close())  }
     }
 
+    // The movable plugins' arrangement (BarLayout.qml).
+    IpcHandler {
+        target: "bar"
+
+        function resetLayout(): void { BarLayout.reset() }
+        function layout(): string    { return JSON.stringify(BarLayout.current) }
+
+        // Click a plugin by id ("audio", "network", "theme") wherever it sits,
+        // so its panel opens under it:  qs ipc call bar activate audio
+        function activate(id: string): void { shell.eachBar(b => b.activateId(id)) }
+    }
+
     IpcHandler {
         target: "network"
 
@@ -279,6 +292,13 @@ ShellRoot {
 
     function eachAudio(fn): void {
         const instances = audioVariants.instances
+        for (let i = 0; i < instances.length; i++) {
+            if (instances[i]) fn(instances[i])
+        }
+    }
+
+    function eachBar(fn): void {
+        const instances = barVariants.instances
         for (let i = 0; i < instances.length; i++) {
             if (instances[i]) fn(instances[i])
         }

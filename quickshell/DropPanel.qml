@@ -4,8 +4,8 @@
 //
 // The shared chrome of the bar's drop-down panels (AudioPanel, NetworkPanel):
 // a full-screen overlay with a scrim, and a card that comes down out of the
-// bar against the right frame, joined to both by concave fillets. A panel
-// supplies only its contents:
+// bar UNDER THE GLYPH THAT OPENED IT, joined to the bar by concave fillets.
+// A panel supplies only its contents:
 //
 //     DropPanel {
 //         layerNamespace: "quickshell-something"
@@ -15,6 +15,18 @@
 // The surface arrangement - full-screen for click-outside, unmapped when
 // closed, exclusion ignored, keyboard focus only while open - is the same as
 // Launcher.qml's and PowerMenu.qml's, and is explained there.
+//
+// WHERE THE CARD GOES follows the plugin, which can be dragged anywhere along
+// the bar (Bar.qml). open(x) centres the card under x - unless that would
+// leave it within 64px of a side frame, where a sliver of desktop between
+// card and frame looks like a mistake. There it joins the frame instead,
+// running under it, as the original top-right panels did:
+//
+//   side "right"   against the right frame, fillets at bar and frame
+//   side "left"    the mirror image, against the left frame
+//   side "none"    floating, a fillet into the bar on each side
+//
+// Opened without an x (IPC, a keybind) it goes to the right.
 //
 // Each panel needs its own namespace, and hypr/rules.lua a no_anim rule for
 // it, or Hyprland's layer fade runs on top of the slide.
@@ -62,9 +74,32 @@ PanelWindow {
     color: "transparent"
     visible: false
 
+    // Placement, fixed at open() so the card never wanders while it is up.
+    property string side: "right"
+    property real cardX: 0
+
+    function place(x): void {
+        const sw = root.screen ? root.screen.width : root.width
+        const half = root.panelWidth / 2
+        // 64px. A glyph just after the workspaces centres a 340px card about
+        // 45px from the left frame - close enough to read as a near miss.
+        const snap = Theme.cornerRadius * 5 + Theme.frameThickness
+        if (typeof x !== "number" || x < 0 || x + half > sw - snap) {
+            root.side = "right"
+        } else if (x - half < snap) {
+            root.side = "left"
+        } else {
+            root.side = "none"
+            root.cardX = Math.round(x - half)
+        }
+    }
+
     // --- public API ------------------------------------------------------
 
-    function open(): void {
+    // `x` is the screen x to open under - the centre of the glyph. Omit it
+    // to open at the right.
+    function open(x): void {
+        root.place(x)
         root.opening()
         root.visible = true
         // Before `revealed`, always - see the duration note in PowerMenu.qml.
@@ -79,9 +114,9 @@ PanelWindow {
         root.revealed = false
     }
 
-    function toggle(): void {
+    function toggle(x): void {
         if (root.revealed) root.close()
-        else root.open()
+        else root.open(x)
     }
 
     // Takes keyboard focus back from a text field inside the panel, so the
@@ -138,15 +173,21 @@ PanelWindow {
 
             readonly property int pad: 14
 
-            // The extra frameThickness runs under the right frame strip, as
-            // in PowerMenu.qml, so the card and the frame are one shape.
-            width: root.panelWidth + Theme.frameThickness
+            // Against a side frame, the extra frameThickness runs under the
+            // frame strip, as in PowerMenu.qml, so the card and the frame are
+            // one shape.
+            width: root.panelWidth + (root.side === "none" ? 0 : Theme.frameThickness)
 
             // Tracks the contents every frame, so anything inside that
             // animates its own height grows the card on that same curve.
             height: body.childrenRect.height + pad * 2
 
-            anchors.right: parent.right
+            // Anchored at the frames rather than placed by x there: a freshly
+            // mapped surface learns its width only after the compositor
+            // configures it, and an x computed from it would be stale.
+            anchors.right: root.side === "right" ? parent.right : undefined
+            anchors.left:  root.side === "left"  ? parent.left  : undefined
+            x: root.cardX
             anchors.top: parent.top
 
             // Closed offset includes the fillet that hangs below the card.
@@ -177,8 +218,12 @@ PanelWindow {
             // see PowerMenu.qml for why layer.enabled is required.
             Item {
                 id: panel
+                // Wider than the card by a radius on each side and below:
+                // a layer is clipped to its item, and the fillets live outside
+                // the card.
                 anchors.fill: parent
                 anchors.leftMargin:   -Theme.cornerRadius
+                anchors.rightMargin:  -Theme.cornerRadius
                 anchors.bottomMargin: -Theme.cornerRadius
                 opacity: Theme.panelAlpha
                 layer.enabled: true
@@ -187,6 +232,7 @@ PanelWindow {
                     id: panelBody
                     anchors.fill: parent
                     anchors.leftMargin:   Theme.cornerRadius
+                    anchors.rightMargin:  Theme.cornerRadius
                     anchors.bottomMargin: Theme.cornerRadius
 
                     // The launcher's gradient turned upside down: this card
@@ -197,23 +243,42 @@ PanelWindow {
                         GradientStop { position: 1.0; color: Theme.panelTop }
                     }
 
-                    // Only the corner that is out in the open is rounded. The
-                    // top edge is the bar and the right edge is the frame.
-                    bottomLeftRadius: Theme.cornerRadius
+                    // Only corners out in the open are rounded. The top edge
+                    // is the bar, and a side against a frame is the frame.
+                    bottomLeftRadius:  root.side === "left"  ? 0 : Theme.cornerRadius
+                    bottomRightRadius: root.side === "right" ? 0 : Theme.cornerRadius
                 }
 
                 // Where the card's left edge meets the bar.
                 InnerCorner {
+                    visible: root.side !== "left"
                     corner: "topright"
                     anchors { top: parent.top
                               right: panelBody.left; rightMargin: -1 }
                 }
 
+                // Where the card's right edge meets the bar.
+                InnerCorner {
+                    visible: root.side !== "right"
+                    corner: "topleft"
+                    anchors { top: parent.top
+                              left: panelBody.right; leftMargin: -1 }
+                }
+
                 // Where the card's bottom edge meets the right frame.
                 InnerCorner {
+                    visible: root.side === "right"
                     corner: "topright"
                     anchors { top: panelBody.bottom; topMargin: -1
-                              right: parent.right; rightMargin: Theme.frameThickness }
+                              right: panelBody.right; rightMargin: Theme.frameThickness }
+                }
+
+                // Where the card's bottom edge meets the left frame.
+                InnerCorner {
+                    visible: root.side === "left"
+                    corner: "topleft"
+                    anchors { top: panelBody.bottom; topMargin: -1
+                              left: panelBody.left; leftMargin: Theme.frameThickness }
                 }
             }
 
@@ -222,10 +287,12 @@ PanelWindow {
 
             Item {
                 id: body
+                // Padding measured from the VISIBLE edges - the part running
+                // under a frame does not count.
                 anchors {
                     top: parent.top;     topMargin: card.pad
-                    left: parent.left;   leftMargin: card.pad
-                    right: parent.right; rightMargin: card.pad + Theme.frameThickness
+                    left: parent.left;   leftMargin: card.pad + (root.side === "left" ? Theme.frameThickness : 0)
+                    right: parent.right; rightMargin: card.pad + (root.side === "right" ? Theme.frameThickness : 0)
                 }
             }
         }

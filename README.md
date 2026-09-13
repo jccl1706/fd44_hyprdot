@@ -182,6 +182,10 @@ quickshell/      the shell itself, QML
   AudioButton · AudioPanel       volume and output/input selection
   NetworkButton · NetworkPanel   Wi-Fi and Ethernet
   DropPanel        the slide-down card both panels are built on
+  BarLayout · BarZone   movable plugins: press and hold a glyph, drag it along
+                   the bar, drop it; its panel then opens under it. Saved per
+                   machine in ~/.local/state/fd44-hyprdot/bar-layout.json;
+                   `qs ipc call bar resetLayout` puts everything back
 
 themes/          dark.conf, cream.conf — one file per palette
 fonts/           Symbols Nerd Font, vendored (MIT)

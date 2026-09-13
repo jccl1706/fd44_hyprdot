@@ -82,10 +82,15 @@ Item {
         }
     }
 
-    HoverHandler { id: hover }
-
-    TapHandler {
+    HoverHandler {
+        id: hover
         cursorShape: Qt.PointingHandCursor
-        onTapped: switcher.running = true
+    }
+
+    // Called by Bar.qml, which handles clicks on every movable plugin - a
+    // TapHandler here would fire as well, and cannot tell a click from the
+    // press-and-hold that drags this toggle elsewhere in the bar.
+    function activate(): void {
+        switcher.running = true
     }
 }

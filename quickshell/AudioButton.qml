@@ -6,9 +6,9 @@
 // does - muted, low, medium, high - so it is an indicator you can also click,
 // like ThemeToggle beside the clock.
 //
-// It knows nothing about the panel. It only announces the click; Bar.qml
-// passes that up to shell.qml, which opens the panel on THIS monitor. A
-// button reaching for a window by id would tie the bar to one panel instance.
+// It draws, and nothing else. Clicks - and the press-and-hold that drags it
+// to another spot in the bar - are handled by Bar.qml, which opens the panel
+// under wherever the glyph currently sits.
 
 import Quickshell
 import Quickshell.Services.Pipewire
@@ -16,8 +16,6 @@ import QtQuick
 
 Item {
     id: root
-
-    signal activated()
 
     // 22, not ThemeToggle's 20: alone in its pill it has nothing beside it to
     // borrow presence from, and at 14px the speaker read as a speck.
@@ -65,10 +63,8 @@ Item {
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
     }
 
-    HoverHandler { id: hover }
-
-    TapHandler {
+    HoverHandler {
+        id: hover
         cursorShape: Qt.PointingHandCursor
-        onTapped: root.activated()
     }
 }

@@ -2,9 +2,8 @@
 // NetworkButton - the network glyph in the bar's right pill
 // =========================================================================
 //
-// Opens NetworkPanel. Beside AudioButton, and built the same way: an
-// indicator you can also click, announcing the click upward rather than
-// reaching for the panel itself.
+// Opens NetworkPanel. Built the same way as AudioButton: it draws, and
+// Bar.qml handles the click (and the drag that moves it along the bar).
 //
 // WHAT IT SHOWS, in order of precedence:
 //   wired and connected       the ethernet port
@@ -22,8 +21,6 @@ import QtQuick
 
 Item {
     id: root
-
-    signal activated()
 
     // Same footprint as AudioButton, so the two glyphs read as a pair.
     implicitWidth: 22
@@ -87,10 +84,8 @@ Item {
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
     }
 
-    HoverHandler { id: hover }
-
-    TapHandler {
+    HoverHandler {
+        id: hover
         cursorShape: Qt.PointingHandCursor
-        onTapped: root.activated()
     }
 }

@@ -2,9 +2,15 @@
 // Bar - a full-width panel across the top of one monitor
 // =========================================================================
 //
-// BLOCK 1: just the bar itself. No modules in it yet - those come next, one
-// at a time. Right now it is a bar-shaped surface with its regions marked out
-// so it is obvious the layout works before anything is put in them.
+// Three pills: logo, workspaces and the OSD on the left; the clock in the
+// centre; and whatever plugins BarLayout.qml places around them.
+//
+// MOVABLE PLUGINS. The audio, network and theme glyphs are not fixed in this
+// file. BarLayout says which zone each sits in - after the workspaces, either
+// side of the clock, or the right pill - and BarZone draws them. Press and
+// hold one (about a third of a second) to pick it up, drag it along the bar,
+// and let go where the gap opens. Let go well away from the bar to put it
+// back. A quick click still does what the plugin does.
 
 import Quickshell
 import QtQuick
@@ -15,11 +21,12 @@ PanelWindow {
     // Exposed so the IpcHandler in shell.qml can trigger it.
     property alias osd: osd
 
-    // A glyph in the right pill was clicked. shell.qml owns the panels and
-    // opens the one on this bar's monitor; the bar does not reach for windows
-    // itself.
-    signal audioRequested()
-    signal networkRequested()
+    // A plugin glyph was clicked. `x` is the glyph's centre in this window,
+    // which spans the monitor, so it is the screen x the panel should open
+    // under. shell.qml owns the panels and opens the one on this monitor; the
+    // bar does not reach for windows itself.
+    signal audioRequested(real x)
+    signal networkRequested(real x)
 
     // Variants sets this, one instance per monitor. The name must be exactly
     // `modelData` - that is what Variants assigns into the delegate.
@@ -48,6 +55,148 @@ PanelWindow {
 
     color: "transparent"
 
+    // --- plugins ---------------------------------------------------------
+    //
+    // One component per BarLayout id. A new plugin needs a component here,
+    // a branch in activate(), and an entry in BarLayout.defaults.
+
+    Component { id: audioPlugin;   AudioButton {} }
+    Component { id: networkPlugin; NetworkButton {} }
+    Component { id: themePlugin;   ThemeToggle {} }
+
+    // Where a dragged icon will land: a faint ring the size of a glyph.
+    Component {
+        id: placeholderPlugin
+        Item {
+            implicitWidth: 22
+            implicitHeight: 22
+            Rectangle {
+                anchors.centerIn: parent
+                width: 22
+                height: 22
+                radius: width / 2
+                color: "transparent"
+                border.width: 1
+                border.color: Theme.dim
+                opacity: 0.7
+            }
+        }
+    }
+
+    function componentFor(id: string): var {
+        switch (id) {
+        case "audio":       return audioPlugin
+        case "network":     return networkPlugin
+        case "theme":       return themePlugin
+        case "placeholder": return placeholderPlugin
+        }
+        return null
+    }
+
+    // A click on a plugin. `slot` is the Loader drawing it.
+    function activate(id: string, slot): void {
+        const x = slot.mapToItem(null, slot.width / 2, 0).x
+        if (id === "audio")                    root.audioRequested(x)
+        else if (id === "network")             root.networkRequested(x)
+        else if (id === "theme" && slot.item)  slot.item.activate()
+    }
+
+    // The same as clicking plugin `id` wherever it currently sits - for IPC
+    // and keybinds, so a panel opened without the mouse still drops down
+    // under its glyph.
+    function activateId(id: string): void {
+        for (const z of BarLayout.zones) {
+            const slot = root.zoneItem(z).itemFor(id)
+            if (slot) {
+                root.activate(id, slot)
+                return
+            }
+        }
+    }
+
+    // --- dragging --------------------------------------------------------
+
+    // The plugin being dragged, or "".
+    property string dragId: ""
+
+    // Where it would land - { zone, index } - or null while it is too far
+    // from the bar to land anywhere.
+    property var dropTarget: null
+
+    // Pointer x, for the icon that follows it.
+    property real dragX: 0
+
+    // What the zones draw: the saved layout, or during a drag the saved
+    // layout with the dragged icon lifted out and a placeholder where it
+    // would land.
+    readonly property var viewLayout: {
+        const base = BarLayout.current
+        if (root.dragId === "") return base
+        const out = {}
+        for (const z of BarLayout.zones)
+            out[z] = base[z].filter(i => i !== root.dragId)
+        if (root.dropTarget)
+            out[root.dropTarget.zone].splice(root.dropTarget.index, 0, "placeholder")
+        return out
+    }
+
+    function zoneItem(name: string): var {
+        switch (name) {
+        case "left":        return leftZone
+        case "centerLeft":  return centerLeftZone
+        case "centerRight": return centerRightZone
+        case "right":       return rightZone
+        }
+        return null
+    }
+
+    // The plugin under (x, y), as { id, slot }, or null. The hit area is the
+    // glyph's width and the bar's full height - a bar is a thin target.
+    function slotAt(x: real, y: real): var {
+        if (y < 0 || y > root.height) return null
+        for (const z of BarLayout.zones) {
+            const zone = root.zoneItem(z)
+            for (const id of root.viewLayout[z]) {
+                if (id === "placeholder") continue
+                const slot = zone.itemFor(id)
+                if (!slot) continue
+                const p = slot.mapToItem(dragArea, 0, 0)
+                if (x >= p.x && x <= p.x + slot.width) return { id: id, slot: slot }
+            }
+        }
+        return null
+    }
+
+    // The nearest zone, and the position in it: after every icon whose centre
+    // is left of the pointer.
+    //
+    // Measured against the icons as they are drawn - with the placeholder in
+    // them - and still stable: the placeholder always opens on the pointer's
+    // side of an icon, which moves that icon AWAY from the pointer, never
+    // across it.
+    function targetFor(px: real, py: real): var {
+        if (py < -Theme.barHeight || py > root.height + Theme.barHeight) return null
+
+        let best = null
+        for (const z of BarLayout.zones) {
+            const box = root.zoneItem(z)
+            const p = box.mapToItem(dragArea, 0, 0)
+            const d = px < p.x ? p.x - px
+                    : px > p.x + box.width ? px - (p.x + box.width)
+                    : 0
+            if (best === null || d < best.d) best = { zone: z, d: d, box: box }
+        }
+
+        const others = BarLayout.current[best.zone].filter(i => i !== root.dragId)
+        let index = 0
+        for (let i = 0; i < others.length; i++) {
+            const slot = best.box.itemFor(others[i])
+            if (slot && slot.mapToItem(dragArea, slot.width / 2, 0).x < px) index = i + 1
+        }
+        return { zone: best.zone, index: index }
+    }
+
+    // --- surface ---------------------------------------------------------
 
     Rectangle {
         anchors.fill: parent
@@ -58,9 +207,6 @@ PanelWindow {
         // where they meet would leave a visible notch at the junction instead
         // of one continuous border. The rounding lives on the frame's outer
         // bottom corners instead.
-
-        // No bottom hairline any more: with rounded corners it cut straight
-        // across them. The corner radius is the edge now.
 
         // Three regions: left, centre, right. Laid out independently so a
         // wide centre widget cannot push the side ones around, which is what
@@ -78,12 +224,11 @@ PanelWindow {
                 id: leftPill
                 anchors.verticalCenter: parent.verticalCenter
                 height: Theme.pillHeight
-                // Tracks its contents, so the OSD sliding out widens the pill
-                // with it instead of overflowing.
-                // The OSD is NOT in leftRow - see Osd.qml. It is added here
-                // instead, width and leading gap together, so the whole thing
-                // grows and shrinks on one animated value.
-                width: leftRow.implicitWidth + osd.implicitWidth + Theme.pillPadding * 2
+                // Tracks its contents, so the OSD sliding out and a plugin
+                // dropped in both widen the pill with them. Each of the three
+                // parts animates its own width, and the pill adds them up.
+                width: leftRow.implicitWidth + leftZone.width + osd.implicitWidth
+                       + Theme.pillPadding * 2
                 radius: height / 2
 
                 // Lit from above - see the depth note in Theme.qml.
@@ -96,60 +241,61 @@ PanelWindow {
 
                 // NO Behavior ON THIS WIDTH, deliberately.
                 //
-                // leftRow.implicitWidth is ALREADY animating - the OSD inside
-                // it animates its own implicitWidth on Theme.animReveal. An
-                // animation here would be a second one chasing a target that
-                // moves every frame, restarting a fresh curve each time, so
-                // the pill lags its own contents and then snaps to catch up at
-                // the end. Collapsing was where that showed worst.
-                //
-                // Tracking the row instantly means one animation drives the
-                // whole motion and the pill's edge stays welded to its
-                // contents in both directions.
+                // The parts are ALREADY animating - the OSD its implicitWidth,
+                // the zone its width. An animation here would be a second one
+                // chasing a target that moves every frame, restarting a fresh
+                // curve each time, so the pill lags its own contents and then
+                // snaps to catch up at the end.
 
-            Row {
-                id: leftRow
-                anchors { left: parent.left
-                          leftMargin: Theme.pillPadding
-                          verticalCenter: parent.verticalCenter }
-                spacing: Theme.itemSpacing
+                Row {
+                    id: leftRow
+                    anchors { left: parent.left
+                              leftMargin: Theme.pillPadding
+                              verticalCenter: parent.verticalCenter }
+                    spacing: Theme.itemSpacing
 
-                Logo {
-                    anchors.verticalCenter: parent.verticalCenter
-                    // Nothing wired to the click yet - this is where a
-                    // launcher or a menu would go once one exists.
-                    onActivated: console.log("logo clicked")
+                    Logo {
+                        anchors.verticalCenter: parent.verticalCenter
+                        // Nothing wired to the click yet - this is where a
+                        // launcher or a menu would go once one exists.
+                        onActivated: console.log("logo clicked")
+                    }
+
+                    Workspaces {
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
                 }
 
-                // The separator that used to sit here is gone. It existed to
-                // stop the logo and the workspaces reading as one run of
-                // shapes on a flat strip - a job the surrounding pill now
-                // does. Left in, it was a stray hairline inside a container.
-
-                Workspaces {
-                    anchors.verticalCenter: parent.verticalCenter
+                // Plugins placed after the workspaces. Outside the Row, with
+                // its own leading gap, for the same reason as the OSD.
+                BarZone {
+                    id: leftZone
+                    name: "left"
+                    ids: root.viewLayout.left
+                    componentFor: root.componentFor
+                    gapSide: "lead"
+                    anchors { left: leftRow.right; verticalCenter: parent.verticalCenter }
                 }
 
-            }
-
-            // Hidden until a volume/brightness key is pressed. Sits right
-            // after the workspaces and collapses to nothing when idle.
-            // Outside the Row on purpose - it carries its own leading gap.
-            Osd {
-                id: osd
-                anchors { left: leftRow.right
-                          verticalCenter: parent.verticalCenter }
-            }
+                // Hidden until a volume/brightness key is pressed. Sits right
+                // after the workspaces and their plugins, and collapses to
+                // nothing when idle. It carries its own leading gap.
+                Osd {
+                    id: osd
+                    anchors { left: leftZone.right
+                              verticalCenter: parent.verticalCenter }
+                }
             }
         }
 
         Item {
             id: centerRegion
             anchors.centerIn: parent
-            width: centerRow.implicitWidth
+            width: centerPill.width
             height: parent.height
 
             Rectangle {
+                id: centerPill
                 anchors.centerIn: parent
                 height: Theme.pillHeight
                 width: centerRow.implicitWidth + Theme.pillPadding * 2
@@ -163,20 +309,34 @@ PanelWindow {
                 border.width: 1
                 border.color: Theme.rim
 
+                // Spacing 0: the zones either side of the clock carry their
+                // own gap to it.
                 Row {
                     id: centerRow
                     anchors.centerIn: parent
-                    spacing: 10
+                    spacing: 0
+
+                    BarZone {
+                        id: centerLeftZone
+                        name: "centerLeft"
+                        ids: root.viewLayout.centerLeft
+                        componentFor: root.componentFor
+                        gapSide: "trail"
+                        gap: 10
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
 
                     Clock {
                         anchors.verticalCenter: parent.verticalCenter
                     }
 
-                    // Inside the clock's pill rather than off in the right
-                    // region: it is a one-glyph control, and alone in a pill
-                    // of its own it would read as a second, unrelated module
-                    // rather than as a small switch.
-                    ThemeToggle {
+                    BarZone {
+                        id: centerRightZone
+                        name: "centerRight"
+                        ids: root.viewLayout.centerRight
+                        componentFor: root.componentFor
+                        gapSide: "lead"
+                        gap: 10
                         anchors.verticalCenter: parent.verticalCenter
                     }
                 }
@@ -191,8 +351,11 @@ PanelWindow {
             Rectangle {
                 id: rightPill
                 anchors.verticalCenter: parent.verticalCenter
+                // With every plugin moved elsewhere there is nothing to put a
+                // pill around.
+                visible: rightZone.width > 0.5
                 height: Theme.pillHeight
-                width: rightRow.implicitWidth + Theme.pillPadding * 2
+                width: rightZone.width + Theme.pillPadding * 2
                 radius: height / 2
 
                 // Lit from above - see the depth note in Theme.qml.
@@ -203,24 +366,100 @@ PanelWindow {
                 border.width: 1
                 border.color: Theme.rim
 
-            Row {
-                id: rightRow
-                anchors.centerIn: parent
-                spacing: 10
-
-                // Opens NetworkPanel on this monitor - see networkRequested.
-                NetworkButton {
-                    anchors.verticalCenter: parent.verticalCenter
-                    onActivated: root.networkRequested()
-                }
-
-                // Opens AudioPanel on this monitor - see audioRequested.
-                AudioButton {
-                    anchors.verticalCenter: parent.verticalCenter
-                    onActivated: root.audioRequested()
+                BarZone {
+                    id: rightZone
+                    name: "right"
+                    ids: root.viewLayout.right
+                    componentFor: root.componentFor
+                    anchors.centerIn: parent
                 }
             }
+        }
+
+        // --- clicks and drags on plugins ------------------------------------
+        //
+        // ONE handler over the whole bar, not one per icon. A drag lifts the
+        // icon out of its zone, which destroys the item drawing it - a handler
+        // inside that item would be destroyed mid-drag along with it. Up here
+        // it outlives every change to the zones.
+        //
+        // Presses that miss every plugin are REFUSED, so they fall through to
+        // the workspaces and the logo underneath as if this were not here.
+        // Hover is not taken either, so the glyphs' own hover effects and
+        // cursors still work.
+        MouseArea {
+            id: dragArea
+            anchors.fill: parent
+            z: 10
+            pressAndHoldInterval: 300
+
+            property string pressedId: ""
+            property var pressedSlot: null
+            property bool dragging: false
+
+            function sameTarget(a, b): bool {
+                if (a === null || b === null) return a === b
+                return a.zone === b.zone && a.index === b.index
             }
+
+            onPressed: mouse => {
+                dragging = false
+                const hit = root.slotAt(mouse.x, mouse.y)
+                if (!hit) {
+                    mouse.accepted = false
+                    return
+                }
+                pressedId = hit.id
+                pressedSlot = hit.slot
+            }
+
+            onPressAndHold: mouse => {
+                if (pressedId === "") return
+                dragging = true
+                root.dragX = mouse.x
+                root.dragId = pressedId
+                root.dropTarget = root.targetFor(mouse.x, mouse.y)
+            }
+
+            onPositionChanged: mouse => {
+                if (!dragging) return
+                root.dragX = mouse.x
+                const t = root.targetFor(mouse.x, mouse.y)
+                if (!sameTarget(t, root.dropTarget)) root.dropTarget = t
+            }
+
+            onReleased: mouse => {
+                if (!dragging) return
+                if (root.dropTarget)
+                    BarLayout.move(root.dragId, root.dropTarget.zone, root.dropTarget.index)
+                root.dropTarget = null
+                root.dragId = ""
+                // `dragging` stays true until the next press, so the click
+                // that follows this release is not taken as a tap.
+            }
+
+            onClicked: mouse => {
+                if (!dragging && pressedSlot) root.activate(pressedId, pressedSlot)
+            }
+
+            onCanceled: {
+                dragging = false
+                root.dropTarget = null
+                root.dragId = ""
+            }
+        }
+
+        // The icon under the pointer while dragging. Dimmed while it is too
+        // far from the bar to land.
+        Loader {
+            z: 11
+            active: root.dragId !== ""
+            sourceComponent: root.dragId !== "" ? root.componentFor(root.dragId) : null
+            x: root.dragX - width / 2
+            anchors.verticalCenter: parent.verticalCenter
+            scale: 1.15
+            opacity: root.dropTarget ? 0.95 : 0.4
+            Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
         }
     }
 }
