@@ -42,6 +42,10 @@ HTTP_PORT="${HTTP_PORT:-8000}"
 # Host port forwarded to the VM's port 22, so the VM can be driven over ssh
 # instead of only through the graphical console. Nothing listens on it until
 # sshd is started INSIDE the VM - see the banner below.
+#
+# Bound to 127.0.0.1, not left empty: qemu reads an empty host address as every
+# interface, which put the throwaway VM's ssh - often with a throwaway password
+# and passwordless sudo - on the local network.
 SSH_PORT="${SSH_PORT:-2222}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -295,7 +299,7 @@ qemu-system-x86_64 \
     -drive "file=$DISK,if=virtio,format=qcow2,cache=writeback" \
     "${ISO_ARGS[@]}" \
     "${VIDEO[@]}" \
-    -netdev user,id=net0,hostfwd=tcp::"$SSH_PORT"-:22 \
+    -netdev user,id=net0,hostfwd=tcp:127.0.0.1:"$SSH_PORT"-:22 \
     -device virtio-net-pci,netdev=net0 \
     -device virtio-tablet-pci \
     -device virtio-keyboard-pci \

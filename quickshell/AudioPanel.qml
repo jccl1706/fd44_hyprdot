@@ -402,6 +402,7 @@ DropPanel {
                             right: chevron.left;     rightMargin: 8
                             verticalCenter: parent.verticalCenter
                         }
+                        textFormat: Text.PlainText     // device names come from outside - see row title
                         text: section.node ? root.title(section.node) : "No input device"
                         font.family: Theme.font
                         font.weight: Theme.weightMedium
@@ -528,6 +529,10 @@ DropPanel {
 
                                     Text {
                                         width: parent.width
+                                        // Plain text: any PipeWire client - a sandboxed app
+                                        // included - can create a node and name it, and
+                                        // AutoText would render a name that looks like HTML.
+                                        textFormat: Text.PlainText
                                         text: root.title(row.modelData)
                                         font.family: Theme.font
                                         font.weight: row.current ? Theme.weightSemi : Theme.weightMedium
@@ -539,6 +544,7 @@ DropPanel {
                                     Text {
                                         visible: text !== ""
                                         width: parent.width
+                                        textFormat: Text.PlainText
                                         text: root.subtitle(row.modelData)
                                         font.family: Theme.font
                                         font.weight: Theme.weightNormal

@@ -1606,9 +1606,15 @@ _pw_marker="${XDG_STATE_HOME:-$HOME/.local/state}/password-changed"
 if [ ! -e "$_pw_marker" ]; then
     printf '\n  This account still has the installer default password.\n'
     printf '  Set a real one now - the desktop will not start until you do.\n\n'
+    # Ctrl+C, Ctrl+\ and Ctrl+Z are ignored while this runs - and, because an
+    # ignored signal is inherited, by passwd as well. Without this, Ctrl+C at
+    # the prompt aborted the rest of this profile and left a shell on which
+    # sudo still accepted the public default password.
+    trap '' INT QUIT TSTP
     while ! passwd; do
         printf '\n  Password not changed. Try again.\n\n'
     done
+    trap - INT QUIT TSTP
     mkdir -p "$(dirname "$_pw_marker")"
     : >"$_pw_marker"
     printf '\n  Thank you. Starting the desktop.\n\n'
@@ -1739,6 +1745,12 @@ fi
 ###############################################################################
 nerdfont_ver="v3.4.0"
 nerdfont_url="https://github.com/ryanoasis/nerd-fonts/releases/download/$nerdfont_ver/NerdFontsSymbolsOnly.tar.xz"
+# sha256 of that tarball. Release assets can be replaced after publication, so
+# the download is checked against this before anything is extracted. The font
+# inside it is byte-identical to fonts/nerd-fonts-symbols/ in the dotfiles repo
+# (71db104a...). Change it together with nerdfont_ver, and with
+# bin/install-nerd-font.sh, which pins the same pair.
+nerdfont_sha256="7f8c090da3b0eaa7108646bf34cbbb6ed13d5358a72460522108b06c7ecd716a"
 nerdfont_dir="$rootmnt/usr/local/share/fonts/nerd-fonts-symbols"
 
 # PREFER THE COPY IN THE DOTFILES CHECKOUT. This runs after the clone for
@@ -1768,7 +1780,10 @@ if (( DRY )); then
     run tar -xJf "(tmp)/NerdFontsSymbolsOnly.tar.xz" -C "$nerdfont_dir" \
         SymbolsNerdFont-Regular.ttf
 else
-    if [[ -n "$vendored_font" && -f "$vendored_font" ]]; then
+    # Not a symlink: `install` runs as root outside the chroot and follows
+    # links, so a repo committing the "font" as a link to /mnt/etc/shadow would
+    # have it copied out world-readable.
+    if [[ -n "$vendored_font" && -f "$vendored_font" && ! -L "$vendored_font" ]]; then
         mkdir -p "$nerdfont_dir"
         if install -m 0644 -o root -g root "$vendored_font" \
                 "$nerdfont_dir/SymbolsNerdFont-Regular.ttf"; then
@@ -1781,21 +1796,29 @@ else
     nerdfont_tmp="$(mktemp -d)"
     if (( ${nerdfont_done:-0} )); then
         :
+    # Checked against the pinned sha256, extracted into the temp directory
+    # rather than straight into the target, refused if what came out is not a
+    # plain file, and only then installed with its owner and mode set by
+    # `install`. The old chown/chmod after an in-place extraction followed a
+    # symlink, which a tampered archive could have pointed at /mnt/etc/shadow.
     elif curl -fsSL --retry 2 --max-time 120 "$nerdfont_url" \
             -o "$nerdfont_tmp/symbols.tar.xz" \
-       && mkdir -p "$nerdfont_dir" \
+       && printf '%s  %s\n' "$nerdfont_sha256" "$nerdfont_tmp/symbols.tar.xz" \
+              | sha256sum --check --status \
        && tar --no-same-owner --no-same-permissions \
-              -xJf "$nerdfont_tmp/symbols.tar.xz" -C "$nerdfont_dir" \
+              -xJf "$nerdfont_tmp/symbols.tar.xz" -C "$nerdfont_tmp" \
               SymbolsNerdFont-Regular.ttf \
-       && chown root:root "$nerdfont_dir/SymbolsNerdFont-Regular.ttf" \
-       && chmod 644 "$nerdfont_dir/SymbolsNerdFont-Regular.ttf"
+       && [[ -f "$nerdfont_tmp/SymbolsNerdFont-Regular.ttf" && ! -L "$nerdfont_tmp/SymbolsNerdFont-Regular.ttf" ]] \
+       && mkdir -p "$nerdfont_dir" \
+       && install -m 0644 -o root -g root "$nerdfont_tmp/SymbolsNerdFont-Regular.ttf" \
+              "$nerdfont_dir/SymbolsNerdFont-Regular.ttf"
     then
         # The cache is rebuilt in the target, not on the live system - it is
         # the target's fontconfig that has to know about the file.
         run fchroot fc-cache -f /usr/local/share/fonts >/dev/null 2>&1 || true
         log "  /usr/local/share/fonts/nerd-fonts-symbols/SymbolsNerdFont-Regular.ttf"
     else
-        warn "Symbols Nerd Font download failed - every glyph in the bar,"
+        warn "Symbols Nerd Font download or checksum check failed - every glyph in the bar,"
         warn "  launcher, OSD, power menu and lock screen will be an empty box."
         warn "  To fix after first boot, from the dotfiles checkout:"
         warn "    sudo bin/install-nerd-font.sh"
@@ -2019,7 +2042,9 @@ if (( fail )); then
 fi
 
 log "Install complete"
-run cp "$logfile" "$rootmnt/var/log/fedora-install.log"
+# Root-only: the log records the dotfiles URL, and a private repo's URL can
+# carry a token (https://user:TOKEN@host/...).
+run install -m 600 "$logfile" "$rootmnt/var/log/fedora-install.log"
 
 # UNQUOTED on purpose - the summary interpolates $target, $username and the
 # rest - which means every backtick and $( ) in the text below RUNS, as root.

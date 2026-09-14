@@ -118,10 +118,44 @@ icon_theme_installed() {
     return 1
 }
 
+# Theme files are data, and some of their values end up somewhere that
+# executes: pasted into a Lua string for `hyprctl eval`, and into a hyprlock
+# cmd[] line that a shell runs. So every value used that way must have exactly
+# the shape of a colour or a number - checked BEFORE anything is written, so a
+# bad file changes nothing. A new theme with a typo fails loudly here instead.
+check_theme() {
+    local file="$1" bad=0 k v re
+    local -A shape=(
+        [bg]=hex [surfaceHigh]=hex [outline]=hex [fg]=hex [dim]=hex
+        [accent]=hex [accentFg]=hex [danger]=hex [surface]=hex
+        [lock_shadow]=hex8
+        [border_active_a]=rgba [border_active_b]=rgba [border_inactive]=rgba
+        [shadow]=argb [border_angle]=int
+    )
+    local -A pattern=(
+        [hex]='^#[0-9A-Fa-f]{6}$'
+        [hex8]='^#?[0-9A-Fa-f]{8}$'
+        [rgba]='^rgba\([0-9A-Fa-f]{8}\)$'
+        [argb]='^0x[0-9A-Fa-f]{8}$'
+        [int]='^[0-9]{1,3}$'
+    )
+    for k in "${!shape[@]}"; do
+        v="$(val "$file" "$k")"
+        re="${pattern[${shape[$k]}]}"
+        if ! [[ $v =~ $re ]]; then
+            printf 'theme: %s: %s=%q is not a valid %s value\n' \
+                "$(basename "$file")" "$k" "$v" "${shape[$k]}" >&2
+            bad=1
+        fi
+    done
+    return "$bad"
+}
+
 apply() {
     local name="$1"
     local file="$theme_dir/$name.conf"
     [[ -f $file ]] || die "no such theme: $name (have: $(themes | tr '\n' ' '))"
+    check_theme "$file" || die "not applying $name - fix the values above"
 
     mkdir -p "$state_dir"
     printf '%s\n' "$name" > "$state_file"

@@ -616,8 +616,16 @@ if (( PROTON_GE )); then
         tag="$(curl -fsSL --max-time 30 "$api" \
                | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1 || true)"
         [[ -n $tag ]] || die "could not find the latest GE-Proton release - check the network"
+        # The tag becomes a path and part of a URL, and it came from a web API.
+        [[ $tag =~ ^GE-Proton[0-9]+-[0-9]+$ ]] || die "unexpected GE-Proton release name: $tag"
 
-        if [[ -d "$tools_dir/$tag" ]]; then
+        # Releases are published per architecture now: GE-Proton11-6-x86_64.tar.gz
+        # beside GE-Proton11-6-x86_64.sha512sum, unpacking into a folder of the
+        # same name. The bare "$tag.tar.gz" this used to fetch is a 404.
+        asset="$tag-x86_64"
+
+        # Either folder name counts - older releases unpacked without the suffix.
+        if [[ -d "$tools_dir/$asset" || -d "$tools_dir/$tag" ]]; then
             printf '    %s already installed\n' "$tag"
         else
             printf '    installing %s\n' "$tag"
@@ -625,14 +633,29 @@ if (( PROTON_GE )); then
             # install -d would leave the intermediate ~/.steam and
             # ~/.steam/root owned by root.
             runuser -u "$target_user" -- mkdir -p "$tools_dir"
-            tmp="$(mktemp -d)"
+            # The temp directory, the download and the extraction are all the
+            # user's. A root mktemp -d is mode 0700, so the user-side tar below
+            # could not even open the tarball - --proton-ge always died at
+            # "could not extract" before this.
+            tmp="$(runuser -u "$target_user" -- mktemp -d)"
             trap 'rm -rf "$tmp"' EXIT
-            url="https://github.com/GloriousEggroll/proton-ge-custom/releases/download/$tag/$tag.tar.gz"
-            curl -fsSL --retry 2 --max-time 900 "$url" -o "$tmp/ge.tar.gz" \
-                || die "download failed: $url"
+            base="https://github.com/GloriousEggroll/proton-ge-custom/releases/download/$tag"
+            # Saved under its published name: the checksum file refers to it by
+            # that name, so sha512sum --check finds it only if it matches.
+            runuser -u "$target_user" -- curl -fsSL --retry 2 --max-time 900 \
+                "$base/$asset.tar.gz" -o "$tmp/$asset.tar.gz" \
+                || die "download failed: $base/$asset.tar.gz"
+            # Verified against the checksum the release publishes beside it,
+            # so a truncated or swapped download is refused rather than
+            # unpacked into Steam.
+            runuser -u "$target_user" -- curl -fsSL --retry 2 --max-time 60 \
+                "$base/$asset.sha512sum" -o "$tmp/$asset.sha512sum" \
+                || die "could not fetch the checksum: $base/$asset.sha512sum"
+            ( cd "$tmp" && runuser -u "$target_user" -- sha512sum --check --status "$asset.sha512sum" ) \
+                || die "$asset.tar.gz does not match its published sha512 - not installing"
             # As the user, so every extracted file is owned by them - Steam
             # will not load a compatibility tool it cannot read.
-            runuser -u "$target_user" -- tar -xzf "$tmp/ge.tar.gz" -C "$tools_dir" \
+            runuser -u "$target_user" -- tar -xzf "$tmp/$asset.tar.gz" -C "$tools_dir" \
                 || die "could not extract $tag"
             printf '    installed - restart Steam, then pick it in a game'\''s\n'
             printf '    Properties -> Compatibility\n'

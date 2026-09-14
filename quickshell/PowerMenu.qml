@@ -286,8 +286,12 @@ PanelWindow {
         Keys.onEscapePressed: root.close()
         Keys.onUpPressed:     root.move(-1)
         Keys.onDownPressed:   root.move(1)
-        Keys.onReturnPressed: root.run(root.selected)
-        Keys.onEnterPressed:  root.run(root.selected)
+        // Not on auto-repeat. Holding Enter repeats the key about 600 ms in,
+        // and that second press would land on the button the first one just
+        // armed - firing Restart or Shut down from one held key, which is
+        // exactly what arm-then-fire exists to prevent.
+        Keys.onReturnPressed: event => { if (!event.isAutoRepeat) root.run(root.selected) }
+        Keys.onEnterPressed:  event => { if (!event.isAutoRepeat) root.run(root.selected) }
 
         // Background and the fillets that join it to the frame, flattened
         // into one layer and made translucent as a whole.

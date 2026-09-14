@@ -553,6 +553,9 @@ PanelWindow {
 
                     Text {
                         width: parent.width
+                        // Plain text: desktop entries are files any app can drop into
+                        // ~/.local/share/applications, and AutoText renders HTML.
+                        textFormat: Text.PlainText
                         text: row.modelData.name
                         font.family: Theme.font
                         font.weight: Theme.weightSemi
@@ -572,6 +575,7 @@ PanelWindow {
                     // This way nothing moves - the subtitle simply appears.
                     Text {
                         width: parent.width
+                        textFormat: Text.PlainText
                         text: row.modelData.comment || row.modelData.genericName || ""
                         font.family: Theme.font
                         font.weight: Theme.weightNormal

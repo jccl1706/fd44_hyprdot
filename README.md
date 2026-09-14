@@ -92,7 +92,7 @@ give it this repo and the result is this desktop, not a generic one.
 
 ```sh
 # from a Fedora Workstation live ISO
-curl -O http://<host>/install_fedora_v1_11.sh
+curl -O https://raw.githubusercontent.com/jccl1706/fd44_hyprdot/master/install/install_fedora_v1_11.sh
 chmod +x install_fedora_v1_11.sh
 
 ./install_fedora_v1_11.sh --check-repos   # resolve every package name, no root

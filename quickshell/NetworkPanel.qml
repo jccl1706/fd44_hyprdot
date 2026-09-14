@@ -59,6 +59,10 @@ DropPanel {
         root.refreshNetworks(true)
     }
 
+    // Closing collapses the open network, which clears a half-typed password
+    // (see row.onExpandedChanged) instead of leaving it in the hidden window.
+    onClosing: root.expanded = ""
+
     // Esc closes an opened network first, then the panel.
     onKeyPressed: event => {
         if (event.key === Qt.Key_Escape && root.expanded !== "") {
@@ -389,7 +393,10 @@ DropPanel {
                     readonly property bool known: net?.known ?? false
                     readonly property int security: net?.security ?? WifiSecurityType.Unknown
                     readonly property int state: net?.state ?? ConnectionState.Unknown
-                    readonly property string failure: root.failures[name] ?? ""
+                    // Own keys only: a network named "toString" would otherwise pick
+                    // up the object's built-in function as its failure text.
+                    readonly property string failure:
+                        Object.prototype.hasOwnProperty.call(root.failures, name) ? root.failures[name] : ""
 
                     readonly property bool open: root.isOpen(security)
 
@@ -500,6 +507,9 @@ DropPanel {
 
                             Text {
                                 width: parent.width
+                                // Plain text: an SSID is chosen by whoever broadcasts it, and
+                                // Text's default AutoText would render one that looks like HTML.
+                                textFormat: Text.PlainText
                                 text: row.name
                                 font.family: Theme.font
                                 font.weight: row.connected ? Theme.weightSemi : Theme.weightMedium

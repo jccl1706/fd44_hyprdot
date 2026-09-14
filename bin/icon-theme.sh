@@ -176,6 +176,12 @@ reapply() {
 remove() {
     local name
     while read -r name; do
+        # Only names this script could have installed. A palette naming some
+        # other theme - or a path like ../.. - must never reach rm -rf.
+        if ! colour_of "$name" >/dev/null; then
+            printf 'icon-theme: not removing %s - not a Reversal variant\n' "$name" >&2
+            continue
+        fi
         [[ -d "$DEST/$name" ]] || continue
         log "removing $DEST/$name"
         rm -rf "${DEST:?}/$name"

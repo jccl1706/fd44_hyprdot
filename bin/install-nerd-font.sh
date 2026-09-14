@@ -37,6 +37,9 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 VERSION="v3.4.0"
 URL="https://github.com/ryanoasis/nerd-fonts/releases/download/$VERSION/NerdFontsSymbolsOnly.tar.xz"
+# sha256 of that tarball, the same pin as install_fedora_v1_11.sh's
+# nerdfont_sha256. The font inside matches the copy committed in fonts/.
+SHA256="7f8c090da3b0eaa7108646bf34cbbb6ed13d5358a72460522108b06c7ecd716a"
 DEST="/usr/local/share/fonts/nerd-fonts-symbols"
 FILE="SymbolsNerdFont-Regular.ttf"
 
@@ -57,6 +60,9 @@ fi
 mkdir -p "$DEST"
 
 vendored="$repo/fonts/nerd-fonts-symbols/$FILE"
+# A symlink is refused: `install` below runs as root and would follow it, and
+# the checkout is writable by the user.
+[[ ! -L $vendored ]] || die "refusing $vendored: it is a symlink, not a font file"
 
 # ALREADY PRESENT IS NOT THE SAME AS CORRECT. If the installed file differs
 # from the one committed here, replace it - that is the whole job of a repair
@@ -84,14 +90,21 @@ else
         trap 'rm -rf "$tmp"' EXIT
         curl -fsSL --retry 2 --max-time 120 "$URL" -o "$tmp/symbols.tar.xz" \
             || die "download failed - check the network, or fetch $URL by hand"
+        printf '%s  %s\n' "$SHA256" "$tmp/symbols.tar.xz" | sha256sum --check --status \
+            || die "the download does not match the pinned sha256 - not installing it"
         # --no-same-owner because the archive carries the uid of whoever built
         # it upstream, and tar as root would honour it: that is how this font
         # once ended up owned by uid 1001.
+        #
+        # Into the temp directory, not straight into $DEST: the old chown and
+        # chmod after an in-place extraction followed a symlink, so an archive
+        # whose "font" linked to /etc/shadow would have made it world-readable.
         tar --no-same-owner --no-same-permissions \
-            -xJf "$tmp/symbols.tar.xz" -C "$DEST" "$FILE" \
+            -xJf "$tmp/symbols.tar.xz" -C "$tmp" "$FILE" \
             || die "could not extract $FILE from the archive"
-        chown root:root "$DEST/$FILE"
-        chmod 644 "$DEST/$FILE"
+        [[ -f "$tmp/$FILE" && ! -L "$tmp/$FILE" ]] \
+            || die "$FILE in the archive is not a regular file - not installing it"
+        install -m 0644 -o root -g root "$tmp/$FILE" "$DEST/$FILE"
         log "installed $DEST/$FILE"
     fi
 fi
