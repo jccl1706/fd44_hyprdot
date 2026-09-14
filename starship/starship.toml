@@ -1,0 +1,71 @@
+# =========================================================================
+# starship.toml - a two-line prompt: where you are, then the command
+# =========================================================================
+#
+#   ~/Work/fd44_hyprdot on  master !1 ?2 took 4s
+#   ❯
+#
+# Linked to ~/.config/starship.toml by bin/starship-setup.sh.
+#
+# Every colour is an ANSI name, never a hex value, so the prompt is drawn in
+# kitty's palette and changes with bin/theme.sh. Anything that does not apply
+# right now takes no space: the git parts show only in a repository, the time
+# only after a slow command, the jobs count only while something is in the
+# background.
+
+"$schema" = "https://starship.rs/config-schema.json"
+
+# Only these modules, in this order. Starship's default is every module it
+# knows, which is where language versions and cloud contexts would come from.
+format = """
+$directory\
+$git_branch\
+$git_state\
+$git_status\
+$cmd_duration\
+$jobs\
+$line_break\
+$character"""
+
+# A blank line between one command's output and the next prompt.
+add_newline = true
+
+[directory]
+style = "bold cyan"
+# The path from ~, not cut back to the repository root - but at most its last
+# four folders.
+truncation_length = 4
+truncate_to_repo = false
+truncation_symbol = "…/"
+read_only = " \U000F033E"
+
+[git_branch]
+format = "on [$symbol$branch]($style) "
+symbol = " "
+style = "bold purple"
+
+[git_state]
+# Mid-rebase, mid-merge, bisecting: the state that is easy to forget you are in.
+style = "bold yellow"
+
+[git_status]
+format = "([$all_status$ahead_behind]($style) )"
+style = "red"
+
+[cmd_duration]
+min_time = 2000
+format = "took [$duration]($style) "
+style = "yellow"
+
+[jobs]
+# A program stopped with Ctrl+Z is easy to forget, and it keeps holding
+# whatever it held - that is how a suspended one once froze the bar's panels,
+# sitting on the clipboard. This is the reminder that it is still there.
+symbol = "✦"
+number_threshold = 1
+format = "[$symbol$number]($style) "
+style = "bold blue"
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"

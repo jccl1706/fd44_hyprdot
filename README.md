@@ -240,10 +240,38 @@ bin/             theme.sh · wallpaper.sh · power-mode.sh · idle-action.sh · 
                  ssh-keys-only.sh — sshd accepts keys only (opt-in, for hand-enabled sshd)
                  chrome-theme.sh · chromium-policy-setup.sh — browser colours, root-written
                  gaming-setup.sh — opt-in, not run by the installer
+                 starship-setup.sh — opt-in two-line prompt, per user, no sudo
 install/         the installer, and vm-test.sh
+starship/        starship.toml — the prompt; ANSI colour names, so it follows the theme
 cooling/         CoolerControl backup of the desktop's fan curves (reviewed, no credentials)
 wireplumber/     audio rules — the EVO4 uses software volume (matches only that device)
 ```
+
+## Prompt
+
+An opt-in [Starship](https://starship.rs) prompt for bash — not run by the
+installer:
+
+```
+~/Work/fd44_hyprdot on  master !1 ?2 took 4s ✦1
+❯
+```
+
+Folder, then git branch and status, then how long the last command took (only
+past 2 s) and how many jobs are in the background (only when there are any).
+The `❯` turns red after a command fails. Colours are ANSI names, so it follows
+the dark/cream theme.
+
+```sh
+bin/starship-setup.sh            # as yourself, no sudo
+bin/starship-setup.sh --remove   # back to the plain prompt
+```
+
+Fedora doesn't package starship and the COPR lags behind, so the script
+downloads the upstream release pinned by sha256 into `~/.local/bin`, links
+`~/.config/starship.toml` to `starship/starship.toml`, and starts it from
+`~/.bashrc.d/starship.sh` — interactive shells only, never on the tty1 console.
+Run it once on each machine.
 
 ## Gaming
 
