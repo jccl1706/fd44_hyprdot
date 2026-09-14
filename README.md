@@ -321,6 +321,12 @@ because power readings can leak what other users' processes are doing. A udev
 rule lets the `gamemode` group read that one file — on this machine the player
 is its only member.
 
+**Logging crashes the game when it stops.** Fedora 44's MangoHud is 0.8.3-rc1, and
+stopping a log (`Left Shift+F2`) aborts the game on an ImGui assertion that
+upstream fixed in 0.8.3. Hide the overlay first (`Right Shift+F12`), then stop
+logging, wait about 15 seconds and show it again — details in
+`mangohud/MangoHud.conf`.
+
 ## Cooling
 
 Also opt-in, and also specific to one machine's hardware: every fan on the
