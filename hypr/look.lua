@@ -25,21 +25,22 @@ local colors = {
 
 hl.config({
     general = {
-        gaps_in  = 5,
+        gaps_in  = 8,
 
-        -- Small, because quickshell's Frame.qml already draws a 4px border
-        -- around the screen and reserves that space. At 0 the window's own
-        -- border touches the frame and the two stack into one thick edge;
-        -- a few px of breathing room keeps them reading as separate things.
-        -- (The old value of 20 stacked 28px of dead space for no reason.)
-        -- If you ever stop running quickshell, put this back to ~10.
+        -- Measured from INSIDE quickshell's frame, not from the screen edge:
+        -- Frame.qml draws a 4px border and reserves that space, so a window
+        -- sits frame + gaps_out from the edge. This used to be kept minimal
+        -- (8/4) on the argument that the frame already separates windows from
+        -- the edge; it was raised for a floating, airier look, previewed live
+        -- and chosen over 12/8 and 24/20. (An old value of 20 on all sides was
+        -- too much.) If you ever stop running quickshell, add the 4px back.
         --
         -- Per-side, in CSS order. Top and bottom get more room than the sides
-        -- because they are the crowded ones: the top edge carries the 34px bar
+        -- because they are the crowded ones: the top edge carries the 38px bar
         -- rather than a 4px strip, so the same gap reads as tighter there, and
         -- matching the bottom to it keeps the window visually centred in the
         -- well instead of riding low.
-        gaps_out = { top = 8, right = 4, bottom = 8, left = 4 },
+        gaps_out = { top = 16, right = 12, bottom = 16, left = 12 },
 
         -- No window borders. The quickshell frame already draws the outline of
         -- the screen, and gaps_in/gaps_out separate the windows from each
