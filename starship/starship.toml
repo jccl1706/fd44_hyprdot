@@ -5,19 +5,25 @@
 #   ~/Work/fd44_hyprdot on  master !1 ?2 took 4s
 #   ❯
 #
+# and inside an ssh login, which machine you are on comes first:
+#
+#    fedora-hypr in ~/Work/fd44_hyprdot on  master
+#   ❯
+#
 # Linked to ~/.config/starship.toml by bin/starship-setup.sh.
 #
 # Every colour is an ANSI name, never a hex value, so the prompt is drawn in
 # kitty's palette and changes with bin/theme.sh. Anything that does not apply
-# right now takes no space: the git parts show only in a repository, the time
-# only after a slow command, the jobs count only while something is in the
-# background.
+# right now takes no space: the machine name shows only over ssh, the git parts
+# only in a repository, the time only after a slow command, the jobs count only
+# while something is in the background.
 
 "$schema" = "https://starship.rs/config-schema.json"
 
 # Only these modules, in this order. Starship's default is every module it
 # knows, which is where language versions and cloud contexts would come from.
 format = """
+$hostname\
 $directory\
 $git_branch\
 $git_state\
@@ -29,6 +35,15 @@ $character"""
 
 # A blank line between one command's output and the next prompt.
 add_newline = true
+
+[hostname]
+# Only over ssh: the laptop and the desktop run the same prompt from the same
+# repo, so without it a shell on one looks exactly like a shell on the other.
+# The user is left out - it is jc on both.
+ssh_only = true
+ssh_symbol = " "
+format = "[$ssh_symbol$hostname]($style) in "
+style = "bold yellow"
 
 [directory]
 style = "bold cyan"

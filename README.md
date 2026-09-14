@@ -259,6 +259,8 @@ installer:
 
 Folder, then git branch and status, then how long the last command took (only
 past 2 s) and how many jobs are in the background (only when there are any).
+Inside an ssh login the machine's name comes first — ` fedora-hypr in ~/…` —
+so a shell on the desktop can't be mistaken for one on the laptop.
 The `❯` turns red after a command fails. Colours are ANSI names, so it follows
 the dark/cream theme.
 
