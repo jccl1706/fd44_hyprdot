@@ -68,7 +68,12 @@ Item {
         anchors.centerIn: parent
         text: Theme.isDark ? root.moonGlyph : root.sunGlyph
         font.family: Theme.glyphFont
-        font.pixelSize: 13
+        // 15, matched against the coffee cup beside it (14 px, 12.3 x 11.0).
+        // Measured in a probe: the sun draws 12.7 x 11.0 here, and the moon
+        // 12.2 x 13.2 - as wide as the cup, a little taller, which a
+        // thin-line crescent needs to look as large as a solid cup. At 13
+        // both read as tiny next to it.
+        font.pixelSize: 15
         color: hover.hovered ? Theme.fg : Theme.dim
 
         Behavior on color { ColorAnimation { duration: Theme.animFast } }

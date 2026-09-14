@@ -37,7 +37,11 @@ Item {
         anchors.centerIn: parent
         text: Caffeine.active ? root.cupGlyph : root.outlineGlyph
         font.family: Theme.glyphFont
-        font.pixelSize: 15
+        // 14, not ThemeToggle's 13: the cup is a solid shape that fills more of
+        // its em box than the thin-line moon. At 15 it drew 13.2 x 11.8 px
+        // beside the moon's 10.2 x 11.3 and read as the heavier icon; at 13
+        // it would come out shorter than the moon.
+        font.pixelSize: 14
         color: Caffeine.active ? Theme.accent
              : hover.hovered   ? Theme.fg
                                : Theme.dim
