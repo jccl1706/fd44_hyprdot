@@ -136,6 +136,20 @@ hl.window_rule({
     center = true,
 })
 
+-- File dialogs (Open File, Save File) that apps hand to the GTK portal -
+-- Chromium's, for one. GTK remembers the chooser's last size, 1203x925, and
+-- asks for it every time: on the laptop (1440x960 logical at scale 1.567)
+-- that plus the shadow is taller than the screen, and the header with Cancel
+-- and Open sat under the bar. Size it to the monitor instead, centred.
+hl.window_rule({
+    name  = "portal-file-dialog",
+    match = { class = "^xdg-desktop-portal-gtk$" },
+
+    float  = true,
+    size   = "monitor_w*0.6 monitor_h*0.7",
+    center = true,
+})
+
 
 -- -------------------------------------------------------------------------
 -- Workspace rules

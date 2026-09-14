@@ -19,9 +19,11 @@
 #
 #   GTK apps     gsettings color-scheme + gtk-theme + icon-theme. GTK3 and
 #                GTK4 apps all watch these over dbus and restyle themselves.
-#                No new GTK theme package: Adwaita ships light and dark and
-#                picks by scheme. Icons are the palette's icon_theme (Reversal,
-#                installed by bin/icon-theme.sh), or Adwaita until it is.
+#                No new GTK theme package: Adwaita ships light and dark. GTK3
+#                only needs a one-line "Adwaita-dark" user theme pointing at
+#                its built-in dark stylesheet, written at the GTK step below.
+#                Icons are the palette's icon_theme (Reversal, installed by
+#                bin/icon-theme.sh), or Adwaita until it is.
 #
 #                This reaches further than GTK. xdg-desktop-portal republishes
 #                the setting as org.freedesktop.appearance color-scheme, and
@@ -268,6 +270,27 @@ apply() {
         gsettings set "$iface" gtk-theme    "$gtk"    2>/dev/null || true
         # Live: running GTK apps watch this over dbus and swap icons in place.
         gsettings set "$iface" icon-theme   "$icons"  2>/dev/null || true
+    fi
+
+    # GTK3 has no theme called "Adwaita-dark". Its dark Adwaita is built in,
+    # but only reachable as "Adwaita" plus prefer-dark - a name it cannot find
+    # falls back to LIGHT Adwaita, and prefer-dark does not rescue it. Measured
+    # on gtk3 3.24.52: a label under "Adwaita-dark" drew with the light
+    # theme's text colour, prefer-dark on or off. What showed it: the GTK
+    # portal's Open File dialog (Chromium's) came up white on a dark desktop.
+    #
+    # "Adwaita" + prefer-dark would work at startup but not live: prefer-dark
+    # comes only from settings.ini, which running apps never reread, so a
+    # theme switch would leave them behind. Instead, give the name something
+    # to find - a user theme that imports GTK3's own built-in dark stylesheet.
+    # No package, and gsettings flipping Adwaita-dark <-> Adwaita restyles
+    # running GTK3 apps both ways (checked). Skipped if a real Adwaita-dark is
+    # installed system-wide.
+    local dark_css="$HOME/.local/share/themes/Adwaita-dark/gtk-3.0/gtk.css"
+    if [[ ! -d /usr/share/themes/Adwaita-dark ]]; then
+        mkdir -p "${dark_css%/*}"
+        printf '%s\n' '@import url("resource:///org/gtk/libgtk/theme/Adwaita/gtk-contained-dark.css");' \
+            > "$dark_css"
     fi
 
     # GTK3 apps that predate the dbus setting read this file at startup. It
