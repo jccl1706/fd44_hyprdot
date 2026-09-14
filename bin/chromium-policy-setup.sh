@@ -102,45 +102,62 @@ cat > "$helper.tmp" <<'HELPER'
 # file owned by <owner>. Anything else is refused without being echoed - the
 # request path is in a user's home, and a symlinked or hostile file must not
 # turn this into a way to read or write anything else.
+#
+# LOOPS until the request stops changing. The path unit does not trigger
+# again for a change that lands while this is still running, so with the
+# theme toggled several times a second the last request could be missed and
+# Chromium left on the wrong scheme. Re-checking after each write catches it.
+# By modification time, not content: a toggle there and back rewrites the
+# same line, and that must still count as a change.
 set -eu
 req="$1"
 owner="$2"
 dir=/etc/chromium/policies/managed
 
-[ -e "$req" ] || exit 0
-if [ -L "$req" ] || [ ! -f "$req" ]; then
-    echo "fd44-chromium-theme: request is not a regular file - ignored" >&2
-    exit 1
-fi
-if [ "$(stat -c %U -- "$req")" != "$owner" ]; then
-    echo "fd44-chromium-theme: request is not owned by $owner - ignored" >&2
-    exit 1
-fi
+applied=""
+rounds=0
+while :; do
+    [ -e "$req" ] || exit 0
+    if [ -L "$req" ] || [ ! -f "$req" ]; then
+        echo "fd44-chromium-theme: request is not a regular file - ignored" >&2
+        exit 1
+    fi
+    if [ "$(stat -c %U -- "$req")" != "$owner" ]; then
+        echo "fd44-chromium-theme: request is not owned by $owner - ignored" >&2
+        exit 1
+    fi
 
-line="$(head -c 64 -- "$req" | head -n 1)"
+    stamp="$(stat -c %y -- "$req")"
+    [ -n "$applied" ] && [ "$stamp" = "$applied" ] && exit 0
+    line="$(head -c 64 -- "$req" | head -n 1)"
 
-if [ "$line" = off ]; then
-    rm -f "$dir/color.json"
-    echo "fd44-chromium-theme: policy removed"
-    exit 0
-fi
+    if [ "$line" = off ]; then
+        rm -f "$dir/color.json"
+        echo "fd44-chromium-theme: policy removed"
+    else
+        color="${line%% *}"
+        scheme="${line#* }"
+        case "$color" in
+            [0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) ;;
+            *) echo "fd44-chromium-theme: malformed request - ignored" >&2; exit 1 ;;
+        esac
+        case "$scheme" in
+            light|dark) ;;
+            *) echo "fd44-chromium-theme: malformed request - ignored" >&2; exit 1 ;;
+        esac
 
-color="${line%% *}"
-scheme="${line#* }"
-case "$color" in
-    [0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) ;;
-    *) echo "fd44-chromium-theme: malformed request - ignored" >&2; exit 1 ;;
-esac
-case "$scheme" in
-    light|dark) ;;
-    *) echo "fd44-chromium-theme: malformed request - ignored" >&2; exit 1 ;;
-esac
+        tmp="$(mktemp "$dir/.color.json.XXXXXX")"
+        printf '{"BrowserThemeColor": "#%s", "BrowserColorScheme": "%s"}\n' "$color" "$scheme" > "$tmp"
+        chmod 644 "$tmp"
+        mv -f "$tmp" "$dir/color.json"
+        echo "fd44-chromium-theme: #$color / $scheme"
+    fi
 
-tmp="$(mktemp "$dir/.color.json.XXXXXX")"
-printf '{"BrowserThemeColor": "#%s", "BrowserColorScheme": "%s"}\n' "$color" "$scheme" > "$tmp"
-chmod 644 "$tmp"
-mv -f "$tmp" "$dir/color.json"
-echo "fd44-chromium-theme: #$color / $scheme"
+    applied="$stamp"
+    rounds=$((rounds + 1))
+    [ "$rounds" -ge 50 ] && exit 0
+    sleep 0.3
+done
 HELPER
 chown root:root "$helper.tmp"
 chmod 755 "$helper.tmp"
@@ -152,6 +169,11 @@ cat > "/etc/systemd/system/$unit.service" <<UNIT
 # Written by bin/chromium-policy-setup.sh (fd44_hyprdot).
 [Unit]
 Description=Apply the Chromium theme colour requested by $user
+# No start rate limit. The default - 5 starts in 10 s - is one theme toggle
+# pressed quickly a few times, and hitting it fails this unit AND the path
+# unit watching for requests, so Chromium stops following the theme until
+# root runs reset-failed. Each run is a few milliseconds of validated writes.
+StartLimitIntervalSec=0
 
 [Service]
 Type=oneshot
@@ -196,6 +218,8 @@ chmod 644 "/etc/systemd/system/$unit.service" "/etc/systemd/system/$unit.path"
 
 if (( live )); then
     systemctl daemon-reload
+    # A watcher that already hit the old start limit stays failed until this.
+    systemctl reset-failed "$unit.path" "$unit.service" 2>/dev/null || true
     systemctl enable --now "$unit.path"
 else
     systemctl enable "$unit.path"
