@@ -283,9 +283,7 @@ apply() {
     # comes only from settings.ini, which running apps never reread, so a
     # theme switch would leave them behind. Instead, give the name something
     # to find - a user theme that imports GTK3's own built-in dark stylesheet.
-    # No package, and gsettings flipping Adwaita-dark <-> Adwaita restyles
-    # running GTK3 apps both ways (checked). Skipped if a real Adwaita-dark is
-    # installed system-wide.
+    # No package. Skipped if a real Adwaita-dark is installed system-wide.
     local dark_css="$HOME/.local/share/themes/Adwaita-dark/gtk-3.0/gtk.css"
     if [[ ! -d /usr/share/themes/Adwaita-dark ]]; then
         mkdir -p "${dark_css%/*}"
@@ -293,17 +291,24 @@ apply() {
             > "$dark_css"
     fi
 
-    # GTK3 apps that predate the dbus setting read this file at startup. It
-    # will not restyle anything already running - gsettings above does that -
-    # but without it a newly launched GTK3 app comes up in the wrong theme.
+    # GTK3 apps that predate the dbus setting read these files at startup,
+    # and X11 GTK3 apps get nothing else. They do not restyle anything already
+    # running - gsettings above does that.
+    #
+    # GTK3's file NEVER sets prefer-dark: the theme name alone picks light or
+    # dark. prefer-dark read at startup sticks for the life of the process, and
+    # it turns plain "Adwaita" dark too - so a GTK3 app started under the dark
+    # theme stayed dark after a switch to cream, however gsettings changed.
+    # Seen on the GTK portal's Open File dialog, which starts once per login.
+    # GTK4 has no Adwaita-dark user theme to find, so its file keeps
+    # prefer-dark (libadwaita apps follow color-scheme live regardless).
     local g3="$HOME/.config/gtk-3.0" g4="$HOME/.config/gtk-4.0"
     local prefer=0; [[ $appearance == dark ]] && prefer=1
-    local d
-    for d in "$g3" "$g4"; do
-        mkdir -p "$d"
-        printf '[Settings]\ngtk-application-prefer-dark-theme=%d\ngtk-icon-theme-name=%s\n' \
-            "$prefer" "$icons" > "$d/settings.ini"
-    done
+    mkdir -p "$g3" "$g4"
+    printf '[Settings]\ngtk-theme-name=%s\ngtk-application-prefer-dark-theme=0\ngtk-icon-theme-name=%s\n' \
+        "$gtk" "$icons" > "$g3/settings.ini"
+    printf '[Settings]\ngtk-application-prefer-dark-theme=%d\ngtk-icon-theme-name=%s\n' \
+        "$prefer" "$icons" > "$g4/settings.ini"
 
     # --- Chromium ------------------------------------------------------
     #
