@@ -237,6 +237,7 @@ wallpapers/      resized, webp
 bin/             theme.sh · wallpaper.sh · power-mode.sh · idle-action.sh · icon-theme.sh
                  qs-restart.sh — restart quickshell safely (one instance, verified)
                  lock-at-login.sh — locks at login unless the disk is encrypted
+                 ssh-keys-only.sh — sshd accepts keys only (opt-in, for hand-enabled sshd)
                  chrome-theme.sh · chromium-policy-setup.sh — browser colours, root-written
                  gaming-setup.sh — opt-in, not run by the installer
 install/         the installer, and vm-test.sh
@@ -448,6 +449,18 @@ one has to go first:
 ssh-keygen -R <desktop-ip>
 ssh-copy-id -i ~/.ssh/fd44-desktop.pub jc@<desktop-ip>
 ```
+
+Once the key login works, turn password logins off on the desktop — and on the
+laptop too, if its sshd is on. Each machine then accepts only the other's key:
+
+```sh
+sudo bin/ssh-keys-only.sh      # refuses if authorized_keys is empty; --undo reverts
+```
+
+Fedora's sshd accepts passwords by default, and a laptop on café Wi-Fi is on a
+network full of strangers. The script writes one `sshd_config.d` drop-in, checks
+it with `sshd -t` before reloading, and confirms a login without a key is offered
+nothing but `publickey`.
 
 **Pushing to GitHub from the desktop:**
 
