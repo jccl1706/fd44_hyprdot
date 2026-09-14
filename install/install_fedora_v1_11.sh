@@ -759,12 +759,11 @@ depacs=(
     hyprland uwsm quickshell qt6-qtwayland
     xorg-x11-server-Xwayland
     python3-pyxdg python3-dbus
-    # swaybg is the wallpaper fallback, not a second choice for its own sake:
-    # hyprpaper 0.8.4 aborts on startup on some machines, every time, inside
-    # libhyprtoolkit's wl_seat handler. swaybg does no seat handling and
-    # cannot hit it. bin/wallpaper.sh picks whichever works at runtime, so
-    # both are installed and the machine decides. swaybg is ~50KB.
-    hyprpaper swaybg hyprlock hypridle hyprpolkitagent xdg-desktop-portal-hyprland
+    # No wallpaper daemon: quickshell draws the wallpaper itself
+    # (quickshell/Wallpaper.qml). hyprpaper used to, with swaybg as a fallback
+    # because hyprpaper 0.8.4 aborted on startup inside libhyprtoolkit's wl_seat
+    # handler - and the COPR's current build does that on every machine tried.
+    hyprlock hypridle hyprpolkitagent xdg-desktop-portal-hyprland
     hyprland-guiutils
     wl-clipboard cliphist grim slurp
     nautilus gvfs file-roller xdg-user-dirs
@@ -795,14 +794,13 @@ depacs=(
     # 289 KB, and everything it needs (libwebp) is already pulled in.
     libwebp-tools
 
-    # Qt's WebP decoder (libqwebp.so). The picker's previews are .webp, and so
-    # are the wallpapers; without this plugin quickshell logs "Unsupported image
-    # format" for every one of them and the picker shows empty tiles - even
-    # though libwebp-tools above generated the previews correctly. Nothing in
-    # the Qt or quickshell stack requires or recommends it: the laptop only had
-    # it as someone else's dependency, and the gaming desktop's fresh install
-    # came up with an empty picker. swaybg decodes WebP on its own, so the
-    # wallpaper itself still showed, which is why it went unnoticed.
+    # Qt's WebP decoder (libqwebp.so). The wallpapers are .webp and so are the
+    # picker's previews, and quickshell draws both - without this plugin it
+    # logs "Unsupported image format" for every one of them, the desktop is a
+    # plain background colour and the picker shows empty tiles. Nothing in the
+    # Qt or quickshell stack requires or recommends it: the laptop only had it
+    # as someone else's dependency, and the gaming desktop's fresh install came
+    # up with an empty picker.
     # 446 KB, plus jasper-libs, libmng and cmake-filesystem (~0.9 MB) for its
     # other formats; the version is locked to qt6-qtbase, so it never pulls a
     # different Qt.
@@ -1993,7 +1991,7 @@ check "quickshell installed"           "[[ -x '$rootmnt/usr/bin/quickshell' ]]"
 # correctly for a reason a fresh install does not share and could never have
 # revealed a broken font step.
 check "Symbols Nerd Font installed"    "[[ -f '$rootmnt/usr/local/share/fonts/nerd-fonts-symbols/SymbolsNerdFont-Regular.ttf' ]]"
-check "Qt WebP image plugin (picker previews)" "[[ -f '$rootmnt/usr/lib64/qt6/plugins/imageformats/libqwebp.so' ]]"
+check "Qt WebP image plugin (wallpaper, picker)" "[[ -f '$rootmnt/usr/lib64/qt6/plugins/imageformats/libqwebp.so' ]]"
 check "no display manager"             "[[ ! -e '$rootmnt/etc/systemd/system/display-manager.service' ]]"
 # nwg-panel declares Supplements: hyprland, so it installs itself unless
 # excluded by name. Asserted rather than assumed: a weak dependency that

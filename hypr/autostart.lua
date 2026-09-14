@@ -56,16 +56,9 @@ hl.env("HYPRCURSOR_SIZE", "24")
 --   pipewire, wireplumber, pipewire-pulse
 --   Xwayland              (spawned by Hyprland on demand)
 --
--- Wallpaper. hyprpaper draws it; bin/wallpaper.sh remembers which one.
---
--- The two are separate on purpose: hyprpaper has no memory of its own, so a
--- wallpaper set over IPC is forgotten the moment the daemon restarts. The
--- script records the choice in ~/.local/state and `restore` re-applies it.
---
--- The sleep is not superstition - hyprpaper has to be up and listening on
--- its IPC socket before `restore` can talk to it, and there is no readiness
--- signal to wait on. If restore silently does nothing after a cold boot,
--- this is the first thing to lengthen.
+-- Wallpaper. Quickshell draws it (quickshell/Wallpaper.qml) - there is no
+-- wallpaper daemon. bin/wallpaper.sh remembers which one in ~/.local/state,
+-- and quickshell watches that file.
 hl.on("hyprland.start", function()
     -- Lock straight away on a machine whose disk is not encrypted: it
     -- autologins, so otherwise switching it on is a way in. On a LUKS machine
@@ -74,14 +67,10 @@ hl.on("hyprland.start", function()
     -- bin/lock-at-login.sh.
     hl.exec_cmd("sh -c '$HOME/.config/hypr/../bin/lock-at-login.sh'")
 
-    -- Via the script, not "hyprpaper" directly: which wallpaper daemon a
-    -- machine can actually run is a property of the machine. hyprpaper is
-    -- preferred and used wherever it works; on hardware where it aborts on
-    -- startup - the RX 9070 XT desktop, and any qemu guest on virtio-gpu -
-    -- the script falls back to swaybg. See the backend note in
-    -- bin/wallpaper.sh.
-    hl.exec_cmd("sh -c '$HOME/.config/hypr/../bin/wallpaper.sh daemon'")
-    hl.exec_cmd("sh -c 'sleep 1; $HOME/.config/hypr/../bin/wallpaper.sh restore'")
+    -- Make sure a wallpaper is chosen: on a first login this picks the
+    -- default, and it replaces one that has since been deleted. Nothing waits
+    -- on it - quickshell shows the choice whenever the file appears.
+    hl.exec_cmd("sh -c '$HOME/.config/hypr/../bin/wallpaper.sh restore'")
 
     -- Refresh the picker's preview thumbnails. Safe to run every login: it
     -- only regenerates previews that are missing or older than their source,

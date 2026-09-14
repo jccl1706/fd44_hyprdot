@@ -97,10 +97,7 @@ ShellRoot {
         id: wallpaperVariants
         model: Quickshell.screens
         WallpaperPicker {
-            onApplyRequested: (path, script) => shell.eachFade(f => {
-                f.setterScript = script
-                f.fadeTo(path)
-            })
+            onApplyRequested: (path, script) => WallpaperState.apply(path, script)
         }
     }
 
@@ -127,12 +124,11 @@ ShellRoot {
         NetworkPanel {}
     }
 
-    // The crossfade surface. Unmapped except during a wallpaper change, and
-    // click-through even then.
+    // The wallpaper itself, on the Background layer - there is no wallpaper
+    // daemon. Click-through, and it crossfades when the choice changes.
     Variants {
-        id: fadeVariants
         model: Quickshell.screens
-        WallpaperFade {}
+        Wallpaper {}
     }
 
     // -----------------------------------------------------------------------
@@ -331,13 +327,6 @@ ShellRoot {
 
     function eachNetwork(fn): void {
         const instances = networkVariants.instances
-        for (let i = 0; i < instances.length; i++) {
-            if (instances[i]) fn(instances[i])
-        }
-    }
-
-    function eachFade(fn): void {
-        const instances = fadeVariants.instances
         for (let i = 0; i < instances.length; i++) {
             if (instances[i]) fn(instances[i])
         }

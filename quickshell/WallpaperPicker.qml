@@ -15,10 +15,10 @@
 // It also scales: a grid of eighty wallpapers is a mess, a strip of eighty is
 // the same strip.
 //
-// It does NOT talk to hyprpaper itself. bin/wallpaper.sh does that, because
-// applying a wallpaper and REMEMBERING it are two different jobs: hyprpaper
-// forgets everything when it restarts. Keeping that in one script means the
-// picker, the keybind and autostart all go through the same code path.
+// It does not draw the wallpaper. It hands the choice to WallpaperState: every
+// monitor's Wallpaper fades to it straight away, and bin/wallpaper.sh records
+// it so it survives a restart. One script doing the recording means the
+// picker, a terminal and autostart all go through the same code path.
 
 import Quickshell
 import Quickshell.Io
@@ -161,7 +161,7 @@ PanelWindow {
         // the wallpaper, so the one you have is the reference point - and it
         // also means the strip normally opens with slivers on BOTH sides
         // instead of a bare half-screen, which is what index 0 looks like.
-        if (root.setterScript) currentReader.running = true
+        root.selectCurrent()
         // Re-ask where the previews are. On a first login the thumbnails are
         // still being generated when the shell starts, so the answer at
         // startup is "none yet" - without this the picker would keep using
@@ -169,25 +169,24 @@ PanelWindow {
         if (root.setterScript) thumbDirReader.running = true
     }
 
-    Process {
-        id: currentReader
-        command: root.setterScript ? [root.setterScript, "current"] : []
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const cur = text.trim()
-                if (!cur) return
-                for (let i = 0; i < files.count; i++) {
-                    if (String(files.get(i, "filePath")) === cur) {
-                        // Jump, do not sweep. Without this the strip would
-                        // animate all the way from wherever it was left - on
-                        // the first open of a session, from index 0 - which
-                        // reads as the picker scrolling to find itself.
-                        strip.snap = true
-                        root.selected = i
-                        strip.snap = false
-                        return
-                    }
-                }
+    // By name without extension. The model lists PREVIEWS - in the cache,
+    // always .webp - while the wallpaper in use is the original in
+    // wallpapers/, so comparing whole paths never matched and the picker
+    // always opened on the first file.
+    function selectCurrent(): void {
+        const stem = p => String(p).split("/").pop().replace(/\.[^.]+$/, "")
+        const cur = stem(WallpaperState.path)
+        if (!cur) return
+        for (let i = 0; i < files.count; i++) {
+            if (stem(files.get(i, "fileName")) === cur) {
+                // Jump, do not sweep. Without this the strip would animate
+                // all the way from wherever it was left - on the first open of
+                // a session, from index 0 - which reads as the picker
+                // scrolling to find itself.
+                strip.snap = true
+                root.selected = i
+                strip.snap = false
+                return
             }
         }
     }
@@ -200,11 +199,9 @@ PanelWindow {
     }
 
     // Emitted with the ORIGINAL wallpaper's path. shell.qml hands it to
-    // WallpaperFade, which crossfades and then applies it - the picker does
-    // not run the script itself any more, because the fade has to be able to
-    // sequence the swap behind its own curtain.
+    // WallpaperState, which shows it at once and has the script record it.
     // The script path travels with the request: the picker is what resolved
-    // the repo root, and the fade surface has no way of its own to find it.
+    // the repo root, and WallpaperState has no way of its own to find it.
     signal applyRequested(string path, string script)
 
     function apply(path): void {

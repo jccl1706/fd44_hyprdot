@@ -317,11 +317,15 @@ print(fb if bad else seed)
 
     # --- Hyprland ------------------------------------------------------
     if command -v hyprctl >/dev/null 2>&1 && [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
-        local lua
+        local lua bg
+        bg="$(val "$file" bg)"
         lua="hl.config({ general = { col = {"
         lua+=" active_border = { colors = { \"$(val "$file" border_active_a)\","
         lua+=" \"$(val "$file" border_active_b)\" }, angle = $(val "$file" border_angle) },"
         lua+=" inactive_border = \"$(val "$file" border_inactive)\" } },"
+        # What shows for the moment quickshell restarts and its wallpaper
+        # surface is gone - see misc in hypr/look.lua.
+        lua+=" misc = { background_color = \"rgb(${bg#\#})\" },"
         lua+=" decoration = { shadow = { color = $(val "$file" shadow) } } })"
         hyprctl eval "$lua" >/dev/null 2>&1 || true
     fi

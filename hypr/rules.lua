@@ -225,6 +225,16 @@ hl.layer_rule({
     no_anim = true,
 })
 
+-- The wallpaper (quickshell/Wallpaper.qml) crossfades itself, from the theme's
+-- background colour at login and from one image to the next after that. A
+-- compositor fade of the whole surface on top of it would run the same fade
+-- twice on different curves.
+hl.layer_rule({
+    name    = "wallpaper-no-anim",
+    match   = { namespace = "^quickshell-wallpaper$" },
+    no_anim = true,
+})
+
 
 -- NO BLUR ON THE LAUNCHER. It was tried and removed; this note is here so it
 -- does not get added back on the assumption that it was simply overlooked.

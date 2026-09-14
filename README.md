@@ -86,8 +86,10 @@ sudo bin/chromium-policy-setup.sh            # --remove takes it out again
 - **Frame** — a 4px border drawn around the whole screen, with concave fillets
   where the panels meet it
 - **Launcher** (`SUPER+Space`) — rises out of the bottom frame, fuzzy app search
-- **Wallpaper picker** (`SUPER+,`) — a coverflow strip of sheared tiles, with a
-  crossfade when a wallpaper is applied
+- **Wallpaper** — drawn by quickshell itself, no wallpaper daemon; it
+  crossfades when the choice changes, and `bin/wallpaper.sh set <file>` from a
+  terminal fades in live too
+- **Wallpaper picker** (`SUPER+,`) — a coverflow strip of sheared tiles
 - **Power menu** (`SUPER+M` or the physical power button) — icon-only circles;
   log out, restart and shut down arm on the first press and fire on the second
 - **Lock screen** — themed hyprlock, with battery
@@ -152,9 +154,6 @@ sudo ./install_fedora_v1_11.sh --unattended --yes --desktop --disk /dev/vda \
 `--desktop` matters in a VM even for testing laptop changes: it turns off
 encryption (the LUKS passphrase would be prompted for mid-install) and the 32G
 swap partition, which a 40G test disk cannot spare.
-
-hyprpaper cannot start on virtio-gpu either, so every VM run also exercises the
-swaybg fallback.
 
 ### On a machine the installer did not build
 
@@ -221,6 +220,8 @@ quickshell/      the shell itself, QML
   Theme.qml        SINGLETON — every colour, font and metric
   shell.qml        entry point; one Bar per monitor, IPC, global shortcuts
   Bar · Frame · Launcher · WallpaperPicker · PowerMenu · Osd · Media
+  Wallpaper · WallpaperState    the wallpaper, drawn here - no wallpaper daemon;
+                                 crossfades when the choice changes
   AudioButton · AudioPanel       volume and output/input selection
   NetworkButton · NetworkPanel   Wi-Fi and Ethernet
   CaffeineButton · Caffeine      coffee cup: stay awake - no idle lock, screen-off
@@ -658,9 +659,9 @@ Each of these cost real time, and none produced an error message.
   so it installs itself on every machine and is invisible to any "what pulled
   this in" query. It is excluded by name.
 - `qt6-qtimageformats` is required by nothing in the Qt or quickshell stack, yet
-  without it Qt cannot decode WebP and the wallpaper picker shows empty tiles —
-  while swaybg, which decodes WebP itself, keeps the wallpaper looking fine. The
-  laptop had it by accident; a fresh install did not. Now installed explicitly.
+  without it Qt cannot decode WebP, so the desktop is a plain colour where the
+  wallpaper should be and the picker shows empty tiles. The laptop had it by
+  accident; a fresh install did not. Now installed explicitly.
 - `--setopt=install_weak_deps=False` is deliberately **never** used: this
   Framework's amdgpu and iwlwifi firmware both arrive only via Recommends, and
   stripping weak deps left the machine unable to load any firmware at all.

@@ -266,9 +266,15 @@ hl.config({
 
 hl.config({
     misc = {
-        -- -1 keeps Hyprland's default wallpaper behaviour. Set to 0 or 1 to
-        -- disable the built-in anime mascot wallpapers.
-        force_default_wallpaper = -1,
-        disable_hyprland_logo   = false,
+        -- No built-in mascot wallpaper or logo. Quickshell draws the real
+        -- wallpaper (quickshell/Wallpaper.qml), so for the second a quickshell
+        -- restart takes there is nothing on the background layer, and
+        -- Hyprland paints background_color instead. bin/theme.sh keeps that at
+        -- the theme's own background, so a restart shows a plain field of the
+        -- right colour rather than anime art. This value is the dark theme's,
+        -- for the moment before theme.sh has run.
+        force_default_wallpaper = 0,
+        disable_hyprland_logo   = true,
+        background_color        = "rgb(11111b)",
     },
 })
