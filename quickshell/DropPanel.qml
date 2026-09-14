@@ -129,6 +129,23 @@ PanelWindow {
     readonly property int closeDuration: 140
     property int slideDuration: openDuration
 
+    // How far the card starts UNDER the bar's bottom edge, in px.
+    //
+    // Butted up exactly, the card's top edge lands wherever the bar's bottom
+    // does - mid-pixel at fractional scaling (38 logical px is 59.53 physical
+    // on the laptop's 1.5667). The card's first rows are then only partly
+    // covered, and since the card is translucent the darker content under it
+    // shows through right against the opaque bar: a grey hairline across the
+    // top of the panel on cream. Measured from a screenshot: bar #faf4ed,
+    // two rows of #e4ded8 / #e2ddd7, then the card's #f2ece6.
+    //
+    // Overlapping the bar hides that edge where it cannot show: the card's top
+    // gradient stop is exactly Theme.bg, so over the bar it is the bar's own
+    // colour whatever the panel alpha. The contents, fillets and padding are
+    // pushed down by the same amount, so nothing visibly moves. The launcher
+    // and power menu already avoid this by running under the frame.
+    readonly property int seamOverlap: 2
+
     // --- scrim -----------------------------------------------------------
     //
     // Inset past the bar and the frame and rounded to the well, exactly as in
@@ -162,10 +179,11 @@ PanelWindow {
     // The card slides down from BEHIND the bar, and this surface is an overlay
     // above it - unclipped, the card would be drawn across the bar's right
     // pill on its way down. Clipping to the region below the bar makes it
-    // emerge from the bar's bottom edge instead.
+    // emerge from the bar's bottom edge instead - from seamOverlap px under it,
+    // so its top edge never sits on the bar's edge (see seamOverlap).
     Item {
         id: well
-        anchors { fill: parent; topMargin: Theme.barHeight }
+        anchors { fill: parent; topMargin: Theme.barHeight - root.seamOverlap }
         clip: true
 
         Item {
@@ -180,7 +198,7 @@ PanelWindow {
 
             // Tracks the contents every frame, so anything inside that
             // animates its own height grows the card on that same curve.
-            height: body.childrenRect.height + pad * 2
+            height: body.childrenRect.height + pad * 2 + root.seamOverlap
 
             // Anchored at the frames rather than placed by x there: a freshly
             // mapped surface learns its width only after the compositor
@@ -253,7 +271,7 @@ PanelWindow {
                 InnerCorner {
                     visible: root.side !== "left"
                     corner: "topright"
-                    anchors { top: parent.top
+                    anchors { top: parent.top; topMargin: root.seamOverlap
                               right: panelBody.left; rightMargin: -1 }
                 }
 
@@ -261,7 +279,7 @@ PanelWindow {
                 InnerCorner {
                     visible: root.side !== "right"
                     corner: "topleft"
-                    anchors { top: parent.top
+                    anchors { top: parent.top; topMargin: root.seamOverlap
                               left: panelBody.right; leftMargin: -1 }
                 }
 
@@ -290,7 +308,7 @@ PanelWindow {
                 // Padding measured from the VISIBLE edges - the part running
                 // under a frame does not count.
                 anchors {
-                    top: parent.top;     topMargin: card.pad
+                    top: parent.top;     topMargin: card.pad + root.seamOverlap
                     left: parent.left;   leftMargin: card.pad + (root.side === "left" ? Theme.frameThickness : 0)
                     right: parent.right; rightMargin: card.pad + (root.side === "right" ? Theme.frameThickness : 0)
                 }

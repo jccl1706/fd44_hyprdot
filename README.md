@@ -39,7 +39,7 @@ all follow — nothing restarts.
 </tr>
 </table>
 
-A theme is one file of 46 key/value pairs in [`themes/`](themes/). `bin/theme.sh`
+A theme is one file of 47 key/value pairs in [`themes/`](themes/). `bin/theme.sh`
 reads it and fans the values out to five consumers, each with its own idea of
 what a config file is:
 

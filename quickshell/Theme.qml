@@ -138,6 +138,11 @@ Singleton {
     // onAccent` fails with "Cannot assign a value to a signal".
     readonly property color accentFg: c("accentFg", "#11111b")
 
+    // Resting colour of the bar's status icons (AudioButton, NetworkButton).
+    // Per theme because what reads as "present but quiet" differs: dim on
+    // dark, the accent on cream. Falls back to dim for a theme without it.
+    readonly property color pluginIcon: c("pluginIcon", c("dim", "#6c7086"))
+
     // --- type ------------------------------------------------------------
     // NOTE: "Inter Variable", not "Inter". rsms-inter-vf-fonts registers it
     // under that name; asking for "Inter" silently falls back to Noto Sans

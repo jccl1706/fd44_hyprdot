@@ -59,7 +59,7 @@ Item {
         // mean is the one state worth noticing from across the room.
         color: root.muted      ? Theme.danger
              : hover.hovered   ? Theme.fg
-                               : Theme.dim
+                               : Theme.pluginIcon
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
     }
 

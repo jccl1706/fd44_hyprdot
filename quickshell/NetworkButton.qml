@@ -82,7 +82,7 @@ Item {
         font.pixelSize: 16
         color: root.offline     ? Theme.danger
              : hover.hovered    ? Theme.fg
-                                : Theme.dim
+                                : Theme.pluginIcon
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
     }
 
