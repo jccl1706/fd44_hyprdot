@@ -26,6 +26,8 @@
 #   - limits the AMD GPU to 250 W, at boot and after every resume
 #   - adds you to the gamemode group, so GameMode can switch the CPU governor
 #   - restores the CPU energy preference after every GameMode session
+#   - links the MangoHud overlay config from this repo (mangohud/), and lets
+#     the gamemode group read the CPU energy counter so it can show CPU power
 #   - verifies all of it, including running the tools rather than only
 #     asking rpm whether they are installed
 #
@@ -600,6 +602,82 @@ fi
 
 
 # -------------------------------------------------------------------------
+# MangoHud overlay
+# -------------------------------------------------------------------------
+# The overlay's two layouts live in this repo (mangohud/), linked rather than
+# copied, so an edit in the repo is what the next game shows. The two files,
+# not the directory: MangoHud may keep state beside its config, and that has
+# no business in a git checkout.
+#
+# As the player, like everything else in their home. A file already there that
+# is not this link is moved aside, not overwritten.
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+mh_dir="$target_home/.config/MangoHud"
+log "MangoHud overlay"
+if [[ ! -f $repo/mangohud/MangoHud.conf || ! -f $repo/mangohud/presets.conf ]]; then
+    warn "no mangohud/ configs in $repo - skipping the overlay"
+elif (( DRY )); then
+    printf '\033[1;34mwould link:\033[0m %s/MangoHud.conf and presets.conf -> %s/mangohud/\n' "$mh_dir" "$repo"
+else
+    runuser -u "$target_user" -- mkdir -p "$mh_dir"
+    for f in MangoHud.conf presets.conf; do
+        src="$repo/mangohud/$f"
+        dst="$mh_dir/$f"
+        if [[ -L $dst && $(readlink "$dst") == "$src" ]]; then
+            continue
+        fi
+        if [[ -e $dst || -L $dst ]]; then
+            runuser -u "$target_user" -- mv "$dst" "$dst.before-fd44-$(date +%Y%m%d-%H%M%S)"
+            printf '    kept the previous %s beside it\n' "$f"
+        fi
+        runuser -u "$target_user" -- ln -s "$src" "$dst"
+    done
+    printf '    %s -> %s/mangohud/\n' "$mh_dir" "$repo"
+fi
+
+
+# -------------------------------------------------------------------------
+# CPU power for the overlay
+# -------------------------------------------------------------------------
+# WHY. MangoHud reads CPU power from the RAPL energy counter,
+# /sys/class/powercap/intel-rapl:0/energy_uj - Intel's name, but the same
+# interface serves AMD Zen. The kernel makes that file root-only because
+# fine-grained energy readings are a side channel (PLATYPUS, CVE-2020-8694):
+# an unprivileged process can learn about work another user's processes do.
+# Measured on the 9700X: -r-------- root root, and MangoHud's library carries
+# "Rapl: energy_uj is not accessible" - CPU power was blank in the overlay.
+#
+# HOW. A udev rule gives the gamemode group read access to package-0's counter,
+# the one MangoHud reads: one group, one file, never world-readable. The player
+# is that group's only member, and anything running as the player can already
+# read the player's own data directly, so the side channel opens to nobody new.
+#
+# udev rather than tmpfiles.d, unlike the EPP rule above: the rapl modules are
+# loaded by udev, and a tmpfiles line can run before the file exists.
+rapl_zone=/sys/class/powercap/intel-rapl:0
+rapl_rule="$R/etc/udev/rules.d/60-fd44-rapl-read.rules"
+log "CPU power for the overlay"
+if [[ ! -e $rapl_zone/energy_uj ]]; then
+    printf '    this CPU exposes no RAPL energy counter - CPU power stays blank\n'
+elif (( DRY )); then
+    printf '\033[1;34mwould write:\033[0m %s, and apply it now\n' "$rapl_rule"
+else
+    install -d "$(dirname "$rapl_rule")"
+    cat > "$rapl_rule" <<'RULE'
+# Written by bin/gaming-setup.sh (fd44_hyprdot). Lets the gamemode group read the
+# CPU package energy counter, so MangoHud can show CPU power. Root-only by
+# default because energy readings are a side channel: one group, one file.
+SUBSYSTEM=="powercap", KERNEL=="intel-rapl:0", RUN+="/usr/bin/chgrp gamemode /sys%p/energy_uj", RUN+="/usr/bin/chmod 0440 /sys%p/energy_uj"
+RULE
+    # Applied through the rule itself rather than a separate chmod, so a rule
+    # that does not work shows up now instead of after the next boot.
+    udevadm control --reload
+    udevadm trigger --action=change --settle "$rapl_zone"
+    printf '    %s\n' "$(stat -c '%A %U:%G' "$rapl_zone/energy_uj")"
+fi
+
+
+# -------------------------------------------------------------------------
 # Proton-GE (optional)
 # -------------------------------------------------------------------------
 # Valve's Proton covers most of the catalogue. GE-Proton is a community
@@ -877,6 +955,25 @@ done
 [[ $pl_now == "$GPU_POWER_LIMIT" ]] \
     && ok "GPU power limit is ${GPU_POWER_LIMIT} W now" || bad "GPU power limit reads ${pl_now:-nothing}, expected ${GPU_POWER_LIMIT} W"
 
+# MangoHud: both layouts linked into the player's home, and CPU power readable
+# AS THE PLAYER - root being able to read the counter proves nothing.
+mh_links=0
+for f in MangoHud.conf presets.conf; do
+    if [[ $(readlink "$target_home/.config/MangoHud/$f" 2>/dev/null) == "$repo/mangohud/$f" ]]; then
+        mh_links=$((mh_links + 1))
+    fi
+done
+(( mh_links == 2 )) \
+    && ok "MangoHud overlay config linked from $repo/mangohud" \
+    || bad "MangoHud config not linked into $target_home/.config/MangoHud ($mh_links of 2)"
+if [[ -e /sys/class/powercap/intel-rapl:0/energy_uj ]]; then
+    if runuser -u "$target_user" -- cat /sys/class/powercap/intel-rapl:0/energy_uj >/dev/null 2>&1; then
+        ok "CPU energy counter readable by $target_user (MangoHud CPU power)"
+    else
+        bad "CPU energy counter not readable by $target_user - MangoHud CPU power will be blank"
+    fi
+fi
+
 # OWNERSHIP OF THE WHOLE STEAM TREE, not just the leaf. A root-owned
 # directory anywhere in here stops Steam extracting its bootstrap, and the
 # error it prints names tar, not permissions.
@@ -912,4 +1009,5 @@ printf '  2. Settings -> Compatibility -> "Enable Steam Play for all other title
 printf '  3. per-title launch options, if a game needs them:\n'
 printf '       gamemoderun %%command%%\n'
 printf '       mangohud gamemoderun %%command%%\n'
+printf '         (Right Shift+F12 shows/hides the overlay, Right Shift+F10 switches layout)\n'
 printf '       gamescope -W 2560 -H 1440 -f -- %%command%%\n'

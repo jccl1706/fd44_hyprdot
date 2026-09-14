@@ -245,6 +245,7 @@ bin/             theme.sh · wallpaper.sh · power-mode.sh · idle-action.sh · 
 install/         the installer, and vm-test.sh
 starship/        starship.toml — the prompt; ANSI colour names, so it follows the theme
 cooling/         CoolerControl backup of the desktop's fan curves (reviewed, no credentials)
+mangohud/        MangoHud.conf · presets.conf — the in-game overlay, linked by gaming-setup.sh
 wireplumber/     audio rules — the EVO4 uses software volume (matches only that device)
 ```
 
@@ -303,6 +304,22 @@ It also limits the GPU to 250 W, at boot and after every resume, through a
 small systemd unit. With the GPU maxed out that took its own fans from about
 2,000 rpm to 1,650 and its junction from 93 °C to 88 °C median, measured over
 two long ARC Raiders sessions.
+
+It also sets up **MangoHud**, the in-game overlay, from [`mangohud/`](mangohud/):
+a compact bar across the top-left corner by default, and a detailed panel one
+key away. Both show GPU and CPU load, temperature and power, VRAM, RAM, FPS with
+the 1% low, and frametime, in the dark theme's colours. Turn it on per game in
+Steam's launch options:
+
+```sh
+mangohud gamemoderun %command%
+```
+
+`Right Shift+F12` shows and hides it; `Right Shift+F10` switches layout. CPU power
+comes from the CPU's RAPL energy counter, which the kernel keeps root-only
+because power readings can leak what other users' processes are doing. A udev
+rule lets the `gamemode` group read that one file — on this machine the player
+is its only member.
 
 ## Cooling
 
