@@ -321,11 +321,14 @@ because power readings can leak what other users' processes are doing. A udev
 rule lets the `gamemode` group read that one file — on this machine the player
 is its only member.
 
-**Logging crashes the game when it stops.** Fedora 44's MangoHud is 0.8.3-rc1, and
-stopping a log (`Left Shift+F2`) aborts the game on an ImGui assertion that
-upstream fixed in 0.8.3. Hide the overlay first (`Right Shift+F12`), then stop
-logging, wait about 15 seconds and show it again — details in
-`mangohud/MangoHud.conf`.
+**MangoHud comes from Bazzite's COPR, not Fedora.** Fedora 44's 0.8.3-rc1 aborts
+a game when a log (`Left Shift+F2`) stops; upstream fixed that in 0.8.3, and
+Bazzite builds 0.8.4. The script adds that COPR limited to MangoHud alone
+(`includepkgs=mangohud*`) — the same repository also carries Bazzite's
+NetworkManager, bluez and Xwayland, which stay out of reach. Tried in a Fedora 44
+VM first: the old build crashed when logging stopped, this one did not. Back to
+Fedora's build: delete `/etc/yum.repos.d/fd44-bazzite-mangohud.repo`, then
+`sudo dnf distro-sync mangohud`.
 
 ## Cooling
 

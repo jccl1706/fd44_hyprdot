@@ -18,6 +18,8 @@
 # WHAT THIS TOUCHES
 #   - enables the RPM Fusion free and nonfree repositories (Steam is not in
 #     Fedora's own repos, and never will be - it is proprietary)
+#   - adds Bazzite's COPR for MangoHud only - Fedora's 0.8.3-rc1 aborts a game
+#     when logging stops
 #   - installs steam, and the tools that make it usable on Hyprland
 #   - swaps Mesa's VA-API driver for RPM Fusion's, which has the H.264 and
 #     HEVC paths compiled in
@@ -187,6 +189,63 @@ packages=(
 
 log "installing (${#packages[@]} requested, plus their 32-bit stack)"
 run dnf install "${ASSUME_YES[@]}" "${packages[@]}"
+
+# MangoHud from Bazzite's COPR, and nothing else from it.
+#
+# WHY. Fedora 44 ships MangoHud 0.8.3-rc1 - Rawhide too, with no update queued.
+# Stopping a log (Left Shift+F2) makes it draw a results window whose graph has
+# an empty ImGui label, and that build keeps ImGui's assertions on, so the game
+# aborts: Cyberpunk 2077 did, mid-session. Upstream fixed it in 0.8.3 (commit
+# 9400280e).
+#
+# WHICH REPO. Bazzite (Universal Blue) builds upstream 0.8.4 from a spec that is
+# Fedora's plus one patch for mangoapp - the gamescope variant this machine does
+# not use - signed with the COPR project key. Tried first in a Fedora 44 live VM:
+# 0.8.3-rc1 aborted when logging stopped; 0.8.4 from this repo showed "Logging
+# Finished" and kept running.
+#
+# MANGOHUD ONLY. The same COPR carries Bazzite's NetworkManager, bluez, Xwayland
+# and more. includepkgs keeps all of that out of reach - today those builds are
+# older than Fedora's, but nothing guarantees they stay that way.
+#
+# TWO SECTIONS. The COPR builds i686 in a separate chroot, and the 32-bit half
+# Steam's 32-bit games load has to match the 64-bit one or dnf refuses.
+#
+# Back to Fedora's build: delete the repo file, then  sudo dnf distro-sync mangohud
+mh_repo="/etc/yum.repos.d/fd44-bazzite-mangohud.repo"
+log "MangoHud from Bazzite's COPR"
+if (( DRY )); then
+    printf '\033[1;34mwould write:\033[0m %s\n' "$mh_repo"
+else
+    copr="https://download.copr.fedorainfracloud.org/results/ublue-os/bazzite-multilib"
+    cat > "$mh_repo" <<REPO
+# Written by bin/gaming-setup.sh (fd44_hyprdot). MangoHud only, from Bazzite's
+# COPR (ublue-os/bazzite-multilib): Fedora's 0.8.3-rc1 aborts a game when
+# logging stops. includepkgs keeps every other package in that repository out.
+[fd44-bazzite-mangohud]
+name=Bazzite MangoHud (COPR ublue-os/bazzite-multilib, mangohud only)
+baseurl=$copr/fedora-\$releasever-\$basearch/
+type=rpm-md
+gpgcheck=1
+gpgkey=$copr/pubkey.gpg
+repo_gpgcheck=0
+enabled=1
+includepkgs=mangohud*
+
+[fd44-bazzite-mangohud-i386]
+name=Bazzite MangoHud i386 (COPR ublue-os/bazzite-multilib, mangohud only)
+baseurl=$copr/fedora-\$releasever-i386/
+type=rpm-md
+gpgcheck=1
+gpgkey=$copr/pubkey.gpg
+repo_gpgcheck=0
+enabled=1
+includepkgs=mangohud*
+REPO
+    chmod 0644 "$mh_repo"
+    printf '    %s\n' "$mh_repo"
+fi
+run dnf upgrade "${ASSUME_YES[@]}" --refresh mangohud
 
 # ntsync, loaded now rather than at the next boot.
 #
@@ -773,6 +832,19 @@ rpm -q steam >/dev/null 2>&1 && ok "steam $(rpm -q --qf '%{version}' steam)" || 
 # is exactly how a missing x86_64 half passed this check once.
 for p in gamemode.x86_64 gamemode.i686 mangohud.x86_64 mangohud.i686 gamescope vulkan-tools; do
     rpm -q "$p" >/dev/null 2>&1 && ok "$p" || bad "$p not installed"
+done
+
+# MangoHud from the COPR, both halves, new enough to have the logging fix.
+# rpm's own vercmp, so 0.8.3~rc1 counts as older than 0.8.3.
+for arch in x86_64 i686; do
+    evr="$(rpm -q --qf '%{evr}' "mangohud.$arch" 2>/dev/null || true)"
+    from="$(dnf5 repoquery -q --installed --qf '%{from_repo}' "mangohud.$arch" 2>/dev/null || true)"
+    cmp="$(rpm --eval "%{lua: print(rpm.vercmp('${evr%%-*}', '0.8.3'))}" 2>/dev/null || true)"
+    if [[ $from == fd44-bazzite-mangohud* && ${cmp:--1} -ge 0 ]]; then
+        ok "mangohud.$arch $evr from $from (logging no longer crashes games)"
+    else
+        bad "mangohud.$arch is ${evr:-missing} from ${from:-?} - expected 0.8.3 or newer from fd44-bazzite-mangohud"
+    fi
 done
 
 # Controller support. steam Requires steam-devices, which is the udev rules
