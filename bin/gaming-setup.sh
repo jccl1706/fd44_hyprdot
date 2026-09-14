@@ -5,7 +5,7 @@
 #
 # Usage:  sudo bin/gaming-setup.sh [--dry-run] [--proton-ge] [-y]
 #
-# DELIBERATELY NOT PART OF THE INSTALLER. install_fedora_v1_11.sh builds the
+# DELIBERATELY NOT PART OF THE INSTALLER. install_fedora.sh builds the
 # same minimal base on every machine and only installs what the system is
 # broken without. Steam is not that: it is a feature set that one machine
 # wants - the ASRock B650I / RX 9070 XT desktop - and the laptop does not.

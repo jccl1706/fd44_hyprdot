@@ -104,12 +104,12 @@ give it this repo and the result is this desktop, not a generic one.
 
 ```sh
 # from a Fedora Workstation live ISO
-curl -O https://raw.githubusercontent.com/jccl1706/fd44_hyprdot/master/install/install_fedora_v1_11.sh
-chmod +x install_fedora_v1_11.sh
+curl -O https://raw.githubusercontent.com/jccl1706/fd44_hyprdot/master/install/install_fedora.sh
+chmod +x install_fedora.sh
 
-./install_fedora_v1_11.sh --check-repos   # resolve every package name, no root
-sudo ./install_fedora_v1_11.sh --dry-run  # print every command, change nothing
-sudo ./install_fedora_v1_11.sh            # the real thing
+./install_fedora.sh --check-repos   # resolve every package name, no root
+sudo ./install_fedora.sh --dry-run  # print every command, change nothing
+sudo ./install_fedora.sh            # the real thing
 ```
 
 It finishes with a verification pass — boot entries, fstab, autologin, the
@@ -146,8 +146,8 @@ and forwards host port 2222 to the guest's ssh. The target disk is `/dev/vda`.
 A full install with no questions to answer, inside the VM:
 
 ```sh
-curl -O http://10.0.2.2:8000/install_fedora_v1_11.sh && chmod +x install_fedora_v1_11.sh
-sudo ./install_fedora_v1_11.sh --unattended --yes --desktop --disk /dev/vda \
+curl -O http://10.0.2.2:8000/install_fedora.sh && chmod +x install_fedora.sh
+sudo ./install_fedora.sh --unattended --yes --desktop --disk /dev/vda \
      --dotfiles https://github.com/jccl1706/fd44_hyprdot
 ```
 
@@ -367,17 +367,17 @@ The installer erases the whole target disk, including `/home`. First:
 Boot a Fedora 44 Workstation live ISO, open a terminal, and fetch the installer:
 
 ```sh
-curl -O https://raw.githubusercontent.com/jccl1706/fd44_hyprdot/master/install/install_fedora_v1_11.sh
-chmod +x install_fedora_v1_11.sh
+curl -O https://raw.githubusercontent.com/jccl1706/fd44_hyprdot/master/install/install_fedora.sh
+chmod +x install_fedora.sh
 ```
 
 Then, in the order the installer recommends:
 
 ```sh
-./install_fedora_v1_11.sh --check-repos     # every package name resolves; no root, no changes
-./install_fedora_v1_11.sh --preflight       # report on this machine; no changes
-sudo ./install_fedora_v1_11.sh --desktop --dotfiles https://github.com/jccl1706/fd44_hyprdot --dry-run
-sudo ./install_fedora_v1_11.sh --desktop --dotfiles https://github.com/jccl1706/fd44_hyprdot
+./install_fedora.sh --check-repos     # every package name resolves; no root, no changes
+./install_fedora.sh --preflight       # report on this machine; no changes
+sudo ./install_fedora.sh --desktop --dotfiles https://github.com/jccl1706/fd44_hyprdot --dry-run
+sudo ./install_fedora.sh --desktop --dotfiles https://github.com/jccl1706/fd44_hyprdot
 ```
 
 - **`--desktop`** sets the values for a machine with no battery and no lid:

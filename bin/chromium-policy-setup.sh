@@ -6,7 +6,7 @@
 #
 # Usage:  sudo bin/chromium-policy-setup.sh              set up, or repair
 #         sudo bin/chromium-policy-setup.sh --remove     take it all out
-#         bin/install_fedora_v1_11.sh runs it in the chroot with --user NAME
+#         install/install_fedora.sh runs it in the chroot with --user NAME
 #
 # WHY. bin/chrome-theme.sh themes Chromium through an enterprise policy file,
 # and Chromium reads policy only from /etc/chromium/policies/managed. This used

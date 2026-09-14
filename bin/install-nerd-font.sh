@@ -28,7 +28,7 @@
 # download below is only for a machine that somehow has this script without
 # the rest of the repository.
 #
-# The version is pinned to match install_fedora_v1_11.sh. If one changes the
+# The version is pinned to match install_fedora.sh. If one changes the
 # other should too, or a reinstall will quietly move the font backwards.
 
 set -euo pipefail
@@ -37,7 +37,7 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 VERSION="v3.4.0"
 URL="https://github.com/ryanoasis/nerd-fonts/releases/download/$VERSION/NerdFontsSymbolsOnly.tar.xz"
-# sha256 of that tarball, the same pin as install_fedora_v1_11.sh's
+# sha256 of that tarball, the same pin as install_fedora.sh's
 # nerdfont_sha256. The font inside matches the copy committed in fonts/.
 SHA256="7f8c090da3b0eaa7108646bf34cbbb6ed13d5358a72460522108b06c7ecd716a"
 DEST="/usr/local/share/fonts/nerd-fonts-symbols"

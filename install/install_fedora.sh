@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Guided Fedora 44 installer                               v1.11  2026-09-11
+# Guided Fedora 44 installer                               v1.12  2026-09-14
 #   Btrfs + subvolumes  |  systemd-boot (UEFI)  |  optional LUKS2+LVM  |  hibernation
 #   Hyprland + quickshell only  |  AMD (Framework 13)  |  laptop
 #   No display manager: getty autologin + uwsm  |  Plymouth graphical boot
@@ -12,6 +12,39 @@
 # Arch script or add another branch yourself; this one is deliberately narrow.
 #
 # Changelog
+#   v1.12 RENAMED to install_fedora.sh: the file name no longer carries the
+#         version, so the download link stops changing with every release.
+#         The version lives in this header and in installer_version below.
+#         Everything since v1.11, most of it found by living with the result:
+#           - SECURITY. A machine without disk encryption locks the session at
+#             login (bin/lock-at-login.sh) - autologin otherwise hands the
+#             desktop to anyone who switches it on. The Chromium policy
+#             directory stays root's, written by a sandboxed root service from
+#             a validated request (bin/chromium-policy-setup.sh), instead of
+#             being writable by the user. The default-password gate in
+#             ~/.bash_profile cannot be skipped with Ctrl+C, the Nerd Font
+#             download is pinned by sha256 and extracted without following
+#             symlinks, and the install log is mode 600.
+#           - NO WALLPAPER DAEMON. Quickshell draws the wallpaper
+#             (quickshell/Wallpaper.qml); hyprpaper and swaybg are no longer
+#             installed. The COPR's hyprpaper aborts on start.
+#           - --desktop (no battery or lid, no encryption, no swap partition)
+#             and --dotfiles URL.
+#           - Configs linked from the dotfiles repo: kitty and wireplumber
+#             join hypr and quickshell, and scripts are reached through
+#             ~/.config/hypr rather than a hardcoded path.
+#           - Packages: jetbrains-mono-fonts (kitty's font), libwebp-tools and
+#             qt6-qtimageformats (the WebP wallpapers and previews),
+#             python3-gobject (powerprofilesctl is a Python script); the
+#             Symbols Nerd Font comes from the copy committed to the repo
+#             instead of a download; nwg-panel is excluded (it installs itself
+#             through Supplements: hyprland); playerctl is gone (quickshell
+#             speaks MPRIS itself).
+#           - The power button opens the power menu instead of shutting down,
+#             and the install verifies that drop-in.
+#           - Fixed: --dry-run, which the Chromium policy step broke; an empty
+#             wallpaper picker on a fresh install; false statements in the
+#             closing banner, and a command that ran inside it.
 #   v1.11 THE INSTALLED MACHINE COULD NOT LOG IN. Two bugs, both found by
 #         actually booting a VM install rather than by reading the script.
 #           - The account's password was force-expired (shadow field 3 = 0) on
@@ -220,17 +253,17 @@
 #   v1.0  Initial Fedora port of install_arch_v3_3.sh.
 #
 # Usage:
-#   ./install_fedora_v1_11.sh                 guided install (asks everything)
-#   ./install_fedora_v1_11.sh --preflight     report on this machine, change nothing
-#   ./install_fedora_v1_11.sh --check-repos   resolve every package name against the
+#   ./install_fedora.sh                 guided install (asks everything)
+#   ./install_fedora.sh --preflight     report on this machine, change nothing
+#   ./install_fedora.sh --check-repos   resolve every package name against the
 #                                             real repos (incl. the Hyprland COPR),
 #                                             change nothing, no root needed
-#   ./install_fedora_v1_11.sh --dry-run       ask, then print every command, touch nothing
-#   ./install_fedora_v1_11.sh --unattended    no prompts, use the config block below
-#   ./install_fedora_v1_11.sh --unattended -y skip the countdown too
-#   ./install_fedora_v1_11.sh --desktop       no battery, no lid: machine=desktop,
+#   ./install_fedora.sh --dry-run       ask, then print every command, touch nothing
+#   ./install_fedora.sh --unattended    no prompts, use the config block below
+#   ./install_fedora.sh --unattended -y skip the countdown too
+#   ./install_fedora.sh --desktop       no battery, no lid: machine=desktop,
 #                                             no disk swap, no encryption, zram on
-#   ./install_fedora_v1_11.sh --dotfiles URL  clone this repo and link its configs
+#   ./install_fedora.sh --dotfiles URL  clone this repo and link its configs
 #
 # Recommended first run:  --check-repos, then --preflight, then --dry-run, then for real.
 # Run this from a Fedora live/rescue environment (Fedora Everything netinst
@@ -320,6 +353,10 @@
 #   `openssl passwd -6` if mkpasswd is not on your live media).
 #
 set -Eeuo pipefail
+
+# Shown in the wizard's banner and the preflight report. Bump it together
+# with the header at the top of this file.
+installer_version="v1.12"
 
 ###############################################################################
 # Config - these are the DEFAULTS. Interactive mode offers them as defaults
@@ -567,7 +604,7 @@ wizard() {
     {
         printf '\n\033[1;36m'
         printf '  ┌──────────────────────────────────────────────┐\n'
-        printf '  │  Fedora 44 + Hyprland guided install   v1.11 │\n'
+        printf '  │  Fedora 44 + Hyprland guided install   %-5s │\n' "$installer_version"
         printf '  └──────────────────────────────────────────────┘\n'
         printf '\033[0m'
         printf '  Press Enter to accept the default shown for each question.\n'
@@ -937,7 +974,7 @@ check_live_tools
 # Preflight
 ###############################################################################
 preflight() {
-    log "Preflight  (installer v1.11)"
+    log "Preflight  (installer $installer_version)"
 
     printf '\n  Disks on this machine:\n'
     lsblk -dno NAME,SIZE,TYPE,MODEL,TRAN 2>/dev/null \
