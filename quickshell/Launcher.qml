@@ -124,33 +124,9 @@ PanelWindow {
     function launch(entry): void {
         if (!entry) return
         root.close()
-
-        // Launch through uwsm so the app becomes its own systemd scope under
-        // app.slice, NOT a child of quickshell. Anything spawned as a child
-        // shares quickshell's cgroup and dies with it, so restarting the bar
-        // would take every app you had opened down with it.
-        launcher.entry = entry
-        launcher.command = ["uwsm", "app", "--", entry.id + ".desktop"]
-        launcher.running = true
-    }
-
-    Process {
-        id: launcher
-
-        // Held so the fallback below knows what failed to start.
-        property var entry: null
-
-        onExited: (code, status) => {
-            // uwsm can refuse an entry it cannot resolve. Rather than leave
-            // the user staring at nothing, fall back to Quickshell's own
-            // launcher, which loses the systemd scope but does start the app.
-            if (code !== 0 && launcher.entry) {
-                console.warn("launcher: uwsm failed for", launcher.entry.id,
-                             "- falling back to direct execute")
-                launcher.entry.execute()
-            }
-            launcher.entry = null
-        }
+        // As its own systemd service, not a child of quickshell - see
+        // AppLaunch.qml for why, and for the bug the old way had.
+        AppLaunch.launch(entry)
     }
 
     // --- results ---------------------------------------------------------
