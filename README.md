@@ -114,7 +114,7 @@ sudo ./install_fedora.sh            # the real thing
 
 It finishes with a verification pass — boot entries, fstab, autologin, the
 font, the policy directory, the absence of packages that install themselves.
-Twenty-six always run; up to eight more depend on the choices made — LUKS
+Twenty-seven always run; up to eight more depend on the choices made — LUKS
 encryption and disk swap add two each, zram two, a laptop one
 (`powerprofilesctl`), and Chromium as the browser one (its policy directory).
 
@@ -172,7 +172,8 @@ mkdir -p ~/.config/systemd/user
 ln -s "$PWD/systemd/power-mode.service" ~/.config/systemd/user/
 systemctl --user daemon-reload && systemctl --user enable --now power-mode.service
 
-sudo dnf install rsms-inter-vf-fonts jetbrains-mono-fonts
+sudo dnf install rsms-inter-vf-fonts jetbrains-mono-fonts google-noto-serif-vf-fonts \
+                 liberation-sans-fonts liberation-serif-fonts liberation-mono-fonts
 sudo bin/install-nerd-font.sh        # installs the copy committed in fonts/
 bin/theme.sh restore                 # generate the palette files
 ```

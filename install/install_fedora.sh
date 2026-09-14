@@ -824,6 +824,22 @@ depacs=(
     # Pulls nothing: noarch, no dependencies of its own.
     jetbrains-mono-fonts
 
+    # A serif, and metric-compatible stand-ins for the fonts web pages name.
+    # Without them NO serif font is installed at all, and fontconfig's answer
+    # for "serif" - and for Times New Roman, Georgia and Times - is Adwaita
+    # Mono: a MONOSPACE font. Chromium's default standard font is Times New
+    # Roman, so every page that does not set its own font rendered in a
+    # typewriter face, and Arial/Courier New pages got Noto with different
+    # widths. Found on the desktop, reading pages in Chromium.
+    #   google-noto-serif-vf-fonts  the serif itself (2 MB)
+    #   liberation-{sans,serif,mono}-fonts  same metrics as Arial, Times New
+    #                               Roman and Courier New, so layouts built
+    #                               around those do not reflow (4 MB)
+    # All noarch, no dependencies of their own. The three Liberation packages
+    # are named directly rather than through the liberation-fonts metapackage.
+    google-noto-serif-vf-fonts
+    liberation-sans-fonts liberation-serif-fonts liberation-mono-fonts
+
     # cwebp/dwebp, used by bin/wallpaper.sh to build the picker's preview
     # thumbnails. Without it `wallpaper.sh thumbs` dies on every login and the
     # picker has no previews to show - which is how a VM install came up with
@@ -2028,6 +2044,8 @@ check "quickshell installed"           "[[ -x '$rootmnt/usr/bin/quickshell' ]]"
 # correctly for a reason a fresh install does not share and could never have
 # revealed a broken font step.
 check "Symbols Nerd Font installed"    "[[ -f '$rootmnt/usr/local/share/fonts/nerd-fonts-symbols/SymbolsNerdFont-Regular.ttf' ]]"
+# Without a serif, "serif" and Times New Roman resolve to a monospace font.
+check "serif + Liberation fonts installed" "[[ -f '$rootmnt/usr/share/fonts/google-noto-vf/NotoSerif[wght].ttf' && -f '$rootmnt/usr/share/fonts/liberation-serif-fonts/LiberationSerif-Regular.ttf' ]]"
 check "Qt WebP image plugin (wallpaper, picker)" "[[ -f '$rootmnt/usr/lib64/qt6/plugins/imageformats/libqwebp.so' ]]"
 check "no display manager"             "[[ ! -e '$rootmnt/etc/systemd/system/display-manager.service' ]]"
 # nwg-panel declares Supplements: hyprland, so it installs itself unless
