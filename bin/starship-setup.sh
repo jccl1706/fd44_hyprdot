@@ -122,7 +122,8 @@ log "wrote $SNIPPET"
 
 # Fedora's default ~/.bashrc reads ~/.bashrc.d/. One written by hand may not.
 if ! grep -qs 'bashrc\.d' "$HOME/.bashrc"; then
-    warn "~/.bashrc does not read ~/.bashrc.d/, so the prompt will not start. Add:"
+    warn "$HOME/.bashrc does not read $HOME/.bashrc.d/, so the prompt will not start. Add:"
+    # shellcheck disable=SC2016  # the line to add, printed exactly as written
     printf '    for rc in ~/.bashrc.d/*; do [ -f "$rc" ] && . "$rc"; done\n' >&2
 fi
 if [[ -n ${STARSHIP_CONFIG:-} && $STARSHIP_CONFIG != "$CONFIG" ]]; then

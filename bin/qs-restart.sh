@@ -43,13 +43,18 @@ nap()  { python3 -c "import time; time.sleep($1)"; }
 # The session's environment, when run from somewhere that lacks it (ssh, a tty).
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+    # Newest first, and only ls sorts by time. The names are Hyprland's own
+    # instance signatures - no spaces or newlines to trip over.
+    # shellcheck disable=SC2012
     sig="$(ls -t "$XDG_RUNTIME_DIR/hypr/" 2>/dev/null | head -1 || true)"
     [[ -n $sig ]] || die "no running Hyprland found in $XDG_RUNTIME_DIR/hypr"
     export HYPRLAND_INSTANCE_SIGNATURE="$sig"
 fi
 if [[ -z ${WAYLAND_DISPLAY:-} ]]; then
-    WAYLAND_DISPLAY="$(ls "$XDG_RUNTIME_DIR" 2>/dev/null | grep -m1 -E '^wayland-[0-9]+$' || true)"
-    export WAYLAND_DISPLAY
+    for s in "$XDG_RUNTIME_DIR"/wayland-*; do
+        if [[ ${s##*/} =~ ^wayland-[0-9]+$ ]]; then WAYLAND_DISPLAY="${s##*/}"; break; fi
+    done
+    export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}"
 fi
 hyprctl version >/dev/null 2>&1 || die "cannot reach Hyprland (instance $HYPRLAND_INSTANCE_SIGNATURE)"
 

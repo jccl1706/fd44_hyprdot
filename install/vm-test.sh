@@ -136,6 +136,7 @@ else
         cp "$OVMF_VARS_SRC" "$VARS"
     fi
 
+    # shellcheck disable=SC2054  # the commas are QEMU's, inside one argument
     ISO_ARGS=(-cdrom "$ISO" -boot order=d,menu=on)
     log "booting from $ISO"
 fi
@@ -201,10 +202,12 @@ EOF
 GL_ON=0
 if [[ -e /usr/lib64/qemu/hw-display-virtio-gpu-gl.so ]] \
    && ls /usr/lib64/libvirglrenderer.so.* >/dev/null 2>&1; then
+    # shellcheck disable=SC2054  # the commas are QEMU's, inside one argument
     VIDEO=(-device virtio-vga-gl -display gtk,gl=on,grab-on-hover=on)
     GL_ON=1
     log "3D acceleration available (virglrenderer present)"
 else
+    # shellcheck disable=SC2054
     VIDEO=(-device virtio-vga -display gtk,grab-on-hover=on)
     log "3D unavailable - falling back to software rendering"
     [[ -e /usr/lib64/qemu/hw-display-virtio-gpu-gl.so ]] \

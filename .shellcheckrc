@@ -1,0 +1,8 @@
+# ShellCheck settings for every script in this repo:
+#
+#   shellcheck bin/*.sh install/*.sh      # prints nothing when all is well
+#
+# SC2015 - "A && B || C is not if-then-else". The verification blocks write
+# `test && ok "..." || bad "..."` on purpose. ok, bad and echo only print and
+# count, so C never runs because B failed - which is the case the rule is for.
+disable=SC2015

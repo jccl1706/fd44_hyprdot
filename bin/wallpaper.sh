@@ -103,12 +103,12 @@ apply() {
             # kills the script - silently, since the failure is an exit status
             # and not a message. On the very first run there is no swaybg yet,
             # so the common case IS the failing one.
-            local old
-            old="$(pgrep -x swaybg | tr '\n' ' ' || true)"
+            local -a old
+            mapfile -t old < <(pgrep -x swaybg || true)
             swaybg -m fill -i "$img" >/dev/null 2>&1 &
             disown
             sleep 0.3
-            [[ -n $old ]] && kill $old 2>/dev/null || true
+            (( ${#old[@]} )) && kill "${old[@]}" 2>/dev/null || true
             # The overwhelmingly likely cause is a missing WAYLAND_DISPLAY -
             # swaybg needs it and says so, but its stderr is discarded above
             # because it is a backgrounded daemon. Naming it here saves
@@ -137,8 +137,7 @@ start_daemon() {
         disown
         # Give it a moment to either come up or die. hyprpaper's failure mode
         # here is an immediate abort, so this does not need to be generous.
-        local i
-        for i in 1 2 3 4 5 6 7 8 9 10; do
+        for _ in 1 2 3 4 5 6 7 8 9 10; do
             sleep 0.2
             hyprctl hyprpaper listactive >/dev/null 2>&1 && { log "backend: hyprpaper"; return 0; }
         done

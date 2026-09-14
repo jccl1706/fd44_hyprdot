@@ -346,7 +346,6 @@ browser="chromium"             # chromium | firefox
 terminal="kitty"
 
 releasever="44"
-fedora_arch="x86_64"
 # Third-party COPR providing hyprland + quickshell for Fedora 43/44/45.
 # CHECK THIS IS STILL MAINTAINED before a real install - see the note above.
 hypr_copr="nett00n/hyprland"
@@ -381,7 +380,6 @@ luks_label="CRYPTROOT"
 vg_name="vg0"
 mapper_name="cryptlvm"
 
-want_fallback=true
 btrfs_opts="noatime,compress=zstd:1,space_cache=v2"
 
 ###############################################################################

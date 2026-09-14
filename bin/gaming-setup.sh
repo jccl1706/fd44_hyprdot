@@ -701,8 +701,8 @@ done
 # for every controller Steam Input understands - without them a DualSense or
 # an Xbox pad over USB is visible to the kernel but not writable by your
 # user, so it appears in Steam and does nothing.
-if ls /usr/lib/udev/rules.d/*steam* >/dev/null 2>&1; then
-    ok "controller udev rules ($(ls /usr/lib/udev/rules.d/*steam* | wc -l) files)"
+if compgen -G '/usr/lib/udev/rules.d/*steam*' >/dev/null; then
+    ok "controller udev rules ($(compgen -G '/usr/lib/udev/rules.d/*steam*' | wc -l) files)"
 else
     bad "no steam udev rules in /usr/lib/udev/rules.d - controllers will not work"
 fi

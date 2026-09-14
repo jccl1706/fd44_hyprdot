@@ -169,12 +169,12 @@ backup_fits() {
     if [[ -n $installed && $want != "$installed" ]]; then
         echo "backup is from coolercontrold $want, installed is $installed"; return 1
     fi
-    for uid in $(sed -n 's/^\[device-settings\.\([0-9a-f]\{64\}\)\]$/\1/p' "$bk/config.toml"); do
+    while read -r uid; do
         if ! grep -q "^$uid = " "$live"; then
             have="$(grep -m1 "^$uid = " "$bk/config.toml" | cut -d'"' -f2)"
             echo "device ${have:-$uid} from the backup is not on this machine (ID ${uid:0:12}...)"; return 1
         fi
-    done
+    done < <(sed -n 's/^\[device-settings\.\([0-9a-f]\{64\}\)\]$/\1/p' "$bk/config.toml")
     return 0
 }
 
@@ -233,7 +233,7 @@ for h in /sys/class/hwmon/hwmon*; do
     [[ $(cat "$h/name" 2>/dev/null) == quadro ]] && quadro="$h"
 done
 if [[ -n $quadro ]]; then
-    printf '    Aquacomputer Quadro: %s (%s pwm channel(s))\n' "$quadro" "$(ls "$quadro"/pwm[0-9] 2>/dev/null | wc -l)"
+    printf '    Aquacomputer Quadro: %s (%s pwm channel(s))\n' "$quadro" "$(compgen -G "$quadro/pwm[0-9]" | wc -l)"
 else
     warn "no Aquacomputer Quadro found - CoolerControl will still install, but"
     warn "  the fans this script was written for are not visible."

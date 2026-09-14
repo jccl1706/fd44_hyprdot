@@ -605,6 +605,16 @@ starts the shell inside Hyprland's session, and fails loudly unless exactly one
 instance comes back with its config loaded. An open panel closes and the coffee
 cup turns off.
 
+Shell scripts are checked with ShellCheck (`sudo dnf install ShellCheck` — one
+package, no dependencies):
+
+```sh
+shellcheck bin/*.sh install/*.sh   # prints nothing when all is well
+```
+
+`.shellcheckrc` holds the one rule switched off for every script, and why; the
+few single-line exceptions carry their reason next to them.
+
 ## Gotchas
 
 Each of these cost real time, and none produced an error message.
