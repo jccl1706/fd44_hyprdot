@@ -1576,9 +1576,9 @@ EOF
 # foreground VT is 1 - so it stays inert over ssh and on other VTs.
 #
 # Not `exec`, and not a plain fall-through either. A session that RAN and then
-# ended - a crash included - logs out, so no unlocked autologin shell is left on
-# tty1 once the lock screen has died with the compositor; getty then autologins
-# a fresh session. A compositor that dies within its first seconds leaves the
+# ended logs out, so no unlocked autologin shell is left on tty1; getty then
+# autologins a fresh session. (A crash alone does not end it - start-hyprland
+# restarts Hyprland in place, still locked if it was locked.) A compositor that dies within its first seconds leaves the
 # shell, so a broken config can be fixed and getty does not respawn in a loop.
 # Written in full (rather than appended) so this goes through writefile and is
 # therefore dry-run aware and creates its own parent directory. The first half
@@ -1626,9 +1626,11 @@ unset _pw_marker
 # Start Hyprland automatically on VT1 after getty autologin.
 #
 # When the session ENDS, log out - unless it died within its first seconds.
-# A session that ran and then ended (a crash included) must not leave this
-# autologin shell behind: the lock screen dies with the compositor, so that
-# would be an unlocked shell on tty1. Logging out makes getty autologin a
+# A plain crash does not end it: uwsm runs Hyprland under start-hyprland, a
+# watchdog that restarts it in the same session (in safe mode), and a crash
+# while locked comes back still locked - tested. The session ends when the
+# watchdog gives up or uwsm stops it, and then this autologin shell must not be
+# left behind as an unlocked shell on tty1. Logging out makes getty autologin a
 # fresh session instead, which bin/lock-at-login.sh locks on a machine without
 # disk encryption. A compositor that dies straight away is a broken config or
 # driver, not a session that ran; staying in the shell then is what lets it be

@@ -16,8 +16,11 @@
 # that come with it. So the session locks itself first; autologin still
 # starts everything behind the lock, so nothing is slower once you are in.
 #
-# It also closes the crash case: .bash_profile logs out when a Hyprland session
-# ends, getty autologins a new one, and this locks that one too.
+# It also covers a session that really ends: .bash_profile logs out, getty
+# autologins a new one, and this locks that one too. (A crash does not end the
+# session - start-hyprland restarts Hyprland in place, and a crash while locked
+# comes back still locked, tested in a VM. That restart runs in safe mode,
+# which skips this script, but the session lock itself survives.)
 #
 # FAIL CLOSED. If it cannot tell whether the root filesystem is encrypted - no
 # findmnt, an unexpected source, lsblk failing - it locks.

@@ -518,10 +518,16 @@ from being a way in:
   guards the autologin and it does nothing; on a `--desktop` install, switching
   the machine on lands on the lock screen, with everything started behind it.
   If it cannot tell, it locks.
-- **When a session ends** — a crash included — `.bash_profile` logs out instead
-  of leaving the autologin shell on tty1, and getty starts a fresh (locked)
-  session. A compositor that dies in its first 15 seconds keeps the shell, so a
-  broken config can still be fixed.
+- **If Hyprland crashes**, uwsm's `start-hyprland` watchdog restarts it in the
+  same session, in Safe Mode. A crash **while locked comes back still locked** —
+  Hyprland's "lockscreen app died" screen, which only a password on another tty
+  clears (tested in a VM: hyprlock up, `pkill -KILL Hyprland`, still locked). A
+  crash while unlocked comes back unlocked, in Safe Mode — but you were already in.
+- **When the session really ends** — the watchdog gives up, or `uwsm stop` —
+  `.bash_profile` logs out instead of leaving the autologin shell on tty1, and
+  getty starts a fresh session, locked on an unencrypted machine. A compositor
+  that dies in its first 15 seconds keeps the shell, so a broken config can
+  still be fixed.
 - **Before sleep**, hypridle's `inhibit_sleep = 3` holds the suspend until the
   session is actually locked, so a laptop cannot resume showing the desktop.
 
