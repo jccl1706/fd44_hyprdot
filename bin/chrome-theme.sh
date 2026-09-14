@@ -6,7 +6,7 @@
 # Usage:  chrome-theme.sh <rrggbb> <light|dark>    apply
 #         chrome-theme.sh off                      remove the policy
 #
-# NO ROOT AT RUN TIME. See the one-time setup below.
+# NO ROOT, NO SUDO. See "HOW THE WRITE HAPPENS" below.
 #
 # HOW IT WORKS. Chromium themes are normally extensions, and nothing outside
 # the browser can swap an extension without restarting it, which rules them
@@ -30,47 +30,36 @@
 #                       live.
 #
 #   BrowserColorScheme  "light" or "dark", passed in explicitly rather than
-#                       omarchy's "device". "device" defers to the OS signal,
-#                       which is one more thing that has to be working; naming
-#                       it directly means the browser cannot disagree with the
+#                       "device", so the browser cannot disagree with the
 #                       desktop that just told it what to be.
 #
-# THE SEED AND THE SCHEME CAN CONTRADICT EACH OTHER, and that is the subtle
-# part. A near-black seed under scheme "light" renders a near-black browser -
-# the seed's own brightness wins and the result is the inverse of what was
-# asked for. The caller is responsible for not doing that; bin/theme.sh
-# applies a luminance guard before calling here.
+# THE SEED AND THE SCHEME CAN CONTRADICT EACH OTHER. A near-black seed under
+# scheme "light" renders a near-black browser - the seed's own brightness wins.
+# The caller is responsible for not doing that; bin/theme.sh applies a
+# luminance guard before calling here.
 #
-# ONE-TIME SETUP, and the reason there is no sudo anywhere below:
-#
-#   sudo install -d -o "$USER" -g "$USER" -m 755 /etc/chromium/policies/managed
-#
-# Chromium reads policy only from /etc, so SOMETHING has to be privileged.
-# The alternative - a passwordless sudoers rule for a helper script - hands a
-# script the ability to run as root forever, and a flaw in it becomes a root
-# flaw. Owning one policy directory grants exactly one power: writing browser
-# policy. That is not nothing (policy can force-install extensions, so treat
-# it as part of the browser's trust boundary), but it is bounded, and it is
-# strictly less than root.
+# HOW THE WRITE HAPPENS. /etc/chromium/policies/managed belongs to root, and
+# this script never touches it. It writes the request - "<rrggbb> <scheme>" or
+# "off" - to a file in the user's own state directory, and a root service set
+# up once by `sudo bin/chromium-policy-setup.sh` sees the change, checks the
+# request is exactly that shape, and writes color.json. The user can ask for a
+# colour and nothing more. (The directory used to be user-owned, which let any
+# program running as the user write ANY browser policy - see the setup script.)
 #
 # Without that setup this exits 0 and does nothing, so a machine that has not
 # run it still switches themes normally - it just leaves the browser alone.
 
 set -euo pipefail
 
-POLICY_DIRS=(
-    /etc/chromium/policies/managed
-    /etc/opt/chrome/policies/managed
-    /etc/brave/policies/managed
-)
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/fd44-hyprdot"
+request="$state_dir/chromium-theme"
+policy="/etc/chromium/policies/managed/color.json"
 
 die() { printf 'chrome-theme: %s\n' "$*" >&2; exit 1; }
 
 refresh() {
     # Tells an already-running browser to re-read policy. --no-startup-window
-    # stops it opening a window when none is running. Backgrounded and
-    # disowned: it talks to the running instance and should never make the
-    # caller - a theme switch on a keypress - wait for it.
+    # stops it opening a window when none is running.
     local c comm
     for c in chromium-browser chromium google-chrome-stable brave-browser; do
         command -v "$c" >/dev/null 2>&1 || continue
@@ -79,12 +68,7 @@ refresh() {
         # 16-byte field, so "chromium-browser" - Fedora's binary name, and 16
         # characters exactly - appears in the process table as
         # "chromium-browse". `pgrep -x chromium-browser` therefore matches
-        # nothing at all, silently, and pgrep only warns about it on a tty.
-        #
-        # That is not a cosmetic bug: this guard failing means the refresh
-        # never runs, so the policy file is written and the browser does not
-        # hear about it until it next polls on its own - which looks exactly
-        # like "the theme takes a while to switch".
+        # nothing at all, silently.
         #
         # Matching comm rather than `pgrep -f` on the path deliberately: -f
         # searches whole command lines and would happily match the shell that
@@ -97,15 +81,46 @@ refresh() {
     done
 }
 
+# Written to a temp file and renamed into place, so the root service - which
+# runs on every change - never reads half a line.
+send() {
+    mkdir -p "$state_dir"
+    local tmp
+    tmp="$(mktemp "$request.XXXXXX")"
+    printf '%s\n' "$1" > "$tmp"
+    mv -f "$tmp" "$request"
+}
+
+# Waits (briefly) for the service to have written what was asked, then tells
+# the browser. In the background: a theme switch on a keypress must not wait
+# on it.
+apply_when_written() {
+    local want="$1"
+    (
+        for _ in $(seq 1 30); do
+            if [[ $want == off ]]; then
+                [[ ! -e $policy ]] && break
+            else
+                grep -qF "$want" "$policy" 2>/dev/null && break
+            fi
+            sleep 0.1
+        done
+        refresh
+    ) >/dev/null 2>&1 &
+    disown
+}
+
+if ! systemctl is-enabled --quiet fd44-chromium-theme.path 2>/dev/null; then
+    printf 'chrome-theme: the Chromium theme service is not set up - run once:\n' >&2
+    printf '  sudo %s/chromium-policy-setup.sh\n' "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" >&2
+    exit 0
+fi
+
 case "${1:-}" in
     off)
-        wrote=0
-        for d in "${POLICY_DIRS[@]}"; do
-            [[ -d $d && -w $d ]] || continue
-            rm -f "$d/color.json"; wrote=1
-        done
-        (( wrote )) && refresh
-        printf 'chrome-theme: policy removed\n'
+        send off
+        apply_when_written off
+        printf 'chrome-theme: policy removal requested\n'
         exit 0
         ;;
     "")
@@ -116,29 +131,11 @@ esac
 color="${1#\#}"
 scheme="${2:-}"
 
-# Validated before anything is written. The colour is the only value that
-# reaches a file here - the paths are fixed above - so this is the whole of
-# the input checking that matters.
+# Checked here as well as by the root helper, so a mistake is reported to the
+# caller instead of only in the service's journal.
 [[ $color =~ ^[0-9a-fA-F]{6}$ ]] || die "expected six hex digits, got '$1'"
 [[ $scheme == light || $scheme == dark ]] || die "scheme must be light or dark, got '${scheme:-}'"
 
-wrote=0
-for d in "${POLICY_DIRS[@]}"; do
-    # Writable means the one-time setup has been done for this browser. Not
-    # writable, or absent, is the normal state on a machine that never ran it,
-    # and is not an error: the theme switch that called this should not fail
-    # because the browser is not set up.
-    [[ -d $d && -w $d ]] || continue
-    printf '{"BrowserThemeColor": "#%s", "BrowserColorScheme": "%s"}\n' "$color" "$scheme" \
-        > "$d/color.json"
-    wrote=1
-done
-
-if (( ! wrote )); then
-    printf 'chrome-theme: no writable policy directory - run once:\n' >&2
-    printf '  sudo install -d -o "$USER" -g "$USER" -m 755 %s\n' "${POLICY_DIRS[0]}" >&2
-    exit 0
-fi
-
-refresh
+send "$color $scheme"
+apply_when_written "\"#$color\""
 printf 'chrome-theme: #%s / %s\n' "$color" "$scheme"

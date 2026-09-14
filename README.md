@@ -49,7 +49,7 @@ what a config file is:
 | kitty | generated `theme.conf` + `SIGUSR1` | yes |
 | GTK apps | `gsettings` (colour scheme, icon theme), republished by xdg-desktop-portal | yes |
 | Hyprland | `hyprctl eval` — **not** `keyword`, which the Lua parser refuses | yes |
-| Chromium | `BrowserThemeColor` policy + `--refresh-platform-policy` | yes |
+| Chromium | `BrowserThemeColor` policy, written by a root service from a validated request, + `--refresh-platform-policy` | yes |
 | hyprlock | generated colour variables it `source`s | next lock |
 
 Adding a third theme means adding a file. Nothing else changes.
@@ -68,6 +68,16 @@ bin/icon-theme.sh --remove
 It installs the colour sets the theme files name, from a pinned upstream
 commit, so changing a theme's `icon_theme` and running it again is the whole
 job of switching colours.
+
+**Chromium** reads policy only from `/etc`, and that directory stays root's: a
+theme switch writes just a colour and light/dark to `~/.local/state`, and a small
+sandboxed root service checks it is exactly that and writes the one policy file.
+Nothing running as you can set any other browser policy. The installer sets this
+up; on a machine installed before it existed, run once:
+
+```sh
+sudo bin/chromium-policy-setup.sh            # --remove takes it out again
+```
 
 ## What it gives you
 
@@ -226,6 +236,8 @@ fonts/           Symbols Nerd Font, vendored (MIT)
 wallpapers/      resized, webp
 bin/             theme.sh · wallpaper.sh · power-mode.sh · idle-action.sh · icon-theme.sh
                  qs-restart.sh — restart quickshell safely (one instance, verified)
+                 lock-at-login.sh — locks at login unless the disk is encrypted
+                 chrome-theme.sh · chromium-policy-setup.sh — browser colours, root-written
                  gaming-setup.sh — opt-in, not run by the installer
 install/         the installer, and vm-test.sh
 cooling/         CoolerControl backup of the desktop's fan curves (reviewed, no credentials)
@@ -484,6 +496,21 @@ done and end with the same verification passes.
 Locking is not power-dependent; only the display-off timeout is. On AC the
 machine stays awake so long downloads and ssh sessions are not cut off — closing
 the lid still suspends, via logind's `HandleLidSwitchExternalPower`.
+
+**Locking around autologin.** tty1 logs in by itself, so three things keep that
+from being a way in:
+
+- **At login**, `bin/lock-at-login.sh` locks the session straight away unless
+  `/` is on an encrypted device. On a LUKS machine the boot passphrase already
+  guards the autologin and it does nothing; on a `--desktop` install, switching
+  the machine on lands on the lock screen, with everything started behind it.
+  If it cannot tell, it locks.
+- **When a session ends** — a crash included — `.bash_profile` logs out instead
+  of leaving the autologin shell on tty1, and getty starts a fresh (locked)
+  session. A compositor that dies in its first 15 seconds keeps the shell, so a
+  broken config can still be fixed.
+- **Before sleep**, hypridle's `inhibit_sleep = 3` holds the suspend until the
+  session is actually locked, so a laptop cannot resume showing the desktop.
 
 Two independent mechanisms. **Profile and brightness** come from
 `bin/power-mode.sh`, driven by `udevadm monitor` on the `power_supply` subsystem

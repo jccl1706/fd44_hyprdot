@@ -1575,9 +1575,11 @@ EOF
 # system at graphical.target, no graphical-session already active, and the
 # foreground VT is 1 - so it stays inert over ssh and on other VTs.
 #
-# Deliberately NOT exec: if the compositor fails to start we fall back to a
-# shell rather than ending the session and making getty's autologin respawn in
-# a loop that is awkward to break out of.
+# Not `exec`, and not a plain fall-through either. A session that RAN and then
+# ended - a crash included - logs out, so no unlocked autologin shell is left on
+# tty1 once the lock screen has died with the compositor; getty then autologins
+# a fresh session. A compositor that dies within its first seconds leaves the
+# shell, so a broken config can be fixed and getty does not respawn in a loop.
 # Written in full (rather than appended) so this goes through writefile and is
 # therefore dry-run aware and creates its own parent directory. The first half
 # reproduces Fedora's /etc/skel/.bash_profile.
@@ -1622,14 +1624,28 @@ fi
 unset _pw_marker
 
 # Start Hyprland automatically on VT1 after getty autologin.
+#
+# When the session ENDS, log out - unless it died within its first seconds.
+# A session that ran and then ended (a crash included) must not leave this
+# autologin shell behind: the lock screen dies with the compositor, so that
+# would be an unlocked shell on tty1. Logging out makes getty autologin a
+# fresh session instead, which bin/lock-at-login.sh locks on a machine without
+# disk encryption. A compositor that dies straight away is a broken config or
+# driver, not a session that ran; staying in the shell then is what lets it be
+# fixed, and avoids a respawn loop.
 if uwsm check may-start -q; then
     _uwsm_state="${XDG_STATE_HOME:-$HOME/.local/state}"
     mkdir -p "$_uwsm_state"
-    if ! uwsm start -e -D Hyprland hyprland.desktop \
-            >"$_uwsm_state/uwsm-start.log" 2>&1; then
-        echo "Hyprland failed to start. See $_uwsm_state/uwsm-start.log"
+    _uwsm_started=$SECONDS
+    uwsm start -e -D Hyprland hyprland.desktop >"$_uwsm_state/uwsm-start.log" 2>&1
+    _uwsm_status=$?
+    if (( SECONDS - _uwsm_started < 15 )); then
+        echo "Hyprland exited after $(( SECONDS - _uwsm_started ))s (status $_uwsm_status)."
+        echo "See $_uwsm_state/uwsm-start.log"
+    else
+        exit 0
     fi
-    unset _uwsm_state
+    unset _uwsm_state _uwsm_started _uwsm_status
 fi
 PROFILE
 run fchroot chown "$username:$username" "/home/$username/.bash_profile"
@@ -1855,48 +1871,30 @@ HandlePowerKey=ignore
 HandlePowerKeyLongPress=poweroff
 EOF
 
-# Chromium's policy directory, owned by the user.
+# Chromium theming: a root service writes the policy, the user only asks.
 #
-# bin/theme.sh colours the browser to match the desktop theme by writing an
-# enterprise policy file - Chromium reads policy only from /etc, and a theme
-# switch bound to a key cannot stop to ask for a password. Owning the
-# directory is what lets that write happen unprivileged.
+# bin/theme.sh colours the browser to match the desktop theme through an
+# enterprise policy file, and Chromium reads policy only from /etc. This used
+# to be done by making /etc/chromium/policies/managed owned by the user - which
+# let ANY program running as the user set any browser policy (force-install an
+# extension, set a proxy), not just the colour.
 #
-# THIS IS A REAL GRANT, not a formality: anything running as this user can
-# now set Chromium policy, and policy can do more than pick a colour - it can
-# force-install extensions, for one. Treat it as part of the browser's trust
-# boundary. It is still the smaller of the two options, though: the
-# alternative is a passwordless sudoers rule for a helper script, and that
-# hands a script the ability to run as ROOT forever, where any flaw in it
-# becomes a root flaw. This grants exactly one power and no more.
-#
-# NUMERIC uid:gid, NOT the name. `install -o "$username"` resolves the name
-# against the LIVE system's passwd, not the target's, and the two do not
-# agree - that is how the Nerd Font ended up owned by uid 1001 in an earlier
-# version. Read the id out of the target's own passwd.
-#
-# The awk is guarded with `|| true` and a file test. In a DRY RUN nothing was
-# ever installed, so $rootmnt/etc/passwd does not exist, and an unguarded awk
-# exits non-zero and takes the whole script down under `set -e`. That broke
-# --dry-run entirely, which is the one mode people run BEFORE trusting this
-# with a disk - found by dry-running against real hardware.
-if [[ "$browser" == chromium ]]; then
-    _cuid=""; _cgid=""
-    if [[ -r "$rootmnt/etc/passwd" ]]; then
-        _cuid="$(awk -F: -v u="$username" '$1==u{print $3}' "$rootmnt/etc/passwd" 2>/dev/null || true)"
-        _cgid="$(awk -F: -v u="$username" '$1==u{print $4}' "$rootmnt/etc/passwd" 2>/dev/null || true)"
-    fi
-    if (( DRY )); then
-        run install -d -o "(uid of $username)" -g "(gid of $username)" -m 755 \
-            "$rootmnt/etc/chromium/policies/managed"
-    elif [[ -n "$_cuid" && -n "$_cgid" ]]; then
-        run install -d -o "$_cuid" -g "$_cgid" -m 755 \
-            "$rootmnt/etc/chromium/policies/managed"
+# Now the directory stays root's, and bin/chromium-policy-setup.sh installs a
+# sandboxed root service that turns a validated "<rrggbb> <light|dark>" request
+# from the user's ~/.local/state into color.json and nothing else. It lives in
+# the dotfiles because theme.sh, the only thing that uses it, does too - so
+# without a dotfiles repo there is nothing to set up. Run INSIDE the target,
+# where it resolves the user from the target's own passwd and only enables the
+# watcher, since nothing can be started before the first boot.
+if [[ "$browser" == chromium && -n "$dotfiles_repo" ]]; then
+    _cps="/home/$username/Work/${dotdir:-}/bin/chromium-policy-setup.sh"
+    if (( DRY )) || [[ -x "$rootmnt$_cps" ]]; then
+        run fchroot "$_cps" --user "$username"
     else
-        warn "could not resolve $username in the target passwd - skipping the"
-        warn "  Chromium policy directory; the browser will not follow themes"
+        warn "the dotfiles have no bin/chromium-policy-setup.sh - Chromium will"
+        warn "  not follow themes until it is set up"
     fi
-    unset _cuid _cgid
+    unset _cps
 fi
 
 if [[ "$machine" == laptop ]]; then
@@ -2018,10 +2016,12 @@ check "getty autologin drop-in"        "grep -q 'autologin $username' '$rootmnt/
 # the short press off safe at a console or when the session never starts.
 check "power key handed to the session" "grep -q '^HandlePowerKey=ignore' '$rootmnt/etc/systemd/logind.conf.d/00-power-key.conf'"
 check "power key long press powers off" "grep -q '^HandlePowerKeyLongPress=poweroff' '$rootmnt/etc/systemd/logind.conf.d/00-power-key.conf'"
-# Owned by the user, not merely present: root-owned is the package default and
-# is exactly the state in which the browser silently stops following themes.
-if [[ "$browser" == chromium ]]; then
-    check "chromium policy dir is the user's" "[[ -n '$target_uid' && \$(stat -c %u '$rootmnt/etc/chromium/policies/managed' 2>/dev/null) == '$target_uid' ]]"
+# Root's, and served by the theme watcher. A user-owned policy directory is the
+# old, too-generous setup; a root-owned one with no watcher is a browser that
+# silently stops following themes. See bin/chromium-policy-setup.sh.
+if [[ "$browser" == chromium && -n "$dotfiles_repo" ]]; then
+    check "chromium policy dir is root's"    "[[ \$(stat -c %u '$rootmnt/etc/chromium/policies/managed' 2>/dev/null) == 0 ]]"
+    check "chromium theme watcher enabled"   "[[ -L '$rootmnt/etc/systemd/system/multi-user.target.wants/fd44-chromium-theme.path' ]]"
 fi
 check "uwsm start hook in profile"     "grep -q 'uwsm check may-start' '$rootmnt/home/$username/.bash_profile'"
 check "forced password change in profile" "grep -q 'password-changed' '$rootmnt/home/$username/.bash_profile'"

@@ -67,6 +67,13 @@ hl.env("HYPRCURSOR_SIZE", "24")
 -- signal to wait on. If restore silently does nothing after a cold boot,
 -- this is the first thing to lengthen.
 hl.on("hyprland.start", function()
+    -- Lock straight away on a machine whose disk is not encrypted: it
+    -- autologins, so otherwise switching it on is a way in. On a LUKS machine
+    -- the boot passphrase already guards the autologin and this does nothing.
+    -- First, so nothing below is ever on screen unlocked. See
+    -- bin/lock-at-login.sh.
+    hl.exec_cmd("sh -c '$HOME/.config/hypr/../bin/lock-at-login.sh'")
+
     -- Via the script, not "hyprpaper" directly: which wallpaper daemon a
     -- machine can actually run is a property of the machine. hyprpaper is
     -- preferred and used wherever it works; on hardware where it aborts on

@@ -282,12 +282,11 @@ apply() {
 
     # --- Chromium ------------------------------------------------------
     #
-    # No sudo. bin/chrome-theme.sh writes a policy file directly, which works
-    # because /etc/chromium/policies/managed is made user-owned once by hand -
-    # see the setup note in that script. That deliberately avoids a
-    # passwordless sudoers rule: such a rule would let a helper run as root
-    # forever, where owning one policy directory grants only the ability to
-    # write browser policy.
+    # No sudo. bin/chrome-theme.sh only writes a request - colour and scheme -
+    # into ~/.local/state; a root service installed once by
+    # `sudo bin/chromium-policy-setup.sh` validates it and writes the policy
+    # file. The policy directory stays root's, so nothing running as the user
+    # can set any other browser policy.
     #
     # LUMINANCE GUARD. The seed's own brightness beats the colour scheme - a
     # near-black seed under scheme "light" renders a near-black browser, the
