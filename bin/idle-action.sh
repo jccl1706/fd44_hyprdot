@@ -46,7 +46,6 @@
 
 set -u
 
-AC_ONLINE=/sys/class/power_supply/ACAD/online
 LOCKFILE="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/idle-action.lock"
 
 DRY=0
@@ -79,11 +78,19 @@ on_ac() {
     # meaningful AC state either - some report AC offline regardless.
     compgen -G '/sys/class/power_supply/BAT*' >/dev/null || return 0
 
-    # There IS a battery. Now an unreadable AC file genuinely does mean
+    # There IS a battery. Now no charger found online genuinely does mean
     # "assume battery" - the cautious reading, since guessing AC on a laptop
     # means never suspending and flattening it in a bag.
-    [[ -r $AC_ONLINE ]] || return 1
-    [[ $(< "$AC_ONLINE") == 1 ]]
+    #
+    # The charger BY TYPE, not by name: ACAD on the Framework, AC on a
+    # ThinkPad T480, and power-mode.sh reads it the same way. USB-C ports
+    # (type USB) are ignored - they report online whenever a cable is in.
+    local p
+    for p in /sys/class/power_supply/*; do
+        [[ -r $p/type && -r $p/online ]] || continue
+        [[ $(< "$p/type") == Mains && $(< "$p/online") == 1 ]] && return 0
+    done
+    return 1
 }
 
 dpms_state() {   # echoes 1 (on) or 0 (off), empty if unknown

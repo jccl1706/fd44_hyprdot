@@ -27,20 +27,51 @@ set -euo pipefail
 normal="${1:-9893a5}"
 warn="${2:-b4637a}"
 
-# First battery only. A second one (some ThinkPads, none of this project's
-# hardware) would need summing, which is not worth guessing at unseen.
-bat=""
+# EVERY battery, summed. A ThinkPad T480 has an internal BAT0 and a removable
+# BAT1, and the first one found is not the whole story: measured there,
+# BAT0 15 Wh at 33% (not charging) and BAT1 59 Wh at 41% (charging).
+#
+# Weighted by what each holds, not averaged: that pair is 29.6 of 74.6 Wh,
+# 40%, where averaging the two percentages says 37%. Energy (µWh) where the
+# battery reports it, charge (µAh) where it does not - the Framework only has
+# charge_*. Units cannot be mixed, so a set that mixes them, or reports
+# neither, falls back to the mean of the capacity files.
+#
+# Status: Charging if any battery is, else Discharging if any is, else the
+# first reported ("Not charging" at a charge limit, "Full").
+n=0 now=0 full=0 units="" capsum=0 status=""
 for d in /sys/class/power_supply/BAT*; do
     [[ -d $d ]] || continue
-    bat="$d"
-    break
+    n=$((n + 1))
+    c="$(cat "$d/capacity" 2>/dev/null || echo "")"
+    [[ $c =~ ^[0-9]+$ ]] && capsum=$((capsum + c))
+    if [[ -r $d/energy_now && -r $d/energy_full ]]; then u=energy
+    elif [[ -r $d/charge_now && -r $d/charge_full ]]; then u=charge
+    else u=none
+    fi
+    [[ -z $units ]] && units=$u
+    [[ $u == "$units" ]] || units=mixed
+    if [[ $u != none ]]; then
+        now=$((now + $(< "$d/${u}_now")))
+        full=$((full + $(< "$d/${u}_full")))
+    fi
+    s="$(cat "$d/status" 2>/dev/null || echo Unknown)"
+    case $s in
+        Charging)    status=Charging ;;
+        Discharging) [[ $status == Charging ]] || status=Discharging ;;
+        *)           [[ -n $status ]] || status=$s ;;
+    esac
 done
 
 # No battery is not an error - print nothing and let the label be empty.
-[[ -n $bat ]] || exit 0
+(( n )) || exit 0
 
-cap="$(cat "$bat/capacity" 2>/dev/null || echo "")"
-status="$(cat "$bat/status" 2>/dev/null || echo Unknown)"
+if [[ $units == energy || $units == charge ]] && (( full > 0 )); then
+    cap=$(( (now * 100 + full / 2) / full ))
+else
+    cap=$(( capsum / n ))
+fi
+(( cap > 100 )) && cap=100
 
 # Overrides, for checking the branches that need a nearly flat battery to
 # reach. The warning colour and the alert glyph are otherwise only verifiable

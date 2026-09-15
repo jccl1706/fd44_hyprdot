@@ -53,13 +53,27 @@ hl.monitor({
 -- too, and on a panel with no adaptive sync there is nothing for it to enable.
 hl.config({ misc = { vrr = 2 } })
 
--- Internal laptop panels. scale 1.57 is what the stock config picked for the
--- Framework's 2256x1504: 2256 / 1.57 = ~1437 logical px. Hyprland reports the
--- applied scale as 1.5666667, because it snaps to a value that keeps the
--- logical size a whole number of pixels - an arbitrary scale that does not
--- divide evenly is rejected.
+-- Internal laptop panels, PER PANEL. The right scale follows pixel density,
+-- which the connector name cannot tell apart: both laptops call their panel
+-- eDP-1. `desc:` matches the panel's EDID make and model instead, as
+-- `hyprctl monitors` prints them.
 --
--- That fractional scale is also why several things in quickshell carry a 1px
+-- The target is about 125-130 effective px per inch, so text is the same
+-- physical size on every machine:
+--
+--   Framework 13  BOE 0x0BCA  2256x1504 13.5"  ~201 ppi  1.57 -> 1440x960   ~128
+--   ThinkPad T480 AUO 0x213D  1920x1080 13.9"  ~158 ppi  1.25 -> 1536x864   ~126
+--
+-- Hyprland snaps a scale to one that keeps the logical size whole, and reports
+-- the Framework's 1.57 as 1.5666667. A value that cannot be snapped cleanly
+-- ends up somewhere else - 1.25 on the Framework lands on 1.175 - so a new
+-- panel's scale is worth checking with `hyprctl monitors` after adding it.
+--
+-- Any other internal panel gets 1, not "auto". Measured on the Framework,
+-- "auto" picked 2 (1128x752 logical - far too big); 1 is at worst small text
+-- on a dense panel, never a desktop that does not fit.
+--
+-- Fractional scales are also why several things in quickshell carry a 1px
 -- overlap: a logical coordinate times 1.5667 can land mid-pixel, and two
 -- antialiased edges that meet there sum to about 78% coverage instead of
 -- opaque. Those overlaps are harmless at scale 1, just unnecessary.
@@ -67,7 +81,21 @@ hl.monitor({
     output   = "eDP-1",
     mode     = "preferred",
     position = "auto",
+    scale    = "1",
+})
+
+hl.monitor({
+    output   = "desc:BOE 0x0BCA",     -- Framework 13 AMD
+    mode     = "preferred",
+    position = "auto",
     scale    = "1.57",
+})
+
+hl.monitor({
+    output   = "desc:AUO 0x213D",     -- ThinkPad T480, 14" FHD
+    mode     = "preferred",
+    position = "auto",
+    scale    = "1.25",
 })
 
 -- Example: pin the internal panel explicitly and put an external display to

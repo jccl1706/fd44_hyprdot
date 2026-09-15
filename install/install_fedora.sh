@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Guided Fedora 44 installer                               v1.12  2026-09-14
+# Guided Fedora 44 installer                               v1.13  2026-09-15
 #   Btrfs + subvolumes  |  systemd-boot (UEFI)  |  optional LUKS2+LVM  |  hibernation
 #   Hyprland + quickshell only  |  AMD (Framework 13)  |  laptop
 #   No display manager: getty autologin + uwsm  |  Plymouth graphical boot
@@ -12,6 +12,22 @@
 # Arch script or add another branch yourself; this one is deliberately narrow.
 #
 # Changelog
+#   v1.13 A SECOND LAPTOP: a ThinkPad T480 (Intel, two NVMe drives, one
+#         holding a Debian install to keep).
+#           - --disk accepts a stable path such as
+#             /dev/disk/by-id/nvme-MODEL_SERIAL and resolves it before any
+#             partition name is derived from it; nvme0n1/nvme1n1 can swap
+#             between boots. The disk menu and the "About to ERASE" listing
+#             show model and serial, and the dry run's closing "run it for
+#             real" line repeats the stable path rather than the kernel name.
+#           - GPU detection matched names, and "ati" is in "VGA compatible"
+#             and "Intel Corporation": every machine detected as AMD. It now
+#             reads the PCI class and vendor ID. It also runs in --unattended
+#             installs, like the CPU, instead of defaulting to "amd".
+#           - Outside the installer, the scripts it links stop assuming the
+#             Framework: the charger is found by type (AC on a ThinkPad, ACAD
+#             on the Framework), the lock screen sums every battery, and
+#             hypr/monitors.lua scales each panel by its EDID make and model.
 #   v1.12 RENAMED to install_fedora.sh: the file name no longer carries the
 #         version, so the download link stops changing with every release.
 #         The version lives in this header and in installer_version below.
@@ -356,7 +372,7 @@ set -Eeuo pipefail
 
 # Shown in the wizard's banner and the preflight report. Bump it together
 # with the header at the top of this file.
-installer_version="v1.12"
+installer_version="v1.13"
 
 ###############################################################################
 # Config - these are the DEFAULTS. Interactive mode offers them as defaults
@@ -372,7 +388,7 @@ zram_size=""
 encrypt="yes"                  # yes | no
 machine="laptop"               # laptop | desktop
 cpu_vendor=""                  # amd | intel   (empty = autodetect)
-gpu_vendor="amd"               # amd | intel  (Framework 13 AMD has no discrete GPU)
+gpu_vendor=""                  # amd | intel   (empty = autodetect)
 # Login manager. Empty = sddm (Hyprland has no GNOME/KDE session to derive a
 # default from here, unlike the Arch script). sddm | greetd
 # Dotfiles git URL. Left blank the installer sets up autologin and Plymouth
@@ -576,9 +592,15 @@ trap on_exit EXIT
 ###############################################################################
 detect_cpu() { grep -qm1 AuthenticAMD /proc/cpuinfo && echo amd || echo intel; }
 detect_gpu() {
-    local pci; pci="$(lspci -nn 2>/dev/null || true)"
-    if   grep -iE 'VGA|3D|Display' <<<"$pci" | grep -qiE 'amd|ati|radeon'; then echo amd
-    elif grep -iE 'VGA|3D|Display' <<<"$pci" | grep -qi intel; then echo intel
+    # By PCI CLASS and VENDOR ID, not by name. Matching names found "ati" in
+    # "VGA compatible" and "Intel Corporation", and "3D" in a bus address
+    # (3d:00.0, an NVMe drive), so every machine detected as AMD - a ThinkPad
+    # T480 with only Intel graphics included. Classes 0300 VGA, 0302 3D,
+    # 0380 display; vendors 1002 AMD, 8086 Intel. AMD first, as before, for a
+    # machine with both.
+    local gpus; gpus="$(lspci -nn 2>/dev/null | grep -E '\[03(00|02|80)\]' || true)"
+    if   grep -q '\[1002:' <<<"$gpus"; then echo amd
+    elif grep -q '\[8086:' <<<"$gpus"; then echo intel
     else detect_cpu; fi
 }
 detect_machine() {
@@ -619,7 +641,8 @@ wizard() {
         n=$((n+1))
         diskopts+=("/dev/$name   $size   ${rest:-unknown model}|/dev/$name")
         [[ "/dev/$name" == "$target" ]] && defdisk=$n
-    done < <(lsblk -dno NAME,SIZE,MODEL 2>/dev/null)
+    # SERIAL too: two drives of the same model are otherwise the same line.
+    done < <(lsblk -dno NAME,SIZE,MODEL,SERIAL 2>/dev/null)
     (( ${#diskopts[@]} )) || die "no disks found to install to"
     target="$(menu "Which disk should be WIPED and installed to?" "$defdisk" "${diskopts[@]}")"
 
@@ -683,7 +706,33 @@ wizard() {
     timezone="$(ask_text "Timezone" "$timezone")"
 }
 
+# A STABLE DISK PATH IS ALLOWED, and on a machine with two NVMe drives it is
+# the safe way to name the one to wipe: nvme0n1 and nvme1n1 are handed out in
+# probe order and can swap between boots. Seen on a ThinkPad T480 with a
+# Debian install on one drive to keep and an empty one to install to.
+#
+# But partition names are built from the kernel name (partdev: nvme0n1 ->
+# nvme0n1p1), and /dev/disk/by-id/nvme-MODEL_SERIAL spells its partitions
+# -part1 - so "...SERIALp1" would not exist. Resolve the link once, before
+# anything derives a name from it.
+#
+# BEFORE THE WIZARD, not after: its disk menu preselects the entry equal to
+# $target, and compares /dev/NAME. With the link still unresolved nothing
+# matched, the default fell to entry 1 - on the T480 the Ventoy USB stick the
+# live system was running from - and pressing Enter would have wiped it.
+if [[ -L "$target" ]]; then
+    target_given="$target"
+    target="$(readlink -f "$target")"
+    log "Disk $target_given is $target"
+fi
+
 (( UNATTENDED )) || (( PREFLIGHT_ONLY )) || (( CHECK_REPOS )) || wizard
+
+# A different disk picked in the wizard makes the stable path stale - it must
+# not reappear in the dry run's "run it for real" line.
+if [[ -n "${target_given:-}" && "$(readlink -f "$target_given")" != "$target" ]]; then
+    unset target_given
+fi
 
 ###############################################################################
 # Derived values
@@ -1080,7 +1129,7 @@ if (( DRY )); then
     log "DRY RUN - nothing below is executed, only printed"
 else
     log "About to ERASE $target"
-    lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINTS "$target" || true
+    lsblk -o NAME,SIZE,TYPE,MODEL,SERIAL,FSTYPE,LABEL,MOUNTPOINTS "$target" || true
     if (( ! ASSUME_YES )); then
         echo
         for i in {10..1}; do printf '\r    starting in %2ds - Ctrl+C to abort ' "$i"; sleep 1; done
@@ -1984,7 +2033,7 @@ if (( DRY )); then
   Apps       : $browser, $terminal
   cmdline    : $cmdline
 
-  Run it for real with:   sudo $0 -d $target
+  Run it for real with:   sudo $0 -d ${target_given:-$target}
 EOF
     exit 0
 fi

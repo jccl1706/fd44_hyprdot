@@ -18,8 +18,6 @@
 
 set -u
 
-AC_ONLINE=/sys/class/power_supply/ACAD/online
-
 # The backlight device is RESOLVED, not named. bin/backlight.sh finds it in
 # /sys/class/backlight, which is this laptop's amdgpu_bl1, an Intel laptop's
 # intel_backlight, or nothing at all on a desktop - where it exits 0 and this
@@ -42,8 +40,18 @@ on_ac() {
     # asked for the power-saver profile (it failed only because
     # power-profiles-daemon is not installed there).
     compgen -G '/sys/class/power_supply/BAT*' >/dev/null || return 0
-    [[ -r $AC_ONLINE ]] || return 1      # a battery but no readable AC -> assume battery
-    [[ $(< "$AC_ONLINE") == 1 ]]
+
+    # The charger BY TYPE, not by name: ACAD on the Framework, AC on a
+    # ThinkPad T480. Keyed on the name, the T480 never found its charger and
+    # ran power-saver at 50% brightness plugged in. USB-C ports (type USB) are
+    # ignored - they report online whenever a cable is in, charging or not.
+    # A battery but no Mains supply online -> battery.
+    local p
+    for p in /sys/class/power_supply/*; do
+        [[ -r $p/type && -r $p/online ]] || continue
+        [[ $(< "$p/type") == Mains && $(< "$p/online") == 1 ]] && return 0
+    done
+    return 1
 }
 
 apply() {
