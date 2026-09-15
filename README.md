@@ -298,7 +298,9 @@ tmux lands on the clipboard of the machine you are attached from. Text pastes
 normally, but an **image** pasted from another machine does not reach the
 program in the pane — it reads the clipboard of the machine it runs on. Copy
 the file across and pass its path instead. The session only survives while
-that machine is awake: keep it on AC with the coffee cup on.
+that machine is awake: keep it on AC with the coffee cup on. The status bar
+shows that machine's battery next to its name, so from the desktop you can see
+the laptop's charge; the desktop itself shows none.
 
 ## Gaming
 

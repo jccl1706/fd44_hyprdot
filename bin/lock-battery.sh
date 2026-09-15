@@ -4,10 +4,17 @@
 # =========================================================================
 #
 # Usage:  lock-battery.sh <normal-hex> <warn-hex>
+#         lock-battery.sh --tmux
 #
 # Called from hypr/hyprlock.conf as a label's cmd[]. Prints one line of pango
 # markup, or nothing at all when there is no battery - a desktop then shows an
 # empty label rather than "0%" or an error.
+#
+# --tmux prints the same glyph and percentage for tmux's status-right instead
+# (tmux/tmux.conf): plain text with a trailing gap before whatever follows it,
+# red through tmux's own #[fg=...] when the line would be the warning colour.
+# ANSI red rather than a theme hex, like the rest of that status bar. kitty
+# finds the glyph in Symbols Nerd Font by fallback, so no font is named.
 #
 # WHY MARKUP RATHER THAN PLAIN TEXT. A hyprlock label has ONE font_family, and
 # this needs two: the glyph is in Symbols Nerd Font and the digits should be
@@ -24,6 +31,11 @@
 
 set -euo pipefail
 
+mode=pango
+if [[ ${1:-} == --tmux ]]; then
+    mode=tmux
+    shift
+fi
 normal="${1:-9893a5}"
 warn="${2:-b4637a}"
 
@@ -103,10 +115,20 @@ elif (( cap >=  5 )); then glyph=$'\UF007A'  # battery-10
 else                       glyph=$'\UF0083'  # battery-alert
 fi
 
-colour="$normal"
-if (( cap < 20 )) && [[ $status != Charging ]]; then
-    colour="$warn"
+low=0
+(( cap < 20 )) && [[ $status != Charging ]] && low=1
+
+if [[ $mode == tmux ]]; then
+    if (( low )); then
+        printf '#[fg=red]%s %d%%#[default]  ' "$glyph" "$cap"
+    else
+        printf '%s %d%%  ' "$glyph" "$cap"
+    fi
+    exit 0
 fi
+
+colour="$normal"
+(( low )) && colour="$warn"
 
 printf '<span foreground="#%s"><span font_family="Symbols Nerd Font">%s</span>  %d%%</span>\n' \
     "$colour" "$glyph" "$cap"
