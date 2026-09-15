@@ -24,6 +24,8 @@
 #             and "Intel Corporation": every machine detected as AMD. It now
 #             reads the PCI class and vendor ID. It also runs in --unattended
 #             installs, like the CPU, instead of defaulting to "amd".
+#           - The closing summary's hibernation hint ran into the next line
+#             ("systemctl hibernate  First boot, ...").
 #           - Outside the installer, the scripts it links stop assuming the
 #             Framework: the charger is found by type (AC on a ThinkPad, ACAD
 #             on the Framework), the lock screen sums every battery, and
@@ -2148,6 +2150,14 @@ log "Install complete"
 # carry a token (https://user:TOKEN@host/...).
 run install -m 600 "$logfile" "$rootmnt/var/log/fedora-install.log"
 
+# The hibernation hint is a variable, not a $( ) in the text below: command
+# substitution strips trailing newlines, so the blank line after the hint
+# vanished and "systemctl hibernate" ran into "First boot" on the same line.
+hibernate_hint=""
+if [[ "$want_swap" == yes ]]; then
+    hibernate_hint=$'  Confirm hibernation before you rely on it:\n    systemctl hibernate\n\n'
+fi
+
 # UNQUOTED on purpose - the summary interpolates $target, $username and the
 # rest - which means every backtick and $( ) in the text below RUNS, as root.
 # Write commands in plain quotes. A backticked `sudo dnf5 install
@@ -2227,12 +2237,7 @@ cat <<EOF
   python3-pyxdg and python3-dbus are already included above for exactly
   this reason; if a COPR update introduces another one, same fix applies.
 
-$( [[ "$want_swap" == yes ]] && cat <<'HINT'
-  Confirm hibernation before you rely on it:
-    systemctl hibernate
-
-HINT
-)  First boot, before anything else:
+${hibernate_hint}  First boot, before anything else:
     sudo dnf upgrade --refresh
 
   Hyprland/quickshell came from a third-party COPR ($hypr_copr) - if it

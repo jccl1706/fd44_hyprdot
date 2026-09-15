@@ -55,14 +55,18 @@ hl.config({ misc = { vrr = 2 } })
 
 -- Internal laptop panels, PER PANEL. The right scale follows pixel density,
 -- which the connector name cannot tell apart: both laptops call their panel
--- eDP-1. `desc:` matches the panel's EDID make and model instead, as
--- `hyprctl monitors` prints them.
+-- eDP-1. `desc:` matches the panel's make and model instead, spelled EXACTLY
+-- as the description `hyprctl monitors` prints - which is not always the EDID's
+-- three-letter maker code. Hyprland expands the codes it knows: the T480's
+-- EDID says AUO, its description says "AU Optronics", and a rule written
+-- "desc:AUO 0x213D" silently matched nothing (the panel came up at 1). The
+-- match is a prefix, so a serial number after the model does not break it.
 --
 -- The target is about 125-130 effective px per inch, so text is the same
 -- physical size on every machine:
 --
---   Framework 13  BOE 0x0BCA  2256x1504 13.5"  ~201 ppi  1.57 -> 1440x960   ~128
---   ThinkPad T480 AUO 0x213D  1920x1080 13.9"  ~158 ppi  1.25 -> 1536x864   ~126
+--   Framework 13  BOE 0x0BCA           2256x1504 13.5"  ~201 ppi  1.57 -> 1440x960  ~128
+--   ThinkPad T480 AU Optronics 0x213D  1920x1080 13.9"  ~158 ppi  1.25 -> 1536x864  ~126
 --
 -- Hyprland snaps a scale to one that keeps the logical size whole, and reports
 -- the Framework's 1.57 as 1.5666667. A value that cannot be snapped cleanly
@@ -92,7 +96,7 @@ hl.monitor({
 })
 
 hl.monitor({
-    output   = "desc:AUO 0x213D",     -- ThinkPad T480, 14" FHD
+    output   = "desc:AU Optronics 0x213D",   -- ThinkPad T480, 14" FHD
     mode     = "preferred",
     position = "auto",
     scale    = "1.25",
