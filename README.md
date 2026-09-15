@@ -245,6 +245,7 @@ bin/             theme.sh · wallpaper.sh · power-mode.sh · idle-action.sh · 
                  starship-setup.sh — opt-in two-line prompt, per user, no sudo
 install/         the installer, and vm-test.sh
 starship/        starship.toml — the prompt; ANSI colour names, so it follows the theme
+tmux/            tmux.conf — opt-in, for a session kept on one machine and attached from the other
 cooling/         CoolerControl backup of the desktop's fan curves (reviewed, no credentials)
 mangohud/        MangoHud.conf · presets.conf — the in-game overlay, linked by gaming-setup.sh
 wireplumber/     audio rules — the EVO4 uses software volume (matches only that device)
@@ -277,6 +278,27 @@ downloads the upstream release pinned by sha256 into `~/.local/bin`, links
 `~/.config/starship.toml` to `starship/starship.toml`, and starts it from
 `~/.bashrc.d/starship.sh` — interactive shells only, never on the tty1 console.
 Run it once on each machine.
+
+## Sessions that outlive the terminal (tmux)
+
+Opt-in, not installed by the installer. For a long-running session — a Claude
+Code run, a big build — that lives on one machine and is picked up from the
+other over ssh:
+
+```sh
+sudo dnf install tmux
+ln -s "$PWD/tmux" ~/.config/tmux     # once per machine, from the checkout
+
+tmux new -s claude                    # on the laptop
+ssh laptop -t tmux attach -t claude   # from the desktop; Ctrl+B then D detaches
+```
+
+Mouse scrolling, true colour and Shift+Enter work through it; text copied in
+tmux lands on the clipboard of the machine you are attached from. Text pastes
+normally, but an **image** pasted from another machine does not reach the
+program in the pane — it reads the clipboard of the machine it runs on. Copy
+the file across and pass its path instead. The session only survives while
+that machine is awake: keep it on AC with the coffee cup on.
 
 ## Gaming
 
