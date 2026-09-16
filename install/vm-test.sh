@@ -291,10 +291,22 @@ log "starting VM (${RAM} RAM, ${CPUS} vCPU, ${DISK_SIZE} disk, UEFI)"
 # would have fed the VM a stale installer out of the wrong directory.
 #
 # Running qemu as a child costs one idle shell and makes the trap work.
+#
+# disable_s3/disable_s4: no suspend, and that is deliberate. A guest running the
+# fd44 desktop idles into hypridle's suspend listener, and a guest S3 PAUSES
+# qemu - the VM stops answering ssh and `info status` reports "paused
+# (suspended)", so a test driving it over ssh simply looks hung, and waking it
+# needs `system_wakeup` on the monitor socket. Disabling S3 alone is not enough
+# either: the guest then falls back to s2idle, which leaves qemu running but
+# freezes the guest with nothing to wake it. Taking both states off the virtual
+# hardware is also the only fix a rollback inside the guest cannot undo, because
+# masking sleep.target writes to /etc, which a root rollback restores.
 qemu-system-x86_64 \
     -enable-kvm \
     -machine q35,smm=on \
     -cpu host \
+    -global ICH9-LPC.disable_s3=1 \
+    -global ICH9-LPC.disable_s4=1 \
     -m "$RAM" \
     -smp "$CPUS" \
     -drive "if=pflash,format=raw,unit=0,readonly=on,file=$OVMF_CODE" \
