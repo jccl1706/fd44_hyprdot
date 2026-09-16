@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Guided Fedora 44 installer                               v1.13  2026-09-15
+# Guided Fedora 44 installer                               v1.14  2026-09-16
 #   Btrfs + subvolumes  |  systemd-boot (UEFI)  |  optional LUKS2+LVM  |  hibernation
 #   Hyprland + quickshell only  |  AMD (Framework 13)  |  laptop
 #   No display manager: getty autologin + uwsm  |  Plymouth graphical boot
@@ -12,6 +12,25 @@
 # Arch script or add another branch yourself; this one is deliberately narrow.
 #
 # Changelog
+#   v1.14 SELINUX WAS NEVER INSTALLED. Every machine this script has built
+#         came up with SELinux Disabled - no confinement at all - and nothing
+#         said so. The kernel initialises SELinux and systemd is built with
+#         +SELINUX, but a --installroot build only gets the packages named in
+#         basepacs, and selinux-policy-targeted was not among them; Fedora's
+#         own installs receive it from a comps group. With no policy to load,
+#         SELinux silently gives up and getenforce reports Disabled.
+#           - selinux-policy-targeted and policycoreutils added to basepacs.
+#           - Two post-install checks: the policy is installed, and
+#             /etc/selinux/config says enforcing. The failure was invisible
+#             precisely because nothing ever asserted it.
+#           - The /.autorelabel this script has always written was inert:
+#             the first boot relabels using the installed policy, and there
+#             was no policy. It only starts doing its job now.
+#         Found on a fresh T480 install, then confirmed on the Framework,
+#         which had been running without SELinux since the day it was built.
+#         Existing machines are not fixed by reinstalling the script: they
+#         need `dnf install selinux-policy-targeted policycoreutils`, then
+#         `fixfiles -F onboot` and a reboot to relabel.
 #   v1.13 A SECOND LAPTOP: a ThinkPad T480 (Intel, two NVMe drives, one
 #         holding a Debian install to keep).
 #           - --disk accepts a stable path such as
@@ -374,7 +393,7 @@ set -Eeuo pipefail
 
 # Shown in the wizard's banner and the preflight report. Bump it together
 # with the header at the top of this file.
-installer_version="v1.13"
+installer_version="v1.14"
 
 ###############################################################################
 # Config - these are the DEFAULTS. Interactive mode offers them as defaults
@@ -784,6 +803,16 @@ basepacs=(
     # now. (The same trap bit this on a real machine when sddm was removed
     # post-install - it needed `dnf mark user shadow-utils` to survive.)
     shadow-utils
+    # SELinux. Fedora's own installs get the policy from a comps group; a
+    # --installroot build from an explicit list gets only what is named here,
+    # so without these the machine boots with SELinux DISABLED and no
+    # confinement at all - silently, because the kernel initialises SELinux
+    # and systemd is built with +SELINUX, then finds no policy to load and
+    # gives up. Every machine this script built before v1.14 came up that way.
+    # Same trap as shadow-utils above: a package that used to arrive as
+    # somebody else's dependency is not a package you have chosen.
+    # policycoreutils provides setsebool/restorecon/fixfiles.
+    selinux-policy-targeted policycoreutils
     man-db man-pages texinfo
     dnf5-plugins
     zstd tar
@@ -2051,6 +2080,10 @@ check "loader.conf written"            "[[ -f '$rootmnt/boot/loader/loader.conf'
 check "root UUID matches fstab"        "grep -q '$root_uuid' '$rootmnt/etc/fstab'"
 check "firmware boot entry created"    "efibootmgr | grep -qi 'linux boot manager'"
 check "kernel cmdline written"         "[[ -f '$rootmnt/etc/kernel/cmdline' ]]"
+# Without a policy the system boots Disabled and says nothing about it, so the
+# installer has to say it instead - this is the check that would have caught it.
+check "SELinux policy installed"       "[[ -f '$rootmnt/etc/selinux/config' ]] && fchroot rpm -q selinux-policy-targeted >/dev/null 2>&1"
+check "SELinux set to enforcing"       "grep -qE '^SELINUX=enforcing' '$rootmnt/etc/selinux/config' 2>/dev/null"
 
 if [[ "$encrypt" == yes ]]; then
     check "LUKS2 container on $cryptpart"  "cryptsetup isLuks '$cryptpart'"
