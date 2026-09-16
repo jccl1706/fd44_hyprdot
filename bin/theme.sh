@@ -262,14 +262,31 @@ apply() {
         icons=Adwaita
     fi
 
+    # The theme name and scheme are decided OUTSIDE the gsettings check, because
+    # the settings.ini files further down use $gtk whether or not gsettings is
+    # here. They used to be declared inside it, and on a machine without
+    # gsettings `set -u` then killed the whole function at the first use of
+    # $gtk - taking settings.ini, Chromium and hyprlock with it, silently,
+    # because the theme had already been written for quickshell and kitty by
+    # then so the switch looked half-applied rather than failed. Found on
+    # NixOS, where glib's command-line tools are a package you have to ask for
+    # rather than something every desktop drags in.
+    local gtk=Adwaita-dark gtk_scheme=prefer-dark
+    if [[ $appearance == light ]]; then gtk="Adwaita"; gtk_scheme="prefer-light"; fi
+
     if command -v gsettings >/dev/null 2>&1; then
-        local scheme=prefer-dark gtk=Adwaita-dark
-        if [[ $appearance == light ]]; then scheme="prefer-light"; gtk="Adwaita"; fi
         local iface=org.gnome.desktop.interface
-        gsettings set "$iface" color-scheme "$scheme" 2>/dev/null || true
-        gsettings set "$iface" gtk-theme    "$gtk"    2>/dev/null || true
+        gsettings set "$iface" color-scheme "$gtk_scheme" 2>/dev/null || true
+        gsettings set "$iface" gtk-theme    "$gtk"        2>/dev/null || true
         # Live: running GTK apps watch this over dbus and swap icons in place.
-        gsettings set "$iface" icon-theme   "$icons"  2>/dev/null || true
+        gsettings set "$iface" icon-theme   "$icons"      2>/dev/null || true
+    else
+        # Not fatal - settings.ini below still styles GTK apps at startup - but
+        # it is the difference between apps restyling live and only after a
+        # restart, and xdg-desktop-portal republishes this same setting as
+        # org.freedesktop.appearance color-scheme, so without it Chromium and
+        # every Electron app stop following the toggle too.
+        printf 'theme: gsettings not found - GTK apps will only pick this up when restarted\n' >&2
     fi
 
     # GTK3 has no theme called "Adwaita-dark". Its dark Adwaita is built in,
@@ -327,18 +344,24 @@ apply() {
     seed="$(val "$file" browser_seed)"
     scheme=dark; [[ $appearance == light ]] && scheme=light
 
+    # In bash, not python3. This used to shell out to python for one weighted
+    # sum, and on a machine without it the command substitution failed, `set -e`
+    # took the exit status of the assignment, and the whole switch died right
+    # here - silently, with the fallback on the very next line never reached,
+    # and Chromium and Hyprland never told about the new theme. Integer
+    # arithmetic the shell can do itself cannot fail that way.
     if [[ -n $seed && -x "$repo/bin/chrome-theme.sh" ]]; then
-        safe_seed="$(SEED="$seed" FALLBACK="$(val "$file" outline)" SCHEME="$scheme" \
-            python3 -c '
-import os
-def lum(h):
-    h = h.lstrip("#")
-    return (0.299*int(h[0:2],16) + 0.587*int(h[2:4],16) + 0.114*int(h[4:6],16)) / 255
-seed, fb, scheme = os.environ["SEED"], os.environ["FALLBACK"], os.environ["SCHEME"]
-l = lum(seed)
-bad = (scheme == "dark" and l > 0.75) or (scheme == "light" and l < 0.25)
-print(fb if bad else seed)
-' 2>/dev/null)"
+        safe_seed="$seed"
+        local hex="${seed#\#}"
+        if [[ $hex =~ ^[0-9a-fA-F]{6}$ ]]; then
+            # 0.299R + 0.587G + 0.114B, times 1000 to stay in integers. The
+            # range is 0..255000, so 0.75 is 191250 and 0.25 is 63750.
+            local w=$(( 299 * 16#${hex:0:2} + 587 * 16#${hex:2:2} + 114 * 16#${hex:4:2} ))
+            if { [[ $scheme == dark  ]] && (( w > 191250 )); } ||
+               { [[ $scheme == light ]] && (( w < 63750  )); }; then
+                safe_seed="$(val "$file" outline)"
+            fi
+        fi
         [[ -n $safe_seed ]] || safe_seed="$seed"
         "$repo/bin/chrome-theme.sh" "${safe_seed#\#}" "$scheme" >/dev/null 2>&1 || true
     fi
