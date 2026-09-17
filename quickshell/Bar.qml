@@ -64,6 +64,8 @@ PanelWindow {
     Component { id: networkPlugin; NetworkButton {} }
     Component { id: themePlugin;   ThemeToggle {} }
     Component { id: caffeinePlugin; CaffeineButton {} }
+    Component { id: couchPlugin;   CouchButton {} }
+    Component { id: powerPlugin;   PowerButton {} }
 
     // Where a dragged icon will land: a faint ring the size of a glyph.
     Component {
@@ -90,6 +92,8 @@ PanelWindow {
         case "network":     return networkPlugin
         case "theme":       return themePlugin
         case "caffeine":    return caffeinePlugin
+        case "couch":       return couchPlugin
+        case "power":       return powerPlugin
         case "placeholder": return placeholderPlugin
         }
         return null
@@ -102,6 +106,10 @@ PanelWindow {
         else if (id === "network")             root.networkRequested(x)
         else if (id === "theme" && slot.item)  slot.item.activate()
         else if (id === "caffeine")            Caffeine.toggle()
+        // Both of these arm on the first click and fire on the second, so
+        // the branch is the same one twice - the state lives in the button.
+        else if (id === "couch" && slot.item)  slot.item.activate()
+        else if (id === "power" && slot.item)  slot.item.activate()
     }
 
     // The same as clicking plugin `id` wherever it currently sits - for IPC
@@ -134,13 +142,31 @@ PanelWindow {
     // would land.
     readonly property var viewLayout: {
         const base = BarLayout.current
-        if (root.dragId === "") return base
         const out = {}
         for (const z of BarLayout.zones)
-            out[z] = base[z].filter(i => i !== root.dragId)
-        if (root.dropTarget)
+            out[z] = base[z].filter(i => i !== root.dragId && root.shows(i))
+        if (root.dragId !== "" && root.dropTarget)
             out[root.dropTarget.zone].splice(root.dropTarget.index, 0, "placeholder")
         return out
+    }
+
+    // Whether this machine can offer plugin `id` at all. Only the couch
+    // button has an answer other than yes - see Couch.qml for why it is asked
+    // rather than assumed.
+    //
+    // FILTERED HERE, NOT IN BarLayout. The layout is what the plugins are
+    // arranged as, and it is saved; dropping an id from it on a machine that
+    // cannot draw it would forget where it had been put on the machine that
+    // can - the two share one checkout, but not one bar-layout.json, so this
+    // is only about not losing an arrangement on a reinstall. Hidden ids stay
+    // in the saved order and simply are not drawn.
+    //
+    // targetFor() deliberately still counts against the FULL layout, so a
+    // drop index means the same thing on both machines: itemFor() returns
+    // null for a hidden id and the loop steps over it without advancing.
+    function shows(id: string): bool {
+        if (id === "couch") return Couch.available
+        return true
     }
 
     function zoneItem(name: string): var {

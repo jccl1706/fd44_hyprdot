@@ -233,9 +233,15 @@ ShellRoot {
         function resetLayout(): void { BarLayout.reset() }
         function layout(): string    { return JSON.stringify(BarLayout.current) }
 
-        // Click a plugin by id ("audio", "network", "theme", "caffeine")
-        // wherever it sits, so its panel opens under it:
+        // Click a plugin by id - "audio", "network", "theme", "caffeine",
+        // "couch" or "power" - wherever it sits, so its panel opens under it:
         //   qs ipc call bar activate audio
+        //
+        // IT IS A CLICK, INCLUDING ON THE TWO THAT NEED TWO OF THEM. One call
+        // to "couch" or "power" only arms the button; a second within four
+        // seconds hands the machine to Steam or switches it off. Useful for
+        // testing the armed state from a script - and worth knowing before
+        // putting either in a loop.
         function activate(id: string): void { shell.eachBar(b => b.activateId(id)) }
     }
 

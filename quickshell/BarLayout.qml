@@ -38,11 +38,22 @@ Singleton {
 
     // Every movable plugin, and where it lives when nothing says otherwise.
     // A new plugin needs an entry here and a component in Bar.qml.
+    //
+    // THE ORDER HERE IS ALSO THE ORDER A NEW PLUGIN ARRIVES IN - normalise()
+    // places one the saved file has never heard of immediately after the
+    // plugin it follows in this list, so adding to the end of a zone is how
+    // an existing machine gains an icon without its arrangement being reset.
+    //
+    // couch and power sit at the right-hand end, in that order, so the power
+    // symbol is the last thing in the bar. That is where a power control is
+    // looked for, and it keeps the two-click buttons as far as possible from
+    // the panels next to them - a slip off the audio glyph lands on empty
+    // frame rather than on something that ends the session.
     readonly property var defaults: ({
         left: [],
         centerLeft: [],
         centerRight: ["theme", "caffeine"],
-        right: ["network", "audio"]
+        right: ["network", "audio", "couch", "power"]
     })
 
     // zone name -> ordered list of plugin ids. Always complete and valid.
