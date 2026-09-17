@@ -4,6 +4,7 @@
 # =========================================================================
 #
 # Usage:  lock-at-login.sh           lock now, unless / is on an encrypted device
+#                                     or a one-shot pass was left (see below)
 #         lock-at-login.sh --check   say what it would do, change nothing
 #
 # Run by hypr/autostart.lua when Hyprland starts.
@@ -62,6 +63,23 @@ if (( check )); then
 fi
 
 [[ $encrypted == yes ]] && exit 0
+
+# A ONE-SHOT PASS, for a session that was deliberately ended from inside.
+#
+# The living-room machine boots into Steam Big Picture and is driven with a
+# controller. Leaving it - "Return to Desktop" in the Steam library - ends the
+# session, getty logs a new one in, and this locked it: a password prompt on a
+# television, with no keyboard in the room. The person who pressed the button is
+# already sitting there, so the lock guards nothing and strands them.
+#
+# A cold boot still locks, which is the case this script exists for. Only an
+# explicit handover leaves the marker, and it is consumed here so it cannot
+# cover a later login.
+_skip="${XDG_STATE_HOME:-$HOME/.local/state}/fd44-hyprdot/skip-lock-once"
+if [[ -f $_skip ]]; then
+    rm -f "$_skip"
+    exit 0
+fi
 
 pidof hyprlock >/dev/null 2>&1 && exit 0
 exec systemd-run --user --scope --quiet --collect --unit=hyprlock \
