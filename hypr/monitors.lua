@@ -147,6 +147,50 @@ hl.monitor({
     scale    = "2",
 })
 
+-- The display dummy, for streaming. A DisplayPort dongle with an EDID and no
+-- screen: it gives the card a second output to scan out to, which is what
+-- Sunshine captures when a game is streamed to the laptop.
+--
+-- IT HAS TO BE A LIVE MONITOR, not a disabled one, and that is not the
+-- obvious choice. A dummy plug is usually there so a headless machine has
+-- somewhere to draw; the instinct is to hide it from the desktop so windows
+-- do not wander onto a screen nobody can see. That instinct is wrong here:
+-- a disabled output has no CRTC, nothing scans out on it, and there is
+-- nothing for KMS capture to read. No monitor, no stream.
+--
+-- gamescope cannot simply take the connector instead, because its DRM
+-- backend takes DRM master over the WHOLE CARD - which is why couch mode
+-- replaces the desktop session rather than running beside it. The streaming
+-- session is therefore gamescope NESTED, an ordinary Wayland client,
+-- fullscreened onto this monitor. See modules/streaming.nix in fd44_nixos.
+--
+-- 1920x1200 rather than its preferred 1920x1080. The dummy offers both, and
+-- the laptop being streamed to has a 3:2 panel (2256x1504) - 16:10 is the
+-- closest ratio on offer, so it letterboxes the least. Its EDID also lists
+-- 3840x2160, which is a trap: this dongle only does 4K at 30 Hz.
+--
+-- `desc:` with the vendor code EXPANDED. The EDID says TCT; Hyprland turns
+-- that into "Telecom Technology Centre Co. Ltd." from the same PNP table
+-- that makes AUO into "AU Optronics" above. Written out in full because a
+-- rule spelled "desc:TCT DP1080P60" would match nothing, silently, exactly
+-- as the T480's rule once did.
+--
+-- Matching the DEVICE and not the socket, for a reason that was measured
+-- rather than assumed: this dongle was read on DP-3 and then, after being
+-- moved, on DP-1 with a byte-identical EDID. The connector name follows the
+-- socket. This rule follows the dongle.
+--
+-- The catch-all above puts it to the left, so it sits off the far edge of
+-- the television rather than anywhere the pointer passes by accident. It is
+-- still a real screen the pointer can reach - the cost of having something
+-- to capture.
+hl.monitor({
+    output   = "desc:Telecom Technology Centre Co. Ltd. DP1080P60",
+    mode     = "1920x1200@60",
+    position = "auto-left",
+    scale    = "1",
+})
+
 -- Example: pin the internal panel explicitly and put an external display to
 -- its right. Uncomment and adjust when you actually dock something.
 --

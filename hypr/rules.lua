@@ -182,6 +182,45 @@ hl.window_rule({
 --     rounding    = 0,
 -- })
 
+-- Workspace 9 lives on the display dummy, and the streaming session lives on
+-- workspace 9. Two rules that together put Steam Big Picture on a screen that
+-- does not exist, for Sunshine to capture and send to the laptop.
+--
+-- DECLARATIVE BECAUSE DISPATCHING DOES NOT WORK HERE. The obvious way to do
+-- this is to focus the dummy and let gamescope fullscreen onto it, and on
+-- this machine that is impossible from a script:
+--
+--   $ hyprctl dispatch focusmonitor DP-1
+--   error: [string "return hl.dispatch(focusmonitor DP-1)"]:1: ')' expected
+--
+-- hyprctl routes dispatches through this Lua config, which wants a dispatcher
+-- OBJECT - hl.dsp.window.close() and friends - not a string. hl.dsp has no
+-- monitor entry at all (cursor, dpms, exec_cmd, focus, global, group, layout,
+-- submap, window, workspace), so there is nothing to call. Rules need none of
+-- it.
+--
+-- Worth knowing more generally: `hyprctl dispatch <anything>` fails on this
+-- config and returns 7. fd44-session's `hyprctl dispatch exit` has been
+-- failing silently for exactly this reason - couch mode only ever switched
+-- because of its `|| loginctl terminate-user` fallback.
+--
+-- MATCHED ON gamescope, which under Hyprland can only be the streaming
+-- session: couch mode's gamescope IS the compositor and never appears as a
+-- window. A nested gamescope started by hand goes to the dummy too, which is
+-- the right guess about what someone nesting gamescope on this machine wants.
+hl.workspace_rule({
+    workspace = "9",
+    monitor   = "desc:Telecom Technology Centre Co. Ltd. DP1080P60",
+})
+
+hl.window_rule({
+    name  = "stream-session-on-the-dummy",
+    match = { class = "^gamescope$" },
+
+    workspace  = "9",
+    fullscreen = true,
+})
+
 -- The btop scratchpad (SUPER + `). Whenever special:btop is opened with
 -- nothing on it - the first press after login, or after quitting btop - this
 -- starts it, in a kitty whose class the "btop-scratchpad" window rule above
