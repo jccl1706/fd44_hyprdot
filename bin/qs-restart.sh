@@ -36,7 +36,10 @@ set -euo pipefail
 
 die()  { printf '\033[1;31mqs-restart:\033[0m %s\n' "$*" >&2; exit 1; }
 log()  { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
-nap()  { python3 -c "import time; time.sleep($1)"; }
+# Plain sleep, and it takes fractions: coreutils' does everywhere this runs.
+# It used to shell out to python3 for this, which is not installed on the
+# NixOS desktop at all - under `set -e` the first wait killed the script.
+nap()  { sleep "$1"; }
 
 (( EUID != 0 )) || die "run as your own user, not root - quickshell runs in your session"
 
@@ -58,15 +61,34 @@ if [[ -z ${WAYLAND_DISPLAY:-} ]]; then
 fi
 hyprctl version >/dev/null 2>&1 || die "cannot reach Hyprland (instance $HYPRLAND_INSTANCE_SIGNATURE)"
 
-# By exact process name: `qs` is the launcher's name, `quickshell` the one a
-# crash-handler relaunch runs under. Never `pkill -f`, which would match this
-# script's own command line.
-running() { pgrep -u "$(id -u)" -x 'qs|quickshell' || true; }
+# BY EXECUTABLE, NOT BY PROCESS NAME. `pgrep -x quickshell` is the obvious way
+# to do this and it finds nothing on NixOS: what is on PATH there is a wrapper,
+# so the process is named after the wrapper - ".quickshell-wrapped", which the
+# kernel truncates to ".quickshell-wra" - and -x matches names exactly. The
+# script then said "quickshell was not running", killed nothing, and started
+# another one. Four shells were stacked on the gaming desktop before anyone
+# noticed, which is the exact thing this script exists to prevent.
+#
+# /proc/PID/exe is what is actually being run, whatever the wrapper is called.
+# Reading it also cannot match this script, the ssh command line that started
+# it, or an editor with the word in a filename - which is why the tempting
+# `pkill -f quickshell` is still not used.
+running() {
+    local p exe
+    for p in /proc/[0-9]*; do
+        [[ -O $p ]] || continue                        # our own processes only
+        exe="$(readlink -f "$p/exe" 2>/dev/null)" || continue
+        case "${exe##*/}" in
+            qs|quickshell|.qs-wrapped|.quickshell-wrapped) echo "${p##*/}" ;;
+        esac
+    done
+}
 
 before="$(running | wc -l)"
 if (( before )); then
     log "stopping quickshell ($before process(es))"
-    pkill -KILL -u "$(id -u)" -x 'qs|quickshell' || true
+    # shellcheck disable=SC2046  # bare pids, one per line, no quoting needed
+    kill -KILL $(running) 2>/dev/null || true
     for _ in $(seq 1 25); do
         [[ -z "$(running)" ]] && break
         nap 0.2
