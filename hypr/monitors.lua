@@ -102,6 +102,33 @@ hl.monitor({
     scale    = "1.25",
 })
 
+-- The living-room TV, which is a different problem from a monitor: not pixel
+-- density, but viewing distance. An LG 4K set at sofa range is about 3 m away
+-- against 50 cm for a laptop panel, so text needs to be several times larger
+-- in physical terms even though the panel is far less dense.
+--
+-- Scale 2 - 3840x2160 becomes 1920x1080 logical. It divides exactly, so
+-- Hyprland has nothing to snap and none of the fractional-scale seams apply.
+--
+-- `desc:` rather than HDMI-A-1, for the same reason as the panels above: the
+-- connector name says where a cable is plugged, not what is on the end of it,
+-- and HDMI-A-1 on another machine is somebody's monitor.
+--
+-- NOT "auto", and this is why: the set's EDID claims a physical size of
+-- 1600x900 mm, which is a lie no 4K television is - anything deriving DPI from
+-- it lands somewhere arbitrary. Televisions misreport this routinely.
+--
+-- This only shows on the desktop. Couch mode runs Steam under gamescope, which
+-- owns the display and does its own scaling; this is what you get when Hyprland
+-- is on the TV instead - deliberately, or because the couch session failed to
+-- start and the login hook fell back to it.
+hl.monitor({
+    output   = "desc:LG Electronics LG TV SSCR2",
+    mode     = "preferred",
+    position = "auto",
+    scale    = "2",
+})
+
 -- Example: pin the internal panel explicitly and put an external display to
 -- its right. Uncomment and adjust when you actually dock something.
 --
