@@ -366,6 +366,46 @@ apply() {
         "$repo/bin/chrome-theme.sh" "${safe_seed#\#}" "$scheme" >/dev/null 2>&1 || true
     fi
 
+    # --- Wallpaper -----------------------------------------------------
+    #
+    # quickshell draws the wallpaper (quickshell/Wallpaper.qml) by watching
+    # ~/.local/state/wallpaper, so bin/wallpaper.sh only has to write that file
+    # and the crossfade happens by itself - there is no daemon to talk to and
+    # nothing to restart.
+    #
+    # A MANUAL CHOICE WINS. The wallpaper is only replaced when the one on
+    # screen is another theme's - or none is set yet. Anything picked in the
+    # picker is left alone, for as long as it is picked.
+    #
+    # Without that rule this step quietly overwrites a choice the themes know
+    # nothing about: measured on the laptop, which was showing
+    # tokyo-night-quattro and had it replaced by re-applying the theme it was
+    # already on. A theme switch is not a request to undo a wallpaper you chose.
+    #
+    # A theme naming a file that is not there is reported rather than passed
+    # on, because wallpaper.sh would otherwise fail the whole switch through
+    # `set -e` for a cosmetic step.
+    local wp
+    wp="$(val "$file" wallpaper)"
+    if [[ -n $wp && -x "$repo/bin/wallpaper.sh" ]]; then
+        if [[ ! -f "$repo/wallpapers/$wp" ]]; then
+            printf 'theme: %s names wallpaper %s, which is not in wallpapers/\n' \
+                "$name" "$wp" >&2
+        else
+            local now theme_owned=0 t other
+            now="$(basename "$("$repo/bin/wallpaper.sh" current 2>/dev/null || true)")"
+            [[ -z $now ]] && theme_owned=1          # nothing chosen yet
+            while read -r t; do
+                other="$(val "$theme_dir/$t.conf" wallpaper)"
+                [[ -n $other && $now == "$other" ]] && theme_owned=1
+            done < <(themes)
+            if (( theme_owned )); then
+                "$repo/bin/wallpaper.sh" set "$repo/wallpapers/$wp" >/dev/null 2>&1 \
+                    || printf 'theme: could not set the wallpaper %s\n' "$wp" >&2
+            fi
+        fi
+    fi
+
     # --- Hyprland ------------------------------------------------------
     if command -v hyprctl >/dev/null 2>&1 && [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
         local lua bg
