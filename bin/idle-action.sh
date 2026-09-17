@@ -5,7 +5,7 @@
 # with --dry-run.
 #
 # Usage:
-#   idle-action.sh lock    {battery|always}   lock the session
+#   idle-action.sh lock    {battery|portable|always}   lock the session
 #   idle-action.sh blank   {battery|always}   turn the display off
 #   idle-action.sh suspend {battery|always}   suspend the machine
 #   idle-action.sh suspend-if-idle            suspend if on battery with the
@@ -14,6 +14,10 @@
 #
 # "battery" means: do nothing when running on AC, because the later
 # unconditional listener handles that case.
+#
+# "portable" means: do nothing on a machine with no battery. Not the same
+# question - that one is about the power source right now, this one is about
+# whether the machine is ever carried away from a desk.
 #
 #
 # ===========================================================================
@@ -61,6 +65,10 @@ scope="${args[1]:-always}"
 
 log() { printf '[idle-action] %s\n' "$*"; }
 
+# Does this machine have a battery at all? A laptop does; a desktop or a VM
+# does not, and that is a property of the machine rather than of this moment.
+has_battery() { compgen -G '/sys/class/power_supply/BAT*' >/dev/null; }
+
 on_ac() {
     # NO BATTERY AT ALL means permanently on mains - a desktop, or a VM. That
     # is NOT the same as "the AC file is unreadable", which is how this used to
@@ -76,7 +84,7 @@ on_ac() {
     #
     # Checked before the AC file, because a machine with no battery has no
     # meaningful AC state either - some report AC offline regardless.
-    compgen -G '/sys/class/power_supply/BAT*' >/dev/null || return 0
+    has_battery || return 0
 
     # There IS a battery. Now no charger found online genuinely does mean
     # "assume battery" - the cautious reading, since guessing AC on a laptop
@@ -138,6 +146,23 @@ in_scope() {
                 return 1
             fi
             return 0
+            ;;
+        portable)
+            # Machines that HAVE a battery, whether or not they are plugged in -
+            # which is the question "is this something somebody carries away
+            # from the desk", not "what is it running on right now".
+            #
+            # This exists for the lock. "always" locks the living-room machine
+            # after five minutes, and a Steam Controller cannot type a password
+            # into hyprlock, so a pause during a film locks you out of a
+            # keyboardless machine. "battery" would fix that but would also stop
+            # both laptops locking whenever they are plugged in, which is a
+            # weaker desk than before rather than a better sofa.
+            if has_battery; then
+                return 0
+            fi
+            log "no battery - this machine is not carried anywhere, skipping $action"
+            return 1
             ;;
         *) echo "unknown scope: $scope" >&2; exit 2 ;;
     esac
