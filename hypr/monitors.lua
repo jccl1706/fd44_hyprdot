@@ -20,11 +20,29 @@
 -- the hostname means neither machine needs to know the other exists - eDP is
 -- an internal laptop panel by definition, DP and HDMI are not.
 
--- Everything that is not an internal panel: no scaling.
+-- Everything that is not an internal panel: no scaling, and placed to the LEFT
+-- of whatever else is already there.
+--
+-- `auto-left` rather than `auto`, and that is a preference rather than a
+-- default. With `auto` Hyprland puts each new output to the RIGHT of the ones
+-- placed before it, so an external display landed to the right of the laptop
+-- panel - which has it backwards. The external is the large screen and the one
+-- being looked at; the laptop panel is the thing beside it.
+--
+-- IT PUTS THE EXTERNAL AT A NEGATIVE X. Measured with the Framework and a
+-- 2560x1440 LG: the panel keeps 0,0 and the LG lands at -2560,0. That is
+-- ordinary in Hyprland and nothing in this config cares, but it is worth
+-- knowing when reading `hyprctl monitors`, and when handing coordinates to
+-- something like grim, which will want the negative numbers too.
+--
+-- On a machine with one monitor there is nothing to be left of, so it lands at
+-- 0,0 exactly as `auto` does - the rule is written for the laptops and costs
+-- the desktop and the television nothing. (Not exercised here: both machines
+-- with a single output were busy when this was written.)
 hl.monitor({
     output   = "",
     mode     = "preferred",
-    position = "auto",
+    position = "auto-left",
     scale    = "1",
 })
 
