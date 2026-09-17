@@ -164,16 +164,26 @@ hl.monitor({
 -- session is therefore gamescope NESTED, an ordinary Wayland client,
 -- fullscreened onto this monitor. See modules/streaming.nix in fd44_nixos.
 --
--- 1920x1200 rather than its preferred 1920x1080. The dummy offers both, and
--- the laptop being streamed to has a 3:2 panel (2256x1504) - 16:10 is the
--- closest ratio on offer, so it letterboxes the least. Its EDID also lists
--- 3840x2160, which is a trap: this dongle only does 4K at 30 Hz.
+-- IT IS NOT THE DONGLE'S OWN EDID. fd44_nixos replaces it through
+-- drm.edid_firmware with one built by firmware/make-edid.py, which is why
+-- this rule matches "The Linux Foundation fd44 stream" rather than the
+-- dongle's "Telecom Technology Centre Co. Ltd. DP1080P60". Change that
+-- override and this line has to change with it - a mismatched desc matches
+-- nothing, silently, and the output lands on 640x480.
 --
--- `desc:` with the vendor code EXPANDED. The EDID says TCT; Hyprland turns
--- that into "Telecom Technology Centre Co. Ltd." from the same PNP table
--- that makes AUO into "AU Optronics" above. Written out in full because a
--- rule spelled "desc:TCT DP1080P60" would match nothing, silently, exactly
--- as the T480's rule once did.
+-- 1920x1280 BECAUSE IT IS 3:2, like the laptop panel being streamed to
+-- (2256x1504). The dongle's own best mode is 1920x1200, which is 16:10, so
+-- the picture arrives letterboxed; at 3:2 it fills the screen, and with more
+-- pixels than the 16:10 mode rather than fewer.
+--
+-- The panel's own 2256x1504 would be better still and is not available: this
+-- connector has a pixel-clock ceiling somewhere around 180 MHz - two
+-- DisplayPort lanes at HBR - and that mode needs 224. The evidence is in what
+-- the dongle's own EDID got away with: its 1920x1080 @ 60 (148.5 MHz) was
+-- accepted and its 2560x1440 and 2560x1600 timings (241.5 and 268.5 MHz)
+-- were dropped without a word, which is what made it look like it was lying.
+-- The replacement EDID carries 1800x1200 and 1920x1200 as fallbacks, so a
+-- link that will not carry 164 MHz still comes up with something sane.
 --
 -- Matching the DEVICE and not the socket, for a reason that was measured
 -- rather than assumed: this dongle was read on DP-3 and then, after being
@@ -184,9 +194,13 @@ hl.monitor({
 -- the television rather than anywhere the pointer passes by accident. It is
 -- still a real screen the pointer can reach - the cost of having something
 -- to capture.
+--
+-- This mode must match streamW/streamH in fd44_nixos's modules/streaming.nix
+-- and the resolution Moonlight asks for. Any disagreement gets silently
+-- absorbed by something rescaling, which is the softness all this is for.
 hl.monitor({
-    output   = "desc:Telecom Technology Centre Co. Ltd. DP1080P60",
-    mode     = "1920x1200@60",
+    output   = "desc:The Linux Foundation fd44 stream",
+    mode     = "1920x1280@60",
     position = "auto-left",
     scale    = "1",
 })
