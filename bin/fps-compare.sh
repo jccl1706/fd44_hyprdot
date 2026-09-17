@@ -30,10 +30,13 @@
 #               1% low above; quoted because people mean either by "1% low"
 #               and comparing one against the other is a common mistake.
 #
-# Per-file rows come first so run-to-run spread is visible. Two runs of the
-# same benchmark on the same machine differ by a percent or two; if the gap
-# between your two systems is not clearly larger than the gap between repeats
-# of one of them, you have not measured a difference.
+# Per-file rows come first so run-to-run spread is visible, and the verdict is
+# made against that measured spread rather than a fixed percentage. A fixed
+# threshold is wrong here, and specifically wrong at the tail: the 0.1% low is
+# the worst frame in a thousand, so 0.7 ms becomes a 7% swing in fps and reads
+# like a result when it is one slightly late frame. The frametime percentiles
+# printed underneath each group are the same numbers without that distortion -
+# compare p99.9 in milliseconds before believing anything about a 0.1% low.
 
 set -euo pipefail
 
@@ -110,7 +113,14 @@ for arg in "$@"; do
     fi
 done
 
-declare -a g_avg g_low1 g_low01 g_frames
+# max - min of a list, printed with one decimal. One value means no spread.
+spread() {
+    printf '%s\n' "$@" | awk 'NR==1{mn=mx=$1} {if($1<mn)mn=$1; if($1>mx)mx=$1} END{printf "%.1f", mx-mn}'
+}
+
+declare -a g_avg g_low1 g_low01 g_frames g_p999 g_p99 g_med
+declare -a g_spread_avg g_spread_low1 g_spread_low01
+declare -a run_avg run_low1 run_low01
 for gi in "${!dirs[@]}"; do
     path="${dirs[$gi]}"
     [[ -e $path ]] || die "no such path: $path"
@@ -125,6 +135,7 @@ for gi in "${!dirs[@]}"; do
     row "run" "frames" "seconds" "avg" "median" "1% low" "0.1% low" "worst 1%"
 
     : > "$tmp/all"
+    run_avg=(); run_low1=(); run_low01=()
     for f in "${files[@]}"; do
         if ! frametimes "$f" > "$tmp/one" 2>/dev/null || [[ ! -s $tmp/one ]]; then
             row "$(basename "$f")" "-" "-" "-" "-" "-" "-" "-"
@@ -134,26 +145,63 @@ for gi in "${!dirs[@]}"; do
         sort -n "$tmp/one" > "$tmp/one.s"
         read -r n s avg med l1 l01 w1 <<<"$(stats "$tmp/one.s")"
         row "$(basename "$f" .csv | cut -c1-22)" "$n" "$s" "$avg" "$med" "$l1" "$l01" "$w1"
+        run_avg+=("$avg"); run_low1+=("$l1"); run_low01+=("$l01")
     done
 
     sort -n "$tmp/all" > "$tmp/all.s"
     read -r n s avg med l1 l01 w1 <<<"$(stats "$tmp/all.s")"
     printf '  %s\n' "$(printf '%.0s-' {1..86})"
     row "ALL" "$n" "$s" "$avg" "$med" "$l1" "$l01" "$w1"
+
+    # The same distribution as frametimes, which is what was measured and the
+    # only form in which the tail can be read honestly.
+    printf '  frametime ms           median %5.2f   p95 %5.2f   p99 %5.2f   p99.9 %5.2f   max %6.2f\n' \
+        "$(pct_line "$tmp/all.s" "$n" 50)" "$(pct_line "$tmp/all.s" "$n" 95)" \
+        "$(pct_line "$tmp/all.s" "$n" 99)" "$(pct_line "$tmp/all.s" "$n" 99.9)" \
+        "$(tail -1 "$tmp/all.s")"
+
+    # Spread between repeats of THIS configuration: the yardstick any
+    # difference between configurations has to clear.
+    if (( ${#run_avg[@]} > 1 )); then
+        printf '  spread across runs     avg %.1f   1%% low %.1f   0.1%% low %.1f   (fps, max - min)\n' \
+            "$(spread "${run_avg[@]}")" "$(spread "${run_low1[@]}")" "$(spread "${run_low01[@]}")"
+    fi
+
     g_frames[$gi]="$n"; g_avg[$gi]="$avg"; g_low1[$gi]="$l1"; g_low01[$gi]="$l01"
+    g_p999[$gi]="$(pct_line "$tmp/all.s" "$n" 99.9)"
+    g_p99[$gi]="$(pct_line "$tmp/all.s" "$n" 99)"
+    g_med[$gi]="$(pct_line "$tmp/all.s" "$n" 50)"
+    g_spread_avg[$gi]="$(spread "${run_avg[@]}")"
+    g_spread_low1[$gi]="$(spread "${run_low1[@]}")"
+    g_spread_low01[$gi]="$(spread "${run_low01[@]}")"
 done
 
 # --- and the difference, if there are exactly two --------------------------
 if (( ${#dirs[@]} == 2 )); then
     printf '\n\033[1m%s vs %s\033[0m\n' "${names[0]}" "${names[1]}"
-    printf '  %-12s %10s %10s %10s %9s\n' "metric" "${names[0]:0:10}" "${names[1]:0:10}" "diff" "percent"
-    for pair in "avg:${g_avg[0]}:${g_avg[1]}" "1% low:${g_low1[0]}:${g_low1[1]}" "0.1% low:${g_low01[0]}:${g_low01[1]}"; do
-        label="${pair%%:*}"; rest="${pair#*:}"; a="${rest%%:*}"; b="${rest#*:}"
-        awk -v l="$label" -v a="$a" -v b="$b" -v n0="${names[0]}" -v n1="${names[1]}" \
-            'BEGIN{ d=b-a; p=(a? d*100/a : 0);
-                    printf "  %-12s %10.1f %10.1f %+10.1f %+8.1f%%   %s\n", l, a, b, d, p,
-                      (p>2 ? n1 " ahead" : (p<-2 ? n0 " ahead" : "no real difference")) }'
+    printf '  %-12s %10s %10s %10s %9s %9s   %s\n' \
+        "metric" "${names[0]:0:10}" "${names[1]:0:10}" "diff" "percent" "spread" "verdict"
+    for pair in "avg:${g_avg[0]}:${g_avg[1]}:${g_spread_avg[0]:-0}:${g_spread_avg[1]:-0}" \
+                "1% low:${g_low1[0]}:${g_low1[1]}:${g_spread_low1[0]:-0}:${g_spread_low1[1]:-0}" \
+                "0.1% low:${g_low01[0]}:${g_low01[1]}:${g_spread_low01[0]:-0}:${g_spread_low01[1]:-0}"; do
+        IFS=: read -r label a b sa sb <<<"$pair"
+        # The yardstick is the WIDER of the two systems' own run-to-run spreads.
+        # A difference smaller than that is not distinguishable from running the
+        # same benchmark twice on one machine.
+        awk -v l="$label" -v a="$a" -v b="$b" -v sa="$sa" -v sb="$sb" \
+            -v n0="${names[0]}" -v n1="${names[1]}" \
+            'BEGIN{ d=b-a; p=(a? d*100/a : 0); s=(sa>sb?sa:sb); ad=(d<0?-d:d);
+                    v = (ad <= s) ? "within run-to-run spread" : (d>0 ? n1 " ahead" : n0 " ahead");
+                    printf "  %-12s %10.1f %10.1f %+10.1f %+8.1f%% %9.1f   %s\n", l, a, b, d, p, s, v }'
     done
-    printf '\n  A gap under about 2%% is noise. Check it against the spread between\n'
-    printf '  repeated runs above before calling it a win.\n'
+
+    printf '\n  the same tail as frametimes, undistorted:\n'
+    printf '  %-12s %10s %10s %10s\n' "percentile" "${names[0]:0:10}" "${names[1]:0:10}" "diff ms"
+    for pair in "median:${g_med[0]}:${g_med[1]}" "p99:${g_p99[0]}:${g_p99[1]}" "p99.9:${g_p999[0]}:${g_p999[1]}"; do
+        IFS=: read -r label a b <<<"$pair"
+        awk -v l="$label" -v a="$a" -v b="$b" \
+            'BEGIN{ printf "  %-12s %10.2f %10.2f %+10.2f\n", l, a, b, b-a }'
+    done
+    printf '\n  A percentage on a 0.1%% low exaggerates: it is the worst frame in a\n'
+    printf '  thousand, so a fraction of a millisecond reads as several percent.\n'
 fi
