@@ -26,10 +26,27 @@
 # FAIL CLOSED. If it cannot tell whether the root filesystem is encrypted - no
 # findmnt, an unexpected source, lsblk failing - it locks.
 #
+# EXCEPT ON A MACHINE WITH NO BATTERY, which does not lock at all. That is a
+# deliberate weakening, decided rather than drifted into, and the reasoning is
+# the same as the "portable" scope in bin/idle-action.sh: a machine with no
+# battery is not carried anywhere. The living-room desktop is driven with a game
+# controller and has no keyboard in the room, so a password prompt there is not
+# a lock, it is a lockout - and the way out was ssh from another machine, twice.
+#
+# What that costs: anyone who switches that machine on gets the desktop, and
+# with it the browser sessions, the Steam account, and an ssh key that reaches
+# the laptop. That is an acceptable trade for a console in one's own living
+# room and NOT a good one for a laptop, which is exactly why the test is "does
+# this thing have a battery" rather than a hostname or a config flag.
+#
 # The lock is started exactly as hypridle's lock_cmd starts it: in a systemd
 # scope of its own, so restarting quickshell or hypridle cannot kill it.
 
 set -u
+
+# A laptop has one; a desktop or a VM does not. The question is whether the
+# machine is ever carried away from where it lives, not what it is running on.
+has_battery() { compgen -G '/sys/class/power_supply/BAT*' >/dev/null; }
 
 check=0
 [[ ${1:-} == --check ]] && check=1
@@ -54,13 +71,20 @@ if (( check )); then
     printf 'root device : %s\n' "${src:-(none found)}"
     printf 'device chain: %s\n' "$(lsblk -rsno TYPE "$src" 2>/dev/null | tr '\n' ' ')"
     printf 'encrypted   : %s\n' "$encrypted"
-    if [[ $encrypted == yes ]]; then
+    printf 'has battery : %s\n' "$(has_battery && echo yes || echo no)"
+    if ! has_battery; then
+        printf 'action      : none - no battery, so this is not a machine that is carried anywhere\n'
+    elif [[ $encrypted == yes ]]; then
         printf 'action      : none - the boot passphrase already guards the autologin\n'
     else
         printf 'action      : lock the session at login\n'
     fi
     exit 0
 fi
+
+# No battery means a desktop, which here means the living-room machine with no
+# keyboard. See the header: this is the deliberate exception.
+has_battery || exit 0
 
 [[ $encrypted == yes ]] && exit 0
 
