@@ -114,7 +114,9 @@ declare -a g_avg g_low1 g_low01 g_frames
 for gi in "${!dirs[@]}"; do
     path="${dirs[$gi]}"
     [[ -e $path ]] || die "no such path: $path"
-    mapfile -t files < <(if [[ -d $path ]]; then find "$path" -maxdepth 1 -name '*.csv' | sort; else printf '%s\n' "$path"; fi)
+    # MangoHud writes <name>_summary.csv beside every log: its own precomputed
+    # figures, not frame data. Skipped rather than reported as unreadable.
+    mapfile -t files < <(if [[ -d $path ]]; then find "$path" -maxdepth 1 -name '*.csv' ! -name '*_summary.csv' | sort; else printf '%s\n' "$path"; fi)
     (( ${#files[@]} )) || die "no CSV files in $path"
 
     printf '\n\033[1m%s\033[0m  (%d file%s)\n' "${names[$gi]}" "${#files[@]}" "$( (( ${#files[@]} == 1 )) || echo s)"
