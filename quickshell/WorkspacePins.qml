@@ -40,6 +40,11 @@ Singleton {
     // Monitor name -> its EDID description, needed to resolve the `desc:`
     // form a rule may use.
     property var descriptions: ({})
+
+    // Connected monitors in the order Hyprland lists them, so "the first
+    // connected screen" means something stable rather than whatever order a
+    // JavaScript object happens to iterate in.
+    property var monitorOrder: []
     property var rules: []
     property bool haveMonitors: false
     property bool haveRules: false
@@ -81,6 +86,7 @@ Singleton {
         if (!pins.haveMonitors || !pins.haveRules) return
 
         const out = {}
+        const orphans = []          // pinned to a monitor that is not here
         for (let i = 0; i < pins.rules.length; i++) {
             const r = pins.rules[i]
             if (!r || !r.monitor || r.enabled === false) continue
@@ -92,10 +98,41 @@ Singleton {
             if (!(id > 0) || String(id) !== String(r.workspaceString)) continue
 
             const screen = pins.screenFor(r.monitor)
-            if (!screen) continue
+            if (!screen) {
+                orphans.push(id)
+                continue
+            }
             if (!out[screen]) out[screen] = []
             if (out[screen].indexOf(id) < 0) out[screen].push(id)
         }
+
+        // WORKSPACES PINNED TO A MONITOR THAT IS NOT CONNECTED STILL HAVE TO
+        // APPEAR SOMEWHERE, and that was a real bug rather than a nicety.
+        //
+        // Unplug the external and Hyprland migrates its workspaces to a
+        // remaining monitor - the windows are still there, on 1 to 5, on the
+        // laptop. But the rules pinning 1-5 to the external stop resolving,
+        // so those numbers were dropped from every screen's list and the
+        // laptop's bar drew only 6 to 9. The workspace you were actually
+        // standing on was not on the bar at all.
+        //
+        // The 1-5 fallback in Workspaces.qml did not save it either: the
+        // laptop's list was [6,7,8,9], which is not empty, so the fallback
+        // never fired. That fallback is for a machine no rule mentions - the
+        // desktop - and this is a different case.
+        //
+        // They go to the first connected monitor, which is exactly right
+        // when only one is left, and an arbitrary but harmless choice when
+        // several are. Hyprland makes the same kind of choice when it
+        // migrates them.
+        if (orphans.length > 0 && pins.monitorOrder.length > 0) {
+            const host = pins.monitorOrder[0]
+            if (!out[host]) out[host] = []
+            for (let i = 0; i < orphans.length; i++) {
+                if (out[host].indexOf(orphans[i]) < 0) out[host].push(orphans[i])
+            }
+        }
+
         for (const k in out) out[k].sort((a, b) => a - b)
         pins.byScreen = out
     }
@@ -107,15 +144,18 @@ Singleton {
         stdout: StdioCollector {
             onStreamFinished: {
                 const map = {}
+                const order = []
                 try {
                     const arr = JSON.parse(text)
                     for (let i = 0; i < arr.length; i++) {
                         map[arr[i].name] = arr[i].description || ""
+                        order.push(arr[i].name)
                     }
                 } catch (e) {
                     console.warn("WorkspacePins: monitors -j did not parse:", e)
                 }
                 pins.descriptions = map
+                pins.monitorOrder = order
                 pins.haveMonitors = true
                 pins.recompute()
             }
