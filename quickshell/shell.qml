@@ -171,7 +171,7 @@ ShellRoot {
     GlobalShortcut {
         appid: "quickshell"
         name: "wallpaper"
-        onPressed: shell.eachWallpaper(w => w.toggle())
+        onPressed: shell.toggleFocused(wallpaperVariants.instances)
     }
 
     GlobalShortcut {
@@ -272,17 +272,17 @@ ShellRoot {
     IpcHandler {
         target: "wallpaper"
 
-        function toggle(): void { shell.eachWallpaper(w => w.toggle()) }
-        function open(): void   { shell.eachWallpaper(w => w.open())   }
-        function close(): void  { shell.eachWallpaper(w => w.close())  }
+        function toggle(): void { shell.toggleFocused(wallpaperVariants.instances) }
+        function open(): void   { shell.openFocused(wallpaperVariants.instances)   }
+        function close(): void  { shell.closeAll(wallpaperVariants.instances)      }
 
         // Step the selection without the keyboard - scriptable, and the only
         // way to trigger the transition reproducibly for measurement.
-        function next(): void   { shell.eachWallpaper(w => w.move(1))  }
-        function prev(): void   { shell.eachWallpaper(w => w.move(-1)) }
+        function next(): void   { shell.eachRevealed(wallpaperVariants.instances, w => w.move(1))  }
+        function prev(): void   { shell.eachRevealed(wallpaperVariants.instances, w => w.move(-1)) }
 
         // Apply whatever is currently centred - the same thing Return does.
-        function apply(): void  { shell.eachWallpaper(w => w.applySelected()) }
+        function apply(): void  { shell.eachRevealed(wallpaperVariants.instances, w => w.applySelected()) }
     }
 
     IpcHandler {
@@ -321,13 +321,6 @@ ShellRoot {
 
     function eachNetwork(fn): void {
         const instances = networkVariants.instances
-        for (let i = 0; i < instances.length; i++) {
-            if (instances[i]) fn(instances[i])
-        }
-    }
-
-    function eachWallpaper(fn): void {
-        const instances = wallpaperVariants.instances
         for (let i = 0; i < instances.length; i++) {
             if (instances[i]) fn(instances[i])
         }
@@ -401,6 +394,18 @@ ShellRoot {
         }
         const one = shell.focusedOne(instances)
         if (one) one.open()
+    }
+
+    // The instances that are actually on screen.
+    //
+    // Stepping or applying a selection has to reach the picker that is UP,
+    // which is not always the one on the focused monitor. Unlike the bar's
+    // drop-down panels, the picker has no rule closing it when the pointer
+    // leaves its screen, so the open one and the focused one can differ.
+    function eachRevealed(instances, fn): void {
+        for (let i = 0; i < instances.length; i++) {
+            if (instances[i] && instances[i].revealed) fn(instances[i])
+        }
     }
 
     function openFocused(instances): void {
