@@ -70,6 +70,9 @@ ShellRoot {
             onNetworkRequested: x => shell.eachNetwork(n => {
                 if (n.modelData === bar.modelData) n.toggle(x)
             })
+            onNotificationsRequested: x => shell.eachNotifyPanel(p => {
+                if (p.modelData === bar.modelData) p.toggle(x)
+            })
         }
     }
 
@@ -127,6 +130,22 @@ ShellRoot {
         id: networkVariants
         model: Quickshell.screens
         NetworkPanel {}
+    }
+
+    // Do-not-disturb and the history of what has been and gone. Opened from
+    // the bell.
+    Variants {
+        id: notifyPanelVariants
+        model: Quickshell.screens
+        NotificationPanel {}
+    }
+
+    // Notification toasts. The service is a singleton and owns the bus name;
+    // these are just the surfaces it draws on, one per monitor, of which
+    // only the focused one ever shows anything.
+    Variants {
+        model: Quickshell.screens
+        Notifications {}
     }
 
     // The wallpaper itself, on the Background layer - there is no wallpaper
@@ -293,6 +312,22 @@ ShellRoot {
         function close(): void  { shell.closeAll(launcherVariants.instances)      }
     }
 
+    // Notifications - inspect and drive the daemon:
+    //   qs ipc call notifications status
+    IpcHandler {
+        target: "notifications"
+
+        function status(): string {
+            return "popups=" + NotificationService.popups.count
+                 + " history=" + NotificationService.history.length
+                 + " dnd=" + NotificationService.doNotDisturb
+        }
+        function dnd(): void          { NotificationService.toggleDnd() }
+        function panel(): void        { shell.toggleFocused(notifyPanelVariants.instances) }
+        function dismissAll(): void   { NotificationService.dismissAll() }
+        function clearHistory(): void { NotificationService.clearHistory() }
+    }
+
     IpcHandler {
         target: "osd"
 
@@ -314,6 +349,13 @@ ShellRoot {
 
     function eachBar(fn): void {
         const instances = barVariants.instances
+        for (let i = 0; i < instances.length; i++) {
+            if (instances[i]) fn(instances[i])
+        }
+    }
+
+    function eachNotifyPanel(fn): void {
+        const instances = notifyPanelVariants.instances
         for (let i = 0; i < instances.length; i++) {
             if (instances[i]) fn(instances[i])
         }
@@ -348,10 +390,11 @@ ShellRoot {
     // avoid. Measured: it is null for about a second after the shell starts,
     // then tracks every focus change exactly.
     //
-    // monitorFor() is what makes the comparison possible. A ShellScreen and
-    // a HyprlandMonitor are different objects describing the same output, so
-    // the instance's `modelData` cannot be compared to focusedMonitor
-    // directly.
+    // COMPARED BY NAME. A ShellScreen and a HyprlandMonitor describe the
+    // same output but are different objects, and Hyprland.monitorFor() hands
+    // back a third wrapper again - so `===` between any two of them is only
+    // reliably true once everything has settled. Both carry the connector
+    // name, which is the same string on either side and needs no lookup.
 
     // The instance on the focused monitor.
     //
@@ -361,13 +404,22 @@ ShellRoot {
     // precisely the bug this replaces, so one arbitrary monitor is the better
     // wrong answer.
     function focusedOne(instances) {
+        // BY NAME, NOT BY OBJECT IDENTITY, and that was a real bug rather
+        // than caution. Hyprland.focusedMonitor and Hyprland.monitorFor()
+        // hand back different wrapper objects for the same output, so `===`
+        // between them is only reliably true once everything has settled.
+        // Compared during the monitor-list churn at startup it is false for
+        // every instance, and anything latching a value then keeps the wrong
+        // answer. A ShellScreen's name and a HyprlandMonitor's name are both
+        // the connector name, so comparing those needs no lookup at all.
         const mon = Hyprland.focusedMonitor
+        const want = mon ? String(mon.name) : ""
         let first = null
         for (let i = 0; i < instances.length; i++) {
             const inst = instances[i]
             if (!inst) continue
             if (!first) first = inst
-            if (mon && Hyprland.monitorFor(inst.modelData) === mon) return inst
+            if (want !== "" && inst.modelData && String(inst.modelData.name) === want) return inst
         }
         return first
     }

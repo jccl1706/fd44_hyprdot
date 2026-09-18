@@ -96,7 +96,11 @@ PanelWindow {
             // A null focusedMonitor is the second or so after a shell restart,
             // before the first event lands. Not knowing where the pointer is
             // is not a reason to close anything.
-            if (mon && Hyprland.monitorFor(root.screen) !== mon) root.close()
+            //
+            // By name: focusedMonitor and monitorFor() return different
+            // wrapper objects for the same output, so identity between them
+            // cannot be relied on.
+            if (mon && root.screen && String(root.screen.name) !== String(mon.name)) root.close()
         }
     }
 

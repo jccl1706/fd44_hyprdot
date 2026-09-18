@@ -27,6 +27,7 @@ PanelWindow {
     // bar does not reach for windows itself.
     signal audioRequested(real x)
     signal networkRequested(real x)
+    signal notificationsRequested(real x)
 
     // Variants sets this, one instance per monitor. The name must be exactly
     // `modelData` - that is what Variants assigns into the delegate.
@@ -66,6 +67,7 @@ PanelWindow {
     Component { id: caffeinePlugin; CaffeineButton {} }
     Component { id: couchPlugin;   CouchButton {} }
     Component { id: powerPlugin;   PowerButton {} }
+    Component { id: notifyPlugin;  NotifyButton {} }
 
     // Where a dragged icon will land: a faint ring the size of a glyph.
     Component {
@@ -94,6 +96,7 @@ PanelWindow {
         case "caffeine":    return caffeinePlugin
         case "couch":       return couchPlugin
         case "power":       return powerPlugin
+        case "notify":      return notifyPlugin
         case "placeholder": return placeholderPlugin
         }
         return null
@@ -104,6 +107,7 @@ PanelWindow {
         const x = slot.mapToItem(null, slot.width / 2, 0).x
         if (id === "audio")                    root.audioRequested(x)
         else if (id === "network")             root.networkRequested(x)
+        else if (id === "notify")              root.notificationsRequested(x)
         else if (id === "theme" && slot.item)  slot.item.activate()
         else if (id === "caffeine")            Caffeine.toggle()
         // Both of these arm on the first click and fire on the second, so
