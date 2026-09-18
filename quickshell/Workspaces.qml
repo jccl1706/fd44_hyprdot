@@ -141,7 +141,10 @@ Row {
                 id: hover
                 anchors.fill: parent
                 hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
+                // No cursorShape: crossing the bar's icons flipped the pointer
+                // shape, and the hand's hotspot sits at the fingertip where the
+                // arrow's is near its corner - so the pointer appeared to jump a
+                // few pixels at every icon edge. See Bar.qml.
 
                 // Hyprland 0.56 EVALUATES DISPATCHES AS LUA, so the old
                 // string form "workspace 3" is a syntax error, not a command:
