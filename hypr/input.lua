@@ -63,10 +63,6 @@ hl.gesture({
 -- as a syntax reminder. Replace or delete it once you have a real device to
 -- tune (e.g. an external mouse with its own acceleration).
 
-hl.device({
-    name        = "epic-mouse-v1",
-    sensitivity = -0.5,
-})
 
 -- -------------------------------------------------------------------------
 -- Cursor
