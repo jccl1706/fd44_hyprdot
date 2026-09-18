@@ -37,6 +37,13 @@ Singleton {
     // through idsFor() re-evaluate.
     property var byScreen: ({})
 
+    // Screen name -> workspaces it has TAKEN IN because the monitor they are
+    // pinned to is not connected. Kept apart from byScreen because the bar
+    // treats them differently: a screen showing inherited workspaces is
+    // standing in for a missing monitor, and showing both sets at once means
+    // nine chips on a 13" panel.
+    property var inherited: ({})
+
     // Monitor name -> its EDID description, needed to resolve the `desc:`
     // form a rule may use.
     property var descriptions: ({})
@@ -54,6 +61,12 @@ Singleton {
     // none of the rules name a connected output.
     function idsFor(screenName) {
         const list = pins.byScreen[screenName]
+        return list ? list : []
+    }
+
+    // The workspaces this screen took in from a monitor that is not here.
+    function inheritedFor(screenName) {
+        const list = pins.inherited[screenName]
         return list ? list : []
     }
 
@@ -125,16 +138,23 @@ Singleton {
         // when only one is left, and an arbitrary but harmless choice when
         // several are. Hyprland makes the same kind of choice when it
         // migrates them.
+        //
+        // Recorded separately from that monitor's OWN pinned workspaces, so
+        // the bar can show the ones it is standing in for instead of both
+        // sets at once - see Workspaces.qml.
+        const taken = {}
         if (orphans.length > 0 && pins.monitorOrder.length > 0) {
             const host = pins.monitorOrder[0]
-            if (!out[host]) out[host] = []
+            taken[host] = []
             for (let i = 0; i < orphans.length; i++) {
-                if (out[host].indexOf(orphans[i]) < 0) out[host].push(orphans[i])
+                if (taken[host].indexOf(orphans[i]) < 0) taken[host].push(orphans[i])
             }
+            taken[host].sort((a, b) => a - b)
         }
 
         for (const k in out) out[k].sort((a, b) => a - b)
         pins.byScreen = out
+        pins.inherited = taken
     }
 
     Process {
