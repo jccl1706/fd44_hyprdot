@@ -50,7 +50,18 @@ Row {
 
             width: focused ? 26 : 18
             height: 18
-            radius: height / 2
+
+            // SQUARES, not pills. `height / 2` is what made these circles, and
+            // 4 is what makes them read as squares without being the only
+            // sharp-cornered thing on screen: Hyprland rounds windows to 10,
+            // the panels to Theme.cornerRadius (12), and the bar's own pills
+            // are fully rounded. A radius of 0 would be correct geometry and
+            // wrong for this desktop.
+            //
+            // Not Theme.cornerRadius, which is 12 and larger than half this
+            // chip's height - Qt clamps a radius at half the shorter side, so
+            // 12 on an 18px chip silently produces the circle again.
+            radius: 4
 
             // A STATE LAYER, in the Material sense: hover does not swap the
             // colour, it adds a translucent film over whatever the chip
