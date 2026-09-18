@@ -32,6 +32,7 @@
 // it, or Hyprland's layer fade runs on top of the slide.
 
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import QtQuick
 
@@ -61,6 +62,43 @@ PanelWindow {
     // Escape closes the panel, so a panel can use Escape to back out of
     // something of its own first.
     signal keyPressed(var event)
+
+
+    // CLOSE WHEN THE POINTER LEAVES THIS SCREEN, and this is a bug fix rather
+    // than a flourish.
+    //
+    // While a panel is up it holds WlrKeyboardFocus.Exclusive, which is
+    // compositor-wide rather than per-monitor. Open the audio panel on one
+    // screen, move to the other and click that bar's speaker glyph, and the
+    // click never reached the bar: Hyprland refocused the exclusive surface
+    // first, so the press landed on THIS panel's dismissing MouseArea and
+    // merely closed it. The second click worked, which is what made it look
+    // like the other monitor's panel was broken. Read off Hyprland's own
+    // events while reproducing it:
+    //
+    //   openlayer>>quickshell-audio     opened on the external
+    //   focusedmon>>eDP-1,7             pointer moved to the laptop
+    //   focusedmon>>DP-2,1              focus snapped BACK to the external
+    //   closelayer>>quickshell-audio    the click was spent closing it
+    //
+    // One openlayer, never two. Closing as the pointer leaves means there is
+    // no exclusive surface left to swallow the next click, and the bar on the
+    // other screen behaves as if nothing had been open - which is also what a
+    // dropdown should do when you walk away from it.
+    //
+    // focusedMonitor, not an enter/leave handler: this window covers its own
+    // output only, so it never sees the pointer arrive on the other one.
+    Connections {
+        target: Hyprland
+        function onFocusedMonitorChanged() {
+            if (!root.revealed || !root.screen) return
+            const mon = Hyprland.focusedMonitor
+            // A null focusedMonitor is the second or so after a shell restart,
+            // before the first event lands. Not knowing where the pointer is
+            // is not a reason to close anything.
+            if (mon && Hyprland.monitorFor(root.screen) !== mon) root.close()
+        }
+    }
 
     // --- window ----------------------------------------------------------
 
