@@ -164,7 +164,7 @@ Singleton {
     readonly property int weightLight:  300   // display-size text only
     readonly property int weightNormal: 400   // subtitles, secondary text
     readonly property int weightMedium: 500   // default UI text
-    readonly property int weightSemi:   600   // titles, the focused workspace
+    readonly property int weightSemi:   600   // titles, the workspace numbers
     readonly property int weightBold:   700   // the clock, and nothing else
 
     // Slight negative tracking at display sizes and slight positive at small

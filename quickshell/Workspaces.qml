@@ -91,7 +91,15 @@ Row {
                 text: chip.wsId
                 font.family: Theme.font
                 font.pixelSize: Theme.fontSizeSmall
-                font.weight: chip.focused ? Theme.weightSemi : Theme.weightMedium
+                // One weight for every chip, a step up from the medium the
+                // unfocused ones used to carry. The focused one no longer
+                // needs a heavier number to stand out - it is the only
+                // coloured square in the row - and matching weights suit
+                // chips that are now all the same size.
+                //
+                // Semi rather than Bold: Theme reserves Bold for the clock,
+                // which should stay the heaviest thing in the bar.
+                font.weight: Theme.weightSemi
                 font.letterSpacing: Theme.trackingLoose
                 color: chip.focused ? Theme.accentFg
                      : chip.exists  ? Theme.fg
