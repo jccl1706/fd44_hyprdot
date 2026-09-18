@@ -245,9 +245,9 @@ ShellRoot {
     IpcHandler {
         target: "audio"
 
-        function toggle(): void { shell.eachAudio(a => a.toggle()) }
-        function open(): void   { shell.eachAudio(a => a.open())   }
-        function close(): void  { shell.eachAudio(a => a.close())  }
+        function toggle(): void { shell.toggleFocused(audioVariants.instances) }
+        function open(): void   { shell.openFocused(audioVariants.instances)   }
+        function close(): void  { shell.closeAll(audioVariants.instances)      }
     }
 
     // The movable plugins' arrangement (BarLayout.qml).
@@ -283,9 +283,9 @@ ShellRoot {
     IpcHandler {
         target: "network"
 
-        function toggle(): void { shell.eachNetwork(n => n.toggle()) }
-        function open(): void   { shell.eachNetwork(n => n.open())   }
-        function close(): void  { shell.eachNetwork(n => n.close())  }
+        function toggle(): void { shell.toggleFocused(networkVariants.instances) }
+        function open(): void   { shell.openFocused(networkVariants.instances)   }
+        function close(): void  { shell.closeAll(networkVariants.instances)      }
     }
 
     IpcHandler {
