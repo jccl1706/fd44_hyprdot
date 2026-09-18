@@ -49,7 +49,14 @@ Item {
         anchors.centerIn: parent
         text: root.glyph
         font.family: Theme.glyphFont
-        font.pixelSize: 20
+        // 17, NOT 20 LIKE THE SPEAKER, and that is measured rather than
+        // eyeballed. The bell fills more of its em box than the other
+        // glyphs: rendered at pixelSize 60 and measured off a screenshot,
+        // the bell inks 52.4px against the speaker's and the wifi arc's
+        // 44.7 - a seventh taller for the same nominal size, which is
+        // exactly what made it look oversized in the bar. 20 x 44.7/52.4
+        // is 17.1, so 17 puts the same amount of ink on screen.
+        font.pixelSize: 17
         // Danger for silence, matching the muted speaker: both mean "this
         // machine is deliberately not telling you something".
         color: root.dnd      ? Theme.danger

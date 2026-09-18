@@ -14,13 +14,28 @@
 // the launcher and the panels, and the same Hyprland.focusedMonitor behind
 // it.
 //
-// THE SURFACE IS FULL-SCREEN AND FIXED, not sized to its contents. A
-// layer-shell surface that resizes as cards come and go gives the
-// compositor a stale buffer to scale for a frame, which reads as the cards
-// stretching. Learned from Omarchy, who hit it first. Nothing here is
-// clickable except the cards themselves, and the window never takes
-// keyboard focus - a toast must not steal input from what you are typing
-// into.
+// SMALL AND FIXED, NOT FULL-SCREEN, and both halves of that matter.
+//
+// Fixed, because a layer-shell surface that resizes as cards come and go
+// gives the compositor a stale buffer to scale for a frame, which reads as
+// the cards stretching. Learned from Omarchy, who hit it first.
+//
+// Small, because Qt Quick repaints the WHOLE window whenever anything in it
+// changes, and hovering a card changes something on every pointer move. At
+// full screen that was 2560x1440 - 3.7 million pixels redrawn to animate a
+// close button, which made the pointer stutter over the toasts exactly as it
+// did over the audio panel. At 400x620 it is 248 thousand, fifteen times
+// less. The panels cannot do this because they have to catch clicks
+// anywhere on screen to dismiss; toasts have no such duty, so the surface
+// only has to be big enough to hold them.
+//
+// The height fits about six cards. A seventh would be clipped rather than
+// pushing the stack off screen, which is the better failure: six unread
+// toasts already means something has gone wrong upstream.
+//
+// Nothing here is clickable except the cards themselves, and the window
+// never takes keyboard focus - a toast must not steal input from what you
+// are typing into.
 
 import Quickshell
 import Quickshell.Hyprland
@@ -74,7 +89,9 @@ PanelWindow {
     WlrLayershell.namespace: "quickshell-notifications"
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
     exclusionMode: ExclusionMode.Ignore
-    anchors { top: true; bottom: true; left: true; right: true }
+    anchors { top: true; right: true }
+    implicitWidth: 400
+    implicitHeight: 620
     color: "transparent"
 
     // Click-through everywhere except the cards. Without this the whole
