@@ -35,10 +35,18 @@
 -- knowing when reading `hyprctl monitors`, and when handing coordinates to
 -- something like grim, which will want the negative numbers too.
 --
--- On a machine with one monitor there is nothing to be left of, so it lands at
--- 0,0 exactly as `auto` does - the rule is written for the laptops and costs
--- the desktop and the television nothing. (Not exercised here: both machines
--- with a single output were busy when this was written.)
+-- ON A MACHINE WITH ONE MONITOR IT STILL SHIFTS, which is not what this
+-- comment first claimed. `auto-left` does not mean "left of the others if
+-- there are any" - it places the output left of the origin regardless, so the
+-- desktop's single 2560x1440 display sits at -2560,0 rather than 0,0.
+-- Measured on fedora-hypr once it was next booted:
+--
+--   Monitor DP-1  2560x1440@143.97  at -2560x0
+--
+-- Harmless in use: Hyprland works in negative coordinates, and layer surfaces,
+-- wallpapers and window placement are all per-output. What it does change is
+-- anything given coordinates by hand - `grim -g "0,0 300x40"` on that machine
+-- captures nothing at all, because nothing is there.
 hl.monitor({
     output   = "",
     mode     = "preferred",
