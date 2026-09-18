@@ -15,7 +15,29 @@
 -- earlier. Put anything a user service needs into uwsm's environment instead
 -- (~/.config/uwsm/env), not here.
 
+-- THE THEME AS WELL AS THE SIZE, and leaving the theme out was a real bug
+-- rather than an omission of tidiness.
+--
+-- With only the size pinned, every toolkit resolves the cursor THEME on its
+-- own. They do not all land in the same place, so the pointer was drawn from
+-- one cursor set over a Qt surface and another over a GTK one - different
+-- images, and different hotspots. Crossing between them moved where the
+-- pointer appeared to be, which showed up as the cursor jumping on the way
+-- from the desktop onto the bar.
+--
+-- Adwaita because it is the one theme on this system that actually contains
+-- cursors: /usr/share/icons/Adwaita/cursors has 63, while breeze,
+-- breeze-dark and default have none at all - they are empty directories that
+-- a client can nonetheless "resolve" to.
+--
+-- It only LOOKED like a mouse fault because a high-resolution mouse crosses
+-- those boundaries quickly and often; the trackpad ambles over them and the
+-- swap goes unnoticed. Measured before getting here: the mouse delivers
+-- 12,644 reports with zero dropouts, and the pointer's coordinates move in
+-- continuous 1-2px steps. Nothing was ever moving wrongly - it was being
+-- DRAWN differently on either side of a surface edge.
 hl.env("XCURSOR_SIZE", "24")
+hl.env("XCURSOR_THEME", "Adwaita")
 hl.env("HYPRCURSOR_SIZE", "24")
 
 

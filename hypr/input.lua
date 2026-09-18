@@ -100,5 +100,16 @@ hl.config({
     cursor = {
         no_hardware_cursors = false,
         use_cpu_buffer      = false,
+        -- OFF, because there is no hyprcursor theme on this system to use.
+        -- Left on, Hyprland tries hyprcursor first and falls back to XCursor
+        -- when it finds nothing - a second resolution path that clients can
+        -- take differently from each other, which is the same class of
+        -- problem as leaving XCURSOR_THEME unset (see autostart.lua). With
+        -- one path and one named theme, every surface draws the same pointer.
+        --
+        -- Turn this back on if a hyprcursor theme is ever installed: it is
+        -- the better format, being scalable rather than a set of fixed-size
+        -- bitmaps, which matters on this laptop's fractionally scaled panel.
+        enable_hyprcursor   = false,
     },
 })
