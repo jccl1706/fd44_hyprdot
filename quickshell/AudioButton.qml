@@ -65,9 +65,6 @@ Item {
 
     HoverHandler {
         id: hover
-        // No cursorShape: crossing the bar's icons flipped the pointer
-        // shape, and the hand's hotspot sits at the fingertip where the
-        // arrow's is near its corner - so the pointer appeared to jump a
-        // few pixels at every icon edge. See Bar.qml.
+        cursorShape: Qt.PointingHandCursor
     }
 }
