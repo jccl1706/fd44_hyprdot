@@ -206,6 +206,47 @@ hl.window_rule({
 --     rounding    = 0,
 -- })
 
+-- Workspaces pinned to screens: 1-5 on the laptop panel, 6-9 on the external.
+--
+-- WITHOUT THESE, HYPRLAND BINDS A WORKSPACE TO WHICHEVER MONITOR HAPPENED TO
+-- BE FOCUSED WHEN IT WAS FIRST OPENED, and it stays there. That is not a bug,
+-- but it means a number means a different screen depending on where you were
+-- standing when you first pressed it - and because focusing an existing
+-- workspace moves the focus to ITS monitor rather than dragging the workspace
+-- over, SUPER + 2 would throw the keyboard onto the other screen unpredictably.
+-- Pinned, a number always means the same physical screen.
+--
+-- THE PANEL BY CONNECTOR NAME, THE EXTERNAL BY DESCRIPTION, and the asymmetry
+-- is deliberate - the same reasoning as monitors.lua. eDP-1 IS the internal
+-- panel by definition and both laptops call theirs that, so the name is the
+-- portable way to say "the built-in screen". An external's connector name says
+-- only which socket a cable is in: this monitor read as DP-2 today and would
+-- be DP-1 or DP-3 plugged in elsewhere. `desc:` follows the display instead.
+-- The match is a prefix, so the serial number Hyprland appends does not need
+-- to be written out.
+--
+-- ON A MACHINE WITH ONLY ONE SCREEN THESE DO NOT BITE, and that was measured
+-- rather than assumed: a brand-new workspace pinned to
+-- "desc:No Such Monitor 9999" opened on the focused monitor, with no error and
+-- no complaint. So the desktop - one monitor, no eDP-1, no UltraGear - behaves
+-- exactly as it did before. That is what keeps this config portable rather
+-- than this laptop's config.
+--
+-- EXISTING WORKSPACES DO NOT MIGRATE. A rule is applied when a workspace is
+-- created, so anything already open stays on the monitor it was born on until
+-- it is emptied and reopened, or Hyprland restarts. Adding these rules moves
+-- nothing that is already on screen.
+for i = 1, 5 do
+    hl.workspace_rule({ workspace = tostring(i), monitor = "eDP-1" })
+end
+
+for i = 6, 9 do
+    hl.workspace_rule({
+        workspace = tostring(i),
+        monitor   = "desc:LG Electronics LG ULTRAGEAR",
+    })
+end
+
 -- Workspace 9 lives on the display dummy, and the streaming session lives on
 -- workspace 9. Two rules that together put Steam Big Picture on a screen that
 -- does not exist, for Sunshine to capture and send to the laptop.
