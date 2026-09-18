@@ -113,28 +113,6 @@ hl.window_rule({
     idle_inhibit = "fullscreen",
 })
 
--- Thunar, translucent like the terminal.
---
--- 0.92 is kitty's `term_opacity`, deliberately the same number: two windows
--- side by side at different opacities over one wallpaper looks like a mistake
--- rather than a choice. The file manager is the other window you sit in front
--- of for any length of time, so it gets the same treatment.
---
--- A HYPRLAND RULE RATHER THAN A GTK ONE. GTK can draw a translucent window,
--- but only by making the theme's own background colour translucent - which
--- would mean patching the Rosé Pine theme bin/gtk-theme.sh installs from
--- upstream, and losing that patch on every reinstall. The compositor can blend
--- the whole surface without the application knowing anything about it.
---
--- Matched on class, which Thunar reports in lower case ("thunar", not
--- "Thunar") - `hyprctl clients` is the authority, not the name on the menu.
-hl.window_rule({
-    name  = "thunar-translucent",
-    match = { class = "^thunar$" },
-
-    opacity = 0.92,
-})
-
 -- Hyprland's own run dialog (hyprland-guiutils): float it near the bottom
 -- left rather than tiling it.
 hl.window_rule({
