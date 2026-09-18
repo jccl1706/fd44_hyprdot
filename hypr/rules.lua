@@ -113,6 +113,30 @@ hl.window_rule({
     idle_inhibit = "fullscreen",
 })
 
+-- Nautilus, translucent like the terminal.
+--
+-- 0.92 is kitty's `term_opacity`, deliberately the same number: two windows
+-- side by side at different opacities over one wallpaper reads as a mistake
+-- rather than a choice.
+--
+-- A COMPOSITOR RULE, NOT GTK CSS, and that distinction was learned the hard
+-- way. GTK can draw a translucent window by making libadwaita's own
+-- window_bg_color translucent in ~/.config/gtk-4.0/gtk.css - and doing that
+-- costs the live light/dark switch, because GTK reads that file once at
+-- startup and pinning its named colours leaves libadwaita nothing to swap
+-- when the scheme changes. Hyprland blends the whole surface without Nautilus
+-- knowing anything about it, so the theme switch stays instant.
+--
+-- Only Nautilus, not every GTK4 app: a blanket rule would catch dialogs and
+-- pickers where translucency is a nuisance rather than a look. Another app is
+-- another rule, and one line.
+hl.window_rule({
+    name  = "nautilus-translucent",
+    match = { class = "^org.gnome.Nautilus$" },
+
+    opacity = 0.92,
+})
+
 -- Hyprland's own run dialog (hyprland-guiutils): float it near the bottom
 -- left rather than tiling it.
 hl.window_rule({
