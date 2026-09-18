@@ -165,7 +165,7 @@ ShellRoot {
     GlobalShortcut {
         appid: "quickshell"
         name: "launcher"
-        onPressed: shell.eachLauncher(l => l.toggle())
+        onPressed: shell.toggleFocused(launcherVariants.instances)
     }
 
     GlobalShortcut {
@@ -177,7 +177,7 @@ ShellRoot {
     GlobalShortcut {
         appid: "quickshell"
         name: "power"
-        onPressed: shell.eachPower(p => p.toggle())
+        onPressed: shell.toggleFocused(powerVariants.instances)
     }
 
     // Media transport. One shortcut per key, all reaching Media.qml, which
@@ -218,9 +218,9 @@ ShellRoot {
     IpcHandler {
         target: "power"
 
-        function toggle(): void { shell.eachPower(p => p.toggle()) }
-        function open(): void   { shell.eachPower(p => p.open())   }
-        function close(): void  { shell.eachPower(p => p.close())  }
+        function toggle(): void { shell.toggleFocused(powerVariants.instances) }
+        function open(): void   { shell.openFocused(powerVariants.instances)   }
+        function close(): void  { shell.closeAll(powerVariants.instances)      }
     }
 
     IpcHandler {
@@ -288,9 +288,9 @@ ShellRoot {
     IpcHandler {
         target: "launcher"
 
-        function toggle(): void { shell.eachLauncher(l => l.toggle()) }
-        function open(): void   { shell.eachLauncher(l => l.open())   }
-        function close(): void  { shell.eachLauncher(l => l.close())  }
+        function toggle(): void { shell.toggleFocused(launcherVariants.instances) }
+        function open(): void   { shell.openFocused(launcherVariants.instances)   }
+        function close(): void  { shell.closeAll(launcherVariants.instances)      }
     }
 
     IpcHandler {
@@ -302,23 +302,6 @@ ShellRoot {
 
         function brightness(): void {
             shell.showOsd("brightness")
-        }
-    }
-
-    // Drive every launcher instance - one per monitor, as with the bars.
-    // With a single display this is one call; the loop is what keeps a second
-    // monitor from silently doing nothing.
-    function eachLauncher(fn): void {
-        const instances = launcherVariants.instances
-        for (let i = 0; i < instances.length; i++) {
-            if (instances[i]) fn(instances[i])
-        }
-    }
-
-    function eachPower(fn): void {
-        const instances = powerVariants.instances
-        for (let i = 0; i < instances.length; i++) {
-            if (instances[i]) fn(instances[i])
         }
     }
 
@@ -348,6 +331,81 @@ ShellRoot {
         for (let i = 0; i < instances.length; i++) {
             if (instances[i]) fn(instances[i])
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // One monitor at a time
+    // -----------------------------------------------------------------------
+    //
+    // Variants creates one Launcher and one PowerMenu PER MONITOR, and the
+    // obvious way to drive them from a keybind - call toggle() on every
+    // instance - opens the panel on all of them at once. With a single
+    // display that is invisible and indistinguishable from correct. With two
+    // it is a bug, and it was reported as one.
+    //
+    // A keypress is about the screen you are looking at, the same way a click
+    // on a bar glyph is about the screen you clicked on. So these open on the
+    // monitor that has focus, and only there.
+    //
+    // Hyprland.focusedMonitor RATHER THAN THE CURSOR POSITION, and the two
+    // agree: Hyprland's focus follows the mouse. This one is a live property
+    // fed by the compositor's `focusedmon` event, so it costs nothing to
+    // read - where asking for the pointer would mean forking hyprctl on
+    // every press, which is the cost the global shortcuts above exist to
+    // avoid. Measured: it is null for about a second after the shell starts,
+    // then tracks every focus change exactly.
+    //
+    // monitorFor() is what makes the comparison possible. A ShellScreen and
+    // a HyprlandMonitor are different objects describing the same output, so
+    // the instance's `modelData` cannot be compared to focusedMonitor
+    // directly.
+
+    // The instance on the focused monitor.
+    //
+    // FALLS BACK TO THE FIRST INSTANCE, NEVER TO ALL OF THEM. focusedMonitor
+    // is null for about a second after a shell restart, before the first
+    // event arrives. Acting on every instance during that window would be
+    // precisely the bug this replaces, so one arbitrary monitor is the better
+    // wrong answer.
+    function focusedOne(instances) {
+        const mon = Hyprland.focusedMonitor
+        let first = null
+        for (let i = 0; i < instances.length; i++) {
+            const inst = instances[i]
+            if (!inst) continue
+            if (!first) first = inst
+            if (mon && Hyprland.monitorFor(inst.modelData) === mon) return inst
+        }
+        return first
+    }
+
+    function closeAll(instances): void {
+        for (let i = 0; i < instances.length; i++) {
+            if (instances[i]) instances[i].close()
+        }
+    }
+
+    // Open on the focused monitor; close on every one.
+    //
+    // THE CLOSE REACHES ALL OF THEM, and that asymmetry is the point. Open
+    // the launcher on one screen, move to the other, press the key again: if
+    // "close" only reached the focused monitor, it would open a second copy
+    // and strand the first with no key that shuts it. Treating any revealed
+    // instance as "the panel is open" keeps it one thing with one key.
+    function toggleFocused(instances): void {
+        for (let i = 0; i < instances.length; i++) {
+            if (instances[i] && instances[i].revealed) {
+                shell.closeAll(instances)
+                return
+            }
+        }
+        const one = shell.focusedOne(instances)
+        if (one) one.open()
+    }
+
+    function openFocused(instances): void {
+        const one = shell.focusedOne(instances)
+        if (one) one.open()
     }
 
     // Show the OSD on every bar. With one monitor that is one bar; with two,
