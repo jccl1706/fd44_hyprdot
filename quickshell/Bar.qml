@@ -291,6 +291,10 @@ PanelWindow {
                     }
 
                     Workspaces {
+                        // This bar's monitor, so the row can show the
+                        // workspaces pinned to it rather than the same five
+                        // numbers on every screen.
+                        screenName: root.modelData.name
                         anchors.verticalCenter: parent.verticalCenter
                     }
                 }
