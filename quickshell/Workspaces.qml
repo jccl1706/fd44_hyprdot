@@ -48,7 +48,12 @@ Row {
             readonly property bool focused: Hyprland.focusedWorkspace
                                             && Hyprland.focusedWorkspace.id === wsId
 
-            width: focused ? 26 : 18
+            // SQUARE, including the focused one. It used to widen to 26 when
+            // focused, which made that chip a rounded rectangle among squares.
+            // Colour carries the whole signal instead, and it carries it well:
+            // the accent is 5.70:1 against an unfocused chip on dark and
+            // 5.27:1 on light, both measured in themes/*.conf.
+            width: 18
             height: 18
 
             // SQUARES, not pills. `height / 2` is what made these circles, and
@@ -75,9 +80,10 @@ Row {
             border.width: exists || focused ? 0 : 1
             border.color: Qt.rgba(Theme.dim.r, Theme.dim.g, Theme.dim.b, 0.5)
 
-            // Width and colour animate so switching reads as movement rather
-            // than a jump. Kept short - the bar should feel instant.
-            Behavior on width  { NumberAnimation { duration: Theme.animNormal; easing.type: Easing.OutCubic } }
+            // Colour animates so switching reads as a change rather than a
+            // jump. Kept short - the bar should feel instant. The width
+            // animation that used to sit beside this went with the widening:
+            // a Behavior on a property that never changes is dead code.
             Behavior on color  { ColorAnimation  { duration: Theme.animNormal } }
 
             Text {
