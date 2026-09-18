@@ -1,4 +1,4 @@
-//@ pragma IconTheme Reversal-purple
+//@ pragma IconTheme Reversal-grey
 // ^ Keep that the FIRST line: quickshell reads pragmas from the top of the
 //   root file, and only at launch - a change needs a restart, not a reload.
 //   It picks the icon theme the launcher's app icons come from: Reversal,
@@ -11,10 +11,9 @@
 //   Reversal, Qt falls back to hicolor - exactly as before this line.
 //
 //   WHICH COLOUR SET IS ARBITRARY, but it should be one a palette names.
-//   This said Reversal-grey while the dark theme was Catppuccin and asked for
-//   grey icons. Both palettes name purple now, and a pin on a colour set
-//   nothing else wants means icon-theme.sh keeps installing it - 162 MB of
-//   grey that differs from purple only in folders this never draws.
+//   It should be one a palette names, or icon-theme.sh keeps installing a
+//   colour set nothing else wants - 162 MB that differs from the named one
+//   only in folders this never draws. Both palettes name grey now.
 // =========================================================================
 // Quickshell - entry point
 // =========================================================================
