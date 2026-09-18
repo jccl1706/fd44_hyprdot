@@ -67,3 +67,42 @@ hl.device({
     name        = "epic-mouse-v1",
     sensitivity = -0.5,
 })
+
+-- -------------------------------------------------------------------------
+-- Cursor
+-- -------------------------------------------------------------------------
+
+-- FORCE A HARDWARE CURSOR. Hyprland's default for both of these is `auto`
+-- (2), and auto chose wrong here: with a second monitor attached the pointer
+-- became visibly choppy, worst over a large surface like the audio panel.
+--
+-- A hardware cursor lives on its own scanout plane and moves whether or not
+-- anything else is being composited, so it stays smooth under load. A
+-- software cursor rides the ordinary render path, which puts it in
+-- competition with everything else drawing - and Quickshell's drop-down
+-- panels are a full-screen surface, so on the 2560x1440 external every
+-- pointer motion had Qt repainting 3.7 million pixels underneath it.
+--
+-- Measured while moving the pointer over the open audio panel, before this:
+--
+--                    cursor moving        cursor still
+--   quickshell       8.5% mean, 20% peak  0.1% mean
+--   Hyprland         6.4% mean, 12% peak  1.0% mean
+--
+-- MIXED SCALING IS THE LIKELY REASON AUTO GAVE UP: this laptop runs its own
+-- panel at 1.5666667 and an external at 1, and a cursor that has to be
+-- rescaled per output is exactly the case a compositor falls back to
+-- software for. Which means this matters on THIS machine, with a display
+-- plugged in, and changes nothing on a desktop with one monitor at scale 1.
+--
+-- THE TRADE-OFF, so it is not a surprise later: forcing a hardware cursor
+-- with fractional scaling can make the pointer look slightly coarse on the
+-- SCALED output, because the plane cannot be scaled as smoothly as a drawn
+-- one. Set either of these back to `nil` to return to auto if that ever
+-- matters more than the smoothness.
+hl.config({
+    cursor = {
+        no_hardware_cursors = false,
+        use_cpu_buffer      = false,
+    },
+})
