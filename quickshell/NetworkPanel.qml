@@ -28,6 +28,7 @@
 // throw away a half-typed password.
 
 import Quickshell
+import Quickshell.Io
 import Quickshell.Networking
 import QtQuick
 
@@ -57,6 +58,72 @@ DropPanel {
         root.expanded = ""
         root.failures = ({})
         root.refreshNetworks(true)
+        addrProc.running = true
+    }
+
+    // --- addresses -----------------------------------------------------
+    //
+    // ASKED FOR, NOT SUBSCRIBED TO, because Quickshell's networking service
+    // does not carry it. A device object has `address`, which is the MAC -
+    // 0A:6F:71:D5:63:51 here, the locally-administered prefix showing wifi
+    // MAC randomisation at work - and nothing for the assigned one.
+    //
+    // So `ip` is asked, once, when the panel opens. That is a fork, which
+    // this shell avoids in the places that matter: a keypress, a pointer
+    // move, a frame. Opening a panel is none of those, and the wifi scan
+    // this same handler kicks off costs incomparably more.
+    //
+    // -j for JSON rather than parsing columns out of human output, which
+    // changes between iproute2 versions and localises.
+
+    property var addresses: ({})     // interface -> { v4, v6, prefix }
+    property string gateway: ""
+
+    Process {
+        id: addrProc
+        command: ["sh", "-c", "ip -j addr show; echo '---'; ip -j route show default"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const parts = String(text).split("---")
+                const map = {}
+                try {
+                    const links = JSON.parse(parts[0])
+                    for (let i = 0; i < links.length; i++) {
+                        const l = links[i]
+                        if (l.ifname === "lo") continue
+                        const info = l.addr_info || []
+                        const v4 = info.find(a => a.family === "inet")
+                        const v6 = info.find(a => a.family === "inet6" && a.scope === "global")
+                        map[l.ifname] = {
+                            v4: v4 ? v4.local : "",
+                            prefix: v4 ? v4.prefixlen : 0,
+                            v6: v6 ? v6.local : ""
+                        }
+                    }
+                } catch (e) {
+                    console.warn("network: could not parse ip addr:", e)
+                }
+                root.addresses = map
+
+                let gw = ""
+                try {
+                    const routes = JSON.parse(parts[1] || "[]")
+                    if (routes.length > 0) gw = String(routes[0].gateway || "")
+                } catch (e) { }
+                root.gateway = gw
+            }
+        }
+    }
+
+    // The interface actually carrying traffic: the wired one if it is up,
+    // otherwise the wifi. Matches how the panel itself is ordered.
+    readonly property var activeAddress: {
+        const wired = root.wiredDevices.find(d => d.connected)
+        const pick = wired ? wired : (root.wifiDevice && root.wifiDevice.connected
+                                      ? root.wifiDevice : null)
+        if (!pick || !pick.name) return null
+        const a = root.addresses[pick.name]
+        return a ? { iface: pick.name, v4: a.v4, prefix: a.prefix, v6: a.v6 } : null
     }
 
     // Closing collapses the open network, which clears a half-typed password
@@ -714,6 +781,70 @@ DropPanel {
             font.family: Theme.font
             font.pixelSize: Theme.fontSize
             color: Theme.dim
+        }
+
+        // --- this machine's address ------------------------------------
+        //
+        // At the foot, under a rule, because it answers a different question
+        // from everything above it: those are "what can I join", this is
+        // "where am I". Small and dim - it is looked up occasionally and
+        // read once, not scanned.
+
+        Rectangle {
+            width: parent.width
+            height: 1
+            color: Theme.outline
+            visible: root.activeAddress !== null
+        }
+
+        Item {
+            width: parent.width
+            // 56 rather than 46: two lines of type want more than the card's
+            // own padding underneath them, or the gateway sits on the edge.
+            height: 56
+            visible: root.activeAddress !== null
+
+            Column {
+                anchors {
+                    left: parent.left; leftMargin: 4
+                    right: parent.right; rightMargin: 4
+                    verticalCenter: parent.verticalCenter
+                }
+                spacing: 4
+
+                Row {
+                    width: parent.width
+                    spacing: 6
+
+                    Text {
+                        anchors.baseline: parent.children[1].baseline
+                        text: root.activeAddress ? root.activeAddress.iface : ""
+                        color: Theme.dim
+                        font.family: Theme.font
+                        font.pixelSize: Theme.fontSizeSmall
+                    }
+
+                    Text {
+                        text: root.activeAddress && root.activeAddress.v4 !== ""
+                              ? root.activeAddress.v4 + "/" + root.activeAddress.prefix
+                              : "no address"
+                        color: Theme.fg
+                        font.family: Theme.font
+                        font.pixelSize: Theme.fontSize
+                        font.weight: Theme.weightMedium
+                    }
+                }
+
+                Text {
+                    width: parent.width
+                    text: root.gateway !== "" ? "via " + root.gateway : ""
+                    visible: text !== ""
+                    color: Theme.dim
+                    font.family: Theme.font
+                    font.pixelSize: Theme.fontSizeSmall
+                    elide: Text.ElideRight
+                }
+            }
         }
     }
 }
