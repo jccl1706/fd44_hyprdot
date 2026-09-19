@@ -2,19 +2,31 @@
 // BatteryPanel - the numbers behind the glyph
 // =========================================================================
 //
-// Drops out of the battery icon, the same way audio and network drop out of
-// theirs. The glyph in the bar answers "am I fine"; this answers the
-// questions that need a number - how long, how worn, how many times round.
+// Three bands, in the order the questions get asked:
+//
+//   how full am I      the figure, what the machine is doing, and a gauge
+//   how worn is it     health against design, with its own gauge
+//   the details        cycles, draw, mains - as tiles, not a list
+//
+// GAUGES RATHER THAN MORE NUMBERS. A percentage tells you where you are; a
+// bar tells you without being read, and the eye gets it before the words
+// arrive. Both use the audio panel's track - 4px, dim at 40%, accent fill -
+// because a second visual idiom for the same thing would be one too many.
+//
+// TILES RATHER THAN ROWS for the last band. Cycles, draw and mains are three
+// unrelated facts of similar weight, and a label-on-the-left list makes the
+// eye walk all three to find one. Side by side with the value above its
+// name, any of them can be read on its own.
 //
 // THE CHARGE LIMIT GETS A SENTENCE, not a status word. "Not charging" is
-// what the kernel says when this laptop is plugged in and holding at 80%,
-// and reading that on a panel would worry anyone. It says what is actually
-// happening instead.
+// what the kernel says while this laptop sits plugged in at its 80% limit,
+// and reading that on a panel you opened because you were worried is the
+// wrong answer.
 //
-// TIME REMAINING IS OFTEN ABSENT, deliberately. It is charge divided by the
-// present draw, and while the charge limit holds that draw near zero the
-// answer comes out in months. A missing row is better than a confident
-// wrong one, so it appears only while genuinely discharging.
+// TIME REMAINING IS OFTEN ABSENT, deliberately. It is charge over present
+// draw, and while the limit holds that draw at a milliamp the answer comes
+// out in months - 2610 hours, if asked naively. The line appears only while
+// genuinely discharging.
 
 import Quickshell
 import QtQuick
@@ -23,10 +35,11 @@ DropPanel {
     id: root
 
     layerNamespace: "quickshell-battery"
-    panelWidth: 300
+    panelWidth: 320
 
-    // "Charging" and "Discharging" are the kernel's own words and fine. The
-    // rest need saying properly.
+    readonly property color chargeColor: (Battery.critical || Battery.low)
+                                         ? Theme.danger : Theme.accent
+
     readonly property string headline: {
         if (!Battery.ready)    return "Reading..."
         if (Battery.charging)  return "Charging"
@@ -40,105 +53,203 @@ DropPanel {
         if (h <= 0) return ""
         const whole = Math.floor(h)
         const mins = Math.round((h - whole) * 60)
-        if (whole <= 0) return mins + " min"
-        return whole + " h " + (mins < 10 ? "0" : "") + mins + " m"
+        return whole <= 0 ? mins + " min"
+                          : whole + " h " + (mins < 10 ? "0" : "") + mins + " m"
     }
 
     Column {
         width: parent.width
-        spacing: 0
 
-        // --- headline --------------------------------------------------------
+        // ---- band one: charge ------------------------------------------------
 
         Item {
             width: parent.width
-            height: 66
+            height: 92
+
+            Text {
+                id: bigGlyph
+                anchors { left: parent.left; leftMargin: 16; top: parent.top; topMargin: 16 }
+                text: Battery.charging ? "\u{F0084}" : "\u{F0079}"
+                font.family: Theme.glyphFont
+                font.pixelSize: 22
+                color: root.chargeColor
+                Behavior on color { ColorAnimation { duration: Theme.animNormal } }
+            }
 
             Text {
                 id: bigNumber
-                anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                anchors { left: bigGlyph.right; leftMargin: 10; verticalCenter: bigGlyph.verticalCenter }
                 text: Battery.ready ? Battery.percent + "%" : "--"
-                color: (Battery.critical || Battery.low) ? Theme.danger : Theme.fg
+                color: Theme.fg
                 font.family: Theme.font
                 font.pixelSize: Theme.fontSizeDisplay
                 font.weight: Theme.weightSemi
                 font.letterSpacing: Theme.trackingTight
             }
 
-            Column {
+            Text {
                 anchors {
-                    left: bigNumber.right; leftMargin: 12
-                    right: parent.right; rightMargin: 14
-                    verticalCenter: parent.verticalCenter
+                    right: parent.right; rightMargin: 16
+                    verticalCenter: bigGlyph.verticalCenter
                 }
-                spacing: 1
-
-                Text {
-                    width: parent.width
-                    text: root.headline
-                    color: Theme.fg
-                    font.family: Theme.font
-                    font.pixelSize: Theme.fontSize
-                    font.weight: Theme.weightMedium
-                    elide: Text.ElideRight
+                width: parent.width - bigNumber.x - bigNumber.width - 28
+                horizontalAlignment: Text.AlignRight
+                text: {
+                    const t = root.hoursText(Battery.hoursLeft)
+                    return t !== "" ? root.headline + "\n" + t + " left" : root.headline
                 }
+                color: Theme.dim
+                font.family: Theme.font
+                font.pixelSize: Theme.fontSizeSmall
+                lineHeight: 1.3
+                wrapMode: Text.Wrap
+                elide: Text.ElideRight
+                maximumLineCount: 2
+            }
 
-                Text {
-                    width: parent.width
-                    text: {
-                        const t = root.hoursText(Battery.hoursLeft)
-                        return t !== "" ? t + " remaining" : ""
-                    }
-                    visible: text !== ""
-                    color: Theme.dim
-                    font.family: Theme.font
-                    font.pixelSize: Theme.fontSizeSmall
-                    elide: Text.ElideRight
+            // The gauge. Ends flush with the text above it on both sides so
+            // the band reads as one block rather than a bar with captions.
+            Rectangle {
+                anchors {
+                    left: parent.left; leftMargin: 16
+                    right: parent.right; rightMargin: 16
+                    bottom: parent.bottom; bottomMargin: 18
+                }
+                height: 4
+                radius: 2
+                color: Qt.rgba(Theme.dim.r, Theme.dim.g, Theme.dim.b, 0.4)
+
+                Rectangle {
+                    height: parent.height
+                    radius: parent.radius
+                    width: parent.width * Math.max(0, Math.min(1, Battery.percent / 100))
+                    color: root.chargeColor
+                    Behavior on width { NumberAnimation { duration: Theme.animSlow; easing.type: Easing.OutCubic } }
+                    Behavior on color { ColorAnimation { duration: Theme.animNormal } }
                 }
             }
         }
 
         Rectangle { width: parent.width; height: 1; color: Theme.outline }
 
-        // --- the numbers ------------------------------------------------------
+        // ---- band two: wear --------------------------------------------------
 
-        Repeater {
-            model: [
-                { k: "Draw",   v: Battery.watts > 0.05 ? Battery.watts.toFixed(1) + " W" : "idle" },
-                { k: "Health", v: Battery.healthPercent > 0 ? Battery.healthPercent + "% of design" : "-" },
-                { k: "Cycles", v: Battery.cycleCount > 0 ? String(Battery.cycleCount) : "-" },
-                { k: "Power",  v: Battery.onAc ? "Mains connected" : "On battery" }
-            ]
+        Item {
+            width: parent.width
+            height: 62
+            visible: Battery.healthPercent > 0
 
-            Item {
-                required property var modelData
-                width: parent.width
-                height: 34
+            Text {
+                id: healthLabel
+                anchors { left: parent.left; leftMargin: 16; top: parent.top; topMargin: 14 }
+                text: "Health"
+                color: Theme.dim
+                font.family: Theme.font
+                font.pixelSize: Theme.fontSize
+            }
 
-                Text {
-                    anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
-                    text: parent.modelData.k
-                    color: Theme.dim
-                    font.family: Theme.font
-                    font.pixelSize: Theme.fontSize
+            Text {
+                anchors { right: parent.right; rightMargin: 16; verticalCenter: healthLabel.verticalCenter }
+                text: Battery.healthPercent + "% of design"
+                color: Theme.fg
+                font.family: Theme.font
+                font.pixelSize: Theme.fontSize
+                font.weight: Theme.weightMedium
+            }
+
+            // Deliberately NOT the accent: health is a fixed property of the
+            // pack, not a live level, and colouring it like the charge gauge
+            // invites reading one as the other.
+            Rectangle {
+                anchors {
+                    left: parent.left; leftMargin: 16
+                    right: parent.right; rightMargin: 16
+                    bottom: parent.bottom; bottomMargin: 16
                 }
+                height: 4
+                radius: 2
+                // A DARKER TRACK THAN THE CHARGE GAUGE'S, because this fill
+                // is a neutral rather than the accent: at 0.4 against a fill
+                // of 0.55 the two near-white tokens were within a hair of
+                // each other and 91% read as 100%.
+                color: Qt.rgba(Theme.dim.r, Theme.dim.g, Theme.dim.b, 0.22)
 
-                Text {
-                    anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
-                    text: parent.modelData.v
-                    color: Theme.fg
-                    font.family: Theme.font
-                    font.pixelSize: Theme.fontSize
-                    font.weight: Theme.weightMedium
+                Rectangle {
+                    height: parent.height
+                    radius: parent.radius
+                    width: parent.width * Math.max(0, Math.min(1, Battery.healthPercent / 100))
+                    color: Qt.rgba(Theme.fg.r, Theme.fg.g, Theme.fg.b, 0.8)
                 }
             }
         }
 
-        // --- per pack, only when there is more than one ------------------------
-        //
-        // The ThinkPad has two and they wear differently, so one combined
-        // figure hides the one that is dying. On a single-battery machine
-        // this section is simply not there.
+        Rectangle {
+            width: parent.width
+            height: 1
+            color: Theme.outline
+            visible: Battery.healthPercent > 0
+        }
+
+        // ---- band three: the rest, as tiles ----------------------------------
+
+        Row {
+            width: parent.width
+            height: 64
+
+            Repeater {
+                model: [
+                    { v: Battery.cycleCount > 0 ? String(Battery.cycleCount) : "-",
+                      k: "cycles" },
+                    { v: Battery.watts > 0.05 ? Battery.watts.toFixed(1) + " W" : "idle",
+                      k: "draw" },
+                    { v: Battery.onAc ? "Mains" : "Battery",
+                      k: "power" }
+                ]
+
+                Item {
+                    required property var modelData
+                    required property int index
+
+                    width: parent.width / 3
+                    height: parent.height
+
+                    // Hairlines between the tiles, not around them: a border
+                    // would box three small things that belong to one band.
+                    Rectangle {
+                        visible: index > 0
+                        anchors { left: parent.left; top: parent.top; bottom: parent.bottom
+                                  topMargin: 14; bottomMargin: 14 }
+                        width: 1
+                        color: Theme.outline
+                    }
+
+                    Column {
+                        anchors.centerIn: parent
+                        spacing: 2
+
+                        Text {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: parent.parent.modelData.v
+                            color: Theme.fg
+                            font.family: Theme.font
+                            font.pixelSize: Theme.fontSizeTitle
+                            font.weight: Theme.weightMedium
+                        }
+
+                        Text {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: parent.parent.modelData.k
+                            color: Theme.dim
+                            font.family: Theme.font
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.letterSpacing: Theme.trackingLoose
+                        }
+                    }
+                }
+            }
+        }
+
+        // ---- per pack, only when there is more than one -----------------------
 
         Rectangle {
             width: parent.width
@@ -153,10 +264,10 @@ DropPanel {
             Item {
                 required property var modelData
                 width: parent.width
-                height: 34
+                height: 32
 
                 Text {
-                    anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                    anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
                     text: parent.modelData.name
                     color: Theme.dim
                     font.family: Theme.font
@@ -164,9 +275,9 @@ DropPanel {
                 }
 
                 Text {
-                    anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
-                    text: parent.modelData.percent + "%  -  "
-                          + parent.modelData.health + "% health  -  "
+                    anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
+                    text: parent.modelData.percent + "%   "
+                          + parent.modelData.health + "% health   "
                           + parent.modelData.cycles + " cycles"
                     color: Theme.fg
                     font.family: Theme.font
