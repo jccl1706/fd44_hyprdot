@@ -53,6 +53,23 @@ Singleton {
     readonly property bool limited: battery.onAc && !battery.charging
                                     && battery.percent < 100
 
+    // One entry per pack, for the panel. Aggregates below are for the glyph.
+    property var details: []
+
+    // Worn-ness: what the pack can still hold against what it shipped with.
+    property int healthPercent: 0
+
+    // Watts in or out right now. Negative is not used - `charging` says which
+    // direction it is going.
+    property real watts: 0
+
+    // Hours at the present draw, or 0 when that cannot be said. It usually
+    // cannot: sitting at the charge limit this machine draws a milliamp, and
+    // dividing by that gives an answer in months.
+    property real hoursLeft: 0
+
+    property int cycleCount: 0
+
     readonly property bool low:      battery.ready && !battery.onAc && battery.percent <= 15
     readonly property bool critical: battery.ready && !battery.onAc && battery.percent <= 5
 
@@ -107,9 +124,21 @@ Singleton {
             readonly property FileView nowE:     FileView { path: modelData + "/energy_now";  printErrors: false }
             readonly property FileView fullE:    FileView { path: modelData + "/energy_full"; printErrors: false }
 
+            // For the panel rather than the glyph: how worn the pack is, how
+            // many times it has been round, and what it is doing in watts.
+            readonly property FileView designC:  FileView { path: modelData + "/charge_full_design"; printErrors: false }
+            readonly property FileView designE:  FileView { path: modelData + "/energy_full_design"; printErrors: false }
+            readonly property FileView cycles:   FileView { path: modelData + "/cycle_count";        printErrors: false }
+            readonly property FileView currentF: FileView { path: modelData + "/current_now";        printErrors: false }
+            readonly property FileView powerF:   FileView { path: modelData + "/power_now";          printErrors: false }
+            readonly property FileView voltageF: FileView { path: modelData + "/voltage_now";        printErrors: false }
+            readonly property FileView techF:    FileView { path: modelData + "/technology";         printErrors: false }
+
             function reload(): void {
                 capFile.reload(); statFile.reload()
                 nowC.reload(); fullC.reload(); nowE.reload(); fullE.reload()
+                designC.reload(); designE.reload(); cycles.reload()
+                currentF.reload(); powerF.reload(); voltageF.reload()
             }
         }
 
@@ -139,6 +168,8 @@ Singleton {
 
         let now = 0, cap = 0, capSum = 0, n = 0
         let anyCharging = false, anyDischarging = false, seen = ""
+        let design = 0, watts = 0, cycles = 0
+        const rows = []
 
         for (let i = 0; i < packs.count; i++) {
             const p = packs.objectAt(i)
@@ -157,6 +188,32 @@ Singleton {
             if (st === "Charging") anyCharging = true
             else if (st === "Discharging") anyDischarging = true
             if (seen === "" && st !== "") seen = st
+
+            const desV = battery.num(p.designC, -1) >= 0 ? battery.num(p.designC, 0)
+                                                         : battery.num(p.designE, 0)
+            design += desV
+
+            // power_now is already watts-in-microwatts where a machine has
+            // it. Where it does not, current x voltage is the same thing:
+            // microamps times microvolts, hence the 1e12.
+            const pw = battery.num(p.powerF, -1)
+            const packW = pw >= 0 ? pw / 1e6
+                        : (battery.num(p.currentF, 0) * battery.num(p.voltageF, 0)) / 1e12
+            watts += packW
+
+            const c = battery.num(p.cycles, 0)
+            if (c > cycles) cycles = c
+
+            rows.push({
+                name:    String(p.modelData).split("/").pop(),
+                percent: fullV > 0 ? Math.round(nowV * 100 / fullV)
+                                   : battery.num(p.capFile, 0),
+                status:  st === "" ? "Unknown" : st,
+                cycles:  c,
+                health:  desV > 0 ? Math.round(fullV * 100 / desV) : 0,
+                watts:   packW,
+                tech:    String(p.techF.text()).trim()
+            })
         }
 
         if (n === 0) return
@@ -182,6 +239,17 @@ Singleton {
             if (m && battery.num(m.file, 0) === 1) ac = true
         }
         battery.onAc = ac
+
+        battery.details = rows
+        battery.cycleCount = cycles
+        battery.watts = watts
+        battery.healthPercent = design > 0 ? Math.round(cap * 100 / design) : 0
+
+        // Only when it means something: a reading taken while the charge
+        // limit holds the draw near zero would say "1400 hours".
+        const amps = battery.num(packs.count > 0 ? packs.objectAt(0).currentF : null, 0)
+        battery.hoursLeft = (anyDischarging && watts > 0.5 && amps > 0)
+                            ? (now / amps) : 0
     }
 
     // Ten seconds. A battery does not move faster than that, and the point

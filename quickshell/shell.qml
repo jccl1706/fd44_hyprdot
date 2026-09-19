@@ -73,6 +73,9 @@ ShellRoot {
             onNotificationsRequested: x => shell.eachNotifyPanel(p => {
                 if (p.modelData === bar.modelData) p.toggle(x)
             })
+            onBatteryRequested: x => shell.eachBatteryPanel(p => {
+                if (p.modelData === bar.modelData) p.toggle(x)
+            })
         }
     }
 
@@ -138,6 +141,15 @@ ShellRoot {
         id: notifyPanelVariants
         model: Quickshell.screens
         NotificationPanel {}
+    }
+
+    // Charge, wear and cycles. Opened from the battery glyph, and created
+    // even on machines with no battery - the plugin is hidden there, so
+    // nothing can open it.
+    Variants {
+        id: batteryPanelVariants
+        model: Quickshell.screens
+        BatteryPanel {}
     }
 
     // Notification toasts. The service is a singleton and owns the bus name;
@@ -329,6 +341,21 @@ ShellRoot {
     }
 
     IpcHandler {
+        target: "battery"
+
+        function toggle(): void { shell.toggleFocused(batteryPanelVariants.instances) }
+        function status(): string {
+            return Battery.ready
+                ? Battery.percent + "% " + Battery.status
+                  + " health=" + Battery.healthPercent + "%"
+                  + " cycles=" + Battery.cycleCount
+                  + " watts=" + Battery.watts.toFixed(2)
+                  + " ac=" + Battery.onAc
+                : "no reading yet"
+        }
+    }
+
+    IpcHandler {
         target: "osd"
 
         function volume(): void {
@@ -349,6 +376,13 @@ ShellRoot {
 
     function eachBar(fn): void {
         const instances = barVariants.instances
+        for (let i = 0; i < instances.length; i++) {
+            if (instances[i]) fn(instances[i])
+        }
+    }
+
+    function eachBatteryPanel(fn): void {
+        const instances = batteryPanelVariants.instances
         for (let i = 0; i < instances.length; i++) {
             if (instances[i]) fn(instances[i])
         }

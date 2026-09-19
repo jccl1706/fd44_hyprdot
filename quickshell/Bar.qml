@@ -28,6 +28,7 @@ PanelWindow {
     signal audioRequested(real x)
     signal networkRequested(real x)
     signal notificationsRequested(real x)
+    signal batteryRequested(real x)
 
     // Variants sets this, one instance per monitor. The name must be exactly
     // `modelData` - that is what Variants assigns into the delegate.
@@ -110,6 +111,7 @@ PanelWindow {
         if (id === "audio")                    root.audioRequested(x)
         else if (id === "network")             root.networkRequested(x)
         else if (id === "notify")              root.notificationsRequested(x)
+        else if (id === "battery")             root.batteryRequested(x)
         else if (id === "theme" && slot.item)  slot.item.activate()
         else if (id === "caffeine")            Caffeine.toggle()
         // Both of these arm on the first click and fire on the second, so
