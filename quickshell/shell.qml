@@ -76,6 +76,9 @@ ShellRoot {
             onBatteryRequested: x => shell.eachBatteryPanel(p => {
                 if (p.modelData === bar.modelData) p.toggle(x)
             })
+            onClockRequested: x => shell.eachCalendar(p => {
+                if (p.modelData === bar.modelData) p.toggle(x)
+            })
         }
     }
 
@@ -150,6 +153,13 @@ ShellRoot {
         id: batteryPanelVariants
         model: Quickshell.screens
         BatteryPanel {}
+    }
+
+    // The month, from the clock.
+    Variants {
+        id: calendarVariants
+        model: Quickshell.screens
+        CalendarPanel {}
     }
 
     // Notification toasts. The service is a singleton and owns the bus name;
@@ -356,6 +366,14 @@ ShellRoot {
     }
 
     IpcHandler {
+        target: "calendar"
+
+        function toggle(): void { shell.toggleFocused(calendarVariants.instances) }
+        function open(): void   { shell.openFocused(calendarVariants.instances)   }
+        function close(): void  { shell.closeAll(calendarVariants.instances)      }
+    }
+
+    IpcHandler {
         target: "osd"
 
         function volume(): void {
@@ -376,6 +394,13 @@ ShellRoot {
 
     function eachBar(fn): void {
         const instances = barVariants.instances
+        for (let i = 0; i < instances.length; i++) {
+            if (instances[i]) fn(instances[i])
+        }
+    }
+
+    function eachCalendar(fn): void {
+        const instances = calendarVariants.instances
         for (let i = 0; i < instances.length; i++) {
             if (instances[i]) fn(instances[i])
         }

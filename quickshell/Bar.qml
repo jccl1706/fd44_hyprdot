@@ -29,6 +29,7 @@ PanelWindow {
     signal networkRequested(real x)
     signal notificationsRequested(real x)
     signal batteryRequested(real x)
+    signal clockRequested(real x)
 
     // Variants sets this, one instance per monitor. The name must be exactly
     // `modelData` - that is what Variants assigns into the delegate.
@@ -371,7 +372,10 @@ PanelWindow {
                     }
 
                     Clock {
+                        id: clockItem
                         anchors.verticalCenter: parent.verticalCenter
+                        onActivated: root.clockRequested(
+                            clockItem.mapToItem(null, clockItem.width / 2, 0).x)
                     }
 
                     BarZone {

@@ -23,6 +23,11 @@ Item {
     // "HH" is 24 hour, zero padded. "hh" would be 12 hour.
     property string timeFormat: "HH:mm"
 
+    // Clicking opens the calendar. The clock is not a bar plugin - it is
+    // placed directly, between the two centre zones - so it signals upward
+    // rather than going through componentFor and activate().
+    signal activated()
+
     implicitWidth: label.implicitWidth
     implicitHeight: label.implicitHeight
 
@@ -54,5 +59,20 @@ Item {
         // shift as the numbers change - without this, 11:11 is narrower than
         // 10:00 in a proportional face and the clock jitters every minute.
         font.features: { "tnum": 1 }
+
+        // Brightens under the pointer, the same acknowledgement the bar's
+        // glyphs give. No backdrop: the clock is wider than a glyph and a
+        // pill behind it would read as a button, which it is not really.
+        opacity: hover.hovered ? 1 : 0.92
+        Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+    }
+
+    HoverHandler {
+        id: hover
+        // No cursorShape - see the note in Bar.qml.
+    }
+
+    TapHandler {
+        onTapped: root.activated()
     }
 }
