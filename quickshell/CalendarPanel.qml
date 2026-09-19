@@ -208,12 +208,18 @@ DropPanel {
                     Text {
                         anchors.centerIn: parent
                         text: parent.modelData
-                        // Bigger and heavier than the usual caption. These
-                        // are the column headings for everything under them,
-                        // and at 12px medium they sat quieter than the 15px
-                        // numbers they label - the eye read the grid and
-                        // skipped the key to it.
-                        color: Theme.dim
+                        // Bigger, heavier and brighter than the usual
+                        // caption. These are the column headings for
+                        // everything under them, and at 12px medium in `dim`
+                        // they sat quieter than the 15px numbers they label -
+                        // the eye read the grid and skipped the key to it.
+                        //
+                        // `fg`, the same as the dates. A heading in the same
+                        // ink as its column is what makes the two read as one
+                        // table; the weight alone separates them, and the
+                        // letterSpacing keeps single letters from looking
+                        // like a word.
+                        color: Theme.fg
                         font.family: Theme.font
                         font.pixelSize: 14
                         font.weight: Theme.weightSemi
