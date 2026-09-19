@@ -247,8 +247,27 @@ PanelWindow {
             // configures it, and an x computed from it would be stale.
             anchors.right: root.side === "right" ? parent.right : undefined
             anchors.left:  root.side === "left"  ? parent.left  : undefined
-            x: root.cardX
             anchors.top: parent.top
+
+            // X THROUGH A Binding, NOT A PROPERTY BINDING, and that is a bug
+            // fix rather than a style. An active anchor overrides x AND
+            // breaks any binding on it; clearing the anchor afterwards does
+            // not bring the binding back. So a panel that had ever been
+            // anchored - and every panel starts with side "right" - kept
+            // whatever x it held at the time. Measured: opened centred under
+            // the clock the card sat at x=-304, a whole panel width off the
+            // left edge, because parent.width was still 0 when the surface
+            // was first mapped and 0 - 304 is where anchoring right put it.
+            //
+            // A Binding with `when` only asserts itself while the card is
+            // unanchored, so the two never fight over the same property.
+            Binding {
+                target: card
+                property: "x"
+                value: root.cardX
+                when: root.side === "none"
+                restoreMode: Binding.RestoreNone
+            }
 
             // Closed offset includes the fillet that hangs below the card.
             // Bound to `height`, which only changes while closed if the

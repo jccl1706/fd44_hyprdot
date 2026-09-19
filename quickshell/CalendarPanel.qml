@@ -35,6 +35,19 @@ DropPanel {
 
     readonly property date today: new Date()
 
+    // Opened without a position - from IPC or a keybind rather than from a
+    // click - it centres on the screen, which is where the clock is. The
+    // bar's other panels default to the right edge because their glyphs live
+    // there; this one's does not.
+    function openUnderClock(): void {
+        root.open(root.screen ? root.screen.width / 2 : -1)
+    }
+
+    function toggleUnderClock(): void {
+        if (root.revealed) root.close()
+        else root.openUnderClock()
+    }
+
     onOpening: {
         const now = new Date()
         root.viewYear = now.getFullYear()

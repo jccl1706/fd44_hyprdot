@@ -368,9 +368,16 @@ ShellRoot {
     IpcHandler {
         target: "calendar"
 
-        function toggle(): void { shell.toggleFocused(calendarVariants.instances) }
-        function open(): void   { shell.openFocused(calendarVariants.instances)   }
-        function close(): void  { shell.closeAll(calendarVariants.instances)      }
+        function toggle(): void {
+            const one = shell.focusedOne(calendarVariants.instances)
+            if (one) one.toggleUnderClock()
+        }
+        function open(): void {
+            const one = shell.focusedOne(calendarVariants.instances)
+            if (one) one.openUnderClock()
+        }
+        function close(): void  { shell.closeAll(calendarVariants.instances) }
+
     }
 
     IpcHandler {
