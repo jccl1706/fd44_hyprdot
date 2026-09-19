@@ -92,25 +92,36 @@ Row {
             readonly property bool focused: Hyprland.focusedWorkspace
                                             && Hyprland.focusedWorkspace.id === wsId
 
-            // THE SAME SIZE WHATEVER IS FOCUSED. This used to widen to 26
-            // when focused, which turned that one chip into a pill among
-            // circles and shifted every chip after it sideways as you moved
-            // between workspaces. Colour carries the whole signal instead,
-            // and carries it well: the accent is 5.70:1 against an unfocused
-            // chip on dark and 5.27:1 on light, both measured in
-            // themes/*.conf.
-            width: 18
+            // THE FOCUSED CHIP STRETCHES INTO AN OVAL. A circle among
+            // circles says which one is current by colour alone; growing it
+            // says so by shape as well, and the growth itself is the signal -
+            // the eye follows the movement to the new workspace rather than
+            // hunting for which disc changed colour.
+            //
+            // The chips after it slide along as it grows, and that is the
+            // effect rather than a side effect: the row reads as one thing
+            // shifting its weight, not as six things redrawing.
+            width: chip.focused ? 26 : 18
             height: 18
 
-            // CIRCLES. `height / 2` on a square is a circle, and it suits the
-            // rest of the bar - the pills at either end are fully rounded and
-            // the logo is a disc, so a row of circles belongs to them in a way
-            // a row of squares did not.
+            // ANIMATED, or the stretch is just a jump. OutCubic so it leaves
+            // quickly and arrives gently, which is what makes it read as the
+            // chip settling rather than snapping. animReveal (220ms) rather
+            // than animNormal: at 140 the movement is over before the eye has
+            // followed it, which wastes the only reason to move at all.
+            Behavior on width {
+                NumberAnimation { duration: Theme.animReveal; easing.type: Easing.OutCubic }
+            }
+
+            // Fully rounded at both sizes - a circle at 18, an oval at 26 -
+            // because the radius follows the HEIGHT, which does not change.
+            // Half the width would make the oval a lozenge that flattens as
+            // it grows, and the corners would animate along with it.
             //
-            // Not Theme.cornerRadius: it is 12, larger than half this chip's
-            // height, and Qt clamps a radius at half the shorter side. It
-            // would land on the same circle by accident rather than on
-            // purpose, and would stop being a circle the moment the chip grew.
+            // Not Theme.cornerRadius either: it is 12, larger than half this
+            // chip's height, and Qt clamps a radius at half the shorter side.
+            // It would land on the same circle by accident rather than on
+            // purpose, and stop being one the moment the chip grew.
             radius: height / 2
 
             // A STATE LAYER, in the Material sense: hover does not swap the
