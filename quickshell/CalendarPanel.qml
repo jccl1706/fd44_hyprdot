@@ -26,7 +26,9 @@ DropPanel {
     id: root
 
     layerNamespace: "quickshell-calendar"
-    panelWidth: 300
+    // 360 rather than 300: at 300 the seven columns were 39px and the day
+    // discs nearly touched. The clock in the header wants the room too.
+    panelWidth: 360
 
     // The month on display. Reset to today's whenever the panel opens, so
     // it never comes back showing a month you paged to a week ago.
@@ -102,9 +104,68 @@ DropPanel {
         root.viewYear = y
     }
 
+    // ONLY TICKS WHILE THE PANEL IS OPEN. Seconds precision means a repaint
+    // a second, and this surface spends nearly all its life closed; `enabled`
+    // stops the clock rather than leaving it waking the shell to redraw
+    // something nobody is looking at.
+    SystemClock {
+        id: clock
+        precision: SystemClock.Seconds
+        enabled: root.revealed
+    }
+
     Column {
         width: parent.width
         spacing: 0
+
+        // --- the time now ---------------------------------------------------
+        //
+        // The bar's clock is small and always there; this one is the reason
+        // you opened the panel, so it leads. Seconds are set smaller and dim
+        // deliberately - they move constantly, and at the same weight as the
+        // hours they drag the eye off the part that matters.
+
+        Item {
+            width: parent.width
+            height: 86
+
+            // NOT A Row. A positioner sets its children's y itself, so an
+            // anchors.baseline inside one is ignored - the seconds rode high
+            // like a superscript. Anchored to each other directly instead.
+            Text {
+                id: hhmm
+                anchors { left: parent.left; leftMargin: 16; top: parent.top; topMargin: 14 }
+                text: Qt.formatDateTime(clock.date, "HH:mm")
+                color: Theme.fg
+                font.family: Theme.font
+                font.pixelSize: 34
+                font.weight: Theme.weightSemi
+                font.letterSpacing: Theme.trackingTight
+                font.variableAxes: ({ "opsz": 34 })
+                font.features: { "tnum": 1 }
+            }
+
+            Text {
+                id: ss
+                anchors { left: hhmm.right; leftMargin: 4; baseline: hhmm.baseline }
+                text: Qt.formatDateTime(clock.date, "ss")
+                color: Theme.dim
+                font.family: Theme.font
+                font.pixelSize: 16
+                font.weight: Theme.weightMedium
+                font.features: { "tnum": 1 }
+            }
+
+            Text {
+                anchors { left: parent.left; leftMargin: 16; top: hhmm.bottom; topMargin: 4 }
+                text: Qt.formatDateTime(root.today, "dddd d MMMM yyyy")
+                color: Theme.dim
+                font.family: Theme.font
+                font.pixelSize: Theme.fontSize
+            }
+        }
+
+        Rectangle { width: parent.width; height: 1; color: Theme.outline }
 
         // --- month, and the way through the year ---------------------------
 
@@ -122,7 +183,31 @@ DropPanel {
                 font.weight: Theme.weightSemi
             }
 
+            // Only once paged away from this month - otherwise it is a
+            // button that does nothing.
+            Text {
+                id: backToToday
+                anchors { right: arrows.left; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                visible: root.viewMonth !== root.today.getMonth()
+                         || root.viewYear !== root.today.getFullYear()
+                text: "Today"
+                color: backHover.hovered ? Theme.fg : Theme.accent
+                font.family: Theme.font
+                font.pixelSize: Theme.fontSizeSmall
+                font.weight: Theme.weightMedium
+                Behavior on color { ColorAnimation { duration: Theme.animFast } }
+
+                HoverHandler { id: backHover }
+                TapHandler {
+                    onTapped: {
+                        root.viewYear = root.today.getFullYear()
+                        root.viewMonth = root.today.getMonth()
+                    }
+                }
+            }
+
             Row {
+                id: arrows
                 anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
                 spacing: 2
 
@@ -203,13 +288,13 @@ DropPanel {
                     // docked to an edge, so the two disagree by 4px and the
                     // weekday initials stop sitting over their columns.
                     width: parent.width / 7
-                    height: 36
+                    height: 40
 
                     // Today: a filled disc, not a coloured number.
                     Rectangle {
                         anchors.centerIn: parent
-                        width: 30
-                        height: 30
+                        width: 34
+                        height: 34
                         radius: width / 2
                         color: Theme.accent
                         visible: root.isToday(parent.modelData)
@@ -218,8 +303,8 @@ DropPanel {
                     // Hover, for every real day. A blank cell is not a target.
                     Rectangle {
                         anchors.centerIn: parent
-                        width: 30
-                        height: 30
+                        width: 34
+                        height: 34
                         radius: width / 2
                         color: Theme.fg
                         opacity: dayHover.hovered && parent.modelData > 0
@@ -243,48 +328,6 @@ DropPanel {
             }
         }
 
-        Item { width: 1; height: 8 }
-
-        // --- today, spelled out ----------------------------------------------
-        //
-        // The grid says which square today is; this says what today is, which
-        // is the other half of why anyone opens a calendar.
-
-        Rectangle { width: parent.width; height: 1; color: Theme.outline }
-
-        Item {
-            width: parent.width
-            height: 44
-
-            Text {
-                anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
-                text: Qt.formatDateTime(root.today, "dddd d MMMM")
-                color: Theme.dim
-                font.family: Theme.font
-                font.pixelSize: Theme.fontSize
-            }
-
-            // Only when paged away from it - otherwise the grid already shows
-            // today and a button to reach it would do nothing.
-            Text {
-                anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                visible: root.viewMonth !== root.today.getMonth()
-                         || root.viewYear !== root.today.getFullYear()
-                text: "Today"
-                color: backHover.hovered ? Theme.fg : Theme.accent
-                font.family: Theme.font
-                font.pixelSize: Theme.fontSize
-                font.weight: Theme.weightMedium
-                Behavior on color { ColorAnimation { duration: Theme.animFast } }
-
-                HoverHandler { id: backHover }
-                TapHandler {
-                    onTapped: {
-                        root.viewYear = root.today.getFullYear()
-                        root.viewMonth = root.today.getMonth()
-                    }
-                }
-            }
-        }
+        Item { width: 1; height: 10 }
     }
 }
