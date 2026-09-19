@@ -1,28 +1,28 @@
 // =========================================================================
-// BatteryButton - charge level, and whether that is a problem
+// BatteryButton - charge level
 // =========================================================================
 //
-// Glyph plus the number, because neither alone is enough at a glance: the
-// glyph says "fine / low / charging" without reading, the number says
-// whether 20% means twenty minutes or two hours. The lock screen and tmux
-// have shown both for a while; the bar was the one place that showed
-// neither.
+// One glyph, coloured like every other glyph in the bar. The level is in the
+// SHAPE - the cell fills as the charge does, a bolt means charging - so the
+// colour is free to mean what it means everywhere else on the bar: grey at
+// rest, brighter under the pointer.
 //
-// COLOUR CARRIES THE MEANING, the glyph carries the level:
+// NO PERCENTAGE. The number was tried and removed: it makes this the only
+// plugin with text in it, and the glyph already says what a glance needs. If
+// the exact figure is wanted it is in the lock screen and in tmux, both of
+// which already show it.
 //
-//   accent      charging, or plugged in and holding at the charge limit
-//   danger      running down and low
-//   pluginIcon  running down, nothing to say
+// COLOUR ONLY WHEN SOMETHING IS WRONG, which is the convention the speaker
+// follows - grey normally, danger when muted. The difference here is what
+// counts as wrong: this laptop is plugged in and holding at its 80% charge
+// limit almost all the time, and tinting that left the battery permanently
+// coloured while everything beside it was grey. Charging and the charge
+// limit are ordinary states and get the ordinary colour; only genuinely low
+// on mains-free charge earns the danger one.
 //
-// THE CHARGE LIMIT IS NOT A WARNING. Plugged in at 80% reporting "Not
-// charging" is this laptop's BIOS doing what it was told, so it gets the
-// same accent as charging rather than the danger colour - see Battery.qml.
-// A bar that looks alarmed every time the machine is behaving correctly
-// teaches you to ignore it.
-//
-// Codepoints verified by rendering a grid of candidates and looking, the
-// same way the bell's were: F0084 is the bolt, F007A to F0082 climb from a
-// tenth to nine tenths, F0079 is full and F0083 is the exclamation.
+// Codepoints verified by rendering a grid and looking, the same way the
+// bell's were: F0084 is the bolt, F007A to F0082 climb from a tenth to nine
+// tenths, F0079 is full and F0083 is the exclamation.
 
 import Quickshell
 import QtQuick
@@ -30,7 +30,7 @@ import QtQuick
 Item {
     id: root
 
-    implicitWidth: glyph.width + label.width + 4
+    implicitWidth: 22
     implicitHeight: 22
 
     readonly property string levelGlyph: {
@@ -42,54 +42,33 @@ Item {
     }
 
     readonly property string shownGlyph:
-        Battery.charging ? "\u{F0084}"                  // bolt
-      : Battery.critical ? "\u{F0083}"                  // exclamation
-                         : root.levelGlyph
-
-    readonly property color shownColor:
-        Battery.critical           ? Theme.danger
-      : Battery.low                ? Theme.danger
-      : Battery.charging           ? Theme.accent
-      : Battery.limited            ? Theme.accent
-      : hover.hovered              ? Theme.fg
-                                   : Theme.pluginIcon
+        !Battery.ready     ? "\u{F008E}"                // nothing read yet
+      : Battery.charging   ? "\u{F0084}"                // bolt
+      : Battery.critical   ? "\u{F0083}"                // exclamation
+                           : root.levelGlyph
 
     Rectangle {
         anchors.centerIn: parent
-        width: root.implicitWidth + 8
+        width: 22
         height: 22
-        radius: 11
+        radius: width / 2
         color: Theme.surfaceHigh
         opacity: hover.hovered ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
     }
 
     Text {
-        id: glyph
-        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+        anchors.centerIn: parent
         text: root.shownGlyph
         font.family: Theme.glyphFont
-        // 16: these glyphs are a tall narrow cell and read larger than the
-        // speaker at the same nominal size, the same trap the bell fell into.
+        // 16 rather than the speaker's 20: a battery is a tall narrow cell
+        // and inks taller than a speaker at the same nominal size - the same
+        // trap the bell fell into, measured the same way.
         font.pixelSize: 16
-        color: root.shownColor
-        Behavior on color { ColorAnimation { duration: Theme.animNormal } }
-    }
-
-    Text {
-        id: label
-        anchors { left: glyph.right; leftMargin: 4; verticalCenter: parent.verticalCenter }
-        // An em dash until the first read lands, rather than "0%".
-        text: Battery.ready ? Battery.percent + "%" : "\u2014"
-        font.family: Theme.font
-        font.pixelSize: Theme.fontSizeSmall
-        font.weight: Theme.weightMedium
-        // The number stays readable even when the glyph is shouting: only
-        // the genuinely low states tint it.
         color: (Battery.critical || Battery.low) ? Theme.danger
              : hover.hovered                     ? Theme.fg
-                                                 : Theme.dim
-        Behavior on color { ColorAnimation { duration: Theme.animNormal } }
+                                                 : Theme.pluginIcon
+        Behavior on color { ColorAnimation { duration: Theme.animFast } }
     }
 
     HoverHandler {
