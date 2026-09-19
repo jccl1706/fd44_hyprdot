@@ -68,6 +68,7 @@ PanelWindow {
     Component { id: couchPlugin;   CouchButton {} }
     Component { id: powerPlugin;   PowerButton {} }
     Component { id: notifyPlugin;  NotifyButton {} }
+    Component { id: batteryPlugin; BatteryButton {} }
 
     // Where a dragged icon will land: a faint ring the size of a glyph.
     Component {
@@ -97,6 +98,7 @@ PanelWindow {
         case "couch":       return couchPlugin
         case "power":       return powerPlugin
         case "notify":      return notifyPlugin
+        case "battery":     return batteryPlugin
         case "placeholder": return placeholderPlugin
         }
         return null
@@ -169,7 +171,10 @@ PanelWindow {
     // drop index means the same thing on both machines: itemFor() returns
     // null for a hidden id and the loop steps over it without advancing.
     function shows(id: string): bool {
-        if (id === "couch") return Couch.available
+        if (id === "couch")   return Couch.available
+        // No battery on the desktop, so the plugin simply is not there -
+        // the same arrangement as couch mode on a machine without it.
+        if (id === "battery") return Battery.present
         return true
     }
 
