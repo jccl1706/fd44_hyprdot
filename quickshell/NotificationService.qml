@@ -206,6 +206,47 @@ Singleton {
         service.close(key, true)
     }
 
+    // --- posting from inside the shell ---------------------------------------
+    //
+    // A notification the shell raises itself - a low battery, say. It goes
+    // through the same rows, the same do-not-disturb rules and the same
+    // history as anything a client sends; it simply has no client behind it,
+    // so there is nothing to dismiss upstream and no action to invoke.
+    //
+    // NOT VIA notify-send. Forking a program to talk over the bus to a daemon
+    // running in this very process would be a long way round, and the toast
+    // would be indistinguishable at the end of it.
+    //
+    // `appName` is "fd44" so the DND rule already written for CLI senders
+    // covers these: a critical one gets through, a merely low one does not
+    // and waits in history. See bypassesDnd().
+    property int syntheticId: -1
+
+    function post(summary, body, urgency): void {
+        const u = (urgency === undefined) ? NotificationUrgency.Normal : urgency
+        const row = {
+            key:      "fd44-" + Date.now() + "-" + (-service.syntheticId),
+            // Negative and unique, so dropRows() can never confuse two of
+            // these with each other or with a real notification's id.
+            nid:      service.syntheticId,
+            summary:  String(summary),
+            body:     String(body || ""),
+            appName:  "fd44",
+            appIcon:  "",
+            image:    "",
+            urgency:  u,
+            ts:       Date.now(),
+            duration: service.durationFor(u, -1)
+        }
+        service.syntheticId--
+
+        if (service.doNotDisturb && u !== NotificationUrgency.Critical) {
+            service.remember(row)
+            return
+        }
+        Qt.callLater(function() { service.popups.insert(0, row) })
+    }
+
     // --- history -----------------------------------------------------------
 
     function remember(row) {

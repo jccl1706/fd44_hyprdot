@@ -29,6 +29,7 @@ pragma Singleton
 
 import Quickshell
 import Quickshell.Io
+import Quickshell.Services.Notifications
 import QtQuick
 
 Singleton {
@@ -72,6 +73,65 @@ Singleton {
 
     readonly property bool low:      battery.ready && !battery.onAc && battery.percent <= 15
     readonly property bool critical: battery.ready && !battery.onAc && battery.percent <= 5
+
+    // --- warnings ------------------------------------------------------------
+    //
+    // ONCE PER THRESHOLD, NOT ONCE PER READING. The poll runs every ten
+    // seconds; a naive "percent <= 20" would raise six toasts a minute all
+    // the way down. `warnedAt` remembers the lowest step already announced
+    // and only a lower one speaks again.
+    //
+    // PLUGGING IN RE-ARMS IT. Reaching mains is the end of the episode, so
+    // the next time the charge falls the warnings start from the top - which
+    // is what you want, and is also why the reset is on `onAc` rather than
+    // on the charge climbing back over a threshold. A machine that hovers at
+    // 20% on a failing charger should not chirp every time it wobbles.
+    //
+    // The steps themselves: 20 is "think about it", 10 is "do something",
+    // and 5 is critical and therefore sticky - it stays on screen until
+    // touched, and gets through do-not-disturb, because a machine about to
+    // switch off is the one message worth interrupting for.
+    // The body is composed from the REAL percentage, not the step's, so the
+    // toast says what is actually left. Writing "5% remaining" into the step
+    // and appending the reading gave "5% remaining - plug in now. 4% left."
+    readonly property var warnSteps: [
+        { at: 20, urgency: NotificationUrgency.Normal,
+          summary: "Battery low",      hint: "" },
+        { at: 10, urgency: NotificationUrgency.Normal,
+          summary: "Battery very low", hint: "save your work" },
+        { at: 5,  urgency: NotificationUrgency.Critical,
+          summary: "Battery critical", hint: "plug in now" }
+    ]
+
+    property int warnedAt: 0
+
+    function checkWarnings(): void {
+        if (!battery.ready) return
+
+        if (battery.onAc) {
+            battery.warnedAt = 0
+            return
+        }
+
+        // DEEPEST FIRST, which is why this counts down. Walking the steps
+        // in declaration order picks the shallowest that applies, so a
+        // machine found at 4% - woken from suspend on a flat battery, say -
+        // announced "Battery low, 20% remaining" while sitting at four.
+        for (let i = battery.warnSteps.length - 1; i >= 0; i--) {
+            const step = battery.warnSteps[i]
+            if (battery.percent > step.at) continue
+            // Already said this one, or something lower.
+            if (battery.warnedAt !== 0 && step.at >= battery.warnedAt) continue
+
+            battery.warnedAt = step.at
+            const body = battery.percent + "% remaining"
+                       + (step.hint !== "" ? " - " + step.hint : "") + "."
+            NotificationService.post(step.summary, body, step.urgency)
+            // One notification, not one per step passed: a drop from 22% to
+            // 4% between polls is a single emergency.
+            break
+        }
+    }
 
     // --- discovery ---------------------------------------------------------
     //
@@ -250,6 +310,8 @@ Singleton {
         const amps = battery.num(packs.count > 0 ? packs.objectAt(0).currentF : null, 0)
         battery.hoursLeft = (anyDischarging && watts > 0.5 && amps > 0)
                             ? (now / amps) : 0
+
+        battery.checkWarnings()
     }
 
     // Ten seconds. A battery does not move faster than that, and the point
