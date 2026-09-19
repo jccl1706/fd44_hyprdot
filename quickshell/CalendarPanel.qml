@@ -26,9 +26,9 @@ DropPanel {
     id: root
 
     layerNamespace: "quickshell-calendar"
-    // 360 rather than 300: at 300 the seven columns were 39px and the day
-    // discs nearly touched. The clock in the header wants the room too.
-    panelWidth: 360
+    // 420. Seven columns at 57px each, which is what lets the day numbers
+    // go up to 15px and still sit clear of their neighbours.
+    panelWidth: 420
 
     // The month on display. Reset to today's whenever the panel opens, so
     // it never comes back showing a month you paged to a week ago.
@@ -73,15 +73,21 @@ DropPanel {
         return out
     }
 
-    // 42 cells: 0 for a blank, otherwise the day of the month. Six rows is
-    // the most any month needs and a fixed count stops the panel resizing as
-    // you page through, which is what makes paging feel solid.
+    // 0 for a blank, otherwise the day of the month - and only as many rows
+    // as the month actually occupies.
+    //
+    // THIS USED TO BE A FIXED 42, so the panel never changed height as you
+    // paged. It cost an empty row under most months: 42px of nothing between
+    // the last week and the rule below it, which read as a mistake rather
+    // than as stability. The card's height already follows its contents on a
+    // curve, so a month that needs a sixth row grows into it smoothly.
     readonly property var cells: {
         const first = new Date(root.viewYear, root.viewMonth, 1)
         const lead = (first.getDay() - root.weekStart + 7) % 7
         const length = new Date(root.viewYear, root.viewMonth + 1, 0).getDate()
+        const rows = Math.ceil((lead + length) / 7)
         const out = []
-        for (let i = 0; i < 42; i++) {
+        for (let i = 0; i < rows * 7; i++) {
             const day = i - lead + 1
             out.push(day >= 1 && day <= length ? day : 0)
         }
@@ -112,7 +118,7 @@ DropPanel {
 
         Item {
             width: parent.width
-            height: 52
+            height: 48
 
             Text {
                 anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
@@ -120,7 +126,7 @@ DropPanel {
                       + " " + root.viewYear
                 color: Theme.fg
                 font.family: Theme.font
-                font.pixelSize: Theme.fontSizeTitle
+                font.pixelSize: 16
                 font.weight: Theme.weightSemi
             }
 
@@ -204,7 +210,7 @@ DropPanel {
                         text: parent.modelData
                         color: Theme.dim
                         font.family: Theme.font
-                        font.pixelSize: Theme.fontSizeSmall
+                        font.pixelSize: 12
                         font.weight: Theme.weightMedium
                         font.letterSpacing: Theme.trackingLoose
                     }
@@ -229,13 +235,13 @@ DropPanel {
                     // docked to an edge, so the two disagree by 4px and the
                     // weekday initials stop sitting over their columns.
                     width: parent.width / 7
-                    height: 40
+                    height: 44
 
                     // Today: a filled disc, not a coloured number.
                     Rectangle {
                         anchors.centerIn: parent
-                        width: 34
-                        height: 34
+                        width: 38
+                        height: 38
                         radius: width / 2
                         color: Theme.accent
                         visible: root.isToday(parent.modelData)
@@ -244,8 +250,8 @@ DropPanel {
                     // Hover, for every real day. A blank cell is not a target.
                     Rectangle {
                         anchors.centerIn: parent
-                        width: 34
-                        height: 34
+                        width: 38
+                        height: 38
                         radius: width / 2
                         color: Theme.fg
                         opacity: dayHover.hovered && parent.modelData > 0
@@ -258,7 +264,7 @@ DropPanel {
                         text: parent.modelData > 0 ? parent.modelData : ""
                         color: root.isToday(parent.modelData) ? Theme.accentFg : Theme.fg
                         font.family: Theme.font
-                        font.pixelSize: Theme.fontSize
+                        font.pixelSize: 15
                         font.weight: root.isToday(parent.modelData) ? Theme.weightSemi
                                                                     : Theme.weightNormal
                         font.features: { "tnum": 1 }
@@ -269,7 +275,7 @@ DropPanel {
             }
         }
 
-        Item { width: 1; height: 8 }
+        Item { width: 1; height: 4 }
 
         // --- today, spelled out ----------------------------------------------
         //
@@ -286,14 +292,14 @@ DropPanel {
 
         Item {
             width: parent.width
-            height: 44
+            height: 40
 
             Text {
                 anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
                 text: Qt.formatDateTime(root.today, "dddd d MMMM yyyy")
                 color: Theme.dim
                 font.family: Theme.font
-                font.pixelSize: Theme.fontSize
+                font.pixelSize: 13
             }
         }
     }
