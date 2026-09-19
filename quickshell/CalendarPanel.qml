@@ -104,68 +104,9 @@ DropPanel {
         root.viewYear = y
     }
 
-    // ONLY TICKS WHILE THE PANEL IS OPEN. Seconds precision means a repaint
-    // a second, and this surface spends nearly all its life closed; `enabled`
-    // stops the clock rather than leaving it waking the shell to redraw
-    // something nobody is looking at.
-    SystemClock {
-        id: clock
-        precision: SystemClock.Seconds
-        enabled: root.revealed
-    }
-
     Column {
         width: parent.width
         spacing: 0
-
-        // --- the time now ---------------------------------------------------
-        //
-        // The bar's clock is small and always there; this one is the reason
-        // you opened the panel, so it leads. Seconds are set smaller and dim
-        // deliberately - they move constantly, and at the same weight as the
-        // hours they drag the eye off the part that matters.
-
-        Item {
-            width: parent.width
-            height: 86
-
-            // NOT A Row. A positioner sets its children's y itself, so an
-            // anchors.baseline inside one is ignored - the seconds rode high
-            // like a superscript. Anchored to each other directly instead.
-            Text {
-                id: hhmm
-                anchors { left: parent.left; leftMargin: 16; top: parent.top; topMargin: 14 }
-                text: Qt.formatDateTime(clock.date, "HH:mm")
-                color: Theme.fg
-                font.family: Theme.font
-                font.pixelSize: 34
-                font.weight: Theme.weightSemi
-                font.letterSpacing: Theme.trackingTight
-                font.variableAxes: ({ "opsz": 34 })
-                font.features: { "tnum": 1 }
-            }
-
-            Text {
-                id: ss
-                anchors { left: hhmm.right; leftMargin: 4; baseline: hhmm.baseline }
-                text: Qt.formatDateTime(clock.date, "ss")
-                color: Theme.dim
-                font.family: Theme.font
-                font.pixelSize: 16
-                font.weight: Theme.weightMedium
-                font.features: { "tnum": 1 }
-            }
-
-            Text {
-                anchors { left: parent.left; leftMargin: 16; top: hhmm.bottom; topMargin: 4 }
-                text: Qt.formatDateTime(root.today, "dddd d MMMM yyyy")
-                color: Theme.dim
-                font.family: Theme.font
-                font.pixelSize: Theme.fontSize
-            }
-        }
-
-        Rectangle { width: parent.width; height: 1; color: Theme.outline }
 
         // --- month, and the way through the year ---------------------------
 
@@ -328,6 +269,32 @@ DropPanel {
             }
         }
 
-        Item { width: 1; height: 10 }
+        Item { width: 1; height: 8 }
+
+        // --- today, spelled out ----------------------------------------------
+        //
+        // NO CLOCK HERE, and that is deliberate rather than an omission. A
+        // large time in this panel sat a couple of centimetres under the
+        // bar's own clock, which is what the panel drops from - two readings
+        // of the same thing, one of them redundant by construction.
+        //
+        // The date is a different matter: the grid says which square today
+        // is, and this says what today is, which is the other half of why
+        // anyone opens a calendar.
+
+        Rectangle { width: parent.width; height: 1; color: Theme.outline }
+
+        Item {
+            width: parent.width
+            height: 44
+
+            Text {
+                anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
+                text: Qt.formatDateTime(root.today, "dddd d MMMM yyyy")
+                color: Theme.dim
+                font.family: Theme.font
+                font.pixelSize: Theme.fontSize
+            }
+        }
     }
 }
