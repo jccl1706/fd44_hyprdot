@@ -195,7 +195,7 @@ DropPanel {
         Row {
             width: parent.width - 24
             x: 12
-            height: 28
+            height: 32
 
             Repeater {
                 model: root.dayNames
@@ -208,10 +208,15 @@ DropPanel {
                     Text {
                         anchors.centerIn: parent
                         text: parent.modelData
+                        // Bigger and heavier than the usual caption. These
+                        // are the column headings for everything under them,
+                        // and at 12px medium they sat quieter than the 15px
+                        // numbers they label - the eye read the grid and
+                        // skipped the key to it.
                         color: Theme.dim
                         font.family: Theme.font
-                        font.pixelSize: 12
-                        font.weight: Theme.weightMedium
+                        font.pixelSize: 14
+                        font.weight: Theme.weightSemi
                         font.letterSpacing: Theme.trackingLoose
                     }
                 }
