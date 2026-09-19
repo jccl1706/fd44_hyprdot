@@ -92,25 +92,26 @@ Row {
             readonly property bool focused: Hyprland.focusedWorkspace
                                             && Hyprland.focusedWorkspace.id === wsId
 
-            // SQUARE, including the focused one. It used to widen to 26 when
-            // focused, which made that chip a rounded rectangle among squares.
-            // Colour carries the whole signal instead, and it carries it well:
-            // the accent is 5.70:1 against an unfocused chip on dark and
-            // 5.27:1 on light, both measured in themes/*.conf.
+            // THE SAME SIZE WHATEVER IS FOCUSED. This used to widen to 26
+            // when focused, which turned that one chip into a pill among
+            // circles and shifted every chip after it sideways as you moved
+            // between workspaces. Colour carries the whole signal instead,
+            // and carries it well: the accent is 5.70:1 against an unfocused
+            // chip on dark and 5.27:1 on light, both measured in
+            // themes/*.conf.
             width: 18
             height: 18
 
-            // SQUARES, not pills. `height / 2` is what made these circles, and
-            // 4 is what makes them read as squares without being the only
-            // sharp-cornered thing on screen: Hyprland rounds windows to 10,
-            // the panels to Theme.cornerRadius (12), and the bar's own pills
-            // are fully rounded. A radius of 0 would be correct geometry and
-            // wrong for this desktop.
+            // CIRCLES. `height / 2` on a square is a circle, and it suits the
+            // rest of the bar - the pills at either end are fully rounded and
+            // the logo is a disc, so a row of circles belongs to them in a way
+            // a row of squares did not.
             //
-            // Not Theme.cornerRadius, which is 12 and larger than half this
-            // chip's height - Qt clamps a radius at half the shorter side, so
-            // 12 on an 18px chip silently produces the circle again.
-            radius: 4
+            // Not Theme.cornerRadius: it is 12, larger than half this chip's
+            // height, and Qt clamps a radius at half the shorter side. It
+            // would land on the same circle by accident rather than on
+            // purpose, and would stop being a circle the moment the chip grew.
+            radius: height / 2
 
             // A STATE LAYER, in the Material sense: hover does not swap the
             // colour, it adds a translucent film over whatever the chip
