@@ -79,6 +79,9 @@ ShellRoot {
             onClockRequested: x => shell.eachCalendar(p => {
                 if (p.modelData === bar.modelData) p.toggle(x)
             })
+            onNotesRequested: x => shell.eachNotes(p => {
+                if (p.modelData === bar.modelData) p.toggle(x)
+            })
         }
     }
 
@@ -160,6 +163,13 @@ ShellRoot {
         id: calendarVariants
         model: Quickshell.screens
         CalendarPanel {}
+    }
+
+    // Somewhere to put a thought, from the notebook glyph.
+    Variants {
+        id: notesVariants
+        model: Quickshell.screens
+        NotesPanel {}
     }
 
     // Notification toasts. The service is a singleton and owns the bus name;
@@ -366,6 +376,15 @@ ShellRoot {
     }
 
     IpcHandler {
+        target: "notes"
+
+        function toggle(): void { shell.toggleFocused(notesVariants.instances) }
+        function open(): void   { shell.openFocused(notesVariants.instances)   }
+        function close(): void  { shell.closeAll(notesVariants.instances)      }
+        function text(): string { return Notes.text }
+    }
+
+    IpcHandler {
         target: "calendar"
 
         function toggle(): void {
@@ -401,6 +420,13 @@ ShellRoot {
 
     function eachBar(fn): void {
         const instances = barVariants.instances
+        for (let i = 0; i < instances.length; i++) {
+            if (instances[i]) fn(instances[i])
+        }
+    }
+
+    function eachNotes(fn): void {
+        const instances = notesVariants.instances
         for (let i = 0; i < instances.length; i++) {
             if (instances[i]) fn(instances[i])
         }

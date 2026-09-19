@@ -53,7 +53,7 @@ Singleton {
         left: [],
         centerLeft: [],
         centerRight: ["theme", "caffeine"],
-        right: ["notify", "network", "audio", "battery", "couch", "power"]
+        right: ["notes", "notify", "network", "audio", "battery", "couch", "power"]
     })
 
     // zone name -> ordered list of plugin ids. Always complete and valid.

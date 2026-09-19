@@ -30,6 +30,7 @@ PanelWindow {
     signal notificationsRequested(real x)
     signal batteryRequested(real x)
     signal clockRequested(real x)
+    signal notesRequested(real x)
 
     // Variants sets this, one instance per monitor. The name must be exactly
     // `modelData` - that is what Variants assigns into the delegate.
@@ -71,6 +72,7 @@ PanelWindow {
     Component { id: powerPlugin;   PowerButton {} }
     Component { id: notifyPlugin;  NotifyButton {} }
     Component { id: batteryPlugin; BatteryButton {} }
+    Component { id: notesPlugin;   NotesButton {} }
 
     // Where a dragged icon will land: a faint ring the size of a glyph.
     Component {
@@ -101,6 +103,7 @@ PanelWindow {
         case "power":       return powerPlugin
         case "notify":      return notifyPlugin
         case "battery":     return batteryPlugin
+        case "notes":       return notesPlugin
         case "placeholder": return placeholderPlugin
         }
         return null
@@ -113,6 +116,7 @@ PanelWindow {
         else if (id === "network")             root.networkRequested(x)
         else if (id === "notify")              root.notificationsRequested(x)
         else if (id === "battery")             root.batteryRequested(x)
+        else if (id === "notes")               root.notesRequested(x)
         else if (id === "theme" && slot.item)  slot.item.activate()
         else if (id === "caffeine")            Caffeine.toggle()
         // Both of these arm on the first click and fire on the second, so
