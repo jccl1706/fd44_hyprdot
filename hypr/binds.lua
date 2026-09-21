@@ -51,7 +51,7 @@ hl.bind(Mod .. " + space", hl.dsp.global("quickshell:launcher"))
 -- one keypress raced two full-screen layers that each want exclusive keyboard
 -- focus. `hyprctl binds` showed the pair, same modmask, same key.
 hl.bind(Mod .. " + comma", hl.dsp.global("quickshell:settings"))
-hl.bind(Mod .. " SHIFT + comma", hl.dsp.global("quickshell:wallpaper"))
+hl.bind(Mod .. " + SHIFT + comma", hl.dsp.global("quickshell:wallpaper"))
 
 -- Theme. Flips the whole desktop between themes/dark.conf and
 -- themes/cream.conf - quickshell, kitty, GTK apps and Hyprland all at once.
