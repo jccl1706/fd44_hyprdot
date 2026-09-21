@@ -53,12 +53,28 @@ COLOURS=" black blue brown cyan green grey lightblue orange pink purple red "
 # installer replaces the whole directory). The -dark variants reach that
 # directory through a symlink of their own, so they need nothing extra.
 #
-# btop is the only app on either machine without a Reversal icon (checked
-# against every displayed desktop entry - `--status` repeats that check). It
-# borrows htop's: the same kind of program, and a terminal monitor rather than
-# the GNOME-style graph utilities-system-monitor draws.
+# Apps with no Reversal icon of their own, mapped to one it does ship.
+# `--status` re-runs that check across every displayed desktop entry on the
+# machine, so this list is verifiable rather than remembered.
+#
+# Each of these was chosen by looking at what Reversal actually has - all four
+# are close matches rather than generic stand-ins, and the first three were
+# only found because the gap check was fixed to scan every XDG data dir instead
+# of /usr/share alone, which on NixOS meant scanning nothing.
+#
+#   btop         htop is the same kind of program - a terminal monitor, rather
+#                than the GNOME-style graph utilities-system-monitor draws.
+#   nix-snowflake  distributor-logo-nixos IS the NixOS logo, which is what
+#                nix-snowflake means. Used by the NixOS Manual entry.
+#   CoolerControl  coolero is the same program under its former name; upstream
+#                renamed itself and Reversal still ships the old icon.
+#   protonup-qt  protontricks is its nearest sibling - both manage Proton and
+#                Wine runners for Steam. Not identical, but the same shelf.
 ALIASES=(
     "btop=htop"
+    "nix-snowflake=distributor-logo-nixos"
+    "org.coolercontrol.CoolerControl=coolero"
+    "protonup-qt=protontricks"
 )
 
 die() { printf 'icon-theme: %s\n' "$*" >&2; exit 1; }
