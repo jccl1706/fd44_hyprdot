@@ -46,6 +46,38 @@ FILE="SymbolsNerdFont-Regular.ttf"
 die() { printf 'install-nerd-font: %s\n' "$*" >&2; exit 1; }
 log() { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
 
+
+# -------------------------------------------------------------------------
+# This is the Fedora setup script
+# -------------------------------------------------------------------------
+# It installs packages with dnf and writes to /usr and /etc, none of which
+# exists in that form on NixOS. Without this check the failure arrives several
+# steps in as `dnf: command not found` or a write to a directory that is not
+# there, which reads like a broken script rather than the wrong machine.
+#
+# ID_LIKE is accepted too, so Fedora derivatives (Nobara, Bazzite) still work.
+# FD44_SKIP_DISTRO_CHECK=1 overrides it for anyone who knows better.
+require_fedora() {
+    [[ -n ${FD44_SKIP_DISTRO_CHECK:-} ]] && return 0
+    # --help always works, wherever you are. Two of these scripts parse their
+    # arguments AFTER this point, and a help text you cannot read on the wrong
+    # machine is exactly the sort of small obstruction this check exists to
+    # remove rather than add.
+    case "${1:-}" in -h|--help) return 0 ;; esac
+    local id="" like=""
+    if [[ -r /etc/os-release ]]; then
+        id="$(. /etc/os-release 2>/dev/null; printf '%s' "${ID:-}")"
+        like="$(. /etc/os-release 2>/dev/null; printf '%s' "${ID_LIKE:-}")"
+    fi
+    [[ $id == fedora || " $like " == *" fedora "* ]] && return 0
+    printf '\033[1;31merror:\033[0m %s is the Fedora setup script; this system reports ID=%s.\n' \
+        "$(basename "$0")" "${id:-unknown}" >&2
+    printf '       %s\n' "On NixOS fonts go in fonts.packages: see modules/packages.nix in fd44_nixos." >&2
+    printf '       Override with FD44_SKIP_DISTRO_CHECK=1 if you are sure.\n' >&2
+    exit 1
+}
+require_fedora "$@"
+
 (( EUID == 0 )) || die "must run as root - try: sudo $0"
 
 # The user who invoked sudo, so their stray copy can be cleaned up. Falls back
