@@ -41,17 +41,21 @@ hl.bind(Mod .. " + E",      hl.dsp.exec_cmd(Apps.file_manager))
 -- same harmless failure exec_cmd gave.
 hl.bind(Mod .. " + space", hl.dsp.global("quickshell:launcher"))
 
--- The settings window. Super+comma is what most desktops use for preferences.
--- A quickshell global shortcut rather than exec_cmd, for the same reason the
--- launcher is one: it reaches a RUNNING quickshell instead of starting a
--- process that has to find it.
+-- The wallpaper picker KEEPS Super+comma, and the settings window takes shift.
 --
--- THE WALLPAPER PICKER MOVED TO SHIFT for this, and leaving it where it was
--- did not merely shadow it - Hyprland registers both binds and fires BOTH, so
--- one keypress raced two full-screen layers that each want exclusive keyboard
--- focus. `hyprctl binds` showed the pair, same modmask, same key.
-hl.bind(Mod .. " + comma", hl.dsp.global("quickshell:settings"))
-hl.bind(Mod .. " + SHIFT + comma", hl.dsp.global("quickshell:wallpaper"))
+-- Super+comma is what most desktops use for preferences, which is why settings
+-- was put here first - and that was the wrong call. The picker has always been
+-- on this key, so pressing it and getting a settings window reads as the picker
+-- being broken, whatever the convention elsewhere says. An established bind is
+-- muscle memory; a new feature gets a new key. Settings is also one click on
+-- the logo, so it loses nothing by sitting on shift.
+--
+-- Note for whoever moves one of these next: binding a key that is already bound
+-- does NOT shadow the old entry. Hyprland registers both and fires both, so for
+-- a while this pair raced two full-screen layers that each want exclusive
+-- keyboard focus. `hyprctl binds` lists every registration.
+hl.bind(Mod .. " + comma", hl.dsp.global("quickshell:wallpaper"))
+hl.bind(Mod .. " + SHIFT + comma", hl.dsp.global("quickshell:settings"))
 
 -- Theme. Flips the whole desktop between themes/dark.conf and
 -- themes/cream.conf - quickshell, kitty, GTK apps and Hyprland all at once.

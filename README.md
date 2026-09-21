@@ -89,8 +89,8 @@ sudo bin/chromium-policy-setup.sh            # --remove takes it out again
 - **Wallpaper** — drawn by quickshell itself, no wallpaper daemon; it
   crossfades when the choice changes, and `bin/wallpaper.sh set <file>` from a
   terminal fades in live too
-- **Wallpaper picker** (`SUPER+SHIFT+,`) — a coverflow strip of sheared tiles
-- **Settings** (`SUPER+,`, or click the logo) — a sidebar window over the
+- **Wallpaper picker** (`SUPER+,`) — a coverflow strip of sheared tiles
+- **Settings** (`SUPER+SHIFT+,`, or click the logo) — a sidebar window over the
   desktop: theme, notification timeouts, launcher ranking, and a switch per bar
   plugin. Search finds a setting across every page
 - **Power menu** (`SUPER+M` or the physical power button) — icon-only circles;
@@ -188,8 +188,8 @@ bin/theme.sh restore                 # generate the palette files
 | `SUPER+Return` | terminal (kitty) |
 | `SUPER+B` / `+E` | browser / file manager |
 | `SUPER+Space` | app launcher |
-| `SUPER+,` | settings |
-| `SUPER+SHIFT+,` | wallpaper picker |
+| `SUPER+,` | wallpaper picker |
+| `SUPER+SHIFT+,` | settings |
 | `SUPER+T` | toggle theme |
 | `SUPER+M` | power menu (also the physical power button) |
 | `SUPER+W` / `+F` / `+V` / `+P` | close / fullscreen / float / pseudo-tile |
@@ -262,12 +262,12 @@ wireplumber/     audio rules — the EVO4 uses software volume (matches only tha
 
 ## Settings
 
-`SUPER+,`, or click the logo at the left end of the bar. A sidebar window with
+`SUPER+SHIFT+,`, or click the logo at the left end of the bar. A sidebar window with
 a search box that matches across every page, not just the one showing.
 
 | Page | What is on it |
 |---|---|
-| Appearance | theme (dark / cream), and a button through to the wallpaper picker |
+| Appearance | theme (dark / cream), and a button through to the wallpaper picker (`SUPER+,`) |
 | Notifications | how long a normal, low-priority or at-most notification stays |
 | Launcher | ranking half-life, and clear launch history |
 | Desktop | how long the volume/brightness OSD stays |
