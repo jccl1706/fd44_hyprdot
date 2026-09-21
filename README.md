@@ -267,11 +267,19 @@ a search box that matches across every page, not just the one showing.
 
 | Page | What is on it |
 |---|---|
-| Appearance | theme (dark / cream), and a button through to the wallpaper picker (`SUPER+,`) |
+| Appearance | theme (dark / cream), and a 4×4 grid of wallpapers with a ring on the one in use |
 | Notifications | how long a normal, low-priority or at-most notification stays |
 | Launcher | ranking half-life, and clear launch history |
 | Desktop | how long the volume/brightness OSD stays |
 | Bar | a switch per plugin, and reset layout |
+
+**The wallpaper grid** shows sixteen at a time and scrolls for the rest of the
+63; click one and every monitor fades to it. It is a second view of the same set
+the coverflow picker shows — both go through `WallpaperLibrary`, and both end up
+in `bin/wallpaper.sh`, so a wallpaper set here, in the picker, or from a terminal
+is recorded the same way. The two views answer different questions: the grid is
+for seeing *which one is set* without leaving settings, the picker (`SUPER+,`)
+for judging one at a size you can actually see.
 
 Values live in `~/.local/state/fd44-hyprdot/settings.json`, written 500ms after
 the last change. A fresh machine with no file behaves exactly as this did before
