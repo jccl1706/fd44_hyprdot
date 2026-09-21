@@ -60,6 +60,19 @@ PanelWindow {
     function close(): void { root.revealed = false }
     function toggle(): void { root.revealed ? root.close() : root.open() }
 
+    // Open straight onto a named section, matched case-insensitively against
+    // the sidebar titles. An unknown name opens on the first section rather
+    // than failing, so a stale bind degrades to plain `open` instead of doing
+    // nothing visible.
+    function openAt(name: string): void {
+        root.open()
+        const want = (name || "").toLowerCase()
+        for (let i = 0; i < root.sections.length; i++) {
+            if (root.sections[i].title.toLowerCase() === want) { root.section = i; return }
+        }
+        root.section = 0
+    }
+
     onRevealedChanged: if (!revealed) hideTimer.restart()
     Timer { id: hideTimer; interval: Theme.animReveal; onTriggered: if (!root.revealed) root.visible = false }
 

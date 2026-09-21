@@ -350,6 +350,12 @@ ShellRoot {
         function toggle(): void { shell.toggleFocused(settingsVariants.instances) }
         function open(): void   { shell.openFocused(settingsVariants.instances)   }
         function close(): void  { shell.closeAll(settingsVariants.instances)      }
+
+        // `qs ipc call settings show Notifications` - open on a named page.
+        function show(section: string): void {
+            const one = shell.focusedOne(settingsVariants.instances)
+            if (one) one.openAt(section)
+        }
     }
 
     IpcHandler {
