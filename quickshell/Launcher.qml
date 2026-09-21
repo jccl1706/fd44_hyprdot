@@ -284,6 +284,12 @@ PanelWindow {
         readonly property int chromeHeight:
             Theme.barPadding + searchRow.height + Theme.barPadding
             + divider.height + 6 + 6 + Theme.frameThickness
+            // The tab row, when there is one. Leaving it out of this sum is
+            // not a cosmetic slip: `height` below is chromeHeight plus the
+            // list's content, so anything missing here is height the list is
+            // squeezed out of - the card came up 34px short with tabs on, and
+            // the last row was clipped.
+            + (root.tabsVisible ? tabs.height + tabs.anchors.topMargin : 0)
 
         // FITS ITS CONTENTS rather than standing at a fixed 420. With a
         // handful of apps installed the old fixed height left half the panel
