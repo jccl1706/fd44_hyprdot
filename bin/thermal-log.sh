@@ -16,10 +16,12 @@
 # benchmark loop does the opposite. Neither tells you what a game does to the
 # case, which is the thing the exhaust fan is actually responding to.
 #
-# It was written to answer three questions, and the summary reports them:
+# It was written to answer four questions, and the summary reports them:
 #   - does anything throttle, and how close does it come?
 #   - is a power limit binding, or is it a number that never applies?
 #   - which side - CPU or GPU - is driving a max() mix profile?
+#   - WHICH FAN IS THE NOISE: the case fans on their curves, or the graphics
+#     card on its own firmware curve, which nothing here controls.
 #
 # SENSORS ARE FOUND BY NAME, NOT BY INDEX. /sys/class/hwmon/hwmonN numbering is
 # assignment order and it reshuffles between boots: on the gaming desktop the
@@ -135,7 +137,7 @@ fi
 
 {
     printf '%-7s %5s %5s' time cpuC cpuW
-    [ "$have_nvidia" = 1 ] && printf ' %5s %5s %5s %5s %6s' gpuC tlim gpuW gpu_ mhz
+    [ "$have_nvidia" = 1 ] && printf ' %5s %5s %5s %5s %6s %6s' gpuC tlim gpuW gpu_ mhz gpufan
     [ -n "$amd_hwmon" ] && [ "$have_nvidia" = 0 ] && printf ' %5s' gpuC
     for nm in "${fan_names[@]}"; do printf ' %9s %4s' "${nm##*/}" pct; done
     printf '\n'
@@ -159,10 +161,16 @@ while :; do
     if [ "$have_nvidia" = 1 ]; then
         # tlimit is DEGREES OF HEADROOM before the card throttles, counting
         # down - not a temperature. It is the honest throttle indicator.
-        read -r gt tl gw gu gc <<<"$(nvidia-smi \
-            --query-gpu=temperature.gpu,temperature.gpu.tlimit,power.draw,utilization.gpu,clocks.current.graphics \
+        # THE CARD'S OWN FAN IS LOGGED TOO, and leaving it out was a real gap.
+        # This tool answers "is the machine hot, and what is making the noise",
+        # and on a gaming PC the loudest thing is usually the graphics card -
+        # whose fan runs on its firmware curve, under nobody's control. A log of
+        # the case fans alone cannot tell you which fan you are hearing, which
+        # is exactly the question it failed to answer after a Cyberpunk session.
+        read -r gt tl gw gu gc gf <<<"$(nvidia-smi \
+            --query-gpu=temperature.gpu,temperature.gpu.tlimit,power.draw,utilization.gpu,clocks.current.graphics,fan.speed \
             --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ,)"
-        line+=$(printf ' %5s %5s %5s %5s %6s' "${gt:-0}" "${tl:-0}" "${gw%.*}" "${gu:-0}" "${gc:-0}")
+        line+=$(printf ' %5s %5s %5s %5s %6s %6s' "${gt:-0}" "${tl:-0}" "${gw%.*}" "${gu:-0}" "${gc:-0}" "${gf:-0}")
     elif [ -n "$amd_hwmon" ]; then
         line+=$(printf ' %5s' "$(( $(cat "$amd_hwmon/temp1_input" 2>/dev/null || echo 0)/1000 ))")
     fi
