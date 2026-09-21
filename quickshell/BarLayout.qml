@@ -23,6 +23,11 @@
 // theme toggle on a machine where the toggle was moved - or, with nothing to
 // follow, where the defaults put it.
 //
+// A plugin can also be switched OFF entirely, which is separate from where it
+// sits: `hidden` below. A hidden plugin keeps its place in the arrangement and
+// simply is not drawn, so switching it back on returns it to where it was
+// rather than to the end of a zone.
+//
 // Reset from a terminal:  qs ipc call bar resetLayout
 
 pragma Singleton
@@ -56,8 +61,40 @@ Singleton {
         right: ["notes", "notify", "network", "audio", "battery", "couch", "power"]
     })
 
+    // THE HUMAN NAME AND THE COST OF HIDING, per plugin. Here rather than in
+    // Settings.qml so that adding a plugin is still ONE entry in this file:
+    // what a plugin is belongs beside where it goes.
+    //
+    // The help text says what is lost, because for most of these the bar is
+    // the only door. None of them has a keybind.
+    readonly property var meta: ({
+        theme:    { label: "Theme toggle",
+                    help: "one click between dark and cream. Hidden, the theme is still on the Appearance page and in bin/theme.sh" },
+        caffeine: { label: "Caffeine",
+                    help: "holds off the idle lock. Hidden, there is no other way to switch it on" },
+        notes:    { label: "Notes",
+                    help: "the scratch pad. Hidden, what you wrote is kept but cannot be opened" },
+        notify:   { label: "Notifications",
+                    help: "the history panel and the unread count. Toasts still appear either way" },
+        network:  { label: "Network",
+                    help: "signal strength, and the panel that joins a network. Hidden, there is no other way to change network" },
+        audio:    { label: "Audio",
+                    help: "the panel that picks an output device. The volume keys and the OSD work either way" },
+        battery:  { label: "Battery",
+                    help: "charge and time remaining. The low-battery warnings still arrive when hidden" },
+        couch:    { label: "Couch mode",
+                    help: "moves the session to the television" },
+        power:    { label: "Power",
+                    help: "log out, reboot and shut down, each behind a second click" }
+    })
+
     // zone name -> ordered list of plugin ids. Always complete and valid.
     property var current: normalise(defaults)
+
+    // Plugins switched off, as an id array. Saved beside the arrangement and
+    // for the same reason: it is a per-machine preference, and the laptop and
+    // the desktop share one checkout but should be free to show different bars.
+    property var hidden: []
 
     FileView {
         id: file
@@ -68,8 +105,15 @@ Singleton {
         // warning in the log on every start.
         printErrors: false
         onFileChanged: file.reload()
-        onLoaded: layout.current = layout.normalise(layout.parse(file.text()))
-        onLoadFailed: err => layout.current = layout.normalise(layout.defaults)
+        onLoaded: {
+            const raw = layout.parse(file.text())
+            layout.current = layout.normalise(raw)
+            layout.hidden = layout.normaliseHidden(raw)
+        }
+        onLoadFailed: err => {
+            layout.current = layout.normalise(layout.defaults)
+            layout.hidden = []
+        }
         onSaveFailed: err => console.warn("bar layout: could not save:", FileViewError.toString(err))
     }
 
@@ -118,6 +162,38 @@ Singleton {
         return out
     }
 
+    // Unknown ids dropped and duplicates collapsed, exactly as normalise()
+    // does for the zones: a stale file naming a plugin that no longer exists
+    // must not be able to hide one that does.
+    function normaliseHidden(raw): var {
+        const known = layout.zones.reduce((all, z) => all.concat(layout.defaults[z]), [])
+        const list = (raw && Array.isArray(raw.hidden)) ? raw.hidden : []
+        const out = []
+        for (const id of list)
+            if (known.includes(id) && !out.includes(id)) out.push(id)
+        return out
+    }
+
+    // Whether this MACHINE can draw `id` at all - as opposed to whether the
+    // user wants it, which is enabled(). Moved here from Bar.qml so the
+    // settings panel can ask the same question without a second copy of the
+    // test: a switch for hardware that is not present is worse than no switch.
+    function available(id: string): bool {
+        if (id === "couch")   return Couch.available
+        // No battery on the desktop, so the plugin simply is not there.
+        if (id === "battery") return Battery.present
+        return true
+    }
+
+    function enabled(id: string): bool { return !layout.hidden.includes(id) }
+
+    function setEnabled(id: string, on: bool): void {
+        if (layout.enabled(id) === on) return
+        layout.hidden = on ? layout.hidden.filter(i => i !== id)
+                           : layout.hidden.concat([id])
+        layout.save()
+    }
+
     // Put `id` at `index` in `zone`. The index counts the zone's other
     // plugins, i.e. the list as it is with `id` already taken out.
     function move(id: string, zone: string, index: int): void {
@@ -130,12 +206,19 @@ Singleton {
         layout.save()
     }
 
+    // Back to the repository's arrangement AND everything visible again:
+    // "reset" that left a plugin switched off would be a puzzle, since the
+    // thing you reset to get back is the thing still missing.
     function reset(): void {
         layout.current = layout.normalise(layout.defaults)
+        layout.hidden = []
         layout.save()
     }
 
     function save(): void {
-        file.setText(JSON.stringify(layout.current, null, 2) + "\n")
+        const out = {}
+        for (const z of layout.zones) out[z] = layout.current[z]
+        out.hidden = layout.hidden
+        file.setText(JSON.stringify(out, null, 2) + "\n")
     }
 }

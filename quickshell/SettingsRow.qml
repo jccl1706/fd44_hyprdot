@@ -29,7 +29,18 @@ Item {
     property string fromSection: ""
 
     readonly property bool isAction: settingRow.row.type === "action"
-    readonly property var  value: settingRow.row.key ? Settings[settingRow.row.key] : undefined
+    // A row either names a key in the Settings store or brings its own
+    // accessors - see the schema. Reading through row.get() still tracks the
+    // singleton property it touches, so a control bound to this updates when
+    // the real owner changes underneath it.
+    readonly property var  value: settingRow.row.get ? settingRow.row.get()
+                                : settingRow.row.key ? Settings[settingRow.row.key]
+                                : undefined
+
+    function commit(v): void {
+        if (settingRow.row.set) settingRow.row.set(v)
+        else Settings.setValue(settingRow.row.key, v)
+    }
 
     implicitHeight: body.implicitHeight + 18
     height: implicitHeight
@@ -139,7 +150,7 @@ Item {
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
-                onClicked: Settings.setValue(settingRow.row.key, !settingRow.value)
+                onClicked: settingRow.commit(!settingRow.value)
             }
         }
     }
@@ -172,7 +183,7 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: Settings.setValue(settingRow.row.key, modelData.value)
+                        onClicked: settingRow.commit(modelData.value)
                     }
                 }
             }
@@ -196,7 +207,7 @@ Item {
                 // bound straight to the store would write the settings file
                 // dozens of times per drag and, for the notification timeouts,
                 // re-time every toast on screen while you dragged.
-                onPressedChanged: if (!pressed) Settings.setValue(settingRow.row.key, value)
+                onPressedChanged: if (!pressed) settingRow.commit(value)
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter

@@ -163,26 +163,21 @@ PanelWindow {
         return out
     }
 
-    // Whether this machine can offer plugin `id` at all. Only the couch
-    // button has an answer other than yes - see Couch.qml for why it is asked
-    // rather than assumed.
+    // Whether plugin `id` should be drawn: this machine can offer it AND the
+    // user has not switched it off. Both answers live in BarLayout.
     //
-    // FILTERED HERE, NOT IN BarLayout. The layout is what the plugins are
-    // arranged as, and it is saved; dropping an id from it on a machine that
-    // cannot draw it would forget where it had been put on the machine that
-    // can - the two share one checkout, but not one bar-layout.json, so this
-    // is only about not losing an arrangement on a reinstall. Hidden ids stay
-    // in the saved order and simply are not drawn.
+    // FILTERED HERE, NOT IN BarLayout.current. The layout is what the plugins
+    // are arranged as, and it is saved; dropping an id from it would forget
+    // where that plugin had been put, so switching it back on would return it
+    // to the end of a zone rather than to where it was. Hidden ids stay in the
+    // saved order and simply are not drawn.
     //
-    // targetFor() deliberately still counts against the FULL layout, so a
-    // drop index means the same thing on both machines: itemFor() returns
-    // null for a hidden id and the loop steps over it without advancing.
+    // targetFor() deliberately still counts against the FULL layout, so a drop
+    // index means the same thing whether or not something beside it is hidden:
+    // itemFor() returns null for a hidden id and the loop steps over it
+    // without advancing.
     function shows(id: string): bool {
-        if (id === "couch")   return Couch.available
-        // No battery on the desktop, so the plugin simply is not there -
-        // the same arrangement as couch mode on a machine without it.
-        if (id === "battery") return Battery.present
-        return true
+        return BarLayout.available(id) && BarLayout.enabled(id)
     }
 
     function zoneItem(name: string): var {

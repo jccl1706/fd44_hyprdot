@@ -17,7 +17,8 @@
 //                        door to the same room is not consolidation.
 //   do not disturb       already a toggle in NotificationPanel, already saved.
 //   bar arrangement      already drag-and-drop between the bar's four zones.
-//                        Only the RESET lives here, because that had no button.
+//                        WHICH plugins are shown does live here - that had no
+//                        control at all - but WHERE they go stays a drag.
 //   anything in Theme    those 44 properties are derived from the palette
 //                        rather than set - they belong to the theme file.
 //
@@ -53,12 +54,11 @@ Singleton {
     // LauncherFrecency for what the number means.
     property real frecencyHalfLifeDays: 10
 
-    // THE THEME IS NOT STORED HERE. bin/theme.sh owns it and writes
-    // ~/.local/state/fd44-hyprdot/theme; Theme.qml watches that file. This
-    // mirrors it so the panel can show which is active, and setting it runs the
-    // script rather than writing the value - two sources of truth for the
-    // theme is how the bar ends up disagreeing with kitty.
-    property string theme: Theme.name
+    // THE THEME IS NOT STORED HERE, and neither are the bar's plugin
+    // switches. bin/theme.sh owns the theme and BarLayout owns the bar; their
+    // schema rows below carry `get`/`set` and reach the real owner directly,
+    // so there is no copy here to drift out of step. Two sources of truth for
+    // the theme is how the bar ends up disagreeing with kitty.
 
     // --- the schema ------------------------------------------------------
     //
@@ -72,6 +72,11 @@ Singleton {
     //   "select"  one of `options`, each { value, label }
     //   "action"  a button; `run` is called on click
     //
+    // WHERE A VALUE LIVES is the row's business. Most sit in this store and are
+    // addressed by `key`. A few belong to a singleton that already owns them -
+    // the theme, the bar's plugin switches - and those carry `get` and `set`
+    // instead of a key. The panel renders both the same way.
+    //
     // `when` is an optional predicate. A row or section that does not apply to
     // this machine is not drawn at all - the same rule the bar follows for the
     // couch button and the launcher for its Games tab. A control for hardware
@@ -84,8 +89,10 @@ Singleton {
             section: "Appearance",
             icon: "\u{F03D8}",                       // palette
             rows: [
-                { key: "theme", label: "Theme", type: "select",
+                { label: "Theme", type: "select",
                   help: "runs bin/theme.sh, which restyles the bar, kitty, GTK and Chromium together",
+                  get: function() { return Theme.name },
+                  set: function(v) { Settings.applyTheme(v) },
                   options: [ { value: "dark", label: "Dark" },
                              { value: "cream", label: "Cream" } ] },
                 { label: "Choose wallpaper", type: "action",
@@ -132,13 +139,38 @@ Singleton {
         {
             section: "Bar",
             icon: "\u{F0309}",                       // dock-top
-            rows: [
-                { label: "Reset layout", type: "action",
-                  help: "puts every plugin back where the repository's defaults have it. Drag to rearrange them in the bar itself",
-                  run: function() { BarLayout.reset() } }
-            ]
+            rows: settings.barRows
         }
     ]
+
+    // One switch per bar plugin, then the reset.
+    //
+    // IN THE ORDER THEY SIT IN THE BAR, left to right, read from the live
+    // arrangement rather than the defaults so the list matches what you are
+    // looking at on a machine where things have been dragged about. The panel
+    // covers the screen and holds the keyboard, so the bar cannot be
+    // rearranged underneath it and this cannot reorder while it is open.
+    //
+    // A plugin this machine cannot draw at all is left out by `when` - there
+    // is no couch button to switch off on a machine with no television.
+    readonly property var barRows: {
+        const out = []
+        for (const z of BarLayout.zones)
+            for (const id of BarLayout.current[z]) {
+                const m = BarLayout.meta[id]
+                if (!m) continue
+                out.push({
+                    label: m.label, help: m.help, type: "toggle",
+                    when: function() { return BarLayout.available(id) },
+                    get:  function() { return BarLayout.enabled(id) },
+                    set:  function(v) { BarLayout.setEnabled(id, v) }
+                })
+            }
+        out.push({ label: "Reset layout", type: "action",
+                   help: "every plugin back where the repository's defaults have it, and every one of them shown again. Drag to rearrange them in the bar itself",
+                   run: function() { BarLayout.reset() } })
+        return out
+    }
 
     // The wallpaper picker is its own surface with its own IPC; the panel asks
     // for it rather than embedding it, so there is one implementation of a
@@ -149,18 +181,17 @@ Singleton {
 
     property bool dirty: false
 
+    // Runs bin/theme.sh and lets Theme.qml pick the change up from the state
+    // file, so the bar, kitty, GTK and Chromium all move together. Nothing is
+    // stored here - the script's state file is the only record.
+    function applyTheme(v: string): void {
+        if (v === Theme.name) return
+        themeProc.command = ["sh", "-c",
+            "\"$(dirname \"$(readlink -f '" + Quickshell.shellDir + "')\")/bin/theme.sh\" set " + v]
+        themeProc.running = true
+    }
+
     function setValue(key: string, v): void {
-        // The theme is the one setting this store does not own - see the
-        // property above. Setting it runs bin/theme.sh and lets Theme.qml pick
-        // the change up from the state file, so the bar, kitty, GTK and
-        // Chromium all move together.
-        if (key === "theme") {
-            if (v === Theme.name) return
-            themeProc.command = ["sh", "-c",
-                "\"$(dirname \"$(readlink -f '" + Quickshell.shellDir + "')\")/bin/theme.sh\" set " + v]
-            themeProc.running = true
-            return
-        }
         if (settings[key] === undefined) {
             console.warn("Settings: no such key", key)
             return
