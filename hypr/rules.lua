@@ -206,44 +206,19 @@ hl.window_rule({
 --     rounding    = 0,
 -- })
 
--- Workspace 9 lives on the display dummy, and the streaming session lives on
--- workspace 9. Two rules that together put Steam Big Picture on a screen that
--- does not exist, for Sunshine to capture and send to the laptop.
+-- THE STREAMING DUMMY IS GONE. Workspace 9 used to be pinned to
+-- "desc:Telecom Technology Centre Co. Ltd. DP1080P60", a display dummy plugged
+-- into the old living-room desktop so Sunshine had a screen to capture, with a
+-- window rule putting gamescope on it fullscreen.
 --
--- DECLARATIVE BECAUSE DISPATCHING DOES NOT WORK HERE. The obvious way to do
--- this is to focus the dummy and let gamescope fullscreen onto it, and on
--- this machine that is impossible from a script:
+-- That machine runs SteamOS now and streaming.nix was deleted from fd44_nixos,
+-- so the dummy exists on no machine this config runs on - checked on both: the
+-- Framework reports only BOE 0x0BCA and gaming-pc00 only the UltraGear.
 --
---   $ hyprctl dispatch focusmonitor DP-1
---   error: [string "return hl.dispatch(focusmonitor DP-1)"]:1: ')' expected
---
--- hyprctl routes dispatches through this Lua config, which wants a dispatcher
--- OBJECT - hl.dsp.window.close() and friends - not a string. hl.dsp has no
--- monitor entry at all (cursor, dpms, exec_cmd, focus, global, group, layout,
--- submap, window, workspace), so there is nothing to call. Rules need none of
--- it.
---
--- Worth knowing more generally: `hyprctl dispatch <anything>` fails on this
--- config and returns 7. fd44-session's `hyprctl dispatch exit` has been
--- failing silently for exactly this reason - couch mode only ever switched
--- because of its `|| loginctl terminate-user` fallback.
---
--- MATCHED ON gamescope, which under Hyprland can only be the streaming
--- session: couch mode's gamescope IS the compositor and never appears as a
--- window. A nested gamescope started by hand goes to the dummy too, which is
--- the right guess about what someone nesting gamescope on this machine wants.
-hl.workspace_rule({
-    workspace = "9",
-    monitor   = "desc:Telecom Technology Centre Co. Ltd. DP1080P60",
-})
-
-hl.window_rule({
-    name  = "stream-session-on-the-dummy",
-    match = { class = "^gamescope$" },
-
-    workspace  = "9",
-    fullscreen = true,
-})
+-- It was not harmless while it lasted. A workspace pinned to a monitor that is
+-- not present becomes an ORPHAN, and quickshell's bar treats orphans as
+-- workspaces inherited from an unplugged screen - so the rule put a phantom 9
+-- into the reckoning on machines that never had the dummy.
 
 -- ORDER MATTERS, AND THIS BLOCK IS DELIBERATELY LAST. Workspace 9 is named
 -- both here and by the streaming-dummy rule above, and the later rule wins:
@@ -291,15 +266,52 @@ hl.window_rule({
 -- 2560x1440 external, while 6-9 fall back to the 13" panel for whatever is
 -- being kept to one side. The other way round put the main working workspace
 -- on the smaller screen and left the external empty.
-for i = 1, 5 do
-    hl.workspace_rule({
-        workspace = tostring(i),
-        monitor   = "desc:LG Electronics LG ULTRAGEAR",
-    })
+-- ONLY ON A MACHINE THAT HAS BOTH SCREENS, which is the validation this block
+-- was missing. It splits nine workspaces across a laptop panel and an external,
+-- and that only makes sense where a laptop panel exists.
+--
+-- It went wrong on gaming-pc00, which has the same UltraGear on its desk but no
+-- eDP-1 at all. 1-5 pinned to the monitor correctly; 6-9 pinned to a connector
+-- that will never appear, and a workspace pinned to an absent monitor is an
+-- ORPHAN. quickshell's bar reads orphans as workspaces inherited from a screen
+-- that was unplugged - reasonable when an external really has been removed, and
+-- permanently wrong here, because eDP-1 is not coming back. The bar showed 6-9
+-- and nothing else.
+--
+-- The test is whether the kernel exposes an eDP connector at all, not whether
+-- one is connected: a laptop has the connector even with the lid shut, and a
+-- desktop has none. Read from /sys/class/drm rather than asked of Hyprland,
+-- because this runs while the config is parsed. Checked both ways - the
+-- Framework has card1-eDP-1, gaming-pc00 has no eDP entry of any kind.
+--
+-- With no pinning at all, the bar falls back to showing 1-5 and every workspace
+-- still works on the single monitor. That is the single-screen behaviour this
+-- config had before the split was added.
+local function has_internal_panel()
+    -- The card number is not fixed, so try a few rather than hardcode card1.
+    for card = 0, 4 do
+        for idx = 1, 2 do
+            local f = io.open(("/sys/class/drm/card%d-eDP-%d/status"):format(card, idx))
+            if f then
+                f:close()
+                return true
+            end
+        end
+    end
+    return false
 end
 
-for i = 6, 9 do
-    hl.workspace_rule({ workspace = tostring(i), monitor = "eDP-1" })
+if has_internal_panel() then
+    for i = 1, 5 do
+        hl.workspace_rule({
+            workspace = tostring(i),
+            monitor   = "desc:LG Electronics LG ULTRAGEAR",
+        })
+    end
+
+    for i = 6, 9 do
+        hl.workspace_rule({ workspace = tostring(i), monitor = "eDP-1" })
+    end
 end
 
 -- The btop scratchpad (SUPER + `). Whenever special:btop is opened with
