@@ -16,14 +16,20 @@ import QtQuick
 import QtQuick.Controls
 
 Item {
-    id: item
+    id: settingRow
 
-    // NOT `row` - that was the root's id, and a property cannot share it.
+    // THE ID IS NOT `item`, AND NOT `row`, AND BOTH MATTER.
+    //
+    // `row` is out because a property cannot share its own id. `item` is out
+    // because a Loader HAS an `item` property, and inside a Component the
+    // Loader instantiates, a bare `item` resolves to that rather than to this
+    // root - so every control below read `undefined.row` and rendered nothing
+    // while the label beside it, outside the Loader, worked fine.
     required property var row
     property string fromSection: ""
 
-    readonly property bool isAction: item.row.type === "action"
-    readonly property var  value: item.row.key ? Settings[item.row.key] : undefined
+    readonly property bool isAction: settingRow.row.type === "action"
+    readonly property var  value: settingRow.row.key ? Settings[settingRow.row.key] : undefined
 
     implicitHeight: body.implicitHeight + 18
     height: implicitHeight
@@ -36,8 +42,8 @@ Item {
         // When searching, say which section a hit came from - otherwise a
         // result list of bare labels gives no sense of where you are.
         Text {
-            visible: item.fromSection !== ""
-            text: item.fromSection
+            visible: settingRow.fromSection !== ""
+            text: settingRow.fromSection
             color: Theme.dim
             font.pixelSize: 10
             font.capitalization: Font.AllUppercase
@@ -54,15 +60,15 @@ Item {
                           verticalCenter: parent.verticalCenter }
                 spacing: 2
                 Text {
-                    text: item.row.label || ""
+                    text: settingRow.row.label || ""
                     color: Theme.fg
                     font.pixelSize: 13
                     width: parent.width
                     elide: Text.ElideRight
                 }
                 Text {
-                    visible: !!item.row.help
-                    text: item.row.help || ""
+                    visible: !!settingRow.row.help
+                    text: settingRow.row.help || ""
                     color: Theme.dim
                     font.pixelSize: 11
                     width: parent.width
@@ -74,7 +80,7 @@ Item {
                 id: control
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                 sourceComponent: {
-                    switch (item.row.type) {
+                    switch (settingRow.row.type) {
                         case "action":  return actionButton
                         case "toggle":  return toggleSwitch
                         case "select":  return segmented
@@ -111,7 +117,7 @@ Item {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: if (item.row.run) item.row.run()
+                onClicked: if (settingRow.row.run) settingRow.row.run()
             }
         }
     }
@@ -121,19 +127,19 @@ Item {
         Rectangle {
             implicitWidth: 44; implicitHeight: 24
             radius: height / 2
-            color: item.value ? Theme.accent : Theme.surfaceHigh
+            color: settingRow.value ? Theme.accent : Theme.surfaceHigh
             Behavior on color { ColorAnimation { duration: Theme.animFast } }
             Rectangle {
                 width: 18; height: 18; radius: 9
                 color: Theme.bg
                 y: 3
-                x: item.value ? parent.width - width - 3 : 3
+                x: settingRow.value ? parent.width - width - 3 : 3
                 Behavior on x { NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic } }
             }
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
-                onClicked: Settings.setValue(item.row.key, !item.value)
+                onClicked: Settings.setValue(settingRow.row.key, !settingRow.value)
             }
         }
     }
@@ -143,10 +149,10 @@ Item {
         Row {
             spacing: 4
             Repeater {
-                model: item.row.options || []
+                model: settingRow.row.options || []
                 Rectangle {
                     required property var modelData
-                    readonly property bool on: item.value === modelData.value
+                    readonly property bool on: settingRow.value === modelData.value
                     implicitWidth: t.implicitWidth + 22
                     implicitHeight: 26
                     radius: 7
@@ -166,7 +172,7 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: Settings.setValue(item.row.key, modelData.value)
+                        onClicked: Settings.setValue(settingRow.row.key, modelData.value)
                     }
                 }
             }
@@ -181,16 +187,16 @@ Item {
                 id: sl
                 width: 170
                 anchors.verticalCenter: parent.verticalCenter
-                from: item.row.min
-                to: item.row.max
-                stepSize: item.row.step || 1
+                from: settingRow.row.min
+                to: settingRow.row.max
+                stepSize: settingRow.row.step || 1
                 snapMode: Slider.SnapAlways
-                value: item.value === undefined ? from : item.value
+                value: settingRow.value === undefined ? from : settingRow.value
                 // COMMIT ON RELEASE, not on every pixel. Dragging a slider
                 // bound straight to the store would write the settings file
                 // dozens of times per drag and, for the notification timeouts,
                 // re-time every toast on screen while you dragged.
-                onPressedChanged: if (!pressed) Settings.setValue(item.row.key, value)
+                onPressedChanged: if (!pressed) Settings.setValue(settingRow.row.key, value)
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
@@ -200,7 +206,7 @@ Item {
                 font.pixelSize: 12
                 // Milliseconds are stored but seconds are what a person thinks
                 // in; days likewise read better than a bare number.
-                text: item.row.type === "ms"
+                text: settingRow.row.type === "ms"
                         ? (sl.value / 1000).toFixed(sl.value % 1000 ? 1 : 0) + "s"
                         : sl.value.toFixed(0) + "d"
             }
