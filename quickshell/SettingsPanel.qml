@@ -39,7 +39,14 @@ PanelWindow {
     property string query: ""
 
     readonly property int cardWidth:  Math.min(980, root.width - 120)
-    readonly property int cardHeight: Math.min(600, root.height - 120)
+    // 690, NOT 600, and the wallpaper grid is why. Four rows of thumbnails at
+    // this card's width come to ~476px, and with the search bar, the theme row
+    // and the grid's own label above them the old 600 clipped the fourth row
+    // to a sliver - the grid scrolled, so nothing was unreachable, but "four
+    // across and four down" is the point of it and it only showed three and a
+    // bit. The other pages simply have more empty space below their rows,
+    // which they already did.
+    readonly property int cardHeight: Math.min(690, root.height - 120)
 
     anchors { top: true; bottom: true; left: true; right: true }
     exclusionMode: ExclusionMode.Ignore
