@@ -159,18 +159,30 @@ PanelWindow {
     // NOTE: the desktop entry scan is ASYNCHRONOUS. This list is empty for the
     // first few hundred ms of a quickshell run, so it must stay a live binding
     // - snapshot it once at startup and the launcher is permanently empty.
-    // ONE TAB AT A TIME, rather than everything in one list. Merging games into
-    // the applications was fine with two of them and becomes the problem it was
-    // meant to solve at twenty: a library flooding the list you reach for to
-    // open a terminal. Apps and games are different things looked for at
-    // different moments, so they get different lists.
+    // THE TABS DIVIDE BROWSING, NOT SEARCHING, and the distinction is the whole
+    // design. Merging games into the applications was fine with two of them and
+    // becomes the problem it was meant to solve at twenty: a library flooding
+    // the list you reach for to open a terminal. So an EMPTY query shows one
+    // kind at a time.
+    //
+    // A QUERY SEARCHES BOTH. Typing "cyber" from the Apps tab should find
+    // Cyberpunk - having to remember which tab a thing lives on before you can
+    // search for it is exactly the friction a launcher exists to remove, and a
+    // query has already narrowed the list, so nothing can flood. Games are
+    // obvious in the results anyway: Steam mark, "Steam game" underneath.
+    //
+    // The Games tab stays games-only whatever is typed. It is the deliberate
+    // view - if you went there, you went there for games.
     //
     // Games are only reachable at all where SteamGames.available, so on a
-    // machine without Steam `tab` can never leave "apps".
+    // machine without Steam `tab` can never leave "apps" and this is all inert.
     readonly property var entries: {
         if (root.tab === "games")
             return SteamGames.available ? SteamGames.games : []
-        return DesktopEntries.applications.values
+
+        const apps = DesktopEntries.applications.values
+        if (!SteamGames.available) return apps
+        return search.text.trim() === "" ? apps : apps.concat(SteamGames.games)
     }
 
     readonly property var results: {
