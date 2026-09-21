@@ -295,7 +295,17 @@ PanelWindow {
         // handful of apps installed the old fixed height left half the panel
         // empty, which reads as unfinished rather than spacious - and the
         // emptiness grew as you typed and the list shrank.
-        height: Math.min(maxHeight, chromeHeight + list.contentHeight)
+        //
+        // EXCEPT WITH TABS, where a fixed height is the lesser evil. The card
+        // is anchored to the bottom of the screen, so shrinking pulls its TOP
+        // edge down - and the top edge is where the tabs are. Switching to a
+        // Games tab with two games in it moved the very control that had just
+        // been clicked, which is worse than the empty space a fixed height can
+        // leave. Machines with tabs are machines with Steam, where the Apps
+        // list is long enough to fill this most of the time anyway.
+        height: root.tabsVisible
+                ? maxHeight
+                : Math.min(maxHeight, chromeHeight + list.contentHeight)
 
         Behavior on height {
             NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic }
