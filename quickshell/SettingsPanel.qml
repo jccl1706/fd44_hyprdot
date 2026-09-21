@@ -44,6 +44,7 @@ PanelWindow {
     anchors { top: true; bottom: true; left: true; right: true }
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.namespace: "quickshell-settings"
     WlrLayershell.keyboardFocus: root.revealed ? WlrKeyboardFocus.Exclusive
                                                : WlrKeyboardFocus.None
     color: "transparent"
@@ -267,6 +268,10 @@ PanelWindow {
                 row: modelData.row
                 fromSection: modelData.from
             }
+
+            // The panel's own namespace, so `hyprctl layers` can tell it apart
+            // from the bar and the frame - every other surface here has one.
+            Component.onCompleted: {}
 
             // An empty result is worth saying out loud rather than leaving a
             // blank pane that looks broken.

@@ -16,13 +16,14 @@ import QtQuick
 import QtQuick.Controls
 
 Item {
-    id: row
+    id: item
 
+    // NOT `row` - that was the root's id, and a property cannot share it.
     required property var row
     property string fromSection: ""
 
-    readonly property bool isAction: row.type === "action"
-    readonly property var  value: row.key ? Settings[row.key] : undefined
+    readonly property bool isAction: item.row.type === "action"
+    readonly property var  value: item.row.key ? Settings[item.row.key] : undefined
 
     implicitHeight: body.implicitHeight + 18
     height: implicitHeight
@@ -35,8 +36,8 @@ Item {
         // When searching, say which section a hit came from - otherwise a
         // result list of bare labels gives no sense of where you are.
         Text {
-            visible: row.fromSection !== ""
-            text: row.fromSection
+            visible: item.fromSection !== ""
+            text: item.fromSection
             color: Theme.dim
             font.pixelSize: 10
             font.capitalization: Font.AllUppercase
@@ -53,15 +54,15 @@ Item {
                           verticalCenter: parent.verticalCenter }
                 spacing: 2
                 Text {
-                    text: row.row.label || ""
+                    text: item.row.label || ""
                     color: Theme.fg
                     font.pixelSize: 13
                     width: parent.width
                     elide: Text.ElideRight
                 }
                 Text {
-                    visible: !!row.row.help
-                    text: row.row.help || ""
+                    visible: !!item.row.help
+                    text: item.row.help || ""
                     color: Theme.dim
                     font.pixelSize: 11
                     width: parent.width
@@ -73,7 +74,7 @@ Item {
                 id: control
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                 sourceComponent: {
-                    switch (row.row.type) {
+                    switch (item.row.type) {
                         case "action":  return actionButton
                         case "toggle":  return toggleSwitch
                         case "select":  return segmented
@@ -110,7 +111,7 @@ Item {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: if (row.row.run) row.row.run()
+                onClicked: if (item.row.run) item.row.run()
             }
         }
     }
@@ -120,19 +121,19 @@ Item {
         Rectangle {
             implicitWidth: 44; implicitHeight: 24
             radius: height / 2
-            color: row.value ? Theme.accent : Theme.surfaceHigh
+            color: item.value ? Theme.accent : Theme.surfaceHigh
             Behavior on color { ColorAnimation { duration: Theme.animFast } }
             Rectangle {
                 width: 18; height: 18; radius: 9
                 color: Theme.bg
                 y: 3
-                x: row.value ? parent.width - width - 3 : 3
+                x: item.value ? parent.width - width - 3 : 3
                 Behavior on x { NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic } }
             }
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
-                onClicked: Settings.setValue(row.row.key, !row.value)
+                onClicked: Settings.setValue(item.row.key, !item.value)
             }
         }
     }
@@ -142,10 +143,10 @@ Item {
         Row {
             spacing: 4
             Repeater {
-                model: row.row.options || []
+                model: item.row.options || []
                 Rectangle {
                     required property var modelData
-                    readonly property bool on: row.value === modelData.value
+                    readonly property bool on: item.value === modelData.value
                     implicitWidth: t.implicitWidth + 22
                     implicitHeight: 26
                     radius: 7
@@ -165,7 +166,7 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: Settings.setValue(row.row.key, modelData.value)
+                        onClicked: Settings.setValue(item.row.key, modelData.value)
                     }
                 }
             }
@@ -180,16 +181,16 @@ Item {
                 id: sl
                 width: 170
                 anchors.verticalCenter: parent.verticalCenter
-                from: row.row.min
-                to: row.row.max
-                stepSize: row.row.step || 1
+                from: item.row.min
+                to: item.row.max
+                stepSize: item.row.step || 1
                 snapMode: Slider.SnapAlways
-                value: row.value === undefined ? from : row.value
+                value: item.value === undefined ? from : item.value
                 // COMMIT ON RELEASE, not on every pixel. Dragging a slider
                 // bound straight to the store would write the settings file
                 // dozens of times per drag and, for the notification timeouts,
                 // re-time every toast on screen while you dragged.
-                onPressedChanged: if (!pressed) Settings.setValue(row.row.key, value)
+                onPressedChanged: if (!pressed) Settings.setValue(item.row.key, value)
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
@@ -199,7 +200,7 @@ Item {
                 font.pixelSize: 12
                 // Milliseconds are stored but seconds are what a person thinks
                 // in; days likewise read better than a bare number.
-                text: row.row.type === "ms"
+                text: item.row.type === "ms"
                         ? (sl.value / 1000).toFixed(sl.value % 1000 ? 1 : 0) + "s"
                         : sl.value.toFixed(0) + "d"
             }
