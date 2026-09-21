@@ -124,6 +124,9 @@ PanelWindow {
     function launch(entry): void {
         if (!entry) return
         root.close()
+        // Remembered before launching, not after: AppLaunch is asynchronous
+        // and this is the only point where the choice is certain.
+        LauncherFrecency.record(entry.id)
         // As its own systemd service, not a child of quickshell - see
         // AppLaunch.qml for why, and for the bug the old way had.
         AppLaunch.launch(entry)
@@ -140,8 +143,19 @@ PanelWindow {
         const all = root.entries.filter(e => !e.noDisplay)
         const q = search.text.trim().toLowerCase()
 
+        // Reading `revision` is what makes this binding re-run after a launch;
+        // see LauncherFrecency for why a JavaScript object mutation is not
+        // enough on its own.
+        const rev = LauncherFrecency.revision   // eslint-disable-line no-unused-vars
+
+        // NO QUERY: most-used first, which is the case frecency exists for.
+        // Super+Space should open on what you actually launch rather than on
+        // whatever starts with A, and alphabetical order only breaks ties
+        // between things never launched.
         if (q === "")
-            return all.slice().sort((a, b) => a.name.localeCompare(b.name))
+            return all.slice().sort((a, b) =>
+                LauncherFrecency.score(b.id) - LauncherFrecency.score(a.id)
+                || a.name.localeCompare(b.name))
 
         // Rank rather than merely filter, so typing "fi" puts Files above
         // something that only mentions "profile" in its description.
@@ -162,7 +176,14 @@ PanelWindow {
             if (rank >= 0) scored.push({ entry: e, rank: rank, name: name })
         }
 
-        scored.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name))
+        // MATCH QUALITY STILL DECIDES FIRST. Frecency only separates equally
+        // good matches, so typing "fi" cannot put a heavily-used app above
+        // Files just because it mentions "profile" somewhere - the rank
+        // difference outranks any amount of history.
+        scored.sort((a, b) =>
+            a.rank - b.rank
+            || LauncherFrecency.score(b.entry.id) - LauncherFrecency.score(a.entry.id)
+            || a.name.localeCompare(b.name))
         return scored.map(x => x.entry)
     }
 
