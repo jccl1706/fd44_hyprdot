@@ -109,6 +109,14 @@ ShellRoot {
         Launcher {}
     }
 
+    // The settings window. Same full-screen-surface arrangement as the
+    // launcher, and one per monitor so it opens where the pointer is.
+    Variants {
+        id: settingsVariants
+        model: Quickshell.screens
+        SettingsPanel {}
+    }
+
     // The wallpaper picker, same arrangement.
     Variants {
         id: wallpaperVariants
@@ -219,6 +227,22 @@ ShellRoot {
         onPressed: shell.toggleFocused(launcherVariants.instances)
     }
 
+    // The settings panel does not embed the wallpaper picker - it asks for it,
+    // so there stays one implementation of a surface that already works.
+    Connections {
+        target: Settings
+        function onRequestWallpaperPicker() {
+            shell.closeAll(settingsVariants.instances)
+            shell.openFocused(wallpaperVariants.instances)
+        }
+    }
+
+    GlobalShortcut {
+        appid: "quickshell"
+        name: "settings"
+        onPressed: shell.toggleFocused(settingsVariants.instances)
+    }
+
     GlobalShortcut {
         appid: "quickshell"
         name: "wallpaper"
@@ -318,6 +342,14 @@ ShellRoot {
         function toggle(): void { shell.toggleFocused(networkVariants.instances) }
         function open(): void   { shell.openFocused(networkVariants.instances)   }
         function close(): void  { shell.closeAll(networkVariants.instances)      }
+    }
+
+    IpcHandler {
+        target: "settings"
+
+        function toggle(): void { shell.toggleFocused(settingsVariants.instances) }
+        function open(): void   { shell.openFocused(settingsVariants.instances)   }
+        function close(): void  { shell.closeAll(settingsVariants.instances)      }
     }
 
     IpcHandler {

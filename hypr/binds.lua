@@ -40,6 +40,12 @@ hl.bind(Mod .. " + E",      hl.dsp.exec_cmd(Apps.file_manager))
 -- quickshell is not running the binding simply does nothing, which is the
 -- same harmless failure exec_cmd gave.
 hl.bind(Mod .. " + space", hl.dsp.global("quickshell:launcher"))
+
+-- The settings window. Super+comma is what most desktops use for preferences,
+-- and it is free here. A quickshell global shortcut rather than exec_cmd, for
+-- the same reason the launcher is one: it reaches a RUNNING quickshell instead
+-- of starting a process that has to find it.
+hl.bind(Mod .. " + comma", hl.dsp.global("quickshell:settings"))
 hl.bind(Mod .. " + comma", hl.dsp.global("quickshell:wallpaper"))
 
 -- Theme. Flips the whole desktop between themes/dark.conf and

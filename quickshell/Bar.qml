@@ -301,9 +301,10 @@ PanelWindow {
 
                     Logo {
                         anchors.verticalCenter: parent.verticalCenter
-                        // Nothing wired to the click yet - this is where a
-                        // launcher or a menu would go once one exists.
-                        onActivated: console.log("logo clicked")
+                        // The settings window, which is the menu this comment
+                        // spent a year waiting for.
+                        onActivated: Quickshell.execDetached(
+                            ["qs", "ipc", "call", "settings", "toggle"])
                     }
 
                     Workspaces {

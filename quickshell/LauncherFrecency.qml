@@ -47,7 +47,7 @@ Singleton {
     // to it and the reassignment below happens inside a function call.
     property int revision: 0
 
-    readonly property real halfLifeDays: 10
+    readonly property real halfLifeDays: Settings.frecencyHalfLifeDays   // default 10
 
     property bool dirty: false
 
@@ -60,6 +60,15 @@ Singleton {
         // otherwise score arbitrarily high forever.
         const age = ageDays > 0 ? ageDays : 0
         return e.n * Math.pow(0.5, age / freq.halfLifeDays)
+    }
+
+    // Back to alphabetical. Exposed for the settings panel; there is no other
+    // way to undo a launch that should not have counted.
+    function clear(): void {
+        freq.data = ({})
+        freq.revision++
+        freq.dirty = true
+        saveTimer.restart()
     }
 
     function record(id: string): void {

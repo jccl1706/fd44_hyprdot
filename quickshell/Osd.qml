@@ -27,7 +27,7 @@ Item {
 
 
     // How long the OSD stays up after the last keypress.
-    property int hideDelay: 1500
+    property int hideDelay: Settings.osdHideMs   // default 1500, as it was
 
     // "volume" | "brightness" | "" (hidden). This decides VISIBILITY ONLY.
     property string mode: ""

@@ -51,9 +51,11 @@ Singleton {
     // exists because a sender may ask for any expire_timeout it likes and a
     // toast that will not go away is the sender's bug, not the user's
     // problem. From Omarchy, whose numbers these are.
-    readonly property int lowMs:      5000
-    readonly property int normalMs:   8000
-    readonly property int maxMs:     30000
+    // From Settings, whose defaults are these same numbers - so a machine with
+    // no settings file behaves exactly as this did before the store existed.
+    readonly property int lowMs:    Settings.notifyLowMs
+    readonly property int normalMs: Settings.notifyNormalMs
+    readonly property int maxMs:    Settings.notifyMaxMs
 
     function durationFor(urgency, requested) {
         if (urgency === NotificationUrgency.Critical) return 0      // sticky
