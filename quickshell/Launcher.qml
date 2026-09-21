@@ -102,6 +102,9 @@ PanelWindow {
     // --- public API ------------------------------------------------------
 
     function open(): void {
+        // Pick up anything installed since the last time this was opened.
+        // One short script over a few small files; see SteamGames.qml.
+        SteamGames.refresh()
         search.text = ""
         root.selected = 0
         root.visible = true
@@ -127,6 +130,14 @@ PanelWindow {
         // Remembered before launching, not after: AppLaunch is asynchronous
         // and this is the only point where the choice is certain.
         LauncherFrecency.record(entry.id)
+
+        // A Steam game has no .desktop file for uwsm to start, so it goes
+        // through Steam's own URL handler instead.
+        if (entry.isSteamGame) {
+            SteamGames.launch(entry.appid)
+            return
+        }
+
         // As its own systemd service, not a child of quickshell - see
         // AppLaunch.qml for why, and for the bug the old way had.
         AppLaunch.launch(entry)
@@ -137,7 +148,14 @@ PanelWindow {
     // NOTE: the desktop entry scan is ASYNCHRONOUS. This list is empty for the
     // first few hundred ms of a quickshell run, so it must stay a live binding
     // - snapshot it once at startup and the launcher is permanently empty.
-    readonly property var entries: DesktopEntries.applications.values
+    // Desktop entries plus, on a machine with Steam, its installed games -
+    // which are not desktop entries and are otherwise unreachable without
+    // opening the Steam client. SteamGames.available is false on the laptop,
+    // where the concat is skipped entirely.
+    readonly property var entries: {
+        const apps = DesktopEntries.applications.values
+        return SteamGames.available ? apps.concat(SteamGames.games) : apps
+    }
 
     readonly property var results: {
         const all = root.entries.filter(e => !e.noDisplay)
