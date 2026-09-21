@@ -47,7 +47,14 @@ Singleton {
     readonly property string repoBin:
         "\"$(dirname \"$(readlink -f '" + Quickshell.shellDir + "')\")/bin\""
 
+    // FALSE THEN TRUE, not just true. `running` is a plain property, so
+    // assigning the value it already holds emits no change and the process
+    // never re-runs - which is exactly what happened: the scan fired once at
+    // startup and never again, so a game installed mid-session stayed
+    // invisible until quickshell restarted. Caught by watching /proc while
+    // opening the launcher and seeing nothing start.
     function refresh(): void {
+        scan.running = false
         scan.running = true
     }
 
@@ -62,9 +69,13 @@ Singleton {
 
     Process { id: runner }
 
+    Component.onCompleted: steam.refresh()
+
     Process {
         id: scan
-        running: true
+        // Started from Component.onCompleted rather than `running: true`: a
+        // declarative binding there fights with refresh() assigning the same
+        // property, and a broken binding is a worse way to find that out.
         command: ["sh", "-c", steam.repoBin + "/steam-games.sh"]
         stdout: StdioCollector {
             onStreamFinished: {
