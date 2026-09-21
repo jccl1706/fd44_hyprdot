@@ -41,6 +41,16 @@ PanelWindow {
     // Index into `results` that Return will launch.
     property int selected: 0
 
+    // WHICH TAB: "apps" or "games". Only ever "games" on a machine with Steam,
+    // and reset to "apps" on every open so Super+Space always lands somewhere
+    // predictable rather than wherever it was left yesterday.
+    property string tab: "apps"
+
+    // The tab row only exists where there is a second tab to switch to. On the
+    // Framework, which has no Steam, the launcher looks exactly as it did
+    // before any of this - no row, no keys that do nothing, nothing to explain.
+    readonly property bool tabsVisible: SteamGames.available
+
     // Hyprland's own layer animation is disabled for this namespace (see the
     // layer rule in hypr/rules.lua) - with it on, the compositor was fading
     // the whole surface in while Qt slid the card, and the two fighting is
@@ -105,6 +115,7 @@ PanelWindow {
         // Pick up anything installed since the last time this was opened.
         // One short script over a few small files; see SteamGames.qml.
         SteamGames.refresh()
+        root.tab = "apps"
         search.text = ""
         root.selected = 0
         root.visible = true
@@ -148,13 +159,18 @@ PanelWindow {
     // NOTE: the desktop entry scan is ASYNCHRONOUS. This list is empty for the
     // first few hundred ms of a quickshell run, so it must stay a live binding
     // - snapshot it once at startup and the launcher is permanently empty.
-    // Desktop entries plus, on a machine with Steam, its installed games -
-    // which are not desktop entries and are otherwise unreachable without
-    // opening the Steam client. SteamGames.available is false on the laptop,
-    // where the concat is skipped entirely.
+    // ONE TAB AT A TIME, rather than everything in one list. Merging games into
+    // the applications was fine with two of them and becomes the problem it was
+    // meant to solve at twenty: a library flooding the list you reach for to
+    // open a terminal. Apps and games are different things looked for at
+    // different moments, so they get different lists.
+    //
+    // Games are only reachable at all where SteamGames.available, so on a
+    // machine without Steam `tab` can never leave "apps".
     readonly property var entries: {
-        const apps = DesktopEntries.applications.values
-        return SteamGames.available ? apps.concat(SteamGames.games) : apps
+        if (root.tab === "games")
+            return SteamGames.available ? SteamGames.games : []
+        return DesktopEntries.applications.values
     }
 
     readonly property var results: {
@@ -450,6 +466,11 @@ PanelWindow {
                 Keys.onEnterPressed:  root.launch(root.results[root.selected])
                 Keys.onTabPressed:    root.move(1)
                 Keys.onBacktabPressed: root.move(-1)
+                // Left and Right rather than Tab, which is already the next
+                // result. Up/Down move within a list, Left/Right move between
+                // lists - which is the arrangement people already expect.
+                Keys.onLeftPressed:  root.switchTab(-1)
+                Keys.onRightPressed: root.switchTab(1)
 
                 Text {
                     anchors.fill: parent
@@ -471,12 +492,73 @@ PanelWindow {
             opacity: 0.25
         }
 
+        // --- tabs -----------------------------------------------------------
+        //
+        // Present only where there is somewhere to switch to - see tabsVisible.
+        // Height collapses to zero when hidden so the list simply starts higher
+        // and the card keeps its shape.
+
+        Row {
+            id: tabs
+            visible: root.tabsVisible
+            anchors { top: divider.bottom; topMargin: root.tabsVisible ? 8 : 0
+                      horizontalCenter: parent.horizontalCenter }
+            height: root.tabsVisible ? 26 : 0
+            spacing: 6
+
+            Repeater {
+                model: [
+                    { key: "apps",  label: "Apps" },
+                    { key: "games", label: "Games" }
+                ]
+
+                Rectangle {
+                    required property var modelData
+                    readonly property bool active: root.tab === modelData.key
+
+                    width: label.implicitWidth + 22
+                    height: 24
+                    radius: height / 2
+                    color: active ? Theme.accent
+                                  : (hover.containsMouse ? Theme.dim : "transparent")
+                    opacity: active ? 1.0 : (hover.containsMouse ? 0.35 : 0.5)
+                    Behavior on color   { ColorAnimation  { duration: Theme.animFast } }
+                    Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+
+                    Text {
+                        id: label
+                        anchors.centerIn: parent
+                        text: parent.modelData.label
+                        font.pixelSize: 12
+                        font.weight: parent.active ? Font.DemiBold : Font.Normal
+                        color: parent.active ? Theme.bg : Theme.fg
+                    }
+
+                    MouseArea {
+                        id: hover
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (root.tab === parent.modelData.key) return
+                            root.tab = parent.modelData.key
+                            root.selected = 0
+                            search.text = ""
+                            // Clicking a tab must not cost the keyboard - the
+                            // next thing anyone does is type.
+                            search.forceActiveFocus()
+                        }
+                    }
+                }
+            }
+        }
+
         // --- results list -------------------------------------------------
 
         ListView {
             id: list
             anchors {
-                top: divider.bottom
+                top: tabs.bottom
                 left: parent.left
                 right: parent.right
                 bottom: parent.bottom
@@ -630,6 +712,15 @@ PanelWindow {
     // Moves the selection by `delta`, clamped to the ends rather than
     // wrapping - wrapping from the last result back to the first is
     // disorienting when you are holding Down to scan the list.
+    // No-op without a second tab, so the key is harmless on the laptop rather
+    // than silently doing something invisible.
+    function switchTab(delta: int): void {
+        if (!root.tabsVisible) return
+        root.tab = (root.tab === "apps") ? "games" : "apps"
+        root.selected = 0
+        search.text = ""
+    }
+
     function move(delta: int): void {
         const n = root.results.length
         if (n === 0) return
