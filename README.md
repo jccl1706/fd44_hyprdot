@@ -89,7 +89,10 @@ sudo bin/chromium-policy-setup.sh            # --remove takes it out again
 - **Wallpaper** — drawn by quickshell itself, no wallpaper daemon; it
   crossfades when the choice changes, and `bin/wallpaper.sh set <file>` from a
   terminal fades in live too
-- **Wallpaper picker** (`SUPER+,`) — a coverflow strip of sheared tiles
+- **Wallpaper picker** (`SUPER+SHIFT+,`) — a coverflow strip of sheared tiles
+- **Settings** (`SUPER+,`, or click the logo) — a sidebar window over the
+  desktop: theme, notification timeouts, launcher ranking, and a switch per bar
+  plugin. Search finds a setting across every page
 - **Power menu** (`SUPER+M` or the physical power button) — icon-only circles;
   log out, restart and shut down arm on the first press and fire on the second
 - **Lock screen** — themed hyprlock, with battery
@@ -185,7 +188,8 @@ bin/theme.sh restore                 # generate the palette files
 | `SUPER+Return` | terminal (kitty) |
 | `SUPER+B` / `+E` | browser / file manager |
 | `SUPER+Space` | app launcher |
-| `SUPER+,` | wallpaper picker |
+| `SUPER+,` | settings |
+| `SUPER+SHIFT+,` | wallpaper picker |
 | `SUPER+T` | toggle theme |
 | `SUPER+M` | power menu (also the physical power button) |
 | `SUPER+W` / `+F` / `+V` / `+P` | close / fullscreen / float / pseudo-tile |
@@ -230,8 +234,13 @@ quickshell/      the shell itself, QML
   DropPanel        the slide-down card both panels are built on
   BarLayout · BarZone   movable plugins: press and hold a glyph, drag it along
                    the bar, drop it; its panel then opens under it. Saved per
-                   machine in ~/.local/state/fd44-hyprdot/bar-layout.json;
+                   machine in ~/.local/state/fd44-hyprdot/bar-layout.json,
+                   along with which plugins are switched off;
                    `qs ipc call bar resetLayout` puts everything back
+  Settings · SettingsPanel · SettingsRow   the settings window. Settings.qml is
+                   the store AND the schema; the panel renders the schema and
+                   knows nothing about any particular setting, so adding one is
+                   a single entry there
 
 themes/          dark.conf, cream.conf — one file per palette
 fonts/           Symbols Nerd Font, vendored (MIT)
@@ -250,6 +259,46 @@ cooling/         CoolerControl backup of the desktop's fan curves (reviewed, no 
 mangohud/        MangoHud.conf · presets.conf — the in-game overlay, linked by gaming-setup.sh
 wireplumber/     audio rules — the EVO4 uses software volume (matches only that device)
 ```
+
+## Settings
+
+`SUPER+,`, or click the logo at the left end of the bar. A sidebar window with
+a search box that matches across every page, not just the one showing.
+
+| Page | What is on it |
+|---|---|
+| Appearance | theme (dark / cream), and a button through to the wallpaper picker |
+| Notifications | how long a normal, low-priority or at-most notification stays |
+| Launcher | ranking half-life, and clear launch history |
+| Desktop | how long the volume/brightness OSD stays |
+| Bar | a switch per plugin, and reset layout |
+
+Values live in `~/.local/state/fd44-hyprdot/settings.json`, written 500ms after
+the last change. A fresh machine with no file behaves exactly as this did before
+the window existed — every default is the number the module used before.
+
+**The bar's plugin switches** turn an icon off without disturbing the
+arrangement. A plugin switched off **keeps its place in the saved order** rather
+than being dropped from it, so switching it back on returns it to where you
+dragged it instead of to the end of a zone. The switches are listed in the order
+they sit in the bar, left to right, and a plugin *this machine cannot draw at
+all* has no switch — there is no couch button to switch off on a machine with no
+television, and no battery on the desktop. Stored per machine in
+`bar-layout.json` beside the arrangement, so the laptop and the desktop can show
+different bars from one checkout.
+
+The help text under each switch says what is lost, which is worth reading before
+using them: for most of these the bar is the only door, and none of them has a
+keybinding. Switching off **Caffeine** leaves no way to stay awake; **Network**
+leaves no way to join a network. **Audio** is safe, because the volume keys and
+the OSD work either way, and **Notifications** only hides the history panel —
+toasts still appear. *Reset layout* puts everything back and shows every plugin
+again.
+
+What is deliberately **not** in this window: where the plugins go (drag them in
+the bar itself), do-not-disturb (already a toggle in the notification panel), and
+anything in `Theme.qml` — those 44 properties are derived from the palette rather
+than set, so they belong to the theme file.
 
 ## Prompt
 

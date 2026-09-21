@@ -41,12 +41,17 @@ hl.bind(Mod .. " + E",      hl.dsp.exec_cmd(Apps.file_manager))
 -- same harmless failure exec_cmd gave.
 hl.bind(Mod .. " + space", hl.dsp.global("quickshell:launcher"))
 
--- The settings window. Super+comma is what most desktops use for preferences,
--- and it is free here. A quickshell global shortcut rather than exec_cmd, for
--- the same reason the launcher is one: it reaches a RUNNING quickshell instead
--- of starting a process that has to find it.
+-- The settings window. Super+comma is what most desktops use for preferences.
+-- A quickshell global shortcut rather than exec_cmd, for the same reason the
+-- launcher is one: it reaches a RUNNING quickshell instead of starting a
+-- process that has to find it.
+--
+-- THE WALLPAPER PICKER MOVED TO SHIFT for this, and leaving it where it was
+-- did not merely shadow it - Hyprland registers both binds and fires BOTH, so
+-- one keypress raced two full-screen layers that each want exclusive keyboard
+-- focus. `hyprctl binds` showed the pair, same modmask, same key.
 hl.bind(Mod .. " + comma", hl.dsp.global("quickshell:settings"))
-hl.bind(Mod .. " + comma", hl.dsp.global("quickshell:wallpaper"))
+hl.bind(Mod .. " SHIFT + comma", hl.dsp.global("quickshell:wallpaper"))
 
 -- Theme. Flips the whole desktop between themes/dark.conf and
 -- themes/cream.conf - quickshell, kitty, GTK apps and Hyprland all at once.
