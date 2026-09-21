@@ -63,58 +63,13 @@ PanelWindow {
     // expanded tile at native resolution with nothing to spare.
     readonly property int decodeWidth: Math.round(selWidth * 1.6)
 
-    // --- where the repo is -----------------------------------------------
+    // --- where the wallpapers are ----------------------------------------
     //
-    // Cannot be done with Qt.resolvedUrl("../wallpapers"): Quickshell
-    // deliberately BLACKHOLES any path that escapes the config directory and
-    // returns "qrc:/qs-blackhole" rather than an error, so the folder model
-    // reports zero files and it looks like an empty directory.
-    //
-    // Quickshell.shellDir is no good alone either - it is the config path,
-    // ~/.config/quickshell, with the symlink NOT resolved, so appending
-    // "/../wallpapers" lands in ~/.config. readlink -f resolves it to the
-    // real directory inside the repo; its parent is the repo root. On a
-    // copied rather than symlinked config this still works, because
-    // readlink -f on a plain directory returns the directory.
-    property string repoRoot: ""
-
-    Process {
-        running: true
-        command: ["sh", "-c", "dirname \"$(readlink -f '" + Quickshell.shellDir + "')\""]
-        stdout: StdioCollector {
-            onStreamFinished: root.repoRoot = text.trim()
-        }
-    }
-
-    readonly property string setterScript: repoRoot ? repoRoot + "/bin/wallpaper.sh" : ""
-
-    // THE PICKER READS PREVIEWS, NOT WALLPAPERS.
-    //
-    // The originals are 2560px wide and the set is ~38 megapixels - enough
-    // that decoding them was a visible pause on the keypress however the work
-    // was scheduled. bin/wallpaper.sh generates 960px previews into the cache
-    // directory; the whole set is then ~6 MP and 368 KB.
-    //
-    // The path comes FROM the script rather than being rebuilt here, so there
-    // is one definition of where previews live instead of two that can drift.
-    property string thumbDir: ""
-
-    Process {
-        id: thumbDirReader
-        running: root.setterScript !== ""
-        command: root.setterScript ? [root.setterScript, "thumbdir"] : []
-        stdout: StdioCollector {
-            onStreamFinished: root.thumbDir = text.trim()
-        }
-    }
-
-    // Falls back to the originals when no previews have been generated yet -
-    // a fresh install before autostart has run once. Slower, but showing the
-    // wallpapers beats showing an empty picker.
-    readonly property url wallpaperDir:
-        thumbDir ? "file://" + thumbDir
-        : repoRoot ? "file://" + repoRoot + "/wallpapers"
-        : ""
+    // WallpaperLibrary resolves the repo root, the script, the preview
+    // directory and the file list. It used to be done here, and then the
+    // settings panel grew a grid of the same wallpapers and needed the same
+    // four answers - which is the drift this file's own comment warned about.
+    // The reasoning for each of them moved into the singleton with the code.
 
     // --- window ----------------------------------------------------------
 
@@ -140,16 +95,6 @@ PanelWindow {
     color: "transparent"
     visible: false
 
-    // --- model -----------------------------------------------------------
-
-    FolderListModel {
-        id: files
-        folder: root.wallpaperDir
-        nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
-        showDirs: false
-        sortField: FolderListModel.Name
-    }
-
     // --- public API ------------------------------------------------------
 
     function open(): void {
@@ -166,7 +111,7 @@ PanelWindow {
         // still being generated when the shell starts, so the answer at
         // startup is "none yet" - without this the picker would keep using
         // the full-size originals for the rest of the session.
-        if (root.setterScript) thumbDirReader.running = true
+        WallpaperLibrary.rescan()
     }
 
     // By name without extension. The model lists PREVIEWS - in the cache,
@@ -177,8 +122,8 @@ PanelWindow {
         const stem = p => String(p).split("/").pop().replace(/\.[^.]+$/, "")
         const cur = stem(WallpaperState.path)
         if (!cur) return
-        for (let i = 0; i < files.count; i++) {
-            if (stem(files.get(i, "fileName")) === cur) {
+        for (let i = 0; i < WallpaperLibrary.files.count; i++) {
+            if (stem(WallpaperLibrary.files.get(i, "fileName")) === cur) {
                 // Jump, do not sweep. Without this the strip would animate
                 // all the way from wherever it was left - on the first open of
                 // a session, from index 0 - which reads as the picker
@@ -202,32 +147,25 @@ PanelWindow {
     // WallpaperState, which shows it at once and has the script record it.
     // The script path travels with the request: the picker is what resolved
     // the repo root, and WallpaperState has no way of its own to find it.
-    signal applyRequested(string path, string script)
-
     function apply(path): void {
         if (!path) return
-        if (!root.repoRoot) {
-            console.warn("wallpaper: repo root not resolved yet")
-            return
-        }
         root.close()
-
-        // The model lists PREVIEWS, which live in the cache and are always
-        // .webp. The original keeps the same basename in wallpapers/, so it
-        // can be named directly - and the fade needs the full-size file, not
-        // the 960px preview it would otherwise be handed.
-        const name = String(path).split("/").pop()
-        root.applyRequested(root.repoRoot + "/wallpapers/" + name, root.setterScript)
+        // The library turns a preview path into the full-size original, hands
+        // it to WallpaperState and has bin/wallpaper.sh write it down. This
+        // used to be an applyRequested signal that shell.qml forwarded; with
+        // the library in the middle there is nothing left for the detour to
+        // decouple.
+        WallpaperLibrary.choose(path)
     }
 
     function applySelected(): void {
-        root.apply(files.get(root.selected, "fileUrl"))
+        root.apply(WallpaperLibrary.files.get(root.selected, "fileUrl"))
     }
 
     // Clamped rather than wrapping: running off the end of a carousel and
     // reappearing at the other end loses your place in a way a grid does not.
     function move(delta: int): void {
-        const n = files.count
+        const n = WallpaperLibrary.files.count
         if (n === 0) return
         root.selected = Math.max(0, Math.min(n - 1, root.selected + delta))
     }
@@ -252,7 +190,7 @@ PanelWindow {
     // is kept: it guarantees the first press of the session is a cache hit
     // rather than merely a fast decode.
     Repeater {
-        model: files
+        model: WallpaperLibrary.files
         delegate: Image {
             required property url fileUrl
             source: fileUrl
@@ -380,7 +318,7 @@ PanelWindow {
             Keys.onEnterPressed:  root.applySelected()
 
             Repeater {
-                model: files
+                model: WallpaperLibrary.files
 
                 delegate: Item {
                     id: cell
@@ -465,7 +403,7 @@ PanelWindow {
 
             Text {
                 anchors.centerIn: parent
-                visible: files.count === 0
+                visible: WallpaperLibrary.files.count === 0
                 text: "No images in wallpapers/"
                 font.family: Theme.font
                 font.pixelSize: Theme.fontSize
@@ -484,8 +422,8 @@ PanelWindow {
         // reads as "Catppuccin Blue Eye". The files are named for sorting;
         // this is the only place a human looks at them.
         text: {
-            if (files.count === 0) return "No images in wallpapers/"
-            const raw = String(files.get(root.selected, "fileName") || "")
+            if (WallpaperLibrary.files.count === 0) return "No images in wallpapers/"
+            const raw = String(WallpaperLibrary.files.get(root.selected, "fileName") || "")
             return raw.replace(/\.[^.]+$/, "")
                       .replace(/[-_]+/g, " ")
                       .replace(/\b\w/g, c => c.toUpperCase())

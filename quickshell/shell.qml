@@ -122,7 +122,6 @@ ShellRoot {
         id: wallpaperVariants
         model: Quickshell.screens
         WallpaperPicker {
-            onApplyRequested: (path, script) => WallpaperState.apply(path, script)
         }
     }
 
