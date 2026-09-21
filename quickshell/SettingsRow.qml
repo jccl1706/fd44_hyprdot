@@ -28,6 +28,12 @@ Item {
     required property var row
     property string fromSection: ""
 
+    // A WIDE control goes UNDER the label at full width instead of beside it.
+    // The wallpaper grid is the only one so far: a row of thumbnails has
+    // nothing to gain from being squeezed into the right-hand column next to
+    // its own help text.
+    readonly property bool wide: settingRow.row.type === "wallpapers"
+
     readonly property bool isAction: settingRow.row.type === "action"
     // A row either names a key in the Settings store or brings its own
     // accessors - see the schema. Reading through row.get() still tracks the
@@ -91,6 +97,7 @@ Item {
                 id: control
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                 sourceComponent: {
+                    if (settingRow.wide) return null
                     switch (settingRow.row.type) {
                         case "action":  return actionButton
                         case "toggle":  return toggleSwitch
@@ -100,9 +107,100 @@ Item {
                 }
             }
         }
+
+        Loader {
+            width: body.width
+            active: settingRow.wide
+            visible: active
+            sourceComponent: wallpaperGrid
+        }
     }
 
     // --- controls ---------------------------------------------------------
+
+    // FOUR ACROSS, and scrolling for the rest. WallpaperPicker deliberately
+    // does NOT do this - its comment argues a grid "shows eleven thumbnails at
+    // once and asks you to judge them at postage-stamp size" - and that is
+    // still the right call for a full-screen picker, where one wallpaper shown
+    // large is worth more than sixteen shown small. This is the other job:
+    // seeing at a glance WHICH ONE IS SET, and changing it without leaving
+    // settings. At four across in this pane a tile is ~190px, which is a good
+    // deal larger than a postage stamp, and the strip is still one key away.
+    Component {
+        id: wallpaperGrid
+        Item {
+            implicitHeight: grid.cellHeight * 4 + 8
+
+            GridView {
+                id: grid
+                anchors.fill: parent
+                anchors.topMargin: 8
+                clip: true
+                cellWidth: Math.floor(width / 4)
+                // 16:9, plus the gap that makes the tiles read as separate.
+                cellHeight: Math.round(cellWidth * 9 / 16) + 8
+                model: WallpaperLibrary.files
+                boundsBehavior: Flickable.StopAtBounds
+
+                // Previews may still have been generating when the shell
+                // started, in which case the model is pointed at the
+                // full-size originals. Asking again when the page is opened
+                // costs one process and fixes the rest of the session.
+                Component.onCompleted: WallpaperLibrary.rescan()
+
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                delegate: Item {
+                    id: tile
+                    required property url fileUrl
+                    required property string fileName
+                    width: grid.cellWidth
+                    height: grid.cellHeight
+
+                    readonly property bool current: WallpaperLibrary.isCurrent(tile.fileUrl)
+
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.margins: 4
+                        radius: 6
+                        color: Theme.surfaceHigh
+                        clip: true
+
+                        Image {
+                            anchors.fill: parent
+                            source: tile.fileUrl
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                            // The tile is ~190px wide; decoding a 960px
+                            // preview to fill it wastes most of the pixels.
+                            sourceSize.width: 400
+                        }
+
+                        // The one in use, and the one under the pointer. The
+                        // ring is drawn OVER the image rather than around the
+                        // tile so it cannot change the layout as it appears.
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 6
+                            color: "transparent"
+                            border.width: tile.current ? 3 : (tileMa.containsMouse ? 2 : 0)
+                            border.color: tile.current ? Theme.accent : Theme.fg
+                            opacity: tile.current ? 1 : 0.7
+                            Behavior on border.width { NumberAnimation { duration: Theme.animFast } }
+                        }
+
+                        MouseArea {
+                            id: tileMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: WallpaperLibrary.choose(tile.fileUrl)
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     Component {
         id: actionButton

@@ -13,8 +13,10 @@
 //
 // WHAT IS DELIBERATELY NOT HERE:
 //
-//   theme, wallpaper     they have their own pickers, which work. A second
-//                        door to the same room is not consolidation.
+//   theme                bin/theme.sh owns it; the row here runs the script.
+//   wallpaper            the grid on Appearance sets it directly. The
+//                        full-screen picker on SUPER+, is the other view of
+//                        the same set - both go through WallpaperLibrary.
 //   do not disturb       already a toggle in NotificationPanel, already saved.
 //   bar arrangement      already drag-and-drop between the bar's four zones.
 //                        WHICH plugins are shown does live here - that had no
@@ -71,6 +73,8 @@ Singleton {
     //   "toggle"  boolean
     //   "select"  one of `options`, each { value, label }
     //   "action"  a button; `run` is called on click
+    //   "wallpapers"  the thumbnail grid; owns its own value, see `wide` in
+    //                 SettingsRow - it is drawn under the label, full width
     //
     // WHERE A VALUE LIVES is the row's business. Most sit in this store and are
     // addressed by `key`. A few belong to a singleton that already owns them -
@@ -95,9 +99,8 @@ Singleton {
                   set: function(v) { Settings.applyTheme(v) },
                   options: [ { value: "dark", label: "Dark" },
                              { value: "cream", label: "Cream" } ] },
-                { label: "Choose wallpaper", type: "action",
-                  help: "opens the picker, which previews all 63",
-                  run: function() { Settings.requestWallpaperPicker() } }
+                { label: "Wallpaper", type: "wallpapers",
+                  help: "click one to set it; the ring marks the one in use. SUPER+, opens the full-screen picker, which shows them one at a time and larger" }
             ]
         },
         {
@@ -171,11 +174,6 @@ Singleton {
                    run: function() { BarLayout.reset() } })
         return out
     }
-
-    // The wallpaper picker is its own surface with its own IPC; the panel asks
-    // for it rather than embedding it, so there is one implementation of a
-    // thing that already works well.
-    signal requestWallpaperPicker()
 
     // --- persistence -----------------------------------------------------
 
