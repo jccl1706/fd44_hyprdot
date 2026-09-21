@@ -351,8 +351,14 @@ ShellRoot {
         function open(): void   { shell.openFocused(settingsVariants.instances)   }
         function close(): void  { shell.closeAll(settingsVariants.instances)      }
 
-        // `qs ipc call settings show Notifications` - open on a named page.
-        function show(section: string): void {
+        // `qs ipc call settings page Notifications` - open on a named page.
+        //
+        // NOT `show`: `show` is also an `qs ipc` subcommand, and the CLI
+        // matches that first, so `qs ipc call settings show Notifications`
+        // dies with "The following argument was not expected: Notifications"
+        // before it ever reaches here. Arguments themselves are fine - `qs ipc
+        // call bar activate clock` has always worked.
+        function page(section: string): void {
             const one = shell.focusedOne(settingsVariants.instances)
             if (one) one.openAt(section)
         }
