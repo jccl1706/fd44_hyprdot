@@ -158,8 +158,18 @@ icon_gaps() {
         [[ -d "$DEST/$name/apps/scalable" ]] && { set="$DEST/$name/apps/scalable"; break; }
     done < <(keep_set)
     [[ -n $set ]] || return 0
-    for f in /usr/share/applications/*.desktop \
-             "${XDG_DATA_HOME:-$HOME/.local/share}"/applications/*.desktop; do
+    # EVERY XDG DATA DIR, not /usr/share alone. On Fedora those are the same
+    # place and this looked correct for a year; on NixOS there is no
+    # /usr/share at all and the loop scanned nothing, reporting "no gaps"
+    # because it had examined no applications - a false clean bill of health.
+    # Measured there: 0 desktop files found where 20 exist under
+    # /run/current-system/sw/share/applications.
+    local -a appdirs=("${XDG_DATA_HOME:-$HOME/.local/share}/applications")
+    local dd
+    local IFS=:
+    for dd in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do appdirs+=("$dd/applications"); done
+    unset IFS
+    for f in "${appdirs[@]}"/*.desktop; do
         [[ -f $f ]] || continue
         grep -q '^NoDisplay=true' "$f" && continue
         icon="$(sed -n 's/^Icon=//p' "$f" | head -1)"

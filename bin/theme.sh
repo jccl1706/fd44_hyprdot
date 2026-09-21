@@ -465,7 +465,11 @@ apply() {
     # a user theme that imports GTK3's own built-in dark stylesheet. No package.
     # Skipped if a real Adwaita-dark is installed system-wide, and not written
     # at all when a proper theme is in use.
-    if [[ $gtk == Adwaita-dark && ! -d /usr/share/themes/Adwaita-dark ]]; then
+    # gtk_theme_installed rather than a bare /usr/share test: that directory
+    # does not exist on NixOS, so the hardcoded check could only ever answer
+    # "not installed" there. It happens to give the right answer on this
+    # machine, but by luck - the helper above searches everywhere GTK does.
+    if [[ $gtk == Adwaita-dark ]] && ! gtk_theme_installed Adwaita-dark; then
         local dark_css="$HOME/.local/share/themes/Adwaita-dark/gtk-3.0/gtk.css"
         mkdir -p "${dark_css%/*}"
         printf '%s\n' '@import url("resource:///org/gtk/libgtk/theme/Adwaita/gtk-contained-dark.css");' \

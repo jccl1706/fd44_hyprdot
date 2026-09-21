@@ -323,7 +323,11 @@ end
 -- open and shut, a machine without it gets a window saying how to add it.
 hl.workspace_rule({
     workspace        = "special:btop",
-    on_created_empty = [[kitty --class btop -e sh -c 'command -v btop >/dev/null && exec btop || { printf "btop is not installed.\n\n    sudo dnf install btop\n\nPress Enter to close."; read -r _; }']],
+    -- The advice is per-distribution, because this config runs on two systems
+    -- and "sudo dnf install btop" is wrong on one of them - btop is not
+    -- installed on nixos-gaming00, so that is the message that would actually
+    -- have appeared there.
+    on_created_empty = [[kitty --class btop -e sh -c 'command -v btop >/dev/null && exec btop || { . /etc/os-release 2>/dev/null; case "$ID" in fedora) hint="sudo dnf install btop" ;; nixos) hint="add btop to fd44_nixos modules/packages.nix, then nixos-rebuild switch" ;; arch) hint="sudo pacman -S btop" ;; debian|ubuntu) hint="sudo apt install btop" ;; *) hint="install btop with your package manager" ;; esac; printf "btop is not installed.\n\n    %s\n\nPress Enter to close." "$hint"; read -r _; }']],
 })
 
 
