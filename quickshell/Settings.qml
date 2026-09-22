@@ -217,8 +217,10 @@ Singleton {
             if (monitor.refreshOptions.length > 1)
                 out.push({
                     label: prefix + "Refresh rate", type: "select",
-                    help: "what " + monitor.currentResolution + " offers. "
-                          + "A lower rate on a laptop panel is a battery setting",
+                    help: "what " + monitor.currentResolution + " offers"
+                          + (monitor.internal
+                             ? ". A lower rate on a laptop panel is a battery setting"
+                             : ""),
                     options: monitor.refreshOptions,
                     get: function() { return monitor.currentRefresh },
                     set: function(v) { Monitors.setRefresh(monitor, v) }

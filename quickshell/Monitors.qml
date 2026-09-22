@@ -78,13 +78,22 @@ Singleton {
     readonly property var friendlyNames: ({
         "BOE 0x0BCA":                       "Framework display",
         "AU Optronics 0x213D":              "ThinkPad display",
+        "LG Electronics LG ULTRAGEAR":      "UltraGear monitor",
         "LG Electronics LG TV SSCR2":       "Living-room TV",
         "The Linux Foundation fd44 stream": "Streaming dummy"
     })
 
+    // MATCHED AS A PREFIX, like hypr/monitors.lua's desc: rules - that file
+    // says so in as many words: "the match is a prefix, so a serial number
+    // after the model does not break it". The desktop's monitor is the case
+    // that needs it: hyprctl calls it "LG Electronics LG ULTRAGEAR
+    // 106NTNH2R807", and the tail is that particular unit's serial. Keying on
+    // the whole string would name one monitor and no other of the same model.
     function prettyName(description: string, internal: bool): string {
-        return monitors.friendlyNames[description]
-            || (internal ? "Built-in display" : description)
+        if (monitors.friendlyNames[description]) return monitors.friendlyNames[description]
+        for (const key in monitors.friendlyNames)
+            if (description.indexOf(key) === 0) return monitors.friendlyNames[key]
+        return internal ? "Built-in display" : description
     }
 
     // --- reading ----------------------------------------------------------
@@ -208,11 +217,17 @@ Singleton {
         return out
     }
 
-    // "60.00" -> "60", "143.97" -> "143.97". A whole number of hertz is the
-    // common case and the trailing zeros are noise.
+    // "60.00" -> "60", "143.97" -> "144", "99.95" -> "100".
+    //
+    // A tenth of a hertz, not a twentieth. The desktop's UltraGear advertises
+    // 143.97, 120.00, 99.95 and 59.95, and a monitor calling 60 Hz "59.95" is
+    // the normal state of affairs rather than a distinction anyone wants in a
+    // settings window. 0.05 rounded these correctly only because 99.95 and
+    // 59.95 are a hair under 0.05 away in binary floating point, which is not
+    // a thing to depend on.
     function tidyHz(hz: string): string {
         const n = parseFloat(hz)
-        return Math.abs(n - Math.round(n)) < 0.05 ? String(Math.round(n)) : n.toFixed(2)
+        return Math.abs(n - Math.round(n)) < 0.1 ? String(Math.round(n)) : n.toFixed(2)
     }
 
     // WHAT IT IS RUNNING AT, MATCHED BACK TO A MODE STRING. hyprctl reports
