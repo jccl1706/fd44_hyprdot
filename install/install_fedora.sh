@@ -410,6 +410,15 @@ encrypt="yes"                  # yes | no
 machine="laptop"               # laptop | desktop
 cpu_vendor=""                  # amd | intel   (empty = autodetect)
 gpu_vendor=""                  # amd | intel   (empty = autodetect)
+
+# Which desktop to install. They are alternatives, never both.
+#
+#   hyprland  what this repository is for: Hyprland + quickshell, autologin on
+#             tty1, no display manager at all.
+#   plasma    KDE Plasma with SDDM. Not the full KDE suite - plasma-desktop
+#             and the handful of pieces a laptop actually needs. See the
+#             package list for what that costs.
+desktop="hyprland"             # hyprland | plasma
 # Login manager. Empty = sddm (Hyprland has no GNOME/KDE session to derive a
 # default from here, unlike the Arch script). sddm | greetd
 # Dotfiles git URL. Left blank the installer sets up autologin and Plymouth
@@ -712,9 +721,19 @@ wizard() {
         "AMD    - mesa, RADV Vulkan|amd" \
         "Intel  - mesa, ANV Vulkan, iHD VAAPI|intel")"
 
+    # ---- desktop -----------------------------------------------------------
+    desktop="$(menu "Desktop?" "$( [[ $desktop == hyprland ]] && echo 1 || echo 2 )" \
+        "Hyprland + quickshell - autologin on tty1, no display manager|hyprland" \
+        "KDE Plasma - SDDM, ~2 GB installed|plasma")"
+
+    # Plasma's own terminal, on a Plasma machine. kitty is still what the
+    # dotfiles configure, so it stays the default on the Hyprland side.
+    [[ "$desktop" == plasma ]] && terminal="konsole"
+
     # ---- dotfiles --------------------------------------------------------
-    # There is no login-manager question any more: this installer always sets
-    # up getty autologin on tty1 plus uwsm, with no display manager at all.
+    # There is no login-manager question on the Hyprland side: it sets up
+    # getty autologin on tty1 plus uwsm, with no display manager at all.
+    # Plasma brings SDDM, which is a display manager by definition.
     dotfiles_repo="$(ask_text "Dotfiles git URL (blank = skip)" "$dotfiles_repo")"
 
     # ---- apps ----------------------------------------------------------
@@ -951,6 +970,49 @@ depacs=(
     # different Qt.
     qt6-qtimageformats
 )
+# --- Plasma, when that is what was asked for -------------------------------
+#
+# NOT THE KDE SUITE. `plasma-desktop` plus `plasma-workspace` and SDDM is 333
+# packages and 1 GB on its own - Plasma is simply large - and everything below
+# adds about 60 more for 2 GB in total. Measured with `dnf install --assumeno`
+# on Fedora 44 before any of this was written; the number is here so the next
+# person does not have to.
+#
+# WHAT IS DELIBERATELY NOT IN IT: kde-apps, kdepim, discover, kate (kwrite is
+# the same editor without the project pieces), elisa, kmail, akonadi. Those are
+# what "the full KDE" means and none of them is needed to log in and work.
+#
+# The four modules are the ones a laptop cannot do without: plasma-nm puts
+# wifi in the panel, bluedevil does bluetooth, kscreen handles displays, and
+# plasma-pa is volume. Without plasma-pa there is no way to change the output
+# device from the desktop at all, which is breakage rather than taste.
+# plasma-systemsettings is what makes the first three reachable as settings
+# pages rather than only as applets.
+#
+# breeze-gtk is the compatibility half: GTK applications under Plasma
+# otherwise ignore the theme entirely and arrive in Adwaita.
+#
+# ONE THING COMES ALONG UNINVITED: phonon-qt6 needs a backend and
+# phonon-qt6-backend-vlc is the only one Fedora 44 ships, so the VLC libraries
+# arrive with the desktop. There is no gstreamer alternative to choose.
+plasmapacs=(
+    plasma-desktop plasma-workspace sddm
+    xorg-x11-server-Xwayland
+
+    # the modules
+    plasma-nm bluedevil kscreen plasma-pa plasma-systemsettings
+
+    # theme, and the GTK half of it
+    plasma-breeze breeze-gtk breeze-icon-theme
+
+    # portals, so file pickers and screen sharing work outside KDE apps
+    xdg-desktop-portal-kde
+
+    # the applications asked for
+    konsole dolphin kwrite spectacle okular
+)
+[[ "$desktop" == plasma ]] && depacs=("${plasmapacs[@]}")
+
 # Plymouth: graphical boot splash, and a graphical LUKS passphrase prompt
 # instead of the bare text one. plymouth-system-theme pulls the bgrt theme,
 # which shows the firmware logo (on a Framework, the Framework logo).
@@ -996,7 +1058,14 @@ check_repos() {
         chromium firefox                              # both browsers
         libva-utils                                    # Intel GPU branch
     )
-    local -a allpkgs=("${basepacs[@]}" "${hwpacs[@]}" "${depacs[@]}" "${apppacs[@]}" "${extras[@]}")
+    # BOTH desktops, whichever one this run would install. The point of this
+    # mode is to catch a package name that has been renamed or dropped, and a
+    # name only checked on the machine that happens to choose that desktop is
+    # a name nobody checks. konsole is added for the same reason: it is the
+    # Plasma default terminal and $terminal here is whatever the Hyprland
+    # default resolved to.
+    local -a allpkgs=("${basepacs[@]}" "${hwpacs[@]}" "${depacs[@]}" "${apppacs[@]}" "${extras[@]}"
+                      "${plasmapacs[@]}" konsole)
     local -A seen=()
     local -a uniq=() missing=()
     local p result found=0
@@ -1120,7 +1189,11 @@ preflight() {
     else
         printf '    zram       : none\n'
     fi
-    printf '    Desktop    : Hyprland + quickshell  (autologin on tty1, no display manager)\n'
+    if [[ "$desktop" == plasma ]]; then
+        printf '    Desktop    : KDE Plasma  (SDDM, ~2 GB installed)\n'
+    else
+        printf '    Desktop    : Hyprland + quickshell  (autologin on tty1, no display manager)\n'
+    fi
     printf '    Dotfiles   : %s\n' "${dotfiles_repo:-none}"
     printf '    Apps       : %s, %s\n' "$browser" "$terminal"
     printf '    Host/user  : %s / %s\n' "$hostname" "$username"
@@ -1631,6 +1704,12 @@ fi
 # graphical-session.target - without it the polkit agent and hypridle would
 # be enabled but never run, same reasoning as the Arch script.
 ###############################################################################
+# ALL OF THIS IS THE HYPRLAND PATH. Plasma logs in through SDDM and starts
+# its own session, so it needs no wayland-sessions entry written by hand, no
+# getty autologin and no uwsm hook in the shell profile. The body below is
+# left unindented so that what it writes stays diffable against the version
+# that ran on every machine built before this choice existed.
+if [[ "$desktop" == hyprland ]]; then
 log "Configuring the Hyprland session"
 if (( DRY )) || [[ ! -f "$rootmnt/usr/share/wayland-sessions/hyprland-uwsm.desktop" ]]; then
     writefile 0644 "$rootmnt/usr/local/share/wayland-sessions/hyprland-uwsm.desktop" <<'EOF'
@@ -1800,6 +1879,7 @@ if uwsm check may-start -q; then
 fi
 PROFILE
 run fchroot chown "$username:$username" "/home/$username/.bash_profile"
+fi
 
 ###############################################################################
 # Dotfiles (optional)
@@ -1999,9 +2079,15 @@ fi
 log "Enabling services"
 services=(NetworkManager bluetooth fstrim.timer systemd-timesyncd)
 [[ "$machine" == laptop ]] && services+=(power-profiles-daemon)
+# Plasma logs in through SDDM. The Hyprland side deliberately has no display
+# manager at all - see the autologin section below for why that is not an
+# oversight.
+[[ "$desktop" == plasma ]] && services+=(sddm)
 run fchroot systemctl enable "${services[@]}"
-run fchroot systemctl --global enable hyprpolkitagent.service hypridle.service \
-    || warn "could not enable one of the Hyprland user units"
+if [[ "$desktop" == hyprland ]]; then
+    run fchroot systemctl --global enable hyprpolkitagent.service hypridle.service \
+        || warn "could not enable one of the Hyprland user units"
+fi
 
 # The power button opens quickshell's power menu instead of shutting the
 # machine down on the spot. logind's default is HandlePowerKey=poweroff - one
@@ -2077,7 +2163,7 @@ if (( DRY )); then
   Encryption : $encrypt
   Swap       : $swap_size$( [[ -n "$zram_size" ]] && echo "   zram: $zram_size" )
   Machine    : $machine        CPU: $cpu_vendor        GPU: $gpu_vendor
-  Desktop    : Hyprland + quickshell (autologin on tty1, no display manager)
+  Desktop    : $( [[ "$desktop" == plasma ]] && echo "KDE Plasma (SDDM)" || echo "Hyprland + quickshell (autologin on tty1, no display manager)" )
   Dotfiles   : ${dotfiles_repo:-none}
   Apps       : $browser, $terminal
   cmdline    : $cmdline
@@ -2121,11 +2207,22 @@ if [[ -n "$zram_size" ]]; then
     check "zram is not the resume dev" "! grep -rq 'resume=.*zram' '$rootmnt/boot/loader/entries/'"
 fi
 
+# Each desktop is checked for what it actually installed. Checking for
+# Hyprland's session entry on a Plasma machine would fail every time and mean
+# nothing.
+if [[ "$desktop" == plasma ]]; then
+    check "plasma session entry"       "[[ -f '$rootmnt/usr/share/wayland-sessions/plasma.desktop' ]]"
+    check "sddm installed"             "fchroot rpm -q sddm >/dev/null 2>&1"
+    check "sddm enabled"               "fchroot systemctl is-enabled sddm >/dev/null 2>&1"
+    check "breeze-gtk (GTK apps themed)" "fchroot rpm -q breeze-gtk >/dev/null 2>&1"
+    check "the four modules"           "fchroot rpm -q plasma-nm bluedevil kscreen plasma-pa >/dev/null 2>&1"
+else
 check "hyprland-uwsm session entry"    "[[ -f '$rootmnt/usr/share/wayland-sessions/hyprland-uwsm.desktop' || -f '$rootmnt/usr/local/share/wayland-sessions/hyprland-uwsm.desktop' ]]"
 # Run this one INSIDE the chroot. When dotfiles are used, ~/.config/hypr is a
 # symlink to an absolute path that is only valid in the target - read from the
 # live system as $rootmnt/... it dangles and the check fails spuriously.
 check "hypridle config written"        "fchroot grep -q before_sleep_cmd '/home/$username/.config/hypr/hypridle.conf'"
+fi
 # Same guard as above: no target passwd exists during a dry run, and an
 # unguarded awk would end the script before the verification block runs.
 target_uid=""
@@ -2162,7 +2259,7 @@ check "nwg-panel not installed"        "! fchroot rpm -q nwg-panel >/dev/null 2>
 if [[ "$machine" == laptop ]]; then
     check "powerprofilesctl works"     "fchroot powerprofilesctl get >/dev/null 2>&1"
 fi
-check "getty autologin drop-in"        "grep -q 'autologin $username' '$rootmnt/etc/systemd/system/getty@tty1.service.d/autologin.conf'"
+[[ "$desktop" == hyprland ]] && check "getty autologin drop-in"        "grep -q 'autologin $username' '$rootmnt/etc/systemd/system/getty@tty1.service.d/autologin.conf'"
 # Both halves of the power-button handover, because half of it is worse than
 # neither. logind reads the key straight from /dev/input, so if the drop-in is
 # missing the compositor's binding cannot win and the button silently powers
@@ -2222,7 +2319,7 @@ cat <<EOF
   Swap       : $( [[ "$want_swap" == yes ]] && echo "UUID=$swap_uuid  ($swap_size on disk, hibernation enabled)" || echo "no disk swap" )
   zram       : $( [[ -n "$zram_size" ]] && echo "$zram_size  (compressed, used before disk swap)" || echo "none" )
   Machine    : $machine        CPU: $cpu_vendor        GPU: $gpu_vendor
-  Desktop    : Hyprland + quickshell (autologin on tty1, no display manager)
+  Desktop    : $( [[ "$desktop" == plasma ]] && echo "KDE Plasma (SDDM)" || echo "Hyprland + quickshell (autologin on tty1, no display manager)" )
   Dotfiles   : ${dotfiles_repo:-none}
   Apps       : $browser, $terminal
   User       : $username  (sudo requires the password; root is locked)
