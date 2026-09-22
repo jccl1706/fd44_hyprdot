@@ -1038,7 +1038,14 @@ plasmapacs=(
 # which shows the firmware logo (on a Framework, the Framework logo).
 depacs+=(plymouth plymouth-system-theme)
 
-apppacs=("$browser" "$terminal" dejavu-sans-fonts google-noto-fonts-common google-noto-emoji-fonts)
+# A SERIF, NAMED RATHER THAN INHERITED. Without one, "serif" and Times New
+# Roman both resolve to a monospace font - which the verification pass has
+# checked for a long time, and which passed on Hyprland only because something
+# in that stack happened to depend on these. The Plasma install had neither and
+# failed the check, which is the third time in this file that a package was
+# surviving on someone else's dependency.
+apppacs=("$browser" "$terminal" dejavu-sans-fonts google-noto-fonts-common google-noto-emoji-fonts
+         google-noto-serif-vf-fonts liberation-serif-fonts)
 
 ###############################################################################
 # Repo check
@@ -1537,8 +1544,28 @@ run mkdir -p "$rootmnt/etc/yum.repos.d"
 # session, so SDDM's greeter compositor can't get a seat either, a second,
 # independent failure from the exact same cause). Two different fatal boot
 # failures traced back to this one flag; it's not worth the disk savings.
+# NO GRUB ON A SYSTEMD-BOOT MACHINE.
+#
+# This installer has always used systemd-boot, and grub was arriving anyway
+# as a weak dependency: crypto-policies-scripts RECOMMENDS grubby, grubby
+# REQUIRES grub2-tools and grub2-tools-minimal, and those bring grub2-common
+# and os-prober. Nothing ever booted through it - it was a second bootloader's
+# worth of tooling sitting on a disk that boots by BLS entries.
+#
+# It is not merely clutter, it BREAKS THE INSTALL. grub2-tools ships the
+# kernel-install plugin /usr/lib/kernel/install.d/20-grub.install, which runs
+# grub2-probe against the installroot during the kernel's %posttrans. There is
+# no /dev inside the installroot at that point, so it fails with "cannot find
+# a device for /" and takes the whole RPM transaction down with it - after all
+# 374 packages have already been written. Measured in the Proxmox test VM.
+#
+# systemd-udev asks for `(grubby > 8.40-72 if grubby)`, which is a rich
+# dependency meaning "this version OR BETTER, only if grubby is here at all".
+# It does not pull grubby in, so excluding it is safe.
+noboot=(-x grubby -x grub2-tools -x grub2-tools-minimal -x grub2-common -x os-prober)
+
 run dnf5 --installroot "$rootmnt" --releasever "$releasever" --use-host-config -y \
-    install "${basepacs[@]}"
+    "${noboot[@]}" install "${basepacs[@]}"
 
 # ONLY FOR HYPRLAND. Everything Plasma needs is in Fedora proper, so adding a
 # third-party repository to a Plasma machine would be taking on a maintenance
@@ -1586,7 +1613,7 @@ log "Installing hardware, desktop and app packages"
 # machine unable to load any firmware at all. One unwanted package is excluded
 # by name; the mechanism stays on.
 run dnf5 --installroot "$rootmnt" --releasever "$releasever" -y \
-    -x nwg-panel \
+    -x nwg-panel "${noboot[@]}" \
     install "${hwpacs[@]}" "${depacs[@]}" "${apppacs[@]}"
 
 ###############################################################################
@@ -1625,6 +1652,25 @@ log "Creating user $username"
 mount_chroot
 [[ -z "$user_password" ]] && die "user_password is empty - set a hash in the config block"
 run fchroot useradd -m -G wheel -s /bin/bash -p "$user_password" "$username"
+
+# THE GATE ON THE PUBLIC DEFAULT PASSWORD, and it differs per desktop because
+# the two log in by completely different routes.
+#
+# Hyprland: the password must NOT be expired. agetty --autologin runs
+# `login -f`, and PAM account management rejects an expired password on that
+# path rather than prompting - the machine then loops on getty and never
+# reaches a desktop. The gate there is in ~/.bash_profile instead, which
+# refuses to start the session until the password has been changed.
+#
+# Plasma: there is no autologin and no shell profile in the way, so the
+# profile gate would never run before the desktop starts. Expiring the
+# password is the mechanism that works, because SDDM logs in through PAM the
+# ordinary way and PAM asks for a new password. Without this, a Plasma machine
+# would ship with a password this repository publishes and nothing at all
+# forcing a change.
+if [[ "$desktop" == plasma ]]; then
+    run fchroot chage -d 0 "$username"
+fi
 
 # Expire the password immediately, so the first login MUST set a new one.
 #
@@ -2254,9 +2300,11 @@ fi
 target_uid=""
 [[ -r "$rootmnt/etc/passwd" ]] && \
     target_uid="$(awk -F: -v u="$username" '$1==u{print $3}' "$rootmnt/etc/passwd" 2>/dev/null || true)"
-check "user owns their config dir"     "[[ -n '$target_uid' && \$(stat -c %u '$rootmnt/home/$username/.config') == '$target_uid' ]]"
+[[ "$desktop" == hyprland ]] && \
+    check "user owns their config dir" "[[ -n '$target_uid' && \$(stat -c %u '$rootmnt/home/$username/.config') == '$target_uid' ]]"
 check "autorelabel scheduled"          "[[ -f '$rootmnt/.autorelabel' ]]"
-check "quickshell installed"           "[[ -x '$rootmnt/usr/bin/quickshell' ]]"
+[[ "$desktop" == hyprland ]] && \
+    check "quickshell installed"       "[[ -x '$rootmnt/usr/bin/quickshell' ]]"
 # The font download is the one step here that reaches the public internet at
 # install time and is allowed to fail without aborting, so it is the one most
 # likely to be silently absent. Its warning scrolls past; a FAIL in this
@@ -2272,7 +2320,10 @@ check "Symbols Nerd Font installed"    "[[ -f '$rootmnt/usr/local/share/fonts/ne
 # Without a serif, "serif" and Times New Roman resolve to a monospace font.
 check "serif + Liberation fonts installed" "[[ -f '$rootmnt/usr/share/fonts/google-noto-vf/NotoSerif[wght].ttf' && -f '$rootmnt/usr/share/fonts/liberation-serif-fonts/LiberationSerif-Regular.ttf' ]]"
 check "Qt WebP image plugin (wallpaper, picker)" "[[ -f '$rootmnt/usr/lib64/qt6/plugins/imageformats/libqwebp.so' ]]"
-check "no display manager"             "[[ ! -e '$rootmnt/etc/systemd/system/display-manager.service' ]]"
+# Only on the Hyprland side. Plasma's whole login story IS a display manager,
+# and "sddm enabled" above is the check that matters there.
+[[ "$desktop" == hyprland ]] && \
+    check "no display manager"         "[[ ! -e '$rootmnt/etc/systemd/system/display-manager.service' ]]"
 # nwg-panel declares Supplements: hyprland, so it installs itself unless
 # excluded by name. Asserted rather than assumed: a weak dependency that
 # arrives by reverse-dependency is invisible to every "what pulled this in"
@@ -2301,14 +2352,25 @@ if [[ "$browser" == chromium && -n "$dotfiles_repo" ]]; then
     check "chromium policy dir is root's"    "[[ \$(stat -c %u '$rootmnt/etc/chromium/policies/managed' 2>/dev/null) == 0 ]]"
     check "chromium theme watcher enabled"   "[[ -L '$rootmnt/etc/systemd/system/multi-user.target.wants/fd44-chromium-theme.path' ]]"
 fi
-check "uwsm start hook in profile"     "grep -q 'uwsm check may-start' '$rootmnt/home/$username/.bash_profile'"
-check "forced password change in profile" "grep -q 'password-changed' '$rootmnt/home/$username/.bash_profile'"
+if [[ "$desktop" == hyprland ]]; then
+    check "uwsm start hook in profile" "grep -q 'uwsm check may-start' '$rootmnt/home/$username/.bash_profile'"
+    check "forced password change in profile" "grep -q 'password-changed' '$rootmnt/home/$username/.bash_profile'"
+else
+    # Plasma has no shell profile to gate on, so the gate is the password
+    # itself - see the chage call next to useradd.
+    check "password expired (forces a change at first login)" "grep -q '^$username:[^:]*:0:' '$rootmnt/etc/shadow'"
+fi
 # The inverse of a check, and the important one: field 3 of the shadow entry
 # must NOT be 0. An expired password is rejected by PAM account management on
 # the `login -f` path that agetty --autologin uses, so the machine loops on
 # getty forever and never reaches a session. Guards against the expiry being
 # reintroduced as an apparently obvious hardening tweak.
-check "password NOT expired (breaks autologin)" "! grep -q '^$username:[^:]*:0:' '$rootmnt/etc/shadow'"
+[[ "$desktop" == hyprland ]] && \
+    check "password NOT expired (breaks autologin)" "! grep -q '^$username:[^:]*:0:' '$rootmnt/etc/shadow'"
+# The machine boots by BLS entries through systemd-boot. grub arriving as a
+# weak dependency is how it got in before, and its kernel-install plugin is
+# what broke the transaction, so this is worth asserting rather than assuming.
+check "no grub on the system"          "! fchroot rpm -q grub2-tools grubby >/dev/null 2>&1"
 check "plymouth in initrd"             "rpm --root='$rootmnt' -q plymouth >/dev/null 2>&1"
 check "rhgb on kernel cmdline"         "grep -q rhgb '$rootmnt/etc/kernel/cmdline'"
 check "browser installed"              "rpm --root='$rootmnt' -q '$browser' >/dev/null 2>&1"
