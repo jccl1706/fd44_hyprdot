@@ -103,7 +103,8 @@ sudo bin/chromium-policy-setup.sh            # --remove takes it out again
 
 The installer builds the whole machine: Btrfs + systemd-boot, optional LUKS,
 Hyprland, quickshell, autologin, Plymouth. It asks for a dotfiles git URL —
-give it this repo and the result is this desktop, not a generic one.
+give it this repo and the result is this desktop, not a generic one. It also
+offers KDE Plasma instead of Hyprland; see **Plasma instead** below.
 
 ```sh
 # from a Fedora Workstation live ISO
@@ -114,6 +115,51 @@ chmod +x install_fedora.sh
 sudo ./install_fedora.sh --dry-run  # print every command, change nothing
 sudo ./install_fedora.sh            # the real thing
 ```
+
+### Plasma instead
+
+The installer asks which desktop to build, and the two are alternatives — it
+never installs both.
+
+| | Hyprland | KDE Plasma |
+|---|---|---|
+| Login | autologin on tty1, **no display manager** | SDDM |
+| Terminal | kitty | konsole |
+| Installed | the desktop this repo is for | **~2 GB, 412 packages** |
+
+Plasma here is not the KDE suite. `plasma-desktop` and `plasma-workspace` with
+SDDM are already 333 packages and 1 GB on their own — Plasma is simply large —
+and what is added on top is the short list a laptop actually needs:
+
+- **plasma-nm, bluedevil, kscreen, plasma-pa** — wifi, bluetooth, displays,
+  volume. `plasma-systemsettings` is what makes them reachable as settings
+  pages rather than only as panel applets.
+- **breeze, breeze-gtk, breeze-icon-theme** — the GTK half is the compatibility
+  one: GTK applications otherwise ignore the theme and arrive in Adwaita.
+- **konsole, dolphin, kwrite, spectacle, okular, discover** —
+  and `xdg-desktop-portal-kde`, so file pickers and screen sharing work outside
+  KDE applications.
+
+Left out: `kde-apps`, `kdepim`, `kate`, `elisa`, `kmail`, `akonadi`. None of
+them is needed to log in and work.
+
+Two things arrive that nobody asked for, and both are worth knowing before they
+surprise you. **VLC** comes with the desktop: `phonon-qt6` needs a backend and
+`phonon-qt6-backend-vlc` is the only one Fedora 44 ships, so there is nothing
+to choose. And **Discover brings Flatpak** (~8 MB) as a backend, with no
+remotes configured — Flathub is a decision for whoever sits at the machine. It
+brings no PackageKit: Fedora's build talks to dnf and Flatpak directly, which
+is not what the same application does elsewhere.
+
+Every package name in **both** desktops is resolved by `--check-repos`, not
+only the one a given run would install — a name checked only on the machine
+that happens to pick that desktop is a name nobody checks.
+
+Choosing Plasma changes nothing about the Hyprland path: autologin, the uwsm
+hook in the shell profile and the session entry are all still written exactly
+as before, and the verification pass checks whichever desktop was built.
+
+---
 
 It finishes with a verification pass — boot entries, fstab, autologin, the
 font, the policy directory, the absence of packages that install themselves.
