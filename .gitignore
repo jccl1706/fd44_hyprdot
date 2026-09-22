@@ -26,3 +26,10 @@ kitty/theme.conf
 # hyprlock sources lands in the repo. The theme files it is generated FROM are
 # tracked; this is not.
 hyprlock-colors.conf
+
+# Scales chosen in the Display page of quickshell's settings. ~/.config/hypr is
+# a symlink into this checkout, so a file Hyprland requires by name lands in
+# the repo whether we like it or not - the same situation as kitty's generated
+# theme above. Per machine on purpose: the Framework's panel is 204 ppi and the
+# desktop's monitor is not, so a value committed here would be wrong somewhere.
+hypr/monitors_local.lua

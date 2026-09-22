@@ -234,3 +234,19 @@ hl.monitor({
 -- display is connected. Needs a matching lid handler - left off for now.
 --
 -- hl.monitor({ output = "eDP-1", disabled = true })
+
+-- Scales chosen in the Display page of quickshell's settings, if any have
+-- been. Written by quickshell/Monitors.qml, per machine, and not in git.
+--
+-- LAST, SO IT WINS. Hyprland applies monitor rules in order and the last one
+-- matching an output takes effect - the same rule the catch-all at the top of
+-- this file depends on. A scale picked in the settings therefore beats the
+-- hand-measured one above without either having to know about the other.
+--
+-- pcall because the file does not exist until something is chosen, and a
+-- missing require is a hard error that would take the whole config with it.
+--
+-- To keep a value permanently, move its hl.monitor block up into this file
+-- where it will be read by a person, and delete monitors_local.lua. The two
+-- panels above were measured that way and are better for it.
+pcall(require, "monitors_local")

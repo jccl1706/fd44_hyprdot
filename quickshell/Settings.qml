@@ -104,6 +104,16 @@ Singleton {
             ]
         },
         {
+            section: "Display",
+            icon: "\u{F0379}",                       // monitor
+            // Nothing to show on a machine hyprctl has not answered for yet,
+            // and nothing to choose on a panel that will not say how big it
+            // is - the same rule the rest of this schema follows: a control
+            // for hardware that is not here is worse than no control.
+            when: function() { return settings.displayRows.length > 0 },
+            rows: settings.displayRows
+        },
+        {
             section: "Notifications",
             icon: "\u{F009A}",                       // bell
             rows: [
@@ -145,6 +155,39 @@ Singleton {
             rows: settings.barRows
         }
     ]
+
+    // One scale row per attached screen.
+    //
+    // NAMED PRESETS AND NOT A NUMBER, which is the idea worth taking from
+    // omarchy-monitor-settings: nobody knows what 1.5666667 means, everybody
+    // knows whether the text is too small. Monitors.qml computes them from
+    // the panel's real pixel density - Hyprland reports its physical size in
+    // millimetres - so "Standard" reproduces what hypr/monitors.lua measured
+    // by hand for the two panels it knows, and works out the same answer for
+    // a panel nobody has measured.
+    //
+    // The label under each row names the screen, because on a docked machine
+    // "Scale" three times over says nothing about which is which.
+    readonly property var displayRows: {
+        const out = []
+        for (const monitor of Monitors.list) {
+            if (!monitor.options.length) continue
+            out.push({
+                label: monitor.description,
+                type: "select",
+                help: monitor.width + "x" + monitor.height + " on a "
+                      + monitor.inches.toFixed(1) + "\" panel, "
+                      + Math.round(monitor.ppi) + " ppi. Now "
+                      + (Monitors.currentDetail(monitor) || "a scale with no preset")
+                      + ". Applies at once, and is remembered in "
+                      + "hypr/monitors_local.lua, which monitors.lua reads last",
+                options: monitor.options,
+                get: function() { return Monitors.currentOption(monitor) },
+                set: function(v) { Monitors.setScale(monitor, v) }
+            })
+        }
+        return out
+    }
 
     // One switch per bar plugin, then the reset.
     //
