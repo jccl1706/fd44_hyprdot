@@ -1297,7 +1297,15 @@ if [[ "$encrypt" == yes ]]; then
         echo "  It is not recoverable if you lose it."
         echo
     } >/dev/tty 2>/dev/null || true
-    run cryptsetup luksFormat --type luks2 --batch-mode --label "$luks_label" "$cryptpart"
+    # --verify-passphrase, because --batch-mode ALONE ASKS ONLY ONCE. The
+    # message above promises twice, and cryptsetup's -q suppresses exactly that
+    # verification prompt along with the "are you sure" confirmation the
+    # installer has already handled with its own countdown. A passphrase typed
+    # once, wrong, on a disk that is being formatted around it, is a machine
+    # that never opens again. -q keeps the confirmation suppressed; -y puts the
+    # second prompt back.
+    run cryptsetup luksFormat --type luks2 --batch-mode --verify-passphrase \
+        --label "$luks_label" "$cryptpart"
     run cryptsetup open "$cryptpart" "$mapper_name"
     run udevadm settle
 
