@@ -75,6 +75,32 @@ hl.window_rule({
     float     = true,
 })
 
+-- The Battle.net launcher floats.
+--
+-- It is a launcher, not a game: a fixed-size storefront window that has no
+-- business taking half a tiled workspace, and that you open, click once and
+-- leave. Steam's own client is floated a few rules up for the same reason.
+--
+-- MATCHED ON CLASS AND TITLE TOGETHER, and both halves are load-bearing.
+-- Steam gives a non-Steam shortcut the class `steam_app_<appid>`, where the
+-- appid is derived from the exe path and the shortcut's name - so it differs
+-- per machine, and keying on it alone would be a rule that works here and
+-- nowhere else. The title is what identifies the launcher across machines.
+--
+-- This is the exception to "do not key anything on a game's title" a few
+-- rules below: that warning is about games, one of which pads its title with
+-- zero-width characters to defeat overlays. A launcher's title is a stable
+-- string, and pairing it with the class keeps a game from ever matching.
+--
+-- Measured against the running launcher on the gaming desktop:
+-- class `steam_app_3062427963`, title `Battle.net`, on XWayland.
+hl.window_rule({
+    name  = "battlenet-float",
+    match = { class = "^steam_app_\\d+$", title = "^Battle\\.net$" },
+
+    float = true,
+})
+
 -- Do not lock the screen in the middle of a game.
 --
 -- hypridle locks at 5:00 of idle, and "idle" means no input device activity.
