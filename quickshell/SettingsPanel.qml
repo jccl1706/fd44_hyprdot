@@ -253,15 +253,29 @@ PanelWindow {
 
         // --- search -------------------------------------------------------
 
-        Item {
+        // A FIELD, not a line of text with a magnifier next to it. It is the
+        // only thing on the page you type into, and nothing said so.
+        //
+        // LINED UP WITH THE CARD BELOW IT. It used to be anchored to the pane,
+        // which was the same thing until the content column got clamped - and
+        // then on the desktop the search sat eighty pixels left of the rows it
+        // searches. Everything in this column now takes the same x and width.
+        Rectangle {
             id: searchRow
-            anchors { top: parent.top; left: sidebar.right; right: parent.right
-                      topMargin: 14; leftMargin: 18; rightMargin: 18 }
+            anchors { top: parent.top; topMargin: 14 }
+            x: card.contentX
+            width: card.contentWidth
             height: 34
+            radius: 9
+            color: Theme.bg
+            border.width: 1
+            border.color: searchField.activeFocus ? Theme.accent : Theme.outline
+            Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
 
             Text {
                 id: mag
-                anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                anchors { left: parent.left; leftMargin: 10
+                          verticalCenter: parent.verticalCenter }
                 text: "\u{F0349}"
                 font.family: Theme.glyphFont
                 font.pixelSize: 14
@@ -271,7 +285,8 @@ PanelWindow {
             TextInput {
                 font.family: Theme.font
                 id: searchField
-                anchors { left: mag.right; leftMargin: 8; right: parent.right
+                anchors { left: mag.right; leftMargin: 8
+                          right: parent.right; rightMargin: 10
                           verticalCenter: parent.verticalCenter }
                 color: Theme.fg
                 font.pixelSize: 13
@@ -331,19 +346,40 @@ PanelWindow {
             anchors { top: pageTitle.bottom; bottom: parent.bottom
                       topMargin: 10; bottomMargin: 16 }
             x: card.contentX
-            width: card.contentWidth
+            // A GUTTER FOR THE SCROLLBAR, always, not only when it is showing.
+            // An attached ScrollBar draws at the flickable's right edge, which
+            // put the handle on top of the card's border; reserving the strip
+            // only when scrolling is possible would make every row twitch
+            // sideways the moment a page grew long enough.
+            width: card.contentWidth + 12
             clip: true
             // NO GAP BETWEEN ROWS. They are one card with hairlines between
             // them; a spacing here would break it back into separate tiles.
             spacing: 0
             model: root.visibleRows
 
-            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+            // The stock control is styled for a light desktop and looks it.
+            // This is the same thin handle the rest of the shell uses: visible
+            // while it matters, and not a piece of furniture when it does not.
+            ScrollBar.vertical: ScrollBar {
+                id: paneScroll
+                policy: ScrollBar.AsNeeded
+                width: 10
+                background: null
+                contentItem: Rectangle {
+                    implicitWidth: 5
+                    radius: 3
+                    color: Theme.dim
+                    opacity: paneScroll.pressed ? 0.75
+                           : (paneScroll.hovered ? 0.55 : 0.3)
+                    Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+                }
+            }
 
             delegate: SettingsRow {
                 required property var modelData
                 required property int index
-                width: pane.width
+                width: card.contentWidth
                 row: modelData.row
                 fromSection: modelData.from
                 first: index === 0
