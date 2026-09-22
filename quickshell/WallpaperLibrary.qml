@@ -115,6 +115,55 @@ Singleton {
         return a !== "" && a === library.stemOf(WallpaperState.path)
     }
 
+    // A filename dressed up as a caption: drop the extension, turn the
+    // separators into spaces and title-case it, so "catppuccin-blue-eye" reads
+    // as "Catppuccin Blue Eye". The files are named for sorting; this is the
+    // only form a person is shown.
+    //
+    // HERE RATHER THAN IN THE PICKER, which is where it was written, because
+    // the settings page now names the current wallpaper too and two copies of
+    // this would drift.
+    function caption(nameOrPath): string {
+        const base = String(nameOrPath || "").split("/").pop()
+        if (!base) return ""
+        return base.replace(/\.[^.]+$/, "")
+                   .replace(/[-_]+/g, " ")
+                   .replace(/\b\w/g, c => c.toUpperCase())
+    }
+
+    readonly property string currentCaption: library.caption(WallpaperState.path)
+
+    // Where the wallpaper in use sits in the list, or 0 if it is not in it.
+    function indexOfCurrent(): int {
+        for (let i = 0; i < library.files.count; i++)
+            if (library.isCurrent(library.files.get(i, "fileUrl"))) return i
+        return 0
+    }
+
+    // A window of `count` wallpapers centred on the one in use.
+    //
+    // THE SETTINGS PAGE SHOWS A FEW, NOT ALL OF THEM. There are 63; a grid of
+    // them turned the Appearance page into a wall of thumbnails with no end in
+    // sight, and the job there is seeing which one is set and stepping to a
+    // neighbour. Browsing the whole set is what the full-screen picker is for,
+    // where one wallpaper is shown at a time and large.
+    //
+    // The window slides rather than centring blindly, so the strip is full at
+    // both ends of the list instead of showing three tiles and a gap.
+    function nearby(count: int): var {
+        const total = library.files.count
+        if (total === 0) return []
+        const span = Math.min(count, total)
+        let start = library.indexOfCurrent() - Math.floor(span / 2)
+        if (start < 0) start = 0
+        if (start + span > total) start = total - span
+        const out = []
+        for (let i = start; i < start + span; i++)
+            out.push({ url: library.files.get(i, "fileUrl"),
+                       name: library.files.get(i, "fileName") })
+        return out
+    }
+
     // Show it now and remember it.
     function choose(previewUrl): void {
         const full = library.originalFor(previewUrl)

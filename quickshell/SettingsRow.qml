@@ -135,7 +135,10 @@ Item {
                 id: control
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                 sourceComponent: {
-                    if (settingRow.wide) return null
+                    // A wide row has its control underneath, but it may still
+                    // want a button beside the label - the wallpaper strip
+                    // does, to open the full-screen picker.
+                    if (settingRow.wide) return settingRow.row.run ? actionButton : null
                     switch (settingRow.row.type) {
                         case "action":  return actionButton
                         case "toggle":  return toggleSwitch
@@ -151,93 +154,83 @@ Item {
             width: body.width
             active: settingRow.wide || (settingRow.isMenu && settingRow.expanded)
             visible: active
-            sourceComponent: settingRow.wide ? wallpaperGrid : menuList
+            sourceComponent: settingRow.wide ? wallpaperStrip : menuList
         }
     }
 
     // --- controls ---------------------------------------------------------
 
-    // FOUR ACROSS, and scrolling for the rest. WallpaperPicker deliberately
-    // does NOT do this - its comment argues a grid "shows eleven thumbnails at
-    // once and asks you to judge them at postage-stamp size" - and that is
-    // still the right call for a full-screen picker, where one wallpaper shown
-    // large is worth more than sixteen shown small. This is the other job:
-    // seeing at a glance WHICH ONE IS SET, and changing it without leaving
-    // settings. At four across in this pane a tile is ~190px, which is a good
-    // deal larger than a postage stamp, and the strip is still one key away.
+    // A FEW, NOT ALL OF THEM. This was a scrolling grid of every wallpaper -
+    // sixteen visible out of sixty-three - which made the Appearance page a
+    // wall of thumbnails with no end in sight, on a page that is otherwise two
+    // rows. WallpaperPicker's own comment had the argument already: a grid
+    // "shows eleven thumbnails at once and asks you to judge them at
+    // postage-stamp size".
+    //
+    // So this shows the one in use and its neighbours, and the button beside
+    // the label opens the full-screen picker for everything else. Stepping to
+    // a near one stays a single click, browsing happens where the pictures are
+    // shown large, and the page has a definite end.
     Component {
-        id: wallpaperGrid
+        id: wallpaperStrip
         Item {
-            implicitHeight: grid.cellHeight * 4 + 8
+            readonly property var shown: WallpaperLibrary.nearby(6)
+            readonly property int gap: 6
+            readonly property real tileWidth:
+                shown.length ? (width - gap * (shown.length - 1)) / shown.length : 0
 
-            GridView {
-                id: grid
-                anchors.fill: parent
-                anchors.topMargin: 8
-                clip: true
-                cellWidth: Math.floor(width / 4)
-                // 16:9, plus the gap that makes the tiles read as separate.
-                cellHeight: Math.round(cellWidth * 9 / 16) + 8
-                model: WallpaperLibrary.files
-                boundsBehavior: Flickable.StopAtBounds
+            implicitHeight: Math.round(tileWidth * 9 / 16) + 4
 
-                // Previews may still have been generating when the shell
-                // started, in which case the model is pointed at the
-                // full-size originals. Asking again when the page is opened
-                // costs one process and fixes the rest of the session.
-                Component.onCompleted: WallpaperLibrary.rescan()
-
-                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-
-                delegate: Item {
-                    id: tile
-                    required property url fileUrl
-                    required property string fileName
-                    width: grid.cellWidth
-                    height: grid.cellHeight
-
-                    readonly property bool current: WallpaperLibrary.isCurrent(tile.fileUrl)
-
+            Row {
+                spacing: parent.gap
+                Repeater {
+                    model: parent.parent.shown
                     Rectangle {
-                        anchors.fill: parent
-                        anchors.margins: 4
+                        required property var modelData
+                        readonly property bool current: WallpaperLibrary.isCurrent(modelData.url)
+
+                        width: Math.floor(parent.parent.tileWidth)
+                        height: Math.round(width * 9 / 16)
                         radius: 6
                         color: Theme.surfaceHigh
                         clip: true
 
                         Image {
                             anchors.fill: parent
-                            source: tile.fileUrl
+                            source: modelData.url
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
-                            // The tile is ~190px wide; decoding a 960px
-                            // preview to fill it wastes most of the pixels.
-                            sourceSize.width: 400
+                            // A tile here is ~130px; decoding a 960px preview
+                            // to fill it would waste most of the pixels.
+                            sourceSize.width: 320
                         }
 
-                        // The one in use, and the one under the pointer. The
-                        // ring is drawn OVER the image rather than around the
-                        // tile so it cannot change the layout as it appears.
+                        // The one in use, and the one under the pointer.
                         Rectangle {
                             anchors.fill: parent
-                            radius: 6
+                            radius: parent.radius
                             color: "transparent"
-                            border.width: tile.current ? 3 : (tileMa.containsMouse ? 2 : 0)
-                            border.color: tile.current ? Theme.accent : Theme.fg
-                            opacity: tile.current ? 1 : 0.7
+                            border.width: parent.current ? 3 : (hover.containsMouse ? 2 : 0)
+                            border.color: parent.current ? Theme.accent : Theme.fg
                             Behavior on border.width { NumberAnimation { duration: Theme.animFast } }
                         }
 
                         MouseArea {
-                            id: tileMa
+                            id: hover
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: WallpaperLibrary.choose(tile.fileUrl)
+                            onClicked: WallpaperLibrary.choose(parent.modelData.url)
                         }
                     }
                 }
             }
+
+            // Previews may still have been generating when the shell started,
+            // in which case the model points at the full-size originals.
+            // Asking again when the page is opened costs one process and fixes
+            // the rest of the session.
+            Component.onCompleted: WallpaperLibrary.rescan()
         }
     }
 
@@ -255,8 +248,10 @@ Item {
                 id: txt
                 anchors.centerIn: parent
                 // The label IS the verb for an action, so the button says
-                // something shorter rather than repeating it.
-                text: "Run"
+                // something shorter rather than repeating it - unless the row
+                // gives it words of its own, which a row whose label is a
+                // noun needs.
+                text: settingRow.row.runLabel || "Run"
                 color: Theme.fg
                 font.pixelSize: 12
             }

@@ -421,13 +421,9 @@ PanelWindow {
         // separators into spaces and title-case it, so "catppuccin-blue-eye"
         // reads as "Catppuccin Blue Eye". The files are named for sorting;
         // this is the only place a human looks at them.
-        text: {
-            if (WallpaperLibrary.files.count === 0) return "No images in wallpapers/"
-            const raw = String(WallpaperLibrary.files.get(root.selected, "fileName") || "")
-            return raw.replace(/\.[^.]+$/, "")
-                      .replace(/[-_]+/g, " ")
-                      .replace(/\b\w/g, c => c.toUpperCase())
-        }
+        text: WallpaperLibrary.files.count === 0
+            ? "No images in wallpapers/"
+            : WallpaperLibrary.caption(WallpaperLibrary.files.get(root.selected, "fileName"))
 
         font.family: Theme.font
         // Light, at display size. A caption sitting on a photograph wants to

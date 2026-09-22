@@ -88,6 +88,12 @@ Singleton {
     //
     // `help` is shown under the label rather than in a tooltip: a setting whose
     // effect you have to hover to learn is a setting you will not touch.
+    // Asked for by the Wallpaper row, answered by shell.qml, which owns the
+    // surfaces. DECLARED HERE, which is the part that was missing before: a
+    // Connections handler for a signal nobody declares is silently dead, and
+    // that is exactly how the old "choose a wallpaper" button did nothing.
+    signal requestWallpaperPicker()
+
     readonly property var schema: [
         {
             section: "Appearance",
@@ -100,7 +106,15 @@ Singleton {
                   options: [ { value: "dark", label: "Dark" },
                              { value: "cream", label: "Cream" } ] },
                 { label: "Wallpaper", type: "wallpapers",
-                  help: "click one to set it; the ring marks the one in use · SUPER+, opens the full-screen picker" }
+                  help: WallpaperLibrary.files.count === 0
+                      ? "nothing in wallpapers/"
+                      : (WallpaperLibrary.currentCaption || "none set")
+                        + " · " + WallpaperLibrary.files.count + " available"
+                          + " · click a neighbour to step to it",
+                  // A wide row with an action: the strip goes underneath, the
+                  // button sits where every other row's control sits.
+                  run: function() { settings.requestWallpaperPicker() },
+                  runLabel: "Browse…" }
             ]
         },
         {
