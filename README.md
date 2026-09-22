@@ -160,19 +160,21 @@ swap partition, which a 40G test disk cannot spare.
 
 ### On a machine the installer did not build
 
-`~/.config/hypr`, `~/.config/quickshell`, `~/.config/kitty` and
-`~/.config/wireplumber` are **symlinks** into this checkout, so edits are live
-and there is nothing to keep in sync.
+`~/.config/hypr`, `~/.config/quickshell`, `~/.config/kitty` and the rest are
+**symlinks** into this checkout, so edits are live and there is nothing to keep
+in sync. `bin/link-dotfiles.sh` makes all of them and is safe to re-run: a link
+that is already right is left alone, one pointing elsewhere is repointed, and a
+real file or directory in the way is reported rather than replaced.
 
 ```sh
 git clone https://github.com/jccl1706/fd44_hyprdot ~/Work/fd44_hyprdot
 cd ~/Work/fd44_hyprdot
 
-for d in hypr quickshell kitty wireplumber; do ln -s "$PWD/$d" ~/.config/$d; done
-systemctl --user restart wireplumber   # picks up wireplumber/ rules
+bin/link-dotfiles.sh --dry-run   # what it would link
+bin/link-dotfiles.sh             # hypr, quickshell, kitty, tmux, starship,
+                                 # wireplumber, and the ones this machine wants
 
-mkdir -p ~/.config/systemd/user
-ln -s "$PWD/systemd/power-mode.service" ~/.config/systemd/user/
+systemctl --user restart wireplumber   # picks up wireplumber/ rules
 systemctl --user daemon-reload && systemctl --user enable --now power-mode.service
 
 sudo dnf install rsms-inter-vf-fonts jetbrains-mono-fonts google-noto-serif-vf-fonts \
@@ -245,7 +247,8 @@ quickshell/      the shell itself, QML
 themes/          dark.conf, cream.conf — one file per palette
 fonts/           Symbols Nerd Font, vendored (MIT)
 wallpapers/      resized, webp
-bin/             theme.sh · wallpaper.sh · power-mode.sh · idle-action.sh · icon-theme.sh
+bin/             link-dotfiles.sh — point ~/.config at this checkout; run it after a reinstall
+                 theme.sh · wallpaper.sh · power-mode.sh · idle-action.sh · icon-theme.sh
                  qs-restart.sh — restart quickshell safely (one instance, verified)
                  lock-at-login.sh — locks at login unless the disk is encrypted
                  ssh-keys-only.sh — sshd accepts keys only (opt-in, for hand-enabled sshd)
@@ -344,7 +347,7 @@ other over ssh:
 
 ```sh
 sudo dnf install tmux
-ln -s "$PWD/tmux" ~/.config/tmux     # once per machine, from the checkout
+bin/link-dotfiles.sh                 # links ~/.config/tmux among the rest
 
 tmux new -s claude                    # on the laptop
 ssh laptop -t tmux attach -t claude   # from the desktop; Ctrl+B then D detaches
