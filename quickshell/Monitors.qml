@@ -58,6 +58,35 @@ Singleton {
     readonly property int minBelievablePpi: 80
     readonly property int maxBelievablePpi: 400
 
+    // What to call each screen, where "BOE 0x0BCA" is not an answer.
+    //
+    // That string is the panel's EDID identity - maker and model code - and it
+    // is the right thing for hypr/monitors.lua to match on, because it follows
+    // the panel rather than the connector. It is the wrong thing to read in a
+    // settings window. These are the same screens that file names in its own
+    // comments; this puts those names on screen instead of leaving them in
+    // the source.
+    //
+    // KEYED ON THE DESCRIPTION, NOT THE HOSTNAME, for the reason monitors.lua
+    // gives for doing the same: neither machine needs to know the other
+    // exists, and a panel moved between them keeps its name.
+    //
+    // Anything not listed keeps whatever Hyprland calls it, which for an
+    // ordinary monitor is usually already a maker and a model somebody can
+    // read. An unlisted internal panel becomes "Built-in display" - true on
+    // any laptop, and better than a hex code.
+    readonly property var friendlyNames: ({
+        "BOE 0x0BCA":                       "Framework display",
+        "AU Optronics 0x213D":              "ThinkPad display",
+        "LG Electronics LG TV SSCR2":       "Living-room TV",
+        "The Linux Foundation fd44 stream": "Streaming dummy"
+    })
+
+    function prettyName(description: string, internal: bool): string {
+        return monitors.friendlyNames[description]
+            || (internal ? "Built-in display" : description)
+    }
+
     // --- reading ----------------------------------------------------------
 
     function refresh(): void {
@@ -94,9 +123,14 @@ Singleton {
         const ppi = inches > 0
             ? Math.sqrt(m.width * m.width + m.height * m.height) / inches
             : 0
+        const description = m.description || m.name
+        const internal = /^eDP/i.test(m.name)
         return {
             name: m.name,
-            description: m.description || m.name,
+            description: description,
+            // What the row is labelled. `description` stays as it is, because
+            // it is what the generated rule has to match on.
+            title: monitors.prettyName(description, internal),
             width: m.width,
             height: m.height,
             scale: m.scale,
@@ -104,7 +138,7 @@ Singleton {
             inches: inches,
             // eDP is an internal panel by definition - the same test
             // hypr/monitors.lua uses to decide placement.
-            internal: /^eDP/i.test(m.name),
+            internal: internal,
             options: ppi > 0 ? monitors.presetsFor(m, ppi, m.scale) : []
         }
     }

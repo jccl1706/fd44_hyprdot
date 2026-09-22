@@ -173,9 +173,9 @@ Singleton {
         for (const monitor of Monitors.list) {
             if (!monitor.options.length) continue
             out.push({
-                label: monitor.description,
+                label: monitor.title,
                 type: "select",
-                help: monitor.width + "x" + monitor.height + " on a "
+                help: monitor.description + ", " + monitor.width + "x" + monitor.height + " on a "
                       + monitor.inches.toFixed(1) + "\" panel, "
                       + Math.round(monitor.ppi) + " ppi. Now "
                       + (Monitors.currentDetail(monitor) || "a scale with no preset")
