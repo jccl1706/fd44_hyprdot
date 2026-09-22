@@ -174,7 +174,12 @@ Item {
     Component {
         id: wallpaperStrip
         Item {
-            readonly property var shown: WallpaperLibrary.nearby(6)
+            // Four. Six fitted, but each tile is then narrow enough that a
+            // wallpaper is a smear of colour rather than a picture, which is
+            // the failing this row was replacing rather than one to repeat at
+            // a smaller scale.
+            readonly property int howMany: 4
+            readonly property var shown: WallpaperLibrary.nearby(howMany)
             readonly property int gap: 6
             readonly property real tileWidth:
                 shown.length ? (width - gap * (shown.length - 1)) / shown.length : 0
