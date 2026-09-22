@@ -822,6 +822,18 @@ basepacs=(
 [[ -n "$zram_size" ]] && basepacs+=(zram-generator-defaults)
 
 hwpacs=(
+    # CHECK THIS ONE ON ANY NEW MACHINE. Fedora 44 split the iwlwifi blobs out
+    # of linux-firmware, and each op_mode is now its own package that nothing
+    # pulls in for you: `mvm` drives the AX200/AX210 generation (what this
+    # Framework 13 has), `mld` the BE200/BE201 Wi-Fi 7 cards now shipping in
+    # current laptops, `dvm` the old pre-AC ones. Install the wrong one and the
+    # card never binds a driver - "no suitable firmware found!" in dmesg, no
+    # Wi-Fi at all, on a machine you are installing over the network.
+    #
+    # From the live ISO, before running this:
+    #     lspci -nn | grep -i network        # which card
+    #     dmesg | grep -i iwlwifi            # which op_mode it asked for
+    # then swap the line below to match. Harmless to list more than one.
     iwlwifi-mvm-firmware
     alsa-sof-firmware alsa-utils
     pipewire pipewire-alsa pipewire-pulseaudio pipewire-jack-audio-connection-kit wireplumber
