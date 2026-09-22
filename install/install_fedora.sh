@@ -974,13 +974,13 @@ depacs=(
 #
 # NOT THE KDE SUITE. `plasma-desktop` plus `plasma-workspace` and SDDM is 333
 # packages and 1 GB on its own - Plasma is simply large - and everything below
-# adds about 60 more for 2 GB in total. Measured with `dnf install --assumeno`
-# on Fedora 44 before any of this was written; the number is here so the next
-# person does not have to.
+# brings it to 412 packages and 2 GB. Measured with `dnf install --assumeno`
+# on Fedora 44 before any of this was written; the numbers are here so the
+# next person does not have to.
 #
-# WHAT IS DELIBERATELY NOT IN IT: kde-apps, kdepim, discover, kate (kwrite is
-# the same editor without the project pieces), elisa, kmail, akonadi. Those are
-# what "the full KDE" means and none of them is needed to log in and work.
+# WHAT IS DELIBERATELY NOT IN IT: kde-apps, kdepim, kate (kwrite is the same
+# editor without the project pieces), elisa, kmail, akonadi. Those are what
+# "the full KDE" means and none of them is needed to log in and work.
 #
 # The four modules are the ones a laptop cannot do without: plasma-nm puts
 # wifi in the panel, bluedevil does bluetooth, kscreen handles displays, and
@@ -1010,6 +1010,15 @@ plasmapacs=(
 
     # the applications asked for
     konsole dolphin kwrite spectacle okular
+
+    # The software centre. Eighteen packages and 6 MB on top of the desktop
+    # above, because nearly everything it needs is already there - measured,
+    # not assumed, since discover on its own is 126 packages.
+    #
+    # NO PackageKit: Fedora's build talks to dnf and to Flatpak directly. It
+    # does bring flatpak itself (8 MB), with no remotes configured - Flathub
+    # is a decision for whoever sits at the machine, not for an installer.
+    plasma-discover
 )
 [[ "$desktop" == plasma ]] && depacs=("${plasmapacs[@]}")
 
