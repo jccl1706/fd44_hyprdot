@@ -193,6 +193,7 @@ PanelWindow {
                 spacing: 2
 
                 Text {
+                    font.family: Theme.font
                     text: "Settings"
                     color: Theme.fg
                     font.pixelSize: 15
@@ -225,6 +226,7 @@ PanelWindow {
                                 anchors.verticalCenter: parent.verticalCenter
                             }
                             Text {
+                                font.family: Theme.font
                                 text: modelData.section
                                 font.pixelSize: 13
                                 color: parent.parent.active ? Theme.bg : Theme.fg
@@ -267,6 +269,7 @@ PanelWindow {
             }
 
             TextInput {
+                font.family: Theme.font
                 id: searchField
                 anchors { left: mag.right; leftMargin: 8; right: parent.right
                           verticalCenter: parent.verticalCenter }
@@ -283,6 +286,10 @@ PanelWindow {
                     verticalAlignment: Text.AlignVCenter
                     visible: searchField.text === ""
                     text: "Search settings"
+                    // Takes the whole font group from the field, which is
+                    // where the family is set - a font.family beside this is
+                    // a second assignment to the same property and refuses to
+                    // load.
                     font: searchField.font
                     color: Theme.dim
                 }
@@ -305,6 +312,7 @@ PanelWindow {
         // that starts with a heading reads as a page, and one that starts
         // with a control reads as a list someone forgot to label.
         Text {
+            font.family: Theme.font
             id: pageTitle
             // Lined up with the card below it rather than with the pane, or
             // it floats off to the left on a wide screen.
@@ -349,6 +357,7 @@ PanelWindow {
             // An empty result is worth saying out loud rather than leaving a
             // blank pane that looks broken.
             Text {
+                font.family: Theme.font
                 anchors.centerIn: parent
                 visible: pane.count === 0
                 text: root.query === "" ? "Nothing to configure here"

@@ -97,6 +97,7 @@ Item {
         // When searching, say which section a hit came from - otherwise a
         // result list of bare labels gives no sense of where you are.
         Text {
+            font.family: Theme.font
             visible: settingRow.fromSection !== ""
             text: settingRow.fromSection
             color: Theme.dim
@@ -115,6 +116,7 @@ Item {
                           verticalCenter: parent.verticalCenter }
                 spacing: 2
                 Text {
+                    font.family: Theme.font
                     text: settingRow.row.label || ""
                     color: Theme.fg
                     font.pixelSize: 13
@@ -122,6 +124,7 @@ Item {
                     elide: Text.ElideRight
                 }
                 Text {
+                    font.family: Theme.font
                     visible: !!settingRow.row.help
                     text: settingRow.row.help || ""
                     color: Theme.dim
@@ -250,6 +253,7 @@ Item {
             border.color: Theme.outline
             Behavior on color { ColorAnimation { duration: Theme.animFast } }
             Text {
+                font.family: Theme.font
                 id: txt
                 anchors.centerIn: parent
                 // The label IS the verb for an action, so the button says
@@ -309,6 +313,7 @@ Item {
                     border.color: on ? Theme.accent : Theme.outline
                     Behavior on color { ColorAnimation { duration: Theme.animFast } }
                     Text {
+                        font.family: Theme.font
                         id: t
                         anchors.centerIn: parent
                         text: modelData.label
@@ -347,6 +352,7 @@ Item {
                 onPressedChanged: if (!pressed) settingRow.commit(value)
             }
             Text {
+                font.family: Theme.font
                 anchors.verticalCenter: parent.verticalCenter
                 width: 46
                 horizontalAlignment: Text.AlignRight
@@ -375,6 +381,7 @@ Item {
             border.color: settingRow.expanded ? Theme.accent : Theme.outline
             Behavior on color { ColorAnimation { duration: Theme.animFast } }
             Text {
+                font.family: Theme.font
                 id: label
                 anchors { left: parent.left; leftMargin: 11; verticalCenter: parent.verticalCenter }
                 // An option that is not in the list is still worth naming -
@@ -384,6 +391,7 @@ Item {
                 font.pixelSize: 12
             }
             Text {
+                font.family: Theme.font
                 anchors { right: parent.right; rightMargin: 9; verticalCenter: parent.verticalCenter }
                 text: settingRow.expanded ? "\u25B4" : "\u25BE"
                 color: Theme.dim
@@ -420,6 +428,7 @@ Item {
                     border.color: on ? Theme.accent : Theme.outline
                     Behavior on color { ColorAnimation { duration: Theme.animFast } }
                     Text {
+                        font.family: Theme.font
                         id: item
                         anchors.centerIn: parent
                         text: modelData.label
