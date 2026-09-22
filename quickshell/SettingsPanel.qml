@@ -38,7 +38,23 @@ PanelWindow {
     // is what makes search worth having in a panel with a sidebar.
     property string query: ""
 
-    readonly property int cardWidth:  Math.min(980, root.width - 120)
+    // THE WINDOW GROWS WITH THE SCREEN, THE TEXT DOES NOT.
+    //
+    // 980 was a fixed width, which is about two thirds of both laptops - they
+    // are 1440 and 1536 logical pixels wide - and only 38% of the desktop's
+    // 2560 at scale 1, where it read as a small floating dialog rather than a
+    // settings window. The floor keeps both laptops exactly as they were; the
+    // ceiling stops it swallowing an ultrawide.
+    readonly property int cardWidth: Math.min(root.width - 120,
+                                              Math.min(1280, Math.max(980, root.width * 0.55)))
+
+    // ...and the rows inside are clamped separately, because a window that is
+    // wider is not an invitation to set a subtitle across 1100 pixels. This is
+    // the same split libadwaita makes between the window and its content
+    // column. 860 is above what either laptop can give a row today, so this
+    // only ever widens a page - the wallpaper grid included, which gains
+    // thumbnails on the desktop rather than losing them.
+    readonly property int rowMaxWidth: 860
     // 690, NOT 600, and the wallpaper grid is why. Four rows of thumbnails at
     // this card's width come to ~476px, and with the search bar, the theme row
     // and the grid's own label above them the old 600 clipped the fourth row
@@ -46,7 +62,8 @@ PanelWindow {
     // across and four down" is the point of it and it only showed three and a
     // bit. The other pages simply have more empty space below their rows,
     // which they already did.
-    readonly property int cardHeight: Math.min(690, root.height - 120)
+    readonly property int cardHeight: Math.min(root.height - 120,
+                                               Math.min(900, Math.max(690, root.height * 0.62)))
 
     anchors { top: true; bottom: true; left: true; right: true }
     exclusionMode: ExclusionMode.Ignore
@@ -278,8 +295,11 @@ PanelWindow {
         // with a control reads as a list someone forgot to label.
         Text {
             id: pageTitle
-            anchors { top: divider.bottom; left: sidebar.right; right: parent.right
-                      topMargin: 14; leftMargin: 18; rightMargin: 18 }
+            // Lined up with the card below it rather than with the pane, or
+            // it floats off to the left on a wide screen.
+            anchors { top: divider.bottom; topMargin: 14 }
+            x: pane.x + (pane.width - Math.min(pane.width, root.rowMaxWidth)) / 2
+            width: Math.min(pane.width, root.rowMaxWidth)
             text: root.query !== "" ? "Results"
                 : (root.sections[root.section] ? root.sections[root.section].section : "")
             color: Theme.fg
@@ -303,7 +323,9 @@ PanelWindow {
             delegate: SettingsRow {
                 required property var modelData
                 required property int index
-                width: pane.width
+                // Clamped, and centred in whatever is left over.
+                width: Math.min(pane.width, root.rowMaxWidth)
+                x: (pane.width - width) / 2
                 row: modelData.row
                 fromSection: modelData.from
                 first: index === 0
