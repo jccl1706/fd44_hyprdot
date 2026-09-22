@@ -67,15 +67,23 @@ PanelWindow {
     // is what makes search worth having in a panel with a sidebar.
     property string query: ""
 
-    // THE WINDOW GROWS WITH THE SCREEN, THE TEXT DOES NOT.
+    readonly property int sidebarWidth: 190
+
+    // AS WIDE AS ITS CONTENTS NEED, and no wider.
     //
-    // 980 was a fixed width, which is about two thirds of both laptops - they
-    // are 1440 and 1536 logical pixels wide - and only 38% of the desktop's
-    // 2560 at scale 1, where it read as a small floating dialog rather than a
-    // settings window. The floor keeps both laptops exactly as they were; the
-    // ceiling stops it swallowing an ultrawide.
+    // This was a share of the screen - 55%, capped at 1280 - which fought the
+    // clamp below it. On the desktop the card grew to 1280 while the rows
+    // stopped at 860, so 230 pixels of card had nothing in it and the page sat
+    // between two 115-pixel gutters. The laptops never showed it, because
+    // their screens are narrow enough that the clamp never engages there.
+    //
+    // Deriving the width from the column it has to hold settles it: one number
+    // decides how wide a row may be, and the window is that plus the sidebar
+    // and its margins. Every machine gets the same 860-pixel column and the
+    // same 18-pixel gutters, and the desktop still ends up with a bigger
+    // window than the 980 it had before all this.
     readonly property int cardWidth: Math.min(root.width - 120,
-                                              Math.min(1280, Math.max(980, root.width * 0.55)))
+                                              root.sidebarWidth + root.rowMaxWidth + 36)
 
     // ...and the rows inside are clamped separately, because a window that is
     // wider is not an invitation to set a subtitle across 1100 pixels. This is
@@ -205,7 +213,7 @@ PanelWindow {
         Rectangle {
             id: sidebar
             anchors { top: parent.top; bottom: parent.bottom; left: parent.left }
-            width: 190
+            width: root.sidebarWidth
             radius: 14
             color: Theme.bg
             // Square off the inner edge so the rounded card does not show a
