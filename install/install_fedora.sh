@@ -552,6 +552,12 @@ while [[ $# -gt 0 ]]; do
         -y|--yes)         ASSUME_YES=1 ;;
         -d|--disk)        target="${2:?--disk needs an argument}"; shift ;;
         --desktop)        DESKTOP=1 ;;
+        # NOT --desktop, which is already taken and means the machine type -
+        # no battery, no lid. This one picks which desktop to install, and it
+        # exists because --unattended skips the wizard: without it there is no
+        # way to build a Plasma machine without editing the script.
+        --plasma)         desktop="plasma" ;;
+        --hyprland)       desktop="hyprland" ;;
         --dotfiles)       dotfiles_repo="${2:?--dotfiles needs a git URL}"; shift ;;
         -h|--help)        awk 'NR>1 && /^#/ {print; next} NR>1 {exit}' "$0"; exit 0 ;;
         *)                die "unknown option: $1  (try --help)" ;;
