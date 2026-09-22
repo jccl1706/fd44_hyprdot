@@ -33,6 +33,35 @@ PanelWindow {
     // Which section the sidebar has selected.
     property int section: 0
 
+    // --- moving between pages ---------------------------------------------
+    //
+    // THE ARROW KEYS ARE FREE, and that is why they are the ones. The search
+    // field holds the keyboard the whole time the panel is open, so that you
+    // can type the moment it appears - but it is one line, so Up and Down do
+    // nothing in it and cost nothing to take.
+    //
+    // Selecting a page clears the search, for the same reason clicking one
+    // does: the results list is not a page, and leaving a query in the field
+    // while showing a section would say the panel is in a state it is not.
+    function goToSection(i: int): void {
+        if (!root.sections.length) return
+        root.section = Math.max(0, Math.min(root.sections.length - 1, i))
+        searchField.text = ""
+        root.query = ""
+        pane.positionViewAtBeginning()
+        searchField.forceActiveFocus()
+    }
+
+    // CLAMPED, NOT WRAPPED. Holding Down should come to rest at the last page
+    // rather than reappearing at the first, which is what a sidebar does
+    // everywhere else.
+    function stepSection(delta: int): void {
+        // From a search, the first press goes back to whichever page is
+        // selected rather than moving off it - otherwise the panel jumps two
+        // places for one keystroke.
+        root.goToSection(root.query === "" ? root.section + delta : root.section)
+    }
+
     // Search text, debounced - see the Timer. Empty means "show the selected
     // section"; non-empty means "show matching rows from every section", which
     // is what makes search worth having in a panel with a sidebar.
@@ -239,12 +268,7 @@ PanelWindow {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                root.section = index
-                                searchField.text = ""
-                                root.query = ""
-                                searchField.forceActiveFocus()
-                            }
+                            onClicked: root.goToSection(index)
                         }
                     }
                 }
@@ -294,7 +318,22 @@ PanelWindow {
                 selectionColor: Theme.accent
                 clip: true
                 onTextChanged: debounce.restart()
-                Keys.onEscapePressed: root.close()
+                Keys.onUpPressed: root.stepSection(-1)
+                Keys.onDownPressed: root.stepSection(1)
+                Keys.onPressed: event => {
+                    if (event.key === Qt.Key_Home)     { root.goToSection(0); event.accepted = true }
+                    else if (event.key === Qt.Key_End) { root.goToSection(root.sections.length - 1)
+                                                         event.accepted = true }
+                }
+
+                // ESCAPE BACKS OUT ONE STEP AT A TIME. With a search in
+                // progress the thing you want gone is the search, not the
+                // panel; closing outright means retyping the query to get
+                // back to where you were.
+                Keys.onEscapePressed: {
+                    if (root.query !== "") { searchField.text = ""; root.query = "" }
+                    else root.close()
+                }
 
                 Text {
                     anchors.fill: parent
