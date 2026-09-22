@@ -517,6 +517,33 @@ systemctl --user restart wireplumber
 systemctl --user daemon-reload && systemctl --user enable --now power-mode.service
 ```
 
+**One consequence of those links, for later: `git pull` edits a running
+desktop.** `~/.config/quickshell` is this checkout, and quickshell watches that
+directory and reloads when it changes. git rewrites many files at once, so the
+reload can be triggered partway through and scan a tree that is briefly
+inconsistent. When that happens the load fails, quickshell keeps running the
+last configuration that worked, and the only symptom is that whatever you just
+pulled is not there.
+
+**The error it prints names an innocent file.** On the T480 it was:
+
+```
+ERROR: Failed to load configuration
+ERROR:   caused by @shell.qml[148:9]: NetworkPanel is not a type
+```
+
+with `NetworkPanel.qml` present and perfectly fine. Nothing was wrong with it;
+the scan simply ran while the tree was half-written. Retrigger the reload and
+check that it took:
+
+```sh
+touch ~/Work/fd44_hyprdot/quickshell/shell.qml
+qs log | grep -E "Failed to load|Configuration Loaded" | tail -2
+```
+
+Hyprland does not watch its own files, so changes under `hypr/` need
+`hyprctl reload` either way.
+
 ### 3. The opt-in pieces
 
 None of these run by themselves, and each explains what it does before doing it.
