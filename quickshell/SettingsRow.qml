@@ -56,12 +56,42 @@ Item {
         else Settings.setValue(settingRow.row.key, v)
     }
 
-    implicitHeight: body.implicitHeight + 18
+    // WHERE THIS ROW SITS IN ITS GROUP. Rows share one rounded container the
+    // way a GNOME settings page groups them, which is the difference between
+    // a section reading as one thing and reading as a pile of controls that
+    // happen to be near each other. Only the ends are rounded, so the group
+    // looks like a single card rather than a stack of separate ones.
+    property bool first: true
+    property bool last: true
+    readonly property int boxRadius: 10
+
+    implicitHeight: body.implicitHeight + 22
     height: implicitHeight
+
+    Rectangle {
+        anchors.fill: parent
+        color: Theme.surfaceTop
+        topLeftRadius:     settingRow.first ? settingRow.boxRadius : 0
+        topRightRadius:    settingRow.first ? settingRow.boxRadius : 0
+        bottomLeftRadius:  settingRow.last  ? settingRow.boxRadius : 0
+        bottomRightRadius: settingRow.last  ? settingRow.boxRadius : 0
+
+        // A hairline between rows, INSET FROM THE LEFT rather than running
+        // edge to edge: it separates the rows without cutting the card in
+        // two, which is the detail that makes a boxed list look deliberate.
+        Rectangle {
+            visible: !settingRow.first
+            anchors { top: parent.top; left: parent.left; right: parent.right; leftMargin: 14 }
+            height: 1
+            color: Theme.outline
+            opacity: 0.45
+        }
+    }
 
     Column {
         id: body
-        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
+        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter
+                  leftMargin: 14; rightMargin: 14 }
         spacing: 3
 
         // When searching, say which section a hit came from - otherwise a

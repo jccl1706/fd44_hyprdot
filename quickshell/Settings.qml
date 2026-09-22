@@ -100,7 +100,7 @@ Singleton {
                   options: [ { value: "dark", label: "Dark" },
                              { value: "cream", label: "Cream" } ] },
                 { label: "Wallpaper", type: "wallpapers",
-                  help: "click one to set it; the ring marks the one in use. SUPER+, opens the full-screen picker, which shows them one at a time and larger" }
+                  help: "click one to set it; the ring marks the one in use · SUPER+, opens the full-screen picker" }
             ]
         },
         {
@@ -180,12 +180,16 @@ Singleton {
             out.push({
                 label: monitor.title,
                 type: "select",
-                help: monitor.description + ", " + monitor.width + "x" + monitor.height + " on a "
-                      + monitor.inches.toFixed(1) + "\" panel, "
-                      + Math.round(monitor.ppi) + " ppi. Now "
-                      + (Monitors.currentDetail(monitor) || "a scale with no preset")
-                      + ". Applies at once, and is remembered in "
-                      + "hypr/monitors_local.lua, which monitors.lua reads last",
+                // ONE LINE. The whole page is a boxed list, and a row whose
+                // subtitle wraps is taller than the rows either side of it,
+                // which is most of what made this look untidy. Where it was
+                // written is in the README; it does not belong under every
+                // screen's name.
+                help: monitor.description + " · "
+                      + monitor.width + "x" + monitor.height + ", "
+                      + monitor.inches.toFixed(1) + "\", "
+                      + Math.round(monitor.ppi) + " ppi · now "
+                      + (Monitors.currentDetail(monitor) || "a scale with no preset"),
                 options: monitor.options,
                 get: function() { return Monitors.currentOption(monitor) },
                 set: function(v) { Monitors.setScale(monitor, v) }
@@ -202,8 +206,7 @@ Singleton {
             if (monitor.resolutionOptions.length > 1)
                 out.push({
                     label: prefix + "Resolution", type: "menu",
-                    help: "the native mode is the sharp one on a flat panel; "
-                          + "anything else is scaled up by the screen itself",
+                    help: "native is the sharp one; anything else the panel scales up",
                     options: monitor.resolutionOptions,
                     get: function() { return monitor.currentResolution },
                     set: function(v) { Monitors.setResolution(monitor, v) }
@@ -217,10 +220,8 @@ Singleton {
             if (monitor.refreshOptions.length > 1)
                 out.push({
                     label: prefix + "Refresh rate", type: "select",
-                    help: "what " + monitor.currentResolution + " offers"
-                          + (monitor.internal
-                             ? ". A lower rate on a laptop panel is a battery setting"
-                             : ""),
+                    help: "rates " + monitor.currentResolution + " offers"
+                          + (monitor.internal ? " · a lower one saves battery" : ""),
                     options: monitor.refreshOptions,
                     get: function() { return monitor.currentRefresh },
                     set: function(v) { Monitors.setRefresh(monitor, v) }
@@ -253,7 +254,7 @@ Singleton {
                 })
             }
         out.push({ label: "Reset layout", type: "action",
-                   help: "every plugin back where the repository's defaults have it, and every one of them shown again. Drag to rearrange them in the bar itself",
+                   help: "defaults restored and every plugin shown again · drag in the bar to rearrange",
                    run: function() { BarLayout.reset() } })
         return out
     }

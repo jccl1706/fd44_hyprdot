@@ -272,22 +272,42 @@ PanelWindow {
 
         // --- the controls -------------------------------------------------
 
+        // The page's own name, above its rows. The sidebar already says which
+        // section is selected, so this is not the only signpost - but a page
+        // that starts with a heading reads as a page, and one that starts
+        // with a control reads as a list someone forgot to label.
+        Text {
+            id: pageTitle
+            anchors { top: divider.bottom; left: sidebar.right; right: parent.right
+                      topMargin: 14; leftMargin: 18; rightMargin: 18 }
+            text: root.query !== "" ? "Results"
+                : (root.sections[root.section] ? root.sections[root.section].section : "")
+            color: Theme.fg
+            font.pixelSize: 15
+            font.weight: Font.DemiBold
+        }
+
         ListView {
             id: pane
-            anchors { top: divider.bottom; left: sidebar.right; right: parent.right
-                      bottom: parent.bottom; topMargin: 8; leftMargin: 18
-                      rightMargin: 12; bottomMargin: 14 }
+            anchors { top: pageTitle.bottom; left: sidebar.right; right: parent.right
+                      bottom: parent.bottom; topMargin: 10; leftMargin: 18
+                      rightMargin: 18; bottomMargin: 16 }
             clip: true
-            spacing: 4
+            // NO GAP BETWEEN ROWS. They are one card with hairlines between
+            // them; a spacing here would break it back into separate tiles.
+            spacing: 0
             model: root.visibleRows
 
             ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
             delegate: SettingsRow {
                 required property var modelData
-                width: pane.width - 8
+                required property int index
+                width: pane.width
                 row: modelData.row
                 fromSection: modelData.from
+                first: index === 0
+                last: index === pane.count - 1
             }
 
             // The panel's own namespace, so `hyprctl layers` can tell it apart
