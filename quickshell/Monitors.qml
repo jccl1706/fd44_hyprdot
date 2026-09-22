@@ -139,8 +139,94 @@ Singleton {
             // eDP is an internal panel by definition - the same test
             // hypr/monitors.lua uses to decide placement.
             internal: internal,
-            options: ppi > 0 ? monitors.presetsFor(m, ppi, m.scale) : []
+            options: ppi > 0 ? monitors.presetsFor(m, ppi, m.scale) : [],
+
+            // Modes, split into the two things anyone actually chooses.
+            // Kept so a later setResolution() can find the rates on offer
+            // without another call to hyprctl.
+            availableModes: m.availableModes || [],
+            resolutionOptions: monitors.resolutionsOf(m),
+            refreshOptions: monitors.refreshesOf(m, m.width + "x" + m.height),
+            currentResolution: m.width + "x" + m.height,
+            currentRefresh: monitors.nearestRefresh(m)
         }
+    }
+
+    // --- modes ------------------------------------------------------------
+    //
+    // hyprctl gives one flat list - "2256x1504@60.00Hz", "2256x1504@48.00Hz",
+    // "1920x1200@60.00Hz" and nine more - which is not how anyone picks a
+    // mode. Nobody wants a list of thirteen; they want a resolution, and then
+    // a refresh rate if that resolution offers more than one. This panel has
+    // twelve resolutions and exactly one of them has a second rate, which is
+    // why they are two rows and not one.
+
+    function splitMode(mode: string): var {
+        const at = mode.indexOf("@")
+        if (at < 0) return { res: mode, hz: "" }
+        // "60.00Hz" -> "60.00"; the Hz is for the label, not the value.
+        return { res: mode.substring(0, at), hz: mode.substring(at + 1).replace(/Hz$/i, "") }
+    }
+
+    // Biggest first. Sorting by pixel count rather than by string keeps
+    // 1920x1200 above 1920x1080, which sorting by width alone would not.
+    function resolutionsOf(m: var): var {
+        const seen = {}
+        const out = []
+        for (const mode of (m.availableModes || [])) {
+            const res = monitors.splitMode(mode).res
+            if (seen[res]) continue
+            seen[res] = true
+            const parts = res.split("x")
+            out.push({ value: res, label: res, pixels: parseInt(parts[0]) * parseInt(parts[1]) })
+        }
+        out.sort((a, b) => b.pixels - a.pixels)
+        // The native mode is the first one hyprctl lists, and it is the one
+        // worth marking: on a flat panel anything else is interpolated and
+        // soft, which the resolution on its own does not tell you.
+        if (out.length && m.availableModes && m.availableModes.length) {
+            const native = monitors.splitMode(m.availableModes[0]).res
+            for (const o of out) if (o.value === native) o.label = o.value + " (native)"
+        }
+        return out
+    }
+
+    function refreshesOf(m: var, resolution: string): var {
+        const seen = {}
+        const out = []
+        for (const mode of (m.availableModes || [])) {
+            const parsed = monitors.splitMode(mode)
+            if (parsed.res !== resolution || seen[parsed.hz]) continue
+            seen[parsed.hz] = true
+            out.push({
+                value: parsed.hz,
+                label: monitors.tidyHz(parsed.hz) + " Hz",
+                rate: parseFloat(parsed.hz)
+            })
+        }
+        out.sort((a, b) => b.rate - a.rate)
+        return out
+    }
+
+    // "60.00" -> "60", "143.97" -> "143.97". A whole number of hertz is the
+    // common case and the trailing zeros are noise.
+    function tidyHz(hz: string): string {
+        const n = parseFloat(hz)
+        return Math.abs(n - Math.round(n)) < 0.05 ? String(Math.round(n)) : n.toFixed(2)
+    }
+
+    // WHAT IT IS RUNNING AT, MATCHED BACK TO A MODE STRING. hyprctl reports
+    // refreshRate as 59.999 while the mode it came from is called "60.00", so
+    // comparing them as text finds nothing. Half a hertz is a wide enough
+    // window to pair them and far too narrow to confuse 60 with 48.
+    function nearestRefresh(m: var): string {
+        const resolution = m.width + "x" + m.height
+        let best = ""
+        for (const option of monitors.refreshesOf(m, resolution))
+            if (best === "" || Math.abs(option.rate - m.refreshRate)
+                             < Math.abs(parseFloat(best) - m.refreshRate))
+                best = option.value
+        return best
     }
 
     // --- the presets ------------------------------------------------------
@@ -312,17 +398,56 @@ Singleton {
     // to the left of the laptop. Writing a fixed x,y instead would be more
     // precise and would stop the rule following the screen when it is plugged
     // in somewhere else.
-    function rule(monitor: var, scale: string): string {
+    function rule(monitor: var, scale: string, mode: string): string {
         return 'hl.monitor({ output = "desc:' + monitor.description + '",'
-             + ' mode = "preferred",'
+             + ' mode = "' + mode + '",'
              + ' position = "' + (monitor.internal ? "auto" : "auto-left") + '",'
              + ' scale = "' + scale + '" })'
     }
 
-    function setScale(monitor: var, scale: string): void {
-        applier.command = ["hyprctl", "eval", monitors.rule(monitor, scale)]
+    // A rule names every field, so changing one means restating the others.
+    // These read from the override where there is one and from the live
+    // monitor otherwise, which is what keeps picking a resolution from
+    // silently resetting a scale chosen a minute earlier.
+    function currentScaleOf(monitor: var): string {
+        const kept = monitors.overrides[monitor.description]
+        return (kept && kept.scale) || monitors.spell(monitor.scale)
+    }
+
+    // "preferred" until a mode is actually chosen. Writing the live mode
+    // instead would pin the panel to whatever it happened to come up at,
+    // which for an external display is a promise this page cannot keep when
+    // it is plugged into something else.
+    function currentModeOf(monitor: var): string {
+        const kept = monitors.overrides[monitor.description]
+        return (kept && kept.mode) || "preferred"
+    }
+
+    function apply(monitor: var, scale: string, mode: string): void {
+        applier.command = ["hyprctl", "eval", monitors.rule(monitor, scale, mode)]
         applier.running = true
-        monitors.remember(monitor, scale)
+        monitors.remember(monitor, scale, mode)
+    }
+
+    function setScale(monitor: var, scale: string): void {
+        monitors.apply(monitor, scale, monitors.currentModeOf(monitor))
+    }
+
+    // Picking a resolution takes the fastest rate that resolution offers.
+    // The alternative - keeping the rate and hoping the new resolution has it
+    // - produces a mode that does not exist, and Hyprland answers that by
+    // falling back to something neither asked for.
+    function setResolution(monitor: var, resolution: string): void {
+        const rates = monitors.refreshesOf({ availableModes: monitor.availableModes },
+                                           resolution)
+        const hz = rates.length ? rates[0].value : ""
+        monitors.apply(monitor, monitors.currentScaleOf(monitor),
+                       hz ? resolution + "@" + hz : resolution)
+    }
+
+    function setRefresh(monitor: var, hz: string): void {
+        monitors.apply(monitor, monitors.currentScaleOf(monitor),
+                       monitor.currentResolution + "@" + hz)
     }
 
     Process {
@@ -339,9 +464,9 @@ Singleton {
     // Scales chosen here, by output description.
     property var overrides: ({})
 
-    function remember(monitor: var, scale: string): void {
+    function remember(monitor: var, scale: string, mode: string): void {
         const next = Object.assign({}, monitors.overrides)
-        next[monitor.description] = { scale: scale, internal: monitor.internal }
+        next[monitor.description] = { scale: scale, mode: mode, internal: monitor.internal }
         monitors.overrides = next
         monitors.save()
     }
@@ -372,10 +497,10 @@ Singleton {
     // back rather than kept in a second place that could disagree with it.
     function readBack(text: string): var {
         const found = {}
-        const line = /output\s*=\s*"desc:([^"]+)".*?position\s*=\s*"([^"]+)".*?scale\s*=\s*"([^"]+)"/g
+        const line = /output\s*=\s*"desc:([^"]+)".*?mode\s*=\s*"([^"]+)".*?position\s*=\s*"([^"]+)".*?scale\s*=\s*"([^"]+)"/g
         let m
         while ((m = line.exec(text)) !== null)
-            found[m[1]] = { scale: m[3], internal: m[2] === "auto" }
+            found[m[1]] = { mode: m[2], scale: m[4], internal: m[3] === "auto" }
         return found
     }
 
@@ -392,7 +517,7 @@ Singleton {
             const o = monitors.overrides[name]
             out += "hl.monitor({\n"
                  + '    output   = "desc:' + name + '",\n'
-                 + '    mode     = "preferred",\n'
+                 + '    mode     = "' + (o.mode || "preferred") + '",\n'
                  + '    position = "' + (o.internal ? "auto" : "auto-left") + '",\n'
                  + '    scale    = "' + o.scale + '",\n'
                  + "})\n\n"

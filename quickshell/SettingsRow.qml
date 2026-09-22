@@ -34,6 +34,14 @@ Item {
     // its own help text.
     readonly property bool wide: settingRow.row.type === "wallpapers"
 
+    // A MENU is a select with too many options to sit in a row. Twelve
+    // resolutions across the pane would be unreadable and would not fit, so
+    // the button names the current one and the list opens underneath - the
+    // same full-width slot the wallpaper grid uses, and the same chips as the
+    // segmented control, wrapped.
+    readonly property bool isMenu: settingRow.row.type === "menu"
+    property bool expanded: false
+
     readonly property bool isAction: settingRow.row.type === "action"
     // A row either names a key in the Settings store or brings its own
     // accessors - see the schema. Reading through row.get() still tracks the
@@ -102,6 +110,7 @@ Item {
                         case "action":  return actionButton
                         case "toggle":  return toggleSwitch
                         case "select":  return segmented
+                        case "menu":    return menuButton
                         default:        return numberSlider     // "ms", "days"
                     }
                 }
@@ -110,9 +119,9 @@ Item {
 
         Loader {
             width: body.width
-            active: settingRow.wide
+            active: settingRow.wide || (settingRow.isMenu && settingRow.expanded)
             visible: active
-            sourceComponent: wallpaperGrid
+            sourceComponent: settingRow.wide ? wallpaperGrid : menuList
         }
     }
 
@@ -318,6 +327,88 @@ Item {
                 text: settingRow.row.type === "ms"
                         ? (sl.value / 1000).toFixed(sl.value % 1000 ? 1 : 0) + "s"
                         : sl.value.toFixed(0) + "d"
+            }
+        }
+    }
+
+    // The closed menu: what is set now, and a hint that there is more.
+    Component {
+        id: menuButton
+        Rectangle {
+            readonly property var chosen: (settingRow.row.options || [])
+                .find(o => o.value === settingRow.value)
+            implicitWidth: label.implicitWidth + 34
+            implicitHeight: 26
+            radius: 7
+            color: hover.containsMouse || settingRow.expanded ? Theme.surfaceHigh : Theme.bg
+            border.width: 1
+            border.color: settingRow.expanded ? Theme.accent : Theme.outline
+            Behavior on color { ColorAnimation { duration: Theme.animFast } }
+            Text {
+                id: label
+                anchors { left: parent.left; leftMargin: 11; verticalCenter: parent.verticalCenter }
+                // An option that is not in the list is still worth naming -
+                // a mode set by hand in monitors.lua, say.
+                text: parent.chosen ? parent.chosen.label : (settingRow.value || "-")
+                color: Theme.fg
+                font.pixelSize: 12
+            }
+            Text {
+                anchors { right: parent.right; rightMargin: 9; verticalCenter: parent.verticalCenter }
+                text: settingRow.expanded ? "\u25B4" : "\u25BE"
+                color: Theme.dim
+                font.pixelSize: 10
+            }
+            MouseArea {
+                id: hover
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: settingRow.expanded = !settingRow.expanded
+            }
+        }
+    }
+
+    // The open menu. A Flow rather than a Column: twelve resolutions are
+    // short strings, and wrapping them across the pane shows the whole set at
+    // once instead of making a list to scroll.
+    Component {
+        id: menuList
+        Flow {
+            spacing: 4
+            bottomPadding: 4
+            Repeater {
+                model: settingRow.row.options || []
+                Rectangle {
+                    required property var modelData
+                    readonly property bool on: settingRow.value === modelData.value
+                    implicitWidth: item.implicitWidth + 22
+                    implicitHeight: 26
+                    radius: 7
+                    color: on ? Theme.accent : (mouse.containsMouse ? Theme.surfaceHigh : Theme.bg)
+                    border.width: 1
+                    border.color: on ? Theme.accent : Theme.outline
+                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
+                    Text {
+                        id: item
+                        anchors.centerIn: parent
+                        text: modelData.label
+                        color: parent.on ? Theme.bg : Theme.fg
+                        font.pixelSize: 12
+                    }
+                    MouseArea {
+                        id: mouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        // Closing on choice is what makes this a menu rather
+                        // than a segmented control that happens to wrap.
+                        onClicked: {
+                            settingRow.commit(modelData.value)
+                            settingRow.expanded = false
+                        }
+                    }
+                }
             }
         }
     }

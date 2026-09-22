@@ -170,7 +170,12 @@ Singleton {
     // "Scale" three times over says nothing about which is which.
     readonly property var displayRows: {
         const out = []
+        // With one screen "Resolution" is unambiguous. With two it is not, so
+        // the sub-rows carry the screen's name as well - the scale row is
+        // already labelled with it.
+        const many = Monitors.list.length > 1
         for (const monitor of Monitors.list) {
+            const prefix = many ? monitor.title + " · " : ""
             if (!monitor.options.length) continue
             out.push({
                 label: monitor.title,
@@ -185,6 +190,39 @@ Singleton {
                 get: function() { return Monitors.currentOption(monitor) },
                 set: function(v) { Monitors.setScale(monitor, v) }
             })
+
+            // Resolution, as a menu rather than a row of chips: this panel
+            // offers twelve and they will not fit across the pane.
+            //
+            // BELOW THE SCALE ROW ON PURPOSE. Scale is the setting that gets
+            // changed; resolution on a flat panel is almost always a mistake,
+            // because anything but the native mode is interpolated and soft.
+            // It is here because sometimes it is genuinely wanted, not
+            // because it is the first thing to reach for.
+            if (monitor.resolutionOptions.length > 1)
+                out.push({
+                    label: prefix + "Resolution", type: "menu",
+                    help: "the native mode is the sharp one on a flat panel; "
+                          + "anything else is scaled up by the screen itself",
+                    options: monitor.resolutionOptions,
+                    get: function() { return monitor.currentResolution },
+                    set: function(v) { Monitors.setResolution(monitor, v) }
+                })
+
+            // Refresh rate, only where the chosen resolution has more than
+            // one. On this panel exactly one of the twelve does - 2256x1504
+            // advertises 48 Hz as well as 60, for power saving - so on every
+            // other resolution this row is correctly absent rather than
+            // showing a single button that does nothing.
+            if (monitor.refreshOptions.length > 1)
+                out.push({
+                    label: prefix + "Refresh rate", type: "select",
+                    help: "what " + monitor.currentResolution + " offers. "
+                          + "A lower rate on a laptop panel is a battery setting",
+                    options: monitor.refreshOptions,
+                    get: function() { return monitor.currentRefresh },
+                    set: function(v) { Monitors.setRefresh(monitor, v) }
+                })
         }
         return out
     }
