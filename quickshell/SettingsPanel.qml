@@ -363,7 +363,12 @@ PanelWindow {
             // while it matters, and not a piece of furniture when it does not.
             ScrollBar.vertical: ScrollBar {
                 id: paneScroll
-                policy: ScrollBar.AsNeeded
+                // ASKED DIRECTLY rather than left to AsNeeded, which kept the
+                // handle on screen for a page whose rows all fit - a scrollbar
+                // that is always there is the furniture this was meant to
+                // avoid.
+                policy: pane.contentHeight > pane.height ? ScrollBar.AlwaysOn
+                                                         : ScrollBar.AlwaysOff
                 width: 10
                 background: null
                 contentItem: Rectangle {
