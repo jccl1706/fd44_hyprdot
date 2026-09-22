@@ -565,6 +565,15 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
+# Plasma's own terminal, on a Plasma machine. kitty is what the dotfiles
+# configure, so it stays the default on the Hyprland side.
+#
+# HERE AND NOT IN THE WIZARD, which is where it was first written and where it
+# did nothing for `--unattended --plasma`: that path skips the wizard
+# entirely, so an unattended Plasma machine was getting kitty and no konsole.
+# Caught by --preflight in the test VM, which prints the apps.
+[[ "$desktop" == plasma ]] && terminal="konsole"
+
 # --desktop: the four config values that differ on a machine with no battery
 # and no lid. Applied AFTER parsing so an explicit --disk still wins, and
 # before the wizard so its defaults are the desktop ones.
@@ -731,10 +740,6 @@ wizard() {
     desktop="$(menu "Desktop?" "$( [[ $desktop == hyprland ]] && echo 1 || echo 2 )" \
         "Hyprland + quickshell - autologin on tty1, no display manager|hyprland" \
         "KDE Plasma - SDDM, ~2 GB installed|plasma")"
-
-    # Plasma's own terminal, on a Plasma machine. kitty is still what the
-    # dotfiles configure, so it stays the default on the Hyprland side.
-    [[ "$desktop" == plasma ]] && terminal="konsole"
 
     # ---- dotfiles --------------------------------------------------------
     # There is no login-manager question on the Hyprland side: it sets up
@@ -1212,7 +1217,8 @@ preflight() {
     printf '    Dotfiles   : %s\n' "${dotfiles_repo:-none}"
     printf '    Apps       : %s, %s\n' "$browser" "$terminal"
     printf '    Host/user  : %s / %s\n' "$hostname" "$username"
-    printf '    Hyprland/quickshell source: COPR %s - VERIFY IT IS STILL MAINTAINED\n' "$hypr_copr"
+    [[ "$desktop" == hyprland ]] && \
+        printf '    Hyprland/quickshell source: COPR %s - VERIFY IT IS STILL MAINTAINED\n' "$hypr_copr"
 
     printf '\n    Layout:\n'
     printf '      %s  ESP %s, vfat, mounted at /boot  (also holds systemd-boot + BLS entries)\n' "$esppart" "$esp_size"
@@ -1534,6 +1540,10 @@ run mkdir -p "$rootmnt/etc/yum.repos.d"
 run dnf5 --installroot "$rootmnt" --releasever "$releasever" --use-host-config -y \
     install "${basepacs[@]}"
 
+# ONLY FOR HYPRLAND. Everything Plasma needs is in Fedora proper, so adding a
+# third-party repository to a Plasma machine would be taking on a maintenance
+# risk it gets nothing for.
+if [[ "$desktop" == hyprland ]]; then
 log "Adding the Hyprland/quickshell COPR ($hypr_copr)"
 writefile 0644 "$rootmnt/etc/yum.repos.d/_copr_${hypr_copr//\//-}.repo" <<EOF
 [copr:copr.fedorainfracloud.org:${hypr_copr%%/*}:${hypr_copr##*/}]
@@ -1547,6 +1557,7 @@ repo_gpgcheck=0
 enabled=1
 enabled_metadata=1
 EOF
+fi
 
 log "Installing hardware, desktop and app packages"
 # --use-host-config is deliberately DROPPED for this call, unlike the first
