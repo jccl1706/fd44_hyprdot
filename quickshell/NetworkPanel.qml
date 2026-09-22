@@ -241,7 +241,15 @@ DropPanel {
         }
 
         Item {
-            visible: ethernet.visible && wifi.visible
+            // The rule between the two sections, so it is there only when both
+            // are. `wifi` used to be the Column that moved into NetworkList;
+            // this asks the component the same question that Column asked.
+            //
+            // IT ONLY THREW ON THE DESKTOP. On a laptop with no wired device
+            // ethernet.visible is false and && never evaluates the other half,
+            // so the stale reference sat there silently until a machine with
+            // ethernet loaded it.
+            visible: ethernet.visible && wifiList.wifiDevice !== null
             width: parent.width
             height: 17
             Rectangle {
