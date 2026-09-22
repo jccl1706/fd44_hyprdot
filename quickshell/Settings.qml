@@ -94,7 +94,6 @@ Singleton {
     // Connections handler for a signal nobody declares is silently dead, and
     // that is exactly how the old "choose a wallpaper" button did nothing.
     signal requestWallpaperPicker()
-    signal requestNetworkPanel()
 
     readonly property var schema: [
         {
@@ -283,12 +282,10 @@ Singleton {
           get: function() { return Networking.wifiEnabled },
           set: function(v) { Networking.wifiEnabled = v } },
 
-        { label: "Network", type: "action",
-          help: settings.wifiStatus + " · the panel scans, joins and asks for a password",
-          // Only worth opening when there is a radio to scan with.
-          when: function() { return Networking.wifiEnabled },
-          runLabel: "Choose…",
-          run: function() { settings.requestNetworkPanel() } }
+        { label: "Networks", type: "networks",
+          help: settings.wifiStatus + " · click one to join; it asks for a password if it needs one",
+          // Nothing to list while the radio is off.
+          when: function() { return Networking.wifiEnabled } }
     ]
 
     // One switch per bar plugin, then the reset.

@@ -33,6 +33,7 @@ Item {
     // nothing to gain from being squeezed into the right-hand column next to
     // its own help text.
     readonly property bool wide: settingRow.row.type === "wallpapers"
+                              || settingRow.row.type === "networks"
 
     // A MENU is a select with too many options to sit in a row. Twelve
     // resolutions across the pane would be unreadable and would not fit, so
@@ -157,7 +158,9 @@ Item {
             width: body.width
             active: settingRow.wide || (settingRow.isMenu && settingRow.expanded)
             visible: active
-            sourceComponent: settingRow.wide ? wallpaperStrip : menuList
+            sourceComponent: settingRow.row.type === "wallpapers" ? wallpaperStrip
+                           : settingRow.row.type === "networks"   ? networkList
+                           : menuList
         }
     }
 
@@ -364,6 +367,17 @@ Item {
                         ? (sl.value / 1000).toFixed(sl.value % 1000 ? 1 : 0) + "s"
                         : sl.value.toFixed(0) + "d"
             }
+        }
+    }
+
+    // The same switch-and-list the bar's network button drops down, shown in
+    // place rather than sending you to another surface. Its own switch is off
+    // here: the page has one as a row above this.
+    Component {
+        id: networkList
+        NetworkList {
+            active: true
+            showSwitch: false
         }
     }
 
