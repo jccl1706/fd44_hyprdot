@@ -506,9 +506,9 @@ the way is reported and kept** — a fresh install writes several of these itsel
 and they are not the script's to delete. If it says something is in the way,
 look at it, move it aside, and run the script again.
 
-The Fedora installer's `--dotfiles` already links some of these during
-installation. Running the script afterwards is still worth it: it links the ones
-the installer does not, and tells you so.
+The Fedora installer's `--dotfiles` runs this same script inside the new system,
+so a machine built that way arrives with the links already made. Running it
+again afterwards costs nothing and confirms it.
 
 Two of the links need something told:
 
@@ -609,11 +609,10 @@ sudo ./install_fedora.sh --desktop --dotfiles https://github.com/jccl1706/fd44_h
 - **`--desktop`** sets the values for a machine with no battery and no lid:
   desktop machine type, no disk swap, no encryption, zram on (half of RAM, at
   most 8 GB).
-- **`--dotfiles`** clones this repo to `~/Work/fd44_hyprdot`, links `hypr`,
-  `quickshell`, `kitty` and `wireplumber` into `~/.config`, and enables the
-  repo's systemd user units. It does **not** link `tmux`, `starship.toml` or the
-  MangoHud configuration, so run `bin/link-dotfiles.sh` afterwards — it makes
-  the rest and leaves the ones already correct alone.
+- **`--dotfiles`** clones this repo to `~/Work/fd44_hyprdot` and runs
+  `bin/link-dotfiles.sh` inside the new system, so every link the repo wants is
+  made in one pass, and enables the repo's systemd user units. Nothing needs
+  linking by hand afterwards.
 - The wizard still asks for the target disk — pick the NVMe — and the rest.
 - It ends with its own verification pass. Reboot when it finishes.
 

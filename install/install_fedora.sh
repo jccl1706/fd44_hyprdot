@@ -1790,42 +1790,40 @@ if [[ -n "$dotfiles_repo" ]]; then
     if run fchroot sudo -u "$username" git clone --depth 1 "$dotfiles_repo" \
             "/home/$username/Work/$dotdir"; then
 
-        # Symlink the Hyprland config dir at the repo, replacing the minimal
-        # one written above. Only if the repo actually has a hypr/ directory -
-        # otherwise leave the working stock config in place.
+        # THE REPO'S OWN SCRIPT MAKES THE LINKS, rather than a list kept here.
+        #
+        # This used to hold its own list - hypr, then quickshell, kitty and
+        # wireplumber in a loop - and it was one of four such lists in the two
+        # repositories, none of them complete. A machine built from this one
+        # came back without tmux, starship.toml or the MangoHud configuration,
+        # because those were linked by other scripts that nobody remembered to
+        # run. bin/link-dotfiles.sh is now the only list, and adding a directory
+        # to the repo is the whole job.
+        #
+        # The stock Hyprland config written earlier goes first: the script
+        # deliberately refuses to replace a real directory, which is right when
+        # a person runs it and wrong here, where we know what put it there.
         if [[ -d "$rootmnt/home/$username/Work/$dotdir/hypr" ]]; then
             run rm -rf "$rootmnt/home/$username/.config/hypr"
-            run fchroot sudo -u "$username" ln -s \
-                "/home/$username/Work/$dotdir/hypr" "/home/$username/.config/hypr"
-            log "  ~/.config/hypr -> Work/$dotdir/hypr"
-        elif (( DRY )); then
-            log "  (dry run: nothing was cloned, so hypr/ and systemd/ cannot"
-            log "   be inspected - on a real run they would be linked here)"
-        else
+        elif (( ! DRY )); then
             warn "  repo has no hypr/ directory - keeping the stock config"
         fi
 
-        # Every other config directory the repo ships, linked the same way.
-        #
-        # A LIST, not a hardcoded case per directory. quickshell used to be
-        # missing here entirely: the repo was cloned, the Hyprland side
-        # worked, `qs -d` started from autostart.lua, and quickshell then
-        # found no ~/.config/quickshell/shell.qml and drew nothing. The result
-        # booted to a bare desktop that looked like the dotfiles had failed,
-        # when in fact only half of them had been linked. Adding a directory
-        # to the repo and forgetting to add a branch here is exactly how that
-        # happened, so adding one to this list is now the whole job.
-        for cfg in quickshell kitty wireplumber; do
-            if [[ -d "$rootmnt/home/$username/Work/$dotdir/$cfg" ]]; then
-                run rm -rf "$rootmnt/home/$username/.config/$cfg"
-                run fchroot sudo -u "$username" ln -s \
-                    "/home/$username/Work/$dotdir/$cfg" \
-                    "/home/$username/.config/$cfg"
-                log "  ~/.config/$cfg -> Work/$dotdir/$cfg"
-            elif (( ! DRY )); then
-                warn "  repo has no $cfg/ directory - skipping"
-            fi
-        done
+        if [[ -x "$rootmnt/home/$username/Work/$dotdir/bin/link-dotfiles.sh" ]]; then
+            # HOME explicitly, and XDG_CONFIG_HOME cleared. sudo keeps the
+            # invoking user's HOME, and the script writes into $HOME/.config -
+            # but XDG_CONFIG_HOME wins over HOME when it is set, which is
+            # correct of the script and would send the links somewhere else
+            # entirely if the installer's environment happened to carry one.
+            run fchroot sudo -u "$username" env -u XDG_CONFIG_HOME \
+                "HOME=/home/$username" \
+                "/home/$username/Work/$dotdir/bin/link-dotfiles.sh"
+        elif (( DRY )); then
+            log "  (dry run: nothing was cloned, so bin/link-dotfiles.sh is not"
+            log "   there - on a real run it would link ~/.config here)"
+        else
+            warn "  repo has no bin/link-dotfiles.sh - no dotfiles were linked"
+        fi
 
         # Any user units the repo ships get linked and enabled.
         if [[ -d "$rootmnt/home/$username/Work/$dotdir/systemd" ]]; then
