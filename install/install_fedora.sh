@@ -1663,14 +1663,21 @@ run fchroot useradd -m -G wheel -s /bin/bash -p "$user_password" "$username"
 # refuses to start the session until the password has been changed.
 #
 # Plasma: there is no autologin and no shell profile in the way, so the
-# profile gate would never run before the desktop starts. Expiring the
-# password is the mechanism that works, because SDDM logs in through PAM the
-# ordinary way and PAM asks for a new password. Without this, a Plasma machine
-# would ship with a password this repository publishes and nothing at all
-# forcing a change.
-if [[ "$desktop" == plasma ]]; then
-    run fchroot chage -d 0 "$username"
-fi
+# profile gate would never run before the desktop starts.
+#
+# EXPIRING THE PASSWORD DOES NOT WORK HERE, and that was measured rather than
+# reasoned about: with `chage -d 0`, SDDM simply refuses the login. It has no
+# PAM conversation for changing an expired password, so the greeter rejects
+# the correct password with no way forward and the machine is unusable. The
+# account is not locked out on a TTY, but nobody staring at a greeter that
+# says "no" is going to guess that.
+#
+# So the password stays valid and the gate moves into the session: a KDE
+# autostart entry opens a terminal on first login and will not let go until
+# passwd succeeds. Weaker than refusing the login, because the desktop is
+# already up - but it is the strongest thing that works behind a greeter that
+# cannot prompt, and far better than a machine sitting on a password this
+# repository publishes.
 
 # Expire the password immediately, so the first login MUST set a new one.
 #
@@ -1951,6 +1958,61 @@ if uwsm check may-start -q; then
 fi
 PROFILE
 run fchroot chown "$username:$username" "/home/$username/.bash_profile"
+fi
+
+###############################################################################
+# Plasma: the first-login password gate
+###############################################################################
+# The Hyprland side gates in ~/.bash_profile, which works because getty
+# autologins into a shell before anything graphical starts. Behind SDDM there
+# is no shell in the way, and an expired password is refused rather than
+# prompted - so the gate has to live inside the session.
+#
+# A terminal that will not close until passwd succeeds is not subtle, and that
+# is the point: the account holds a password this repository publishes, and
+# the machine says so in the largest way it can.
+if [[ "$desktop" == plasma ]]; then
+    log "Installing the first-login password gate"
+
+    writefile 0755 "$rootmnt/usr/local/bin/fd44-first-password" <<'GATE'
+#!/usr/bin/env bash
+# Runs once, from a KDE autostart entry, until the password has been changed.
+#
+# The marker lives in ~/.local/state rather than beside the autostart entry,
+# so a stray ~/.config wipe cannot silently disarm it - the same reasoning as
+# the Hyprland profile gate.
+marker="${XDG_STATE_HOME:-$HOME/.local/state}/password-changed"
+[ -e "$marker" ] && exit 0
+
+printf '\n  This account still has the installer default password.\n'
+printf '  Set a real one now.\n\n'
+
+# Ctrl+C, Ctrl+\ and Ctrl+Z are ignored, and an ignored signal is inherited -
+# so passwd cannot be escaped either.
+trap '' INT QUIT TSTP
+while ! passwd; do
+    printf '\n  Password not changed. Try again.\n\n'
+done
+trap - INT QUIT TSTP
+
+mkdir -p "$(dirname "$marker")"
+: > "$marker"
+rm -f "$HOME/.config/autostart/fd44-first-password.desktop"
+printf '\n  Done. This window will not appear again.\n'
+sleep 3
+GATE
+
+    writefile 0644 "$rootmnt/home/$username/.config/autostart/fd44-first-password.desktop" <<'DESK'
+[Desktop Entry]
+Type=Application
+Name=Set a real password
+Comment=The account still has the installer default password
+Exec=konsole --hide-menubar --hide-tabbar -e /usr/local/bin/fd44-first-password
+X-KDE-autostart-phase=2
+Terminal=false
+DESK
+
+    run fchroot chown -R "$username:$username" "/home/$username/.config"
 fi
 
 ###############################################################################
@@ -2356,9 +2418,11 @@ if [[ "$desktop" == hyprland ]]; then
     check "uwsm start hook in profile" "grep -q 'uwsm check may-start' '$rootmnt/home/$username/.bash_profile'"
     check "forced password change in profile" "grep -q 'password-changed' '$rootmnt/home/$username/.bash_profile'"
 else
-    # Plasma has no shell profile to gate on, so the gate is the password
-    # itself - see the chage call next to useradd.
-    check "password expired (forces a change at first login)" "grep -q '^$username:[^:]*:0:' '$rootmnt/etc/shadow'"
+    # Plasma cannot gate on the shell profile, and cannot expire the password
+    # either - SDDM refuses an expired one outright. The gate is an autostart
+    # entry inside the session; see the block that writes it.
+    check "first-login password gate installed" "[[ -f '$rootmnt/home/$username/.config/autostart/fd44-first-password.desktop' ]]"
+    check "password NOT expired (SDDM refuses those)" "! grep -q '^$username:[^:]*:0:' '$rootmnt/etc/shadow'"
 fi
 # The inverse of a check, and the important one: field 3 of the shadow entry
 # must NOT be 0. An expired password is rejected by PAM account management on
