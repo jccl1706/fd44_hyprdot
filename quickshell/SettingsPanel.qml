@@ -157,6 +157,17 @@ PanelWindow {
         Behavior on opacity { NumberAnimation { duration: Theme.animReveal; easing.type: Easing.OutCubic } }
         Behavior on scale   { NumberAnimation { duration: Theme.animReveal; easing.type: Easing.OutCubic } }
 
+        // THE CONTENT COLUMN, computed once and used by both the heading and
+        // the list. Clamping the LIST rather than each row is deliberate: the
+        // first attempt centred every delegate with `x: (pane.width - width)/2`
+        // and the wallpaper row ignored it, sitting flush left while the rows
+        // above it were centred - a row whose content is itself a view does not
+        // keep that binding. Moving the clamp up one level removes the question.
+        readonly property int contentWidth: Math.min(card.width - sidebar.width - 36,
+                                                     root.rowMaxWidth)
+        readonly property int contentX: sidebar.width
+                                      + (card.width - sidebar.width - card.contentWidth) / 2
+
         // Swallow clicks so they do not reach the dismissing area behind.
         MouseArea { anchors.fill: parent }
 
@@ -298,8 +309,8 @@ PanelWindow {
             // Lined up with the card below it rather than with the pane, or
             // it floats off to the left on a wide screen.
             anchors { top: divider.bottom; topMargin: 14 }
-            x: pane.x + (pane.width - Math.min(pane.width, root.rowMaxWidth)) / 2
-            width: Math.min(pane.width, root.rowMaxWidth)
+            x: card.contentX
+            width: card.contentWidth
             text: root.query !== "" ? "Results"
                 : (root.sections[root.section] ? root.sections[root.section].section : "")
             color: Theme.fg
@@ -309,9 +320,10 @@ PanelWindow {
 
         ListView {
             id: pane
-            anchors { top: pageTitle.bottom; left: sidebar.right; right: parent.right
-                      bottom: parent.bottom; topMargin: 10; leftMargin: 18
-                      rightMargin: 18; bottomMargin: 16 }
+            anchors { top: pageTitle.bottom; bottom: parent.bottom
+                      topMargin: 10; bottomMargin: 16 }
+            x: card.contentX
+            width: card.contentWidth
             clip: true
             // NO GAP BETWEEN ROWS. They are one card with hairlines between
             // them; a spacing here would break it back into separate tiles.
@@ -323,9 +335,7 @@ PanelWindow {
             delegate: SettingsRow {
                 required property var modelData
                 required property int index
-                // Clamped, and centred in whatever is left over.
-                width: Math.min(pane.width, root.rowMaxWidth)
-                x: (pane.width - width) / 2
+                width: pane.width
                 row: modelData.row
                 fromSection: modelData.from
                 first: index === 0
