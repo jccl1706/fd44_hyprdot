@@ -1022,6 +1022,23 @@ plasmapacs=(
     # the applications asked for
     konsole dolphin kwrite spectacle okular
 
+    # Creates and unlocks the KWallet with the login password at SDDM, which
+    # is what stops the first application that wants the keyring - Chromium -
+    # opening a wizard it cannot finish.
+    #
+    # INSTALLING IT IS THE WHOLE FIX, and the reason is worth knowing because
+    # it looks like nothing is wired up. Fedora's /etc/pam.d/sddm already
+    # carries the lines:
+    #
+    #     -auth        optional      pam_kwallet5.so
+    #     -session     optional      pam_kwallet5.so auto_start
+    #
+    # The leading `-` means "skip silently if this module is not installed".
+    # So the wiring ships with the distribution and sits inert until the
+    # package is there - which is why a stock Plasma install gets the wizard
+    # and no warning about why.
+    pam-kwallet
+
     # The software centre. Eighteen packages and 6 MB on top of the desktop
     # above, because nearly everything it needs is already there - measured,
     # not assumed, since discover on its own is 126 packages.
@@ -2012,6 +2029,32 @@ X-KDE-autostart-phase=2
 Terminal=false
 DESK
 
+    # KWallet, so the first application that wants the keyring does not open a
+    # wizard the account cannot complete.
+    #
+    # Chromium asks the system keyring to hold its encryption key, and on
+    # Plasma that is KWallet. On a fresh account KWallet runs a first-use
+    # wizard, and it offered the GPG-backed wallet on a machine with no GPG
+    # secret key - so it failed with "your system has no keys suitable for
+    # encryption" and left two stacked dialogs over the browser. Seen on the
+    # test VM the first time Chromium was opened.
+    #
+    # THIS FILE ALONE DOES NOT SUPPRESS THE WIZARD, which was the first guess
+    # and was wrong: `First Use=false` skips an introductory page, but the
+    # wizard fires on the ABSENCE OF A WALLET, so it still appeared. Tried in
+    # the VM and watched it come up anyway. What actually prevents it is
+    # pam_kwallet5 creating the wallet at login - this file only settles how
+    # the wallet behaves once it exists.
+    writefile 0644 "$rootmnt/home/$username/.config/kwalletrc" <<'WALLET'
+[Wallet]
+Enabled=true
+First Use=false
+Use One Wallet=true
+Prompt on Open=false
+Close When Idle=false
+Leave Open=true
+WALLET
+
     run fchroot chown -R "$username:$username" "/home/$username/.config"
 fi
 
@@ -2422,6 +2465,12 @@ else
     # either - SDDM refuses an expired one outright. The gate is an autostart
     # entry inside the session; see the block that writes it.
     check "first-login password gate installed" "[[ -f '$rootmnt/home/$username/.config/autostart/fd44-first-password.desktop' ]]"
+    check "kwallet wizard pre-answered"  "grep -q 'First Use=false' '$rootmnt/home/$username/.config/kwalletrc'"
+    # The sddm PAM lines are Fedora's, not ours - checking for them would pass
+    # whether or not this installer did anything. The module file is the part
+    # that was missing, so that is what is asserted.
+    check "pam_kwallet5 module installed"  "[[ -f '$rootmnt/usr/lib64/security/pam_kwallet5.so' ]]"
+    check "sddm pam auth stack still intact" "grep -qE '^auth.*(include|substack).*(system-auth|password-auth)' '$rootmnt/etc/pam.d/sddm'"
     check "password NOT expired (SDDM refuses those)" "! grep -q '^$username:[^:]*:0:' '$rootmnt/etc/shadow'"
 fi
 # The inverse of a check, and the important one: field 3 of the shadow entry
