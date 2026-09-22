@@ -441,6 +441,121 @@ It only restores onto the machine the backup came from: device IDs are hashes of
 the hardware, so it refuses if the Quadro in the backup is not present, or if the
 installed CoolerControl version differs.
 
+## After a reinstall
+
+What to do on a machine that has just been wiped, whichever distribution it
+runs. [Rebuilding the desktop](#rebuilding-the-desktop) below is the worked
+example for one particular machine; this is the general shape.
+
+### 0. Before you wipe it — what is not in this repo
+
+Everything in the repository comes back with a `git clone`. Nothing else does.
+Copy these off first, because a reinstall erases `/home` too:
+
+| | Where |
+|---|---|
+| ssh keys | `~/.ssh/` — without them you cannot reach the other machines, or push |
+| The TV pairing key | `~/.config/fd44-tv/client-key`, where a machine has one — deliberately never committed |
+| Claude Code's saved notes | `~/.claude/projects/*/memory/` |
+| CoolerControl's password | `/etc/coolercontrol/.passwd` and its certificates — excluded from the committed backup on purpose |
+| Whatever is in the bar's notes | `~/.local/state/fd44-hyprdot/notes.md` — the scratch pad's content, not configuration |
+| Browser profiles, documents, anything personal | wherever you keep them |
+| The Steam library | `~/.local/share/Steam/steamapps` — optional, games re-download |
+
+And push the repository itself: `git -C ~/Work/fd44_hyprdot status` should be
+clean and not ahead of `origin`. If the fan curves changed since the last
+commit, refresh `cooling/coolercontrol-backup/` — see step 4 of the worked
+example.
+
+### 1. Install the operating system
+
+**Fedora** — boot a Workstation live ISO and run the installer, which does the
+partitioning, the packages and the first dotfiles link in one pass:
+
+```sh
+curl -O https://raw.githubusercontent.com/jccl1706/fd44_hyprdot/master/install/install_fedora.sh
+chmod +x install_fedora.sh
+./install_fedora.sh --check-repos           # no root, no changes
+sudo ./install_fedora.sh --dry-run          # prints every command
+sudo ./install_fedora.sh
+```
+
+**NixOS** — the configuration is its own repository,
+[fd44_nixos](https://github.com/jccl1706/fd44_nixos). Clone it in the installer
+environment and let disko do the disk:
+
+```sh
+sudo nixos-install --flake .#nixos-gaming00
+```
+
+### 2. Point `~/.config` at the checkout
+
+This is the step that is easy to do by halves. **One command does all of it:**
+
+```sh
+git clone https://github.com/jccl1706/fd44_hyprdot ~/Work/fd44_hyprdot
+~/Work/fd44_hyprdot/bin/link-dotfiles.sh --dry-run   # what it would do
+~/Work/fd44_hyprdot/bin/link-dotfiles.sh
+```
+
+It links `hypr`, `quickshell`, `kitty`, `tmux`, `starship.toml` and
+`wireplumber`, plus `MangoHud` where MangoHud is installed and
+`power-mode.service` where there is a battery. Re-running it is safe: a correct
+link is left alone, a wrong one is repointed, and **a real file or directory in
+the way is reported and kept** — a fresh install writes several of these itself
+and they are not the script's to delete. If it says something is in the way,
+look at it, move it aside, and run the script again.
+
+The Fedora installer's `--dotfiles` already links some of these during
+installation. Running the script afterwards is still worth it: it links the ones
+the installer does not, and tells you so.
+
+Two of the links need something told:
+
+```sh
+systemctl --user restart wireplumber
+systemctl --user daemon-reload && systemctl --user enable --now power-mode.service
+```
+
+### 3. The opt-in pieces
+
+None of these run by themselves, and each explains what it does before doing it.
+Take the ones that machine wants:
+
+```sh
+cd ~/Work/fd44_hyprdot
+bin/starship-setup.sh        # the two-line prompt, per user, no sudo
+bin/icon-theme.sh            # the Reversal icons the palettes ask for
+sudo bin/gaming-setup.sh     # Steam, GameMode, MangoHud, the nodatacow library
+sudo bin/cooling-setup.sh    # CoolerControl and the saved fan curves
+bin/install-nerd-font.sh     # only where the font is not already packaged
+```
+
+**`gaming-setup.sh` must run before Steam's first launch.** It marks the Steam
+library `nodatacow`, which btrfs only allows while the directory is still empty.
+
+### 4. Check it came back
+
+```sh
+ls -l ~/.config/hypr ~/.config/quickshell   # symlinks into Work/fd44_hyprdot
+bin/link-dotfiles.sh                        # should say "already right" for everything
+qs list                                     # one quickshell instance, not four
+hyprctl version
+```
+
+Then look at the screen: the bar with its plugins, `SUPER+Space` for the
+launcher, `SUPER+,` for the wallpaper picker, `SUPER+SHIFT+,` for settings.
+
+### What will not come back on its own
+
+- **Per-machine state kept outside the repo.** `~/.local/state/fd44-hyprdot/`
+  holds the active theme, the bar layout and which plugins are hidden, the
+  launcher's ranking, the notification history and the notes; the chosen
+  wallpaper is `~/.local/state/wallpaper`, on its own because `bin/wallpaper.sh`
+  owns it. All of it rebuilds from defaults at the first login — the desktop
+  comes up looking right, just without your arrangement.
+- **Anything a setup script is opt-in about** — see step 3. Nothing there runs unless asked.
+
 ## Rebuilding the desktop
 
 How to take the gaming desktop (ASRock B650I, Ryzen 7 9700X, RX 9070 XT,
@@ -495,8 +610,10 @@ sudo ./install_fedora.sh --desktop --dotfiles https://github.com/jccl1706/fd44_h
   desktop machine type, no disk swap, no encryption, zram on (half of RAM, at
   most 8 GB).
 - **`--dotfiles`** clones this repo to `~/Work/fd44_hyprdot`, links `hypr`,
-  `quickshell` and `kitty` into `~/.config`, and enables the repo's systemd user
-  units. Nothing needs linking by hand afterwards.
+  `quickshell`, `kitty` and `wireplumber` into `~/.config`, and enables the
+  repo's systemd user units. It does **not** link `tmux`, `starship.toml` or the
+  MangoHud configuration, so run `bin/link-dotfiles.sh` afterwards — it makes
+  the rest and leaves the ones already correct alone.
 - The wizard still asks for the target disk — pick the NVMe — and the rest.
 - It ends with its own verification pass. Reboot when it finishes.
 
