@@ -36,6 +36,7 @@ pragma Singleton
 
 import Quickshell
 import Quickshell.Io
+import Quickshell.Networking
 import QtQuick
 
 Singleton {
@@ -93,6 +94,7 @@ Singleton {
     // Connections handler for a signal nobody declares is silently dead, and
     // that is exactly how the old "choose a wallpaper" button did nothing.
     signal requestWallpaperPicker()
+    signal requestNetworkPanel()
 
     readonly property var schema: [
         {
@@ -126,6 +128,15 @@ Singleton {
             // for hardware that is not here is worse than no control.
             when: function() { return settings.displayRows.length > 0 },
             rows: settings.displayRows
+        },
+        {
+            section: "Network",
+            icon: "\u{F0928}",                       // wifi_strength_4
+            // A machine with no wireless card has nothing here. The desktop
+            // is on ethernet and its Wi-Fi row would be a switch for hardware
+            // that is not in it.
+            when: function() { return settings.wifiDevice !== null },
+            rows: settings.networkRows
         },
         {
             section: "Notifications",
@@ -243,6 +254,42 @@ Singleton {
         }
         return out
     }
+
+    // --- network ----------------------------------------------------------
+    //
+    // TWO ROWS, NOT A SECOND NETWORK PANEL. NetworkPanel is eight hundred
+    // lines that already scan, sort, ask for a password, report why a join
+    // failed and show the addresses; writing any of that again here would be
+    // two implementations of the same thing, drifting. This is the settings
+    // that belong in settings - the radio switch - plus a door to the surface
+    // that does the rest, which is the same shape as the Wallpaper row.
+
+    readonly property var wifiDevice: {
+        for (const d of Networking.devices.values)
+            if (d.type === DeviceType.Wifi) return d
+        return null
+    }
+
+    readonly property string wifiStatus: {
+        if (!settings.wifiDevice) return "no wireless card"
+        if (!Networking.wifiEnabled) return "the radio is off"
+        const joined = settings.wifiDevice.networks.values.find(n => n.connected)
+        return joined && joined.name ? "connected to " + joined.name : "not connected"
+    }
+
+    readonly property var networkRows: [
+        { label: "Wi-Fi", type: "toggle",
+          help: "the radio itself · off saves power and drops any connection",
+          get: function() { return Networking.wifiEnabled },
+          set: function(v) { Networking.wifiEnabled = v } },
+
+        { label: "Network", type: "action",
+          help: settings.wifiStatus + " · the panel scans, joins and asks for a password",
+          // Only worth opening when there is a radio to scan with.
+          when: function() { return Networking.wifiEnabled },
+          runLabel: "Choose…",
+          run: function() { settings.requestNetworkPanel() } }
+    ]
 
     // One switch per bar plugin, then the reset.
     //

@@ -238,6 +238,15 @@ ShellRoot {
         }
     }
 
+    // ...and the same for the network panel, asked for by the Network page.
+    Connections {
+        target: Settings
+        function onRequestNetworkPanel() {
+            shell.closeAll(settingsVariants.instances)
+            shell.openFocused(networkVariants.instances)
+        }
+    }
+
     GlobalShortcut {
         appid: "quickshell"
         name: "settings"
