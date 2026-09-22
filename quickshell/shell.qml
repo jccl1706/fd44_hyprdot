@@ -226,16 +226,6 @@ ShellRoot {
         onPressed: shell.toggleFocused(launcherVariants.instances)
     }
 
-    // The settings panel does not embed the wallpaper picker - it asks for it,
-    // so there stays one implementation of a surface that already works.
-    Connections {
-        target: Settings
-        function onRequestWallpaperPicker() {
-            shell.closeAll(settingsVariants.instances)
-            shell.openFocused(wallpaperVariants.instances)
-        }
-    }
-
     GlobalShortcut {
         appid: "quickshell"
         name: "settings"
