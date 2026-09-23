@@ -154,6 +154,15 @@ link wireplumber            "$CONFIG/wireplumber"
 # own.
 link fontconfig/99-nerd-fallback.conf "$CONFIG/fontconfig/conf.d/99-nerd-fallback.conf"
 
+# Sub-pixel rendering, for the machines Fedora leaves out. kde-settings
+# enables it for KDE by testing the desktop name, so Plasma gets it and every
+# Hyprland session on the same release gets grey-scale antialiasing instead -
+# measured, and most of why the Plasma laptop's text looked better than the
+# others. Same reasoning as the fallback above: no `wants` test, because
+# fontconfig is everywhere and the machines that NEED this are the ones not
+# running KDE.
+link fontconfig/99-subpixel-rgb.conf "$CONFIG/fontconfig/conf.d/99-subpixel-rgb.conf"
+
 # konsole's palette, where there is a konsole. Two files under DATA rather
 # than CONFIG, which is where konsole looks for profiles and schemes.
 #
