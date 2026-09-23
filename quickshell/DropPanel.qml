@@ -203,6 +203,15 @@ PanelWindow {
     // the card 2px up under a bar it does not touch would just misplace it.
     readonly property int seamOverlap: BarStyle.joined ? 2 : 0
 
+
+
+
+    // A click landed on the bar while this panel was covering it. The panel
+    // does NOT close itself first: the bar decides what the click meant, and
+    // closing here would make pressing this panel's own glyph close it and
+    // then immediately reopen it. See Bar.clickAt.
+    signal barClicked(real x, real y)
+
     // --- scrim -----------------------------------------------------------
     //
     // Inset past the bar and the frame and rounded to the well, exactly as in
@@ -232,7 +241,22 @@ PanelWindow {
     // rather than reaching the bar underneath and reopening it.
     MouseArea {
         anchors.fill: parent
-        onClicked: root.close()
+        onClicked: mouse => {
+            // THE BAR'S CLICKS STILL BELONG TO THE BAR. This overlay covers it
+            // so that pressing the same glyph closes the panel instead of
+            // reaching through and reopening it - but that also made every
+            // OTHER glyph dead while anything was open, so a click on one
+            // closed what you had and never opened what you asked for.
+            // Handing the position over lets the bar answer both cases: its
+            // own glyph toggles shut, another one opens and closes this on
+            // the way, and bare bar with nothing under the pointer comes back
+            // as barDismissed.
+            if (mouse.y < BarStyle.barBottom) {
+                root.barClicked(mouse.x, mouse.y)
+                return
+            }
+            root.close()
+        }
     }
 
     // --- card ------------------------------------------------------------

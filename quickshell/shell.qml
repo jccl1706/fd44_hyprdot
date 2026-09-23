@@ -65,28 +65,45 @@ ShellRoot {
         Bar {
             id: bar
             onAudioRequested: x => shell.eachAudio(a => {
-                if (a.modelData === bar.modelData) a.toggle(x)
+                if (a.modelData !== bar.modelData) return
+                if (!a.revealed) shell.closeBarPanels(bar.modelData, a)
+                a.toggle(x)
             })
             onNetworkRequested: x => shell.eachNetwork(n => {
-                if (n.modelData === bar.modelData) n.toggle(x)
+                if (n.modelData !== bar.modelData) return
+                if (!n.revealed) shell.closeBarPanels(bar.modelData, n)
+                n.toggle(x)
             })
             onNotificationsRequested: x => shell.eachNotifyPanel(p => {
-                if (p.modelData === bar.modelData) p.toggle(x)
+                if (p.modelData !== bar.modelData) return
+                if (!p.revealed) shell.closeBarPanels(bar.modelData, p)
+                p.toggle(x)
             })
             onBatteryRequested: x => shell.eachBatteryPanel(p => {
-                if (p.modelData === bar.modelData) p.toggle(x)
+                if (p.modelData !== bar.modelData) return
+                if (!p.revealed) shell.closeBarPanels(bar.modelData, p)
+                p.toggle(x)
             })
             onClockRequested: x => shell.eachCalendar(p => {
-                if (p.modelData === bar.modelData) p.toggle(x)
+                if (p.modelData !== bar.modelData) return
+                if (!p.revealed) shell.closeBarPanels(bar.modelData, p)
+                p.toggle(x)
             })
             onNotesRequested: x => shell.eachNotes(p => {
-                if (p.modelData === bar.modelData) p.toggle(x)
+                if (p.modelData !== bar.modelData) return
+                if (!p.revealed) shell.closeBarPanels(bar.modelData, p)
+                p.toggle(x)
             })
+            // Bar, but not on anything: close whatever was up. Only reachable
+            // from a panel forwarding a click it was covering - see clickAt.
+            onBarDismissed: shell.closeBarPanels(bar.modelData, null)
+
             onTrayMenuRequested: (x, item) => shell.eachTrayMenu(p => {
                 if (p.modelData !== bar.modelData) return
                 // Re-pointing an open menu at a different icon should show the
                 // new one rather than toggle the panel shut.
                 if (p.revealed && p.item !== item) { p.item = item; return }
+                if (!p.revealed) shell.closeBarPanels(bar.modelData, p)
                 p.item = item
                 p.toggle(x)
             })
@@ -123,7 +140,9 @@ ShellRoot {
     Variants {
         id: launcherVariants
         model: Quickshell.screens
-        Launcher {}
+        Launcher {
+            onBarClicked: (x, y) => shell.toBar(modelData, x, y)
+        }
     }
 
     // The settings window. Same full-screen-surface arrangement as the
@@ -146,7 +165,9 @@ ShellRoot {
     Variants {
         id: powerVariants
         model: Quickshell.screens
-        PowerMenu {}
+        PowerMenu {
+            onBarClicked: (x, y) => shell.toBar(modelData, x, y)
+        }
     }
 
     // Volume and device selection, sliding down out of the bar's top-right
@@ -154,7 +175,9 @@ ShellRoot {
     Variants {
         id: audioVariants
         model: Quickshell.screens
-        AudioPanel {}
+        AudioPanel {
+            onBarClicked: (x, y) => shell.toBar(modelData, x, y)
+        }
     }
 
     // Wi-Fi and Ethernet, the same kind of panel. Opened from the network
@@ -162,7 +185,9 @@ ShellRoot {
     Variants {
         id: networkVariants
         model: Quickshell.screens
-        NetworkPanel {}
+        NetworkPanel {
+            onBarClicked: (x, y) => shell.toBar(modelData, x, y)
+        }
     }
 
     // Do-not-disturb and the history of what has been and gone. Opened from
@@ -170,7 +195,9 @@ ShellRoot {
     Variants {
         id: notifyPanelVariants
         model: Quickshell.screens
-        NotificationPanel {}
+        NotificationPanel {
+            onBarClicked: (x, y) => shell.toBar(modelData, x, y)
+        }
     }
 
     // Charge, wear and cycles. Opened from the battery glyph, and created
@@ -179,21 +206,27 @@ ShellRoot {
     Variants {
         id: batteryPanelVariants
         model: Quickshell.screens
-        BatteryPanel {}
+        BatteryPanel {
+            onBarClicked: (x, y) => shell.toBar(modelData, x, y)
+        }
     }
 
     // The month, from the clock.
     Variants {
         id: calendarVariants
         model: Quickshell.screens
-        CalendarPanel {}
+        CalendarPanel {
+            onBarClicked: (x, y) => shell.toBar(modelData, x, y)
+        }
     }
 
     // Somewhere to put a thought, from the notebook glyph.
     Variants {
         id: notesVariants
         model: Quickshell.screens
-        NotesPanel {}
+        NotesPanel {
+            onBarClicked: (x, y) => shell.toBar(modelData, x, y)
+        }
     }
 
     // A tray item's own menu. One per monitor like the rest, and one for ALL
@@ -202,7 +235,9 @@ ShellRoot {
     Variants {
         id: trayMenuVariants
         model: Quickshell.screens
-        TrayMenu {}
+        TrayMenu {
+            onBarClicked: (x, y) => shell.toBar(modelData, x, y)
+        }
     }
 
     // Notification toasts. The service is a singleton and owns the bus name;
@@ -482,6 +517,53 @@ ShellRoot {
         }
     }
 
+    // ONE OF THE BAR'S PANELS AT A TIME.
+    //
+    // They are independent windows, so before this nothing stopped two being
+    // up at once - and with the bar now reachable through the input hole in
+    // each of them (see the note in DropPanel.qml), clicking a second glyph
+    // would have left the first panel sitting there behind the new one. A
+    // click on a glyph means "show me this", so whatever else the bar had
+    // open goes first.
+    //
+    // Per monitor: the panels are created one per screen and a click is about
+    // the screen it happened on, so a panel on the other display is not
+    // "another one of these" and is left alone.
+    //
+    // The settings window and the wallpaper picker are deliberately NOT in
+    // this list. They are not bar drop-downs - they are windows you work in,
+    // opened from the logo or from inside settings, and closing one because a
+    // volume panel opened would lose what you were doing.
+    readonly property var barPanelGroups: [
+        audioVariants, networkVariants, notifyPanelVariants,
+        batteryPanelVariants, calendarVariants, notesVariants,
+        trayMenuVariants, powerVariants, launcherVariants
+    ]
+
+    // Hand a click back to the bar on that screen. The panels are full-screen
+    // overlays and cover the bar while they are up, so a press on a glyph
+    // arrives here rather than there; Bar.clickAt runs it through the bar's
+    // own hit test and the click behaves as if the overlay had not existed.
+    function toBar(screen, x, y): void {
+        const bars = barVariants.instances
+        for (let i = 0; i < bars.length; i++) {
+            const b = bars[i]
+            if (b && b.modelData === screen) { b.clickAt(x, y); return }
+        }
+    }
+
+    function closeBarPanels(screen, keep): void {
+        for (let g = 0; g < shell.barPanelGroups.length; g++) {
+            const instances = shell.barPanelGroups[g].instances
+            for (let i = 0; i < instances.length; i++) {
+                const p = instances[i]
+                if (!p || p === keep) continue
+                if (p.modelData !== screen) continue
+                if (p.revealed) p.close()
+            }
+        }
+    }
+
     function eachAudio(fn): void {
         const instances = audioVariants.instances
         for (let i = 0; i < instances.length; i++) {
@@ -615,7 +697,9 @@ ShellRoot {
             }
         }
         const one = shell.focusedOne(instances)
-        if (one) one.open()
+        if (!one) return
+        shell.closeBarPanels(one.modelData, one)
+        one.open()
     }
 
     // The instances that are actually on screen.
@@ -630,9 +714,13 @@ ShellRoot {
         }
     }
 
+    // Whatever is being opened, the bar's drop-downs make way for it - see
+    // closeBarPanels. A keybind is as much "show me this" as a click is.
     function openFocused(instances): void {
         const one = shell.focusedOne(instances)
-        if (one) one.open()
+        if (!one) return
+        shell.closeBarPanels(one.modelData, one)
+        one.open()
     }
 
     // Show the OSD on every bar. With one monitor that is one bar; with two,

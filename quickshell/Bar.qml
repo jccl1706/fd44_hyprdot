@@ -136,7 +136,10 @@ PanelWindow {
     }
 
     // A click on a plugin. `slot` is the Loader drawing it.
-    function activate(id: string, slot): void {
+    // Returns whether it did anything, which clickAt below needs: an id with
+    // no branch here - "tray", whose icons handle their own clicks - has to
+    // fall through to dismissing rather than silently doing nothing.
+    function activate(id: string, slot): bool {
         const x = slot.mapToItem(null, slot.width / 2, 0).x
         if (id === "audio")                    root.audioRequested(x)
         else if (id === "network")             root.networkRequested(x)
@@ -152,6 +155,43 @@ PanelWindow {
         // "tray" is deliberately absent: each icon handles its own clicks and
         // opens the application's own menu, so there is nothing bar-wide to
         // activate and no panel of ours to open.
+        else return false
+        return true
+    }
+
+    // Nothing on the bar was under the pointer: whatever is open should just
+    // close. shell.qml owns the panels and does it.
+    signal barDismissed()
+
+    // A CLICK THAT LANDED ON THE BAR WHILE A PANEL WAS COVERING IT.
+    //
+    // An open panel is a full-screen overlay holding exclusive keyboard
+    // focus, and Hyprland routes the pointer to it whatever input region it
+    // declares - the same behaviour already documented in DropPanel.qml,
+    // where a click meant for the other monitor's bar was swallowed. Masking
+    // the bar's strip out of the overlay was tried and changed nothing:
+    // measured with the pointer parked on the speaker glyph, its hover
+    // highlight stayed off.
+    //
+    // So the panel hands the click here instead, in its own window
+    // coordinates - which are the bar's too, both being surfaces on the same
+    // output - and this runs it through the bar's own hit test. The effect is
+    // the same as if the overlay had not been there: the glyph you pressed
+    // does what it always does.
+    function clickAt(x: real, y: real): void {
+        const hit = root.slotAt(x, y)
+        if (hit && root.activate(hit.id, hit.slot)) return
+
+        // The clock is not a plugin and sits in no zone, so slotAt cannot see
+        // it, but it opens a panel like the rest and should behave like it.
+        const c = clockItem.mapToItem(dragArea, 0, 0)
+        if (x >= c.x && x <= c.x + clockItem.width
+            && y >= c.y && y <= c.y + clockItem.height) {
+            root.clockRequested(clockItem.mapToItem(null, clockItem.width / 2, 0).x)
+            return
+        }
+
+        root.barDismissed()
     }
 
     // The same as clicking plugin `id` wherever it currently sits - for IPC
