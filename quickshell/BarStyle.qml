@@ -34,12 +34,28 @@ Singleton {
     // The gap the bar keeps from the top and sides when floating.
     readonly property int margin: floating ? Theme.barFloatMargin : 0
 
+    // BIGGER PILLS WHEN THEY ARE THE WHOLE BAR. Framed, a pill is a group
+    // marked out on a strip and Theme.barHeight's 38 sets the scale, so 26 is
+    // a pill with 6px of bar showing above and below it. Floating, the strip
+    // is invisible and the pill IS the bar - at 26 it reads as a thin sliver
+    // with a lot of wallpaper round it rather than as the shell's main
+    // control. The extra 6 of height and 4 of padding is what puts it back in
+    // proportion to the gap it now sits in.
+    readonly property int pillHeight:  Theme.pillHeight  + (floating ? 6 : 0)
+    readonly property int pillPadding: Theme.pillPadding + (floating ? 4 : 0)
+
     // WHERE THE CHROME BELOW THE BAR STARTS. This is the bar window's full
     // height, which is also its exclusive zone, so a panel's top edge lands
     // exactly where a tiled window's top edge does rather than a few pixels
-    // off it. In frame mode the two halves of that sum collapse to the bar
-    // height, which is what every call site used to say directly.
-    readonly property int barBottom: Theme.barHeight + margin * 2
+    // off it.
+    //
+    // Floating it is the PILL plus its margins, not Theme.barHeight plus
+    // them. barHeight is the height of an opaque strip, and the 6px of slack
+    // it carries above and below the pill is part of that strip's look; with
+    // no strip drawn that slack is just wallpaper nothing may tile into, and
+    // the gap above the pill would come out larger than the gap beside it.
+    readonly property int barBottom: floating ? pillHeight + margin * 2
+                                              : Theme.barHeight
 
     // How far a card is held off the left, right and bottom edges of the
     // screen. Zero in frame mode is not an oversight: there the card runs all

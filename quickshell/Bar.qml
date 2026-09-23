@@ -61,11 +61,11 @@ PanelWindow {
     // border, or float clear of every edge on the wallpaper.
     readonly property bool floating: Settings.barStyle === "pill"
 
-    // The window GROWS by the margin rather than the pills shrinking into it,
-    // because the pills are sized by their contents and shrinking them would
-    // squeeze the glyphs. A taller window with the same pills centred in it
-    // gives the gap above and below for free.
-    implicitHeight: Theme.barHeight + (floating ? Theme.barFloatMargin * 2 : 0)
+    // Floating, the window is the pill plus a margin all round; framed, it is
+    // the strip's own height. BarStyle owns that sum because the panels below
+    // measure from it too, and a bar and a launcher disagreeing about where
+    // the bar ends is a gap or an overlap.
+    implicitHeight: BarStyle.barBottom
 
     // Layer-shell surfaces can reserve space, so tiled windows are placed
     // below the bar instead of underneath it. Hyprland honours this via
@@ -301,12 +301,12 @@ PanelWindow {
             Rectangle {
                 id: leftPill
                 anchors.verticalCenter: parent.verticalCenter
-                height: Theme.pillHeight
+                height: BarStyle.pillHeight
                 // Tracks its contents, so the OSD sliding out and a plugin
                 // dropped in both widen the pill with them. Each of the three
                 // parts animates its own width, and the pill adds them up.
                 width: leftRow.implicitWidth + leftZone.width + osd.implicitWidth
-                       + Theme.pillPadding * 2
+                       + BarStyle.pillPadding * 2
                 radius: height / 2
 
                 // Lit from above - see the depth note in Theme.qml.
@@ -328,7 +328,7 @@ PanelWindow {
                 Row {
                     id: leftRow
                     anchors { left: parent.left
-                              leftMargin: Theme.pillPadding
+                              leftMargin: BarStyle.pillPadding
                               verticalCenter: parent.verticalCenter }
                     spacing: Theme.itemSpacing
 
@@ -380,8 +380,8 @@ PanelWindow {
             Rectangle {
                 id: centerPill
                 anchors.centerIn: parent
-                height: Theme.pillHeight
-                width: centerRow.implicitWidth + Theme.pillPadding * 2
+                height: BarStyle.pillHeight
+                width: centerRow.implicitWidth + BarStyle.pillPadding * 2
                 radius: height / 2
 
                 // Lit from above - see the depth note in Theme.qml.
@@ -441,8 +441,8 @@ PanelWindow {
                 // With every plugin moved elsewhere there is nothing to put a
                 // pill around.
                 visible: rightZone.width > 0.5
-                height: Theme.pillHeight
-                width: rightZone.width + Theme.pillPadding * 2
+                height: BarStyle.pillHeight
+                width: rightZone.width + BarStyle.pillPadding * 2
                 radius: height / 2
 
                 // Lit from above - see the depth note in Theme.qml.
