@@ -131,6 +131,34 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("qs -d")
 end)
 
+-- Audio, on a system that does not start it for us.
+--
+-- FEDORA NEEDS NONE OF THIS and must not get it twice. There PipeWire and
+-- WirePlumber are systemd user services, socket-activated and already running
+-- before Hyprland does anything; launching a second pair would have two
+-- daemons contending for the same devices. The pgrep guard is what makes this
+-- safe to keep in a file every machine reads - it starts them only where
+-- nothing already has.
+--
+-- FreeBSD is that somewhere: there is no systemd, no user session manager and
+-- nothing that starts a sound server on login, so without this the bar loads
+-- with its volume control connected to nothing. Measured on the T480's FreeBSD
+-- install on 2026-09-23: quickshell logged "Failed to connect pipewire
+-- context. Errno: 64" until these were running.
+--
+-- THE SESSION BUS IS NOT STARTED HERE, and cannot usefully be. Notifications
+-- and PipeWire both want DBUS_SESSION_BUS_ADDRESS, and a bus launched after
+-- the compositor is not in the environment the compositor hands to anything it
+-- spawns. On FreeBSD start the whole session under one instead:
+--
+--     dbus-run-session Hyprland
+--
+-- which is what the systemd user bus does for us on Fedora.
+hl.on("hyprland.start", function()
+    hl.exec_cmd("sh -c 'pgrep -q pipewire    || pipewire &'")
+    hl.exec_cmd("sh -c 'pgrep -q wireplumber || wireplumber &'")
+end)
+
 -- NOTE: do not try to quit Plymouth from here.
 --
 -- Plymouth holds DRM master on the GPU, which is why plymouth-quit-wait.service
