@@ -298,6 +298,13 @@ Item {
                         "\"$(dirname \"$(readlink -f '" + Quickshell.shellDir
                         + "')\")/bin/tray-click.sh\" \"$1\" \"$2\" \"$3\"",
                         "sh", t, String(sx), String(sy)]
+                    // FALSE THEN TRUE, and the false is the whole point.
+                    // Assigning running = true when the property is already
+                    // false does not start a second run - the first click
+                    // worked and every one after it did nothing, which is
+                    // exactly how this looked from the outside. Forcing the
+                    // transition restarts it.
+                    clickFallback.running = false
                     clickFallback.running = true
                 }
 
