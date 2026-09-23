@@ -7,11 +7,70 @@
 #
 # Ported from install_arch_v3_3.sh. Same shape, same wizard/preflight/dry-run
 # plumbing, same Btrfs subvolume scheme and hibernation/zram logic - but the
-# desktop question is gone. This script only ever installs Hyprland with
-# quickshell as the bar. If you want GNOME/KDE/niri or waybar, go back to the
-# Arch script or add another branch yourself; this one is deliberately narrow.
+# desktop question was gone for a long time: this script only ever installed
+# Hyprland with quickshell as the bar. Since v1.15 it asks, and offers KDE
+# Plasma as the alternative - still two choices rather than a menu of eight,
+# and still no GNOME, niri or waybar branch.
 #
 # Changelog
+#   v1.15 A SECOND DESKTOP, and five bugs the testing for it uncovered - four
+#         of which were in the Hyprland path all along.
+#
+#         KDE PLASMA, as a menu choice. Never both: one or the other, with the
+#         Hyprland path byte for byte what it was, inside a single
+#         `if [[ "$desktop" == hyprland ]]`. Not the KDE suite - plasma-desktop
+#         and plasma-workspace with SDDM are already 333 packages and 1 GB on
+#         their own, and the pieces added bring it to 412 and 2 GB. Measured
+#         with `dnf install --assumeno` before a line was written. --plasma and
+#         --hyprland select it without the wizard, which --unattended skips.
+#
+#         GRUB WAS BEING INSTALLED ON EVERY MACHINE THIS SCRIPT HAS EVER
+#         BUILT, and it is not merely clutter. crypto-policies-scripts
+#         recommends grubby, grubby requires grub2-tools, and grub2-tools ships
+#         /usr/lib/kernel/install.d/20-grub.install - a kernel-install plugin
+#         that runs grub2-probe against the installroot during the kernel's
+#         %posttrans. There is no /dev there, so it fails with "cannot find a
+#         device for /" and takes the whole RPM transaction down AFTER all 374
+#         packages are written. Every Plasma install in the test VM died on it.
+#         Excluded in both transactions and asserted by a check. Safe to
+#         exclude because systemd-udev's `(grubby > 8.40-72 if grubby)` is a
+#         rich dependency - "this version or better, only if grubby is here" -
+#         which does not pull it in. The Framework, the T480 and the desktop
+#         are all carrying this tooling for nothing; `dnf remove grubby
+#         grub2-tools` clears it.
+#
+#         THE SERIF FONTS WERE SURVIVING ON SOMEONE ELSE'S DEPENDENCY. The
+#         verification pass has checked for them for a long time and it passed
+#         on Hyprland only because something in that stack happened to require
+#         them. Plasma had neither and failed the check. Named explicitly now -
+#         the third package in this file found living off another's Requires.
+#
+#         THE PASSWORD GATE HAD TO BE REBUILT FOR A GREETER. The public
+#         `changeme` default is safe only because ~/.bash_profile refuses to
+#         start a session until it is changed, and behind SDDM that profile
+#         never runs. Expiring the password instead does NOT work: SDDM has no
+#         PAM conversation for changing an expired one, so it rejects the
+#         correct password with no way forward and the machine is unusable.
+#         That was shipped, tried, and found by typing the password in. The
+#         gate is now a KDE autostart entry that opens konsole on first login
+#         and will not let go until passwd succeeds - weaker, because the
+#         desktop is already up, and the strongest thing available behind a
+#         greeter that cannot prompt.
+#
+#         KWALLET MET CHROMIUM AND LOST. The first application that wants the
+#         keyring triggered KWallet's first-use wizard, which offered the
+#         GPG-backed wallet on an account with no GPG key and failed. The fix
+#         is one package, pam-kwallet, and it looks like nothing is wired up:
+#         Fedora's /etc/pam.d/sddm already carries `-auth optional
+#         pam_kwallet5.so`, where the leading `-` means "skip silently if the
+#         module is missing" - so the wiring ships with the distribution and
+#         sits inert until the package is there.
+#
+#         Tested by installing it repeatedly on a Proxmox VM, which is the
+#         only reason any of the above is known. A helper environment for this
+#         script must not be grub2-based: the host's 20-grub.install fires
+#         during the target's kernel transaction.
+#
 #   v1.14 SELINUX WAS NEVER INSTALLED. Every machine this script has built
 #         came up with SELinux Disabled - no confinement at all - and nothing
 #         said so. The kernel initialises SELinux and systemd is built with
@@ -393,7 +452,7 @@ set -Eeuo pipefail
 
 # Shown in the wizard's banner and the preflight report. Bump it together
 # with the header at the top of this file.
-installer_version="v1.14"
+installer_version="v1.15"
 
 ###############################################################################
 # Config - these are the DEFAULTS. Interactive mode offers them as defaults
@@ -2553,6 +2612,32 @@ cat <<EOF
   at boot at all: powering the machine on lands straight in a session. The
   disk is readable by anyone who can take it out of the case." )
 
+$( if [[ "$desktop" == plasma ]]; then cat <<'PLASMA'
+  SDDM greets you at boot and the session is Plasma on Wayland. The X11
+  session is there in the Session menu if something ever needs it.
+
+  THE ACCOUNT STILL HAS THE PASSWORD THIS REPOSITORY PUBLISHES. A terminal
+  opens on your first login and will not close until passwd succeeds - that
+  is the gate, and it is deliberately hard to dismiss. Fedora's Welcome
+  Center may open on top of it; move that aside and finish the password
+  first.
+
+  KWallet is unlocked by your login password through pam_kwallet5, so the
+  first application that wants the keyring - Chromium - does not stop to ask.
+  Change the account password with passwd, not with a Plasma settings page,
+  or the wallet and the login will disagree and you will be prompted forever.
+
+  The four settings pages worth knowing, all under System Settings: Wi-Fi and
+  Bluetooth, Display Configuration for monitors, and Audio. They are
+  plasma-nm, bluedevil, kscreen and plasma-pa - installed by name rather than
+  as part of a KDE suite, so anything else you expect from KDE is not here
+  until you install it.
+
+  GTK applications are themed by breeze-gtk. Anything that still looks like
+  Adwaita is an application ignoring it, not a missing package.
+
+PLASMA
+else cat <<'HYPR'
   If Hyprland ever fails to start you land at a shell on tty1 rather than a
   respawn loop (the profile hook does not use exec), and tty2-tty6 always
   give you a normal login. The uwsm output goes to
@@ -2586,10 +2671,15 @@ cat <<EOF
   python3-pyxdg and python3-dbus are already included above for exactly
   this reason; if a COPR update introduces another one, same fix applies.
 
+HYPR
+fi )
 ${hibernate_hint}  First boot, before anything else:
     sudo dnf upgrade --refresh
 
-  Hyprland/quickshell came from a third-party COPR ($hypr_copr) - if it
-  ever goes stale, "sudo dnf copr disable $hypr_copr" and swap in whatever
-  COPR has taken over as the maintained one.
+$( [[ "$desktop" == hyprland ]] && cat <<'COPRNOTE'
+  Hyprland/quickshell came from a third-party COPR - if it ever goes stale,
+  "sudo dnf copr disable" it and swap in whatever COPR has taken over as the
+  maintained one.
+COPRNOTE
+)
 EOF
