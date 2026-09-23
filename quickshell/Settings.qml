@@ -53,6 +53,13 @@ Singleton {
     // How long the volume/brightness OSD stays after the last keypress.
     property int  osdHideMs: 1500
 
+    // TWO SHAPES FOR THE BAR, and the only thing it changes is whether the
+    // bar paints a background and whether Frame.qml draws the other three
+    // edges. Everything inside is the same three rounded regions either way -
+    // "frame" puts them on an opaque strip welded to a border round the
+    // screen, "pill" lets them float on the wallpaper with a gap all round.
+    property string barStyle: "frame"   // "frame" | "pill"
+
     // Launcher ranking: how quickly a launch stops counting. See
     // LauncherFrecency for what the number means.
     property real frecencyHalfLifeDays: 10
@@ -100,6 +107,12 @@ Singleton {
             section: "Appearance",
             icon: "\u{F03D8}",                       // palette
             rows: [
+                { label: "Bar style", type: "select",
+                  help: "frame welds the bar to a border round the whole screen; pill floats it on the wallpaper",
+                  get: function() { return Settings.barStyle },
+                  set: function(v) { Settings.setValue("barStyle", v) },
+                  options: [ { value: "frame", label: "Frame" },
+                             { value: "pill",  label: "Floating pill" } ] },
                 { label: "Theme", type: "select",
                   help: "runs bin/theme.sh, which restyles the bar, kitty, GTK and Chromium together",
                   get: function() { return Theme.name },
@@ -349,6 +362,7 @@ Singleton {
         settings.notifyMaxMs = 30000
         settings.osdHideMs = 1500
         settings.frecencyHalfLifeDays = 10
+        settings.barStyle = "frame"
         settings.dirty = true
         saveTimer.restart()
     }
@@ -370,7 +384,8 @@ Singleton {
                 notifyNormalMs: settings.notifyNormalMs,
                 notifyMaxMs: settings.notifyMaxMs,
                 osdHideMs: settings.osdHideMs,
-                frecencyHalfLifeDays: settings.frecencyHalfLifeDays
+                frecencyHalfLifeDays: settings.frecencyHalfLifeDays,
+                barStyle: settings.barStyle
             }, null, 1))
             settings.dirty = false
         }

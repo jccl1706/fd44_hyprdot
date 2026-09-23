@@ -55,12 +55,24 @@ PanelWindow {
         right: true
     }
 
-    implicitHeight: Theme.barHeight
+    // FRAME OR FLOATING PILL, chosen in the settings panel. The bar's contents
+    // are identical either way - it is already three rounded pills - so this
+    // only decides whether they sit on an opaque strip welded to Frame.qml's
+    // border, or float clear of every edge on the wallpaper.
+    readonly property bool floating: Settings.barStyle === "pill"
+
+    // The window GROWS by the margin rather than the pills shrinking into it,
+    // because the pills are sized by their contents and shrinking them would
+    // squeeze the glyphs. A taller window with the same pills centred in it
+    // gives the gap above and below for free.
+    implicitHeight: Theme.barHeight + (floating ? Theme.barFloatMargin * 2 : 0)
 
     // Layer-shell surfaces can reserve space, so tiled windows are placed
     // below the bar instead of underneath it. Hyprland honours this via
     // `exclusiveZone`; leaving it at the default means the bar would overlap
-    // windows. Setting it to the bar's own height reserves exactly that.
+    // windows. Setting it to the bar's own height reserves exactly that -
+    // INCLUDING the floating margin, so the gap stays wallpaper instead of
+    // having a window slide up into it.
     exclusiveZone: implicitHeight
 
     color: "transparent"
@@ -257,7 +269,12 @@ PanelWindow {
 
     Rectangle {
         anchors.fill: parent
-        color: Theme.bg
+
+        // NOTHING TO PAINT WHEN FLOATING. The pills carry their own surface
+        // and rim, so with this transparent they read as three objects lying
+        // on the wallpaper; Frame.qml is not instantiated in that mode either,
+        // so there is no border for them to be welded to.
+        color: root.floating ? "transparent" : Theme.bg
 
         // Square on every corner. The bar is the TOP EDGE of the frame that
         // Frame.qml draws down the sides and across the bottom, so rounding
@@ -274,7 +291,11 @@ PanelWindow {
         // belongs together, and gives the eye edges to rest against.
         Item {
             id: leftRegion
-            anchors { left: parent.left; top: parent.top; bottom: parent.bottom; leftMargin: Theme.barPadding }
+            // The float margin is ADDED to the usual padding rather than
+            // replacing it, so the gap is the same on the sides as it is
+            // above and below.
+            anchors { left: parent.left; top: parent.top; bottom: parent.bottom
+                      leftMargin: Theme.barPadding + (root.floating ? Theme.barFloatMargin : 0) }
             width: leftPill.width
 
             Rectangle {
@@ -410,7 +431,8 @@ PanelWindow {
 
         Item {
             id: rightRegion
-            anchors { right: parent.right; top: parent.top; bottom: parent.bottom; rightMargin: Theme.barPadding }
+            anchors { right: parent.right; top: parent.top; bottom: parent.bottom
+                      rightMargin: Theme.barPadding + (root.floating ? Theme.barFloatMargin : 0) }
             width: rightPill.width
 
             Rectangle {

@@ -96,16 +96,25 @@ ShellRoot {
     // The three remaining edges of the frame. The Bar is the top edge.
     // A separate Variants per edge, because Variants passes exactly one model
     // item and the edge has to be fixed per instance.
+    //
+    // AN EMPTY MODEL IS HOW THE FRAME GOES AWAY in floating-pill mode. Hiding
+    // the windows with `visible` would leave three layer surfaces alive still
+    // reserving their exclusiveZone, so the border would vanish but the gap it
+    // held open would not. Emptying the model destroys them outright, and
+    // switching back rebuilds them - they hold no state worth keeping.
+    readonly property var frameScreens:
+        Settings.barStyle === "pill" ? [] : Quickshell.screens
+
     Variants {
-        model: Quickshell.screens
+        model: shell.frameScreens
         Frame { edge: "left" }
     }
     Variants {
-        model: Quickshell.screens
+        model: shell.frameScreens
         Frame { edge: "right" }
     }
     Variants {
-        model: Quickshell.screens
+        model: shell.frameScreens
         Frame { edge: "bottom" }
     }
 

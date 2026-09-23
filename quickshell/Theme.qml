@@ -200,6 +200,18 @@ Singleton {
     readonly property int pillHeight:  26
     readonly property int pillPadding: 10
     readonly property int barPadding:  12   // gap from the screen edge
+
+    // FLOATING BAR ONLY. How far the pills sit in from the screen edges when
+    // Settings.barStyle is "pill" - see Bar.qml. It is added to the bar's own
+    // height rather than subtracted from it, so the pills keep their size and
+    // the exclusive zone grows: windows tile below the gap instead of under
+    // the bar.
+    //
+    // 8, not barPadding's 12. The horizontal gap is between a pill and the
+    // edge of a screen; this one is between a pill and a tiled window, and
+    // matching the window gap reads as part of the same grid rather than as a
+    // wider band of nothing.
+    readonly property int barFloatMargin: 8
     readonly property int itemSpacing: 12   // between groups in a region
     readonly property int glyphSize:   18
 
