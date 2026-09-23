@@ -114,6 +114,7 @@ Item {
                 // apply and must not be faked: a tray of recoloured icons is
                 // unrecognisable.
                 Image {
+                    id: icon
                     anchors.centerIn: parent
                     width: 16
                     height: 16
@@ -125,6 +126,21 @@ Item {
                     asynchronous: true
                     opacity: entry.attention ? 1 : (hover.hovered ? 1 : 0.85)
                     Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+                }
+
+                // A LETTER WHEN THERE IS NO ICON, because an item is entitled
+                // to publish neither an icon name nor a pixmap and a 22px hole
+                // in the bar looks like a bug. Battle.net under Proton is the
+                // case that found this: IconName is the empty string.
+                Text {
+                    anchors.centerIn: parent
+                    visible: icon.status !== Image.Ready
+                    text: (entry.modelData.title || entry.modelData.id || "?")
+                              .trim().charAt(0).toUpperCase()
+                    font.family: Theme.font
+                    font.pixelSize: 12
+                    font.weight: Theme.weightSemi
+                    color: hover.hovered ? Theme.fg : Theme.pluginIcon
                 }
 
                 // A dot rather than a colour change, for the same reason the
@@ -139,6 +155,25 @@ Item {
                     radius: 3
                     color: Theme.danger
                 }
+
+                // hasMenu IS NOT TRUSTWORTHY, so the menu is read and counted
+                // instead. Measured on this machine, the two tray items are
+                // exact opposites:
+                //
+                //   Steam        16 entries, no Activate method at all
+                //   Battle.net   Menu = "/NO_DBUSMENU", Activate works
+                //
+                // and Quickshell reports hasMenu=true for BOTH. Believing it
+                // opened an empty panel over Battle.net; believing Activate
+                // did nothing at all over Steam. The entry count is the only
+                // thing that distinguishes them.
+                QsMenuOpener {
+                    id: opener
+                    menu: entry.modelData.menu
+                }
+
+                readonly property int menuEntries:
+                    opener.children ? opener.children.values.length : 0
 
                 HoverHandler { id: hover }
 
@@ -175,10 +210,12 @@ Item {
                     // a call that fails silently cannot be fallen back from.
                     onClicked: mouse => {
                         if (mouse.button === Qt.LeftButton) {
-                            if (entry.modelData.hasMenu) entry.openMenu()
-                            else                         entry.modelData.activate()
+                            if (entry.menuEntries > 0) entry.openMenu()
+                            else                       entry.modelData.activate()
                         } else if (mouse.button === Qt.RightButton) {
-                            entry.openMenu()
+                            // No menu to show means right-click has nothing to
+                            // do, rather than opening an empty card.
+                            if (entry.menuEntries > 0) entry.openMenu()
                         } else if (mouse.button === Qt.MiddleButton) {
                             entry.modelData.secondaryActivate()
                         }
@@ -202,7 +239,7 @@ Item {
                 // TrayMenu.qml reads the entries with QsMenuOpener - which does
                 // work - and draws them as one of this shell's own panels.
                 function openMenu(): void {
-                    if (!entry.modelData.hasMenu || !root.barWindow) return
+                    if (entry.menuEntries === 0 || !root.barWindow) return
                     const x = entry.mapToItem(null, entry.width / 2, 0).x
                     root.barWindow.trayMenuRequested(x, entry.modelData)
                 }
