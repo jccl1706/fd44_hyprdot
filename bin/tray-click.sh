@@ -24,7 +24,21 @@
 set -uo pipefail
 
 title="${1:-}"
-[[ -z "$title" ]] && { echo "usage: ${0##*/} <tray item title>" >&2; exit 2; }
+# Where to put the menu, in the COMPOSITOR-INDEPENDENT space the application
+# believes it is on - which for a Wine program is a screen starting at 0,0,
+# whatever the compositor thinks. Not the same thing as Hyprland coordinates:
+# this desktop's only monitor sits at x = -2560 because hypr/monitors.lua uses
+# auto-left, and passing a Hyprland x of -60 was outside Wine's screen and got
+# clamped to its left edge. Measured: x=2400 put the menu at Hyprland -236,
+# flush with the right of the monitor where the icon is; x=-60 put it at
+# -2560, the opposite corner. Pass the icon's position WITHIN the bar window,
+# which spans the monitor and so matches Wine's idea of the screen.
+#
+# The -- before them is not decoration: busctl reads a bare -60 as an option
+# and dies with "unrecognized option '-6'".
+x="${2:-0}"
+y="${3:-0}"
+[[ -z "$title" ]] && { echo "usage: ${0##*/} <tray item title> [x] [y]" >&2; exit 2; }
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
@@ -62,7 +76,7 @@ while read -r entry; do
     [[ "$t" == "$title" ]] || continue
 
     busctl --user call "$owner" "$path" \
-        org.kde.StatusNotifierItem ContextMenu ii 0 0 >/dev/null 2>&1
+        org.kde.StatusNotifierItem ContextMenu ii -- "$x" "$y" >/dev/null 2>&1
     exit $?
 done < <(grep -oE '"[^"]+"' <<<"$watcher" | tr -d '"')
 

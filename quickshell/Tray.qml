@@ -264,16 +264,40 @@ Item {
                 // title as its main window, so one menu left on screen
                 // satisfied the match forever and every later click focused
                 // that instead of doing anything.
-                Process { id: clickFallback }
+                Process {
+                    id: clickFallback
+                    stderr: StdioCollector { id: fbErr }
+                    // Quiet when it works, loud when it does not: the script
+                    // fails silently otherwise and a dead icon gives nothing
+                    // to go on.
+                    onExited: (code, status) => {
+                        if (code !== 0)
+                            console.warn("tray-click:", entry.modelData.title,
+                                         "exit=" + code, fbErr.text.trim())
+                    }
+                }
 
                 function activateOrRaise(): void {
                     entry.modelData.activate()
 
                     const t = entry.modelData.title || ""
                     if (t === "") return
+
+                    // WINDOW coordinates, which is what the application
+                    // expects and not what Hyprland uses. A Wine program
+                    // believes it is on a screen starting at 0,0; this monitor
+                    // starts at x = -2560 (monitors.lua, auto-left). The bar
+                    // window spans the monitor, so a position within it is
+                    // exactly Wine's idea of the screen. Measured: passing the
+                    // Hyprland x put the menu in the opposite corner.
+                    const p = entry.mapToItem(null, 0, entry.height)
+                    const sx = Math.round(p.x)
+                    const sy = Math.round(p.y)
+
                     clickFallback.command = ["sh", "-c",
                         "\"$(dirname \"$(readlink -f '" + Quickshell.shellDir
-                        + "')\")/bin/tray-click.sh\" \"$1\"", "sh", t]
+                        + "')\")/bin/tray-click.sh\" \"$1\" \"$2\" \"$3\"",
+                        "sh", t, String(sx), String(sy)]
                     clickFallback.running = true
                 }
 
