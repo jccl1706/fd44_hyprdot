@@ -9,6 +9,32 @@ Description=Apply power profile and brightness based on AC/battery
 PartOf=graphical-session.target
 After=graphical-session.target
 
+# THE SCRIPT HAS TO BE REACHABLE, and if it is not, do nothing rather than
+# fail forever. The path below goes through ~/.config/hypr, which exists only
+# on a machine that has Hyprland - link-dotfiles.sh does not link it
+# otherwise. Without this condition such a machine gets a unit whose ExecStart
+# cannot be spawned, and Restart=on-failure turns that into a retry every 5
+# seconds: the rebuilt Framework logged 1319 errors in under two hours on
+# 2026-09-23 before anyone looked.
+#
+# link-dotfiles.sh already refuses to link this on a Plasma machine, but that
+# test asks the RUNNING system whether plasmashell is installed, and during an
+# install it runs somewhere that has not got it yet - so the guard passed and
+# the unit was enabled on a machine that did not want it. A condition on the
+# unit holds wherever it ends up.
+#
+# IN [Unit] AND NOT [Service], which is silently ignored in the wrong section,
+# and the path must be NORMALIZED - systemd refuses a condition containing
+# ".." and ignores it with a warning. Both were caught by
+# `systemd-analyze verify`, which is worth running after editing this.
+#
+# It tests ~/.config/hypr rather than the script: that link is what makes the
+# ExecStart path resolve at all, and it is the thing that is missing on a
+# machine this unit does not belong on.
+# the wrong section - `systemd-analyze verify` says so and was how this was
+# caught.
+ConditionPathExists=%h/.config/hypr
+
 [Service]
 Type=simple
 # Reached through ~/.config/hypr, which is a symlink into the checkout: the
