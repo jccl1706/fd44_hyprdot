@@ -16,19 +16,10 @@
 # exposes activate(), secondaryActivate() and scroll(), but not ContextMenu,
 # so there is no way to ask for that from QML and this shells out to busctl.
 #
-# TWO CASES, IN ORDER, because they need different answers:
-#
-#   the window exists    -> focus it. This is the common case: the program is
-#                           running with a window somewhere and the click
-#                           should bring it forward.
-#   no window at all     -> ContextMenu, and let the application put something
-#                           on screen itself. This is the only thing that
-#                           works once Battle.net has closed to the tray.
-#
-# MATCHED ON TITLE, which is the only handle a tray item and a window share.
-# Battle.net's item calls itself "Battle.net" while its window's class is
-# "steam_app_3062427963" - a Steam shortcut id nothing could have guessed.
-# The risk is another window with the same title; there is no better key.
+# MATCHED ON TITLE, because Quickshell's SystemTrayItem does not expose the
+# bus name or object path of the item behind it, and the title is the only
+# thing both sides agree on. Two tray items with the same title would be
+# ambiguous; nothing on this machine is.
 
 set -uo pipefail
 
@@ -37,19 +28,20 @@ title="${1:-}"
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
-# ---- 1. a window with that title ----------------------------------------
+# ---- ask the item to show its own menu -----------------------------------
 #
-# Hyprland 0.56 evaluates dispatches as Lua, so the old "focuswindow title:X"
-# string form is a syntax error rather than a command - see the comment in
-# quickshell/Workspaces.qml, which learned this the same way.
-if have hyprctl; then
-    if hyprctl clients 2>/dev/null | grep -qxF "	title: $title"; then
-        hyprctl dispatch "hl.dsp.focus({ window = \"title:${title//\"/}\" })" >/dev/null 2>&1
-        exit 0
-    fi
-fi
+# NO WINDOW-FOCUSING FIRST, and that was tried and removed. Focusing a window
+# whose title matches looked like the friendlier answer - a click brings the
+# program forward - but Battle.net's MENU window carries the same title as its
+# main window, "Battle.net", with only its size telling them apart. So the
+# first ContextMenu left a 236x377 menu on screen that then satisfied the
+# title match forever after, and every later click focused that instead of
+# doing anything. Sizes are not a key worth keying on.
+#
+# Asking for the menu every time is also simply what a tray icon does. The
+# application decides what goes in it, including whether "open the window" is
+# an entry, which is a better division of labour than guessing.
 
-# ---- 2. no window: ask the item to show its own menu ---------------------
 have busctl || { echo "no busctl; cannot reach the tray item" >&2; exit 1; }
 
 watcher=$(busctl --user get-property org.kde.StatusNotifierWatcher \

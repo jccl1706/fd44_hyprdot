@@ -253,16 +253,17 @@ Item {
                 // window present and another program focused, which stayed
                 // focused.
                 //
-                // bin/tray-click.sh handles what QML cannot. It focuses a
-                // window whose TITLE matches the item's, and where there is no
-                // window at all it calls ContextMenu over DBus, which is what
-                // Battle.net answers once it has closed to the tray.
-                // SystemTrayItem exposes activate, secondaryActivate and
-                // scroll but NOT ContextMenu, so there is no way to ask for it
-                // from here.
+                // bin/tray-click.sh handles what QML cannot: it calls
+                // ContextMenu over DBus, which is what Battle.net answers and
+                // what SystemTrayItem does not expose - activate,
+                // secondaryActivate and scroll are all there is, and display()
+                // does nothing for either item on this machine.
                 //
-                // Harmless where Activate works: the window it raised is the
-                // one the script then focuses.
+                // It used to try focusing a window whose title matched first.
+                // That is removed: Battle.net's MENU window carries the same
+                // title as its main window, so one menu left on screen
+                // satisfied the match forever and every later click focused
+                // that instead of doing anything.
                 Process { id: clickFallback }
 
                 function activateOrRaise(): void {
