@@ -221,9 +221,15 @@ Item {
                             if (entry.menuEntries > 0) entry.openMenu()
                             else                       entry.activateOrRaise()
                         } else if (mouse.button === Qt.RightButton) {
-                            // No menu to show means right-click has nothing to
-                            // do, rather than opening an empty card.
+                            // ASK THE APPLICATION WHEN WE HAVE NO MENU, rather
+                            // than doing nothing - which is what this used to
+                            // do, and was the whole of "still not showing up".
+                            // A right click means "give me the context menu",
+                            // and for an item with no DBus menu the only way
+                            // to get one is ContextMenu over the bus, which is
+                            // what showAppMenu does.
                             if (entry.menuEntries > 0) entry.openMenu()
+                            else                       entry.showAppMenu()
                         } else if (mouse.button === Qt.MiddleButton) {
                             entry.modelData.secondaryActivate()
                         }
@@ -278,7 +284,14 @@ Item {
                 }
 
                 function activateOrRaise(): void {
+                    // Activate is the spec-correct action and costs nothing
+                    // when it is ignored, which is the common case here.
                     entry.modelData.activate()
+                    entry.showAppMenu()
+                }
+
+                // Runs bin/tray-click.sh, which calls ContextMenu over DBus.
+                function showAppMenu(): void {
 
                     const t = entry.modelData.title || ""
                     if (t === "") return

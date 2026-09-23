@@ -42,6 +42,32 @@ y="${3:-0}"
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
+# ---- already open? then this click closes it ------------------------------
+#
+# A WINE MENU DOES NOT DISMISS ITSELF here. It takes an input grab, and
+# Hyprland cannot move focus away from it: dispatching focus elsewhere leaves
+# it focused and on screen. So without this, a second click stacked another
+# menu on the first and there was no way to put one away except choosing an
+# entry.
+#
+# TOLD APART BY SIZE, which is not elegant and is the only thing available:
+# Battle.net's menu carries the same class AND the same title as its main
+# window, and is 236x377 against a launcher several hundred pixels wider.
+# Anything under 500 wide with that title is the menu.
+if command -v hyprctl >/dev/null 2>&1; then
+    addr=$(hyprctl clients 2>/dev/null | awk -v want="$title" '
+        /^Window /            { addr = $2; w = 0; t = "" }
+        /^\tsize:/            { split($2, d, ","); w = d[1] }
+        /^\ttitle:/           { t = substr($0, index($0, ":") + 2) }
+        /^$/                  { if (t == want && w > 0 && w < 500) { print addr; exit } }
+    ')
+    if [[ -n "$addr" ]]; then
+        hyprctl dispatch "hl.dsp.focus({ window = \"address:0x$addr\" })" >/dev/null 2>&1
+        hyprctl dispatch "hl.dsp.window.close()" >/dev/null 2>&1
+        exit 0
+    fi
+fi
+
 # ---- ask the item to show its own menu -----------------------------------
 #
 # NO WINDOW-FOCUSING FIRST, and that was tried and removed. Focusing a window
