@@ -224,6 +224,7 @@ if [ "$made" -gt 0 ] || [ "$fixed" -gt 0 ]; then
     bin/starship-setup.sh    the two-line prompt
     bin/icon-theme.sh        the Reversal icons the palettes ask for
     bin/gaming-setup.sh      MangoHud, gamemode and the Steam pieces
+    bin/plasma-setup.sh      the Plasma settings that cannot be symlinked
 NEXT
 fi
 
