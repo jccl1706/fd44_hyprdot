@@ -125,6 +125,12 @@ PanelWindow {
         const half = root.panelWidth / 2
         // 64px. A glyph just after the workspaces centres a 340px card about
         // 45px from the left frame - close enough to read as a near miss.
+        //
+        // THE SNAP IS ABOUT THE FRAME, so it still applies when floating even
+        // though there is no strip to join: the sliver it exists to avoid is
+        // between the card and the screen edge, and that is there either way.
+        // What changes is what "side" then means - welded to the frame, or
+        // simply held edgeInset off the edge like the bar above it.
         const snap = Theme.cornerRadius * 5 + Theme.frameThickness
         if (typeof x !== "number" || x < 0 || x + half > sw - snap) {
             root.side = "right"
@@ -186,7 +192,10 @@ PanelWindow {
     // colour whatever the panel alpha. The contents, fillets and padding are
     // pushed down by the same amount, so nothing visibly moves. The launcher
     // and power menu already avoid this by running under the frame.
-    readonly property int seamOverlap: 2
+    // NOTHING TO HIDE WHEN FLOATING: the card starts a clear gap below the
+    // bar, so there is no junction for a hairline to appear at, and sliding
+    // the card 2px up under a bar it does not touch would just misplace it.
+    readonly property int seamOverlap: BarStyle.joined ? 2 : 0
 
     // --- scrim -----------------------------------------------------------
     //
@@ -196,12 +205,12 @@ PanelWindow {
     Rectangle {
         anchors {
             fill: parent
-            topMargin:    Theme.barHeight
-            leftMargin:   Theme.frameThickness
-            rightMargin:  Theme.frameThickness
-            bottomMargin: Theme.frameThickness
+            topMargin:    BarStyle.barBottom
+            leftMargin:   BarStyle.scrimInset
+            rightMargin:  BarStyle.scrimInset
+            bottomMargin: BarStyle.scrimInset
         }
-        radius: Theme.cornerRadius
+        radius: BarStyle.scrimRadius
         color: "#000000"
         opacity: root.revealed ? 0.35 : 0
         Behavior on opacity {
@@ -225,7 +234,7 @@ PanelWindow {
     // so its top edge never sits on the bar's edge (see seamOverlap).
     Item {
         id: well
-        anchors { fill: parent; topMargin: Theme.barHeight - root.seamOverlap }
+        anchors { fill: parent; topMargin: BarStyle.barBottom - root.seamOverlap }
         clip: true
 
         Item {
@@ -236,7 +245,7 @@ PanelWindow {
             // Against a side frame, the extra frameThickness runs under the
             // frame strip, as in PowerMenu.qml, so the card and the frame are
             // one shape.
-            width: root.panelWidth + (root.side === "none" ? 0 : Theme.frameThickness)
+            width: root.panelWidth + (root.side === "none" ? 0 : BarStyle.frameRun)
 
             // Tracks the contents every frame, so anything inside that
             // animates its own height grows the card on that same curve.
@@ -248,6 +257,11 @@ PanelWindow {
             anchors.right: root.side === "right" ? parent.right : undefined
             anchors.left:  root.side === "left"  ? parent.left  : undefined
             anchors.top: parent.top
+
+            // Held off the screen edge when floating, flush against it when
+            // framed - where the last frameRun pixels run under the strip.
+            anchors.rightMargin: BarStyle.edgeInset
+            anchors.leftMargin:  BarStyle.edgeInset
 
             // X THROUGH A Binding, NOT A PROPERTY BINDING, and that is a bug
             // fix rather than a style. An active anchor overrides x AND
@@ -314,23 +328,46 @@ PanelWindow {
                     anchors.rightMargin:  Theme.cornerRadius
                     anchors.bottomMargin: Theme.cornerRadius
 
-                    // The launcher's gradient turned upside down: this card
-                    // grows out of the BAR, so its TOP stop is exactly
-                    // Theme.bg and the junction has no seam.
+                    // FRAMED, the launcher's gradient turned upside down:
+                    // this card grows out of the BAR, so its TOP stop is
+                    // exactly Theme.bg and the junction has no seam.
+                    //
+                    // FLOATING, there is no junction to match and the card is
+                    // an object in its own right, so it is lit from above like
+                    // the bar pills and the launcher - the light in this shell
+                    // comes from the top of the screen, and a card lit from
+                    // below among things lit from above looks like a mistake
+                    // long before anyone works out which one.
                     gradient: Gradient {
-                        GradientStop { position: 0.0; color: Theme.bg }
-                        GradientStop { position: 1.0; color: Theme.panelTop }
+                        GradientStop { position: 0.0
+                                       color: BarStyle.joined ? Theme.bg : Theme.panelTop }
+                        GradientStop { position: 1.0
+                                       color: BarStyle.joined ? Theme.panelTop : Theme.bg }
                     }
 
-                    // Only corners out in the open are rounded. The top edge
-                    // is the bar, and a side against a frame is the frame.
-                    bottomLeftRadius:  root.side === "left"  ? 0 : Theme.cornerRadius
-                    bottomRightRadius: root.side === "right" ? 0 : Theme.cornerRadius
+                    // Only corners out in the open are rounded. Framed, the
+                    // top edge is the bar and a side against a frame is the
+                    // frame, so neither gets a radius. Floating, every corner
+                    // is out in the open and all four are rounded - the card
+                    // is an object lying on the wallpaper, like the pills.
+                    topLeftRadius:     BarStyle.joined ? 0 : Theme.cornerRadius
+                    topRightRadius:    BarStyle.joined ? 0 : Theme.cornerRadius
+                    bottomLeftRadius:  BarStyle.joined && root.side === "left"
+                                       ? 0 : Theme.cornerRadius
+                    bottomRightRadius: BarStyle.joined && root.side === "right"
+                                       ? 0 : Theme.cornerRadius
+
+                    // A rim only when floating, for the same reason the bar
+                    // pills have one and the framed card does not: framed, a
+                    // border would draw a line straight across the junction
+                    // it is trying to hide.
+                    border.width: BarStyle.joined ? 0 : 1
+                    border.color: Theme.rim
                 }
 
                 // Where the card's left edge meets the bar.
                 InnerCorner {
-                    visible: root.side !== "left"
+                    visible: BarStyle.joined && root.side !== "left"
                     corner: "topright"
                     anchors { top: parent.top; topMargin: root.seamOverlap
                               right: panelBody.left; rightMargin: -1 }
@@ -338,7 +375,7 @@ PanelWindow {
 
                 // Where the card's right edge meets the bar.
                 InnerCorner {
-                    visible: root.side !== "right"
+                    visible: BarStyle.joined && root.side !== "right"
                     corner: "topleft"
                     anchors { top: parent.top; topMargin: root.seamOverlap
                               left: panelBody.right; leftMargin: -1 }
@@ -346,7 +383,7 @@ PanelWindow {
 
                 // Where the card's bottom edge meets the right frame.
                 InnerCorner {
-                    visible: root.side === "right"
+                    visible: BarStyle.joined && root.side === "right"
                     corner: "topright"
                     anchors { top: panelBody.bottom; topMargin: -1
                               right: panelBody.right; rightMargin: Theme.frameThickness }
@@ -354,7 +391,7 @@ PanelWindow {
 
                 // Where the card's bottom edge meets the left frame.
                 InnerCorner {
-                    visible: root.side === "left"
+                    visible: BarStyle.joined && root.side === "left"
                     corner: "topleft"
                     anchors { top: panelBody.bottom; topMargin: -1
                               left: panelBody.left; leftMargin: Theme.frameThickness }
@@ -370,8 +407,8 @@ PanelWindow {
                 // under a frame does not count.
                 anchors {
                     top: parent.top;     topMargin: card.pad + root.seamOverlap
-                    left: parent.left;   leftMargin: card.pad + (root.side === "left" ? Theme.frameThickness : 0)
-                    right: parent.right; rightMargin: card.pad + (root.side === "right" ? Theme.frameThickness : 0)
+                    left: parent.left;   leftMargin: card.pad + (root.side === "left" ? BarStyle.frameRun : 0)
+                    right: parent.right; rightMargin: card.pad + (root.side === "right" ? BarStyle.frameRun : 0)
                 }
             }
         }

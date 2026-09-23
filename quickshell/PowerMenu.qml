@@ -214,12 +214,12 @@ PanelWindow {
     Rectangle {
         anchors {
             fill: parent
-            topMargin:    Theme.barHeight
-            leftMargin:   Theme.frameThickness
-            rightMargin:  Theme.frameThickness
-            bottomMargin: Theme.frameThickness
+            topMargin:    BarStyle.barBottom
+            leftMargin:   BarStyle.scrimInset
+            rightMargin:  BarStyle.scrimInset
+            bottomMargin: BarStyle.scrimInset
         }
-        radius: Theme.cornerRadius
+        radius: BarStyle.scrimRadius
         color: "#000000"
         opacity: root.revealed ? 0.4 : 0
         Behavior on opacity {
@@ -253,12 +253,13 @@ PanelWindow {
         readonly property int gap: 14
         readonly property int pad: 16
 
-        // The extra frameThickness runs UNDER the frame strip - the card ends
-        // at the screen edge, not at the inside of the frame, so the two read
-        // as one shape. The buttons are centred in the visible part, not in
-        // the whole card, or they would sit a couple of pixels right of
-        // centre.
-        width: btn + pad * 2 + Theme.frameThickness
+        // FRAMED, the extra frameRun runs UNDER the frame strip - the card
+        // ends at the screen edge, not at the inside of the frame, so the two
+        // read as one shape, and the buttons are centred in the VISIBLE part
+        // rather than in the whole card or they would sit a couple of pixels
+        // right of centre. FLOATING there is no strip and no overhang, so
+        // frameRun is 0 and the centring correction below cancels itself.
+        width: btn + pad * 2 + BarStyle.frameRun
         height: root.actions.length * btn
                 + (root.actions.length - 1) * gap
                 + pad * 2
@@ -270,7 +271,7 @@ PanelWindow {
         // freshly mapped layer surface learns its size only after the
         // compositor configures it, so the card would be placed against a
         // stale width and then jump.
-        anchors.rightMargin: root.revealed ? 0 : -width
+        anchors.rightMargin: root.revealed ? BarStyle.edgeInset : -width
 
         Behavior on anchors.rightMargin {
             NumberAnimation {
@@ -322,8 +323,16 @@ PanelWindow {
                 // Rounded on the LEFT only - the mirror of the launcher,
                 // which is rounded on top only. The flat edge is the one
                 // touching the frame.
-                topLeftRadius:    Theme.cornerRadius
-                bottomLeftRadius: Theme.cornerRadius
+                // FRAMED, rounded on the left only: the right edge is the
+                // frame. FLOATING, all four corners are out in the open, and
+                // the card gets the rim the bar pills have - framed it must
+                // not, because a border would line the junction it hides.
+                topLeftRadius:     Theme.cornerRadius
+                bottomLeftRadius:  Theme.cornerRadius
+                topRightRadius:    BarStyle.joined ? 0 : Theme.cornerRadius
+                bottomRightRadius: BarStyle.joined ? 0 : Theme.cornerRadius
+                border.width: BarStyle.joined ? 0 : 1
+                border.color: Theme.rim
             }
 
             // Concave fillets where the card's top and bottom edges meet the
@@ -332,15 +341,17 @@ PanelWindow {
             // device pixel under this display's scaling and the two
             // antialiased sides sum to ~78% coverage instead of opaque.
             InnerCorner {
+                visible: BarStyle.joined
                 corner: "bottomright"
                 anchors { bottom: panelBody.top; bottomMargin: -1
-                          right: parent.right; rightMargin: Theme.frameThickness }
+                          right: parent.right; rightMargin: BarStyle.frameRun }
             }
 
             InnerCorner {
+                visible: BarStyle.joined
                 corner: "topright"
                 anchors { top: panelBody.bottom; topMargin: -1
-                          right: parent.right; rightMargin: Theme.frameThickness }
+                          right: parent.right; rightMargin: BarStyle.frameRun }
             }
         }
 
@@ -353,7 +364,7 @@ PanelWindow {
                 // Centred in the VISIBLE width - the card runs under the
                 // frame by frameThickness.
                 horizontalCenter: parent.horizontalCenter
-                horizontalCenterOffset: -Theme.frameThickness / 2
+                horizontalCenterOffset: -BarStyle.frameRun / 2
             }
 
             Repeater {

@@ -104,8 +104,12 @@ PanelWindow {
         anchors {
             top: parent.top
             right: parent.right
-            topMargin: Theme.barHeight + Theme.barPadding
-            rightMargin: Theme.frameThickness + Theme.barPadding
+            // Measured from the BOTTOM OF THE BAR and from the inside of
+            // whatever holds the right edge - the frame strip when there is
+            // one, the same gap the bar keeps when it is floating. Spelling
+            // either as a Theme constant directly assumes the frame exists.
+            topMargin: BarStyle.barBottom + Theme.barPadding
+            rightMargin: BarStyle.contentInset + Theme.barPadding
         }
         spacing: 8
 

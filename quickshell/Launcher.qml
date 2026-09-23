@@ -247,10 +247,10 @@ PanelWindow {
     Rectangle {
         anchors {
             fill: parent
-            topMargin:    Theme.barHeight
-            leftMargin:   Theme.frameThickness
-            rightMargin:  Theme.frameThickness
-            bottomMargin: Theme.frameThickness
+            topMargin:    BarStyle.barBottom
+            leftMargin:   BarStyle.scrimInset
+            rightMargin:  BarStyle.scrimInset
+            bottomMargin: BarStyle.scrimInset
         }
         // The well is not a rectangle: Frame.qml rounds all four of its inner
         // corners with a concave piece of Theme.cornerRadius that reaches
@@ -262,7 +262,7 @@ PanelWindow {
         // Rounding by the same radius makes this exactly the well's opening:
         // a corner piece's arc runs from (frame + radius) to (frame), which is
         // precisely the arc of a rounded rect inset to the frame.
-        radius: Theme.cornerRadius
+        radius: BarStyle.scrimRadius
 
         color: "#000000"
         opacity: root.revealed ? 0.35 : 0
@@ -295,7 +295,7 @@ PanelWindow {
         // margins, the divider, and the list's own insets.
         readonly property int chromeHeight:
             Theme.barPadding + searchRow.height + Theme.barPadding
-            + divider.height + 6 + 6 + Theme.frameThickness
+            + divider.height + 6 + 6 + BarStyle.frameRun
             // The tab row, when there is one. Leaving it out of this sum is
             // not a cosmetic slip: `height` below is chromeHeight plus the
             // list's content, so anything missing here is height the list is
@@ -325,10 +325,11 @@ PanelWindow {
 
         anchors.horizontalCenter: parent.horizontalCenter
 
-        // Runs all the way to the bottom of the SCREEN, not to the top of the
-        // frame - the last frameThickness pixels of the card sit exactly where
-        // the frame strip is, in the same colour, so the two are one shape
-        // with no seam to notice.
+        // FRAMED, runs all the way to the bottom of the SCREEN rather than to
+        // the top of the frame: the last frameRun pixels of the card sit
+        // exactly where the frame strip is, in the same colour, so the two are
+        // one shape with no seam to notice. FLOATING, it stops edgeInset short
+        // of the edge, the same gap the bar keeps at the top.
         anchors.bottom: parent.bottom
 
         // ANIMATED VIA THE MARGIN, NOT y.
@@ -344,7 +345,7 @@ PanelWindow {
         // onRunningChanged is what unmaps the surface. Filtering while closed
         // could then unmap a panel that was opening. maxHeight always clears
         // the screen, since height can never exceed it.
-        anchors.bottomMargin: root.revealed ? 0 : -maxHeight
+        anchors.bottomMargin: root.revealed ? BarStyle.edgeInset : -maxHeight
 
         Behavior on anchors.bottomMargin {
             NumberAnimation {
@@ -406,11 +407,18 @@ PanelWindow {
                     GradientStop { position: 1.0; color: Theme.bg }
                 }
 
-                // Rounded on top only - the mirror of the bar, which is
-                // rounded on the bottom only. The bottom edge is flat because
-                // it is the frame.
-                topLeftRadius:  Theme.cornerRadius
-                topRightRadius: Theme.cornerRadius
+                // FRAMED, rounded on top only - the mirror of the bar, which
+                // is rounded on the bottom only. The bottom edge is flat
+                // because it IS the frame. FLOATING, all four corners are out
+                // in the open, and the card gets the same rim the bar pills
+                // have; framed it must not, because a border would draw a line
+                // straight across the junction the flat edge exists to hide.
+                topLeftRadius:     Theme.cornerRadius
+                topRightRadius:    Theme.cornerRadius
+                bottomLeftRadius:  BarStyle.joined ? 0 : Theme.cornerRadius
+                bottomRightRadius: BarStyle.joined ? 0 : Theme.cornerRadius
+                border.width: BarStyle.joined ? 0 : 1
+                border.color: Theme.rim
             }
 
             // Concave fillets where the panel's sides meet the top of the
@@ -425,22 +433,24 @@ PanelWindow {
             // instead of opaque. Same defect, and same fix, as the frame's own
             // corner seam in Frame.qml.
             InnerCorner {
+                visible: BarStyle.joined
                 corner: "bottomright"      // fills toward the panel, cuts the well
                 anchors {
                     right: panelBody.left
                     rightMargin: -1
                     bottom: parent.bottom
-                    bottomMargin: Theme.frameThickness
+                    bottomMargin: BarStyle.frameRun
                 }
             }
 
             InnerCorner {
+                visible: BarStyle.joined
                 corner: "bottomleft"
                 anchors {
                     left: panelBody.right
                     leftMargin: -1
                     bottom: parent.bottom
-                    bottomMargin: Theme.frameThickness
+                    bottomMargin: BarStyle.frameRun
                 }
             }
         }
@@ -593,7 +603,7 @@ PanelWindow {
                 margins: 6
                 // The card's last few pixels ARE the frame strip - keep rows
                 // out of them, or a row can appear to bleed into the border.
-                bottomMargin: 6 + Theme.frameThickness
+                bottomMargin: 6 + BarStyle.frameRun
             }
 
             clip: true
