@@ -39,10 +39,11 @@ Singleton {
     // a pill with 6px of bar showing above and below it. Floating, the strip
     // is invisible and the pill IS the bar - at 26 it reads as a thin sliver
     // with a lot of wallpaper round it rather than as the shell's main
-    // control. The extra 6 of height and 4 of padding is what puts it back in
-    // proportion to the gap it now sits in.
-    readonly property int pillHeight:  Theme.pillHeight  + (floating ? 6 : 0)
-    readonly property int pillPadding: Theme.pillPadding + (floating ? 4 : 0)
+    // control. The extra 10 of height and 8 of padding is what puts it back
+    // in proportion to the gap it now sits in - 36 and 18 against the framed
+    // 26 and 10. It was tried at 32 and 14 first and still read as thin.
+    readonly property int pillHeight:  Theme.pillHeight  + (floating ? 10 : 0)
+    readonly property int pillPadding: Theme.pillPadding + (floating ? 8  : 0)
 
     // WHERE THE CHROME BELOW THE BAR STARTS. This is the bar window's full
     // height, which is also its exclusive zone, so a panel's top edge lands
