@@ -135,6 +135,22 @@ link tmux                   "$CONFIG/tmux"
 link starship/starship.toml "$CONFIG/starship.toml"
 link wireplumber            "$CONFIG/wireplumber"
 
+# Nerd Font fallback, and it is not decoration: without it the icons in the
+# tmux bar and the starship prompt are empty boxes in any terminal that does
+# not do kitty's font fallback. They are Material Design glyphs in plane-15
+# private use area, carried by exactly one installed font - Symbols Nerd Font,
+# which is a symbols-only face that nothing picks up on its own. kitty finds
+# it; konsole, going through Qt and fontconfig, does not.
+#
+# NO `wants` TEST, because the thing that reads it is fontconfig, which is on
+# every machine here. It is also not Hyprland's: the machines that NEED it are
+# the ones not running kitty, so a test for kitty would have it backwards.
+#
+# FILE, NOT DIRECTORY, like MangoHud above: conf.d is a shared drop-in
+# directory and other packages put their own files in it, so it is not ours to
+# own.
+link fontconfig/99-nerd-fallback.conf "$CONFIG/fontconfig/conf.d/99-nerd-fallback.conf"
+
 # MangoHud, where there is a MangoHud. Linked file by file rather than as a
 # directory: other things write into ~/.config/MangoHud, so it is not ours to own.
 if have mangohud || $force_all; then
