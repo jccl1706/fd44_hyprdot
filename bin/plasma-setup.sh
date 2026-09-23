@@ -41,6 +41,13 @@ if [[ "${1:-}" == "--show" ]]; then
         "$(kr plasma-org.kde.plasma.desktop-appletsrc \
              --group Containments --group 2 --group Applets --group 7 \
              --group General --key shownItems)"
+    printf '\n  fonts (blank = Plasma default, which is what is wanted)\n'
+    for k in font fixed smallestReadableFont toolBarFont menuFont; do
+        printf '    %-22s %s\n' "$k" "$(kr kdeglobals --group General --key "$k")"
+    done
+    printf '    %-22s %s\n' "fontconfig sans" "$(fc-match sans 2>/dev/null)"
+    printf '    %-22s %s\n' "fontconfig rgba" \
+        "$(fc-match --verbose sans 2>/dev/null | awk '/rgba:/{print $2}')"
     printf '\n'
     exit 0
 fi
@@ -96,6 +103,38 @@ kw plasma-org.kde.plasma.desktop-appletsrc \
    --group Containments --group 2 --group Applets --group 7 --group General \
    --key shownItems org.kde.plasma.battery
 echo "system tray   battery applet always shown"
+
+# ---- fonts ---------------------------------------------------------------
+#
+# NOTHING TO SET, and that is the finding worth recording rather than a gap.
+# ~/.config/kdeglobals has no font keys at all on a working Plasma machine:
+# every role sits on the Plasma default, which on Fedora 44 resolves to
+#
+#     font                  Noto Sans, 10
+#     fixed                 Noto Sans Mono, 10
+#     smallestReadableFont  Noto Sans, 8
+#     toolBarFont           Noto Sans, 9
+#     menuFont              Noto Sans, 10
+#
+# Writing those out would pin values that are already right and would stop
+# following the distribution if it ever revised them.
+#
+# WHAT ACTUALLY MAKES PLASMA TEXT LOOK BETTER is not a Plasma setting at all.
+# Fedora's kde-settings ships /etc/fonts/conf.d/10-sub-pixel-rgb-for-kde.conf,
+# which tests the desktop name and enables RGB sub-pixel rendering FOR KDE
+# ONLY. Measured on this laptop against the Hyprland desktop:
+#
+#     Plasma     rgba: 1 (rgb)    hinting: True(s)   sans: Noto Sans
+#     Hyprland   rgba: 5 (none)   hinting: True(w)   sans: DejaVu Sans
+#
+# So Hyprland or Sway on the same Fedora release gets grey-scale antialiasing
+# while Plasma gets sub-pixel, and nothing in either desktop says so. On NixOS
+# the equivalent is declarative - fd44_nixos modules/packages.nix,
+# fonts.fontconfig.subpixel.rgba - because nixpkgs disables it by default and
+# names DejaVu as the default sans.
+#
+# To give a non-KDE session the same treatment, drop a fontconfig file that
+# sets rgba unconditionally instead of testing the desktop name.
 
 printf '\nDone. Two of these need a nudge:\n'
 printf '  systemctl --user restart plasma-plasmashell   for the tray\n'
