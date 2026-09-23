@@ -7,7 +7,9 @@ remembering, written down because both were arrived at the hard way.
 
 ## Two operating systems on one address
 
-The T480 dual-boots: Fedora on the Samsung NVMe, FreeBSD 15.1 on the SK hynix.
+The T480 dual-booted briefly - Fedora on the Samsung NVMe, FreeBSD on the SK
+hynix - and the arrangement is written down because it applies to any second
+system on that second disk, which is still empty and waiting for one.
 Same NIC, so DHCP hands both the same lease - `192.168.10.172` - and each
 presents its own host key. With a shared `known_hosts`, every reboot into the
 other OS looks like the host key changed, and ssh refuses to connect with
@@ -20,9 +22,9 @@ Host t480
     HostName 192.168.10.172
     UserKnownHostsFile ~/.ssh/known_hosts.t480-fedora
 
-Host t480bsd
+Host t480other
     HostName 192.168.10.172
-    UserKnownHostsFile ~/.ssh/known_hosts.t480-freebsd
+    UserKnownHostsFile ~/.ssh/known_hosts.t480-other
 ```
 
 This is not "trust anything on that address". They are two separate identities
@@ -58,4 +60,5 @@ fetch -o ~/.ssh/authorized_keys https://github.com/<user>.keys   # curl on Linux
 chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys
 ```
 
-`bin/freebsd-installer-ssh.sh` uses this to reach a running FreeBSD installer.
+It is how a machine with no keys of its own is reached for the first time -
+a fresh install, or an installer running from RAM with nothing on disk yet.
