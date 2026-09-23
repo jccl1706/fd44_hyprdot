@@ -156,8 +156,20 @@ hl.bind(Mod .. " + SHIFT + up",    hl.dsp.window.move({ direction = "up"    }))
 hl.bind(Mod .. " + SHIFT + down",  hl.dsp.window.move({ direction = "down"  }))
 
 -- Drag to move, drag to resize. 272 is left mouse button, 273 is right.
-hl.bind(Mod .. " + mouse:272", hl.dsp.window.drag(),   { mouse = true })
-hl.bind(Mod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
+--
+-- RIGHT DRAGS, LEFT RESIZES, which is the opposite way round from the
+-- Hyprland default and from most compositors. Moving a window is the thing
+-- done constantly and resizing the thing done occasionally, and the right
+-- button is the one free hand reaches without thinking.
+--
+-- BOTH STILL NEED Mod, deliberately. A bare right drag would move the window
+-- under the cursor without a modifier, which reads as the obvious thing to
+-- want and is not: Hyprland consumes the button, so right click stops
+-- reaching applications entirely - no context menu in a browser, a file
+-- manager, a terminal or the system tray. There is no way to limit a mouse
+-- bind to floating windows only.
+hl.bind(Mod .. " + mouse:273", hl.dsp.window.drag(),   { mouse = true })
+hl.bind(Mod .. " + mouse:272", hl.dsp.window.resize(), { mouse = true })
 
 
 -- -------------------------------------------------------------------------
