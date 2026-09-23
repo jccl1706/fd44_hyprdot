@@ -1,0 +1,65 @@
+# Breeze's palette, as konsole's ANSI slots.
+#
+# WHY THIS EXISTS: konsole 26 ships no .colorscheme files at all - they are
+# compiled into the binary - and the default palette it starts with is the
+# classic one (red #b21818), not Breeze. Writing the scheme out is the only
+# way to be sure which colours are in the ANSI slots.
+#
+# IT IS THE TMUX BAR'S PALETTE. tmux/tmux.conf names ANSI colours rather than
+# hex, on purpose, so the bar follows the terminal. That makes THIS file the
+# place Breeze colours belong: change them here and the bar, ls, grep and
+# everything else follow together.
+[General]
+Description=Breeze fd44
+Opacity=1
+Wallpaper=
+ColorRandomization=false
+Blur=false
+
+[Background]
+Color=35,38,39
+[BackgroundIntense]
+Color=35,38,39
+[BackgroundFaint]
+Color=35,38,39
+
+[Foreground]
+Color=252,252,252
+[ForegroundIntense]
+Color=255,255,255
+[ForegroundFaint]
+Color=239,240,241
+
+[Color0]
+Color=35,38,39
+[Color1]
+Color=237,21,21
+[Color2]
+Color=17,209,22
+[Color3]
+Color=246,116,0
+[Color4]
+Color=29,153,243
+[Color5]
+Color=155,89,182
+[Color6]
+Color=26,188,156
+[Color7]
+Color=252,252,252
+
+[Color0Intense]
+Color=127,140,141
+[Color1Intense]
+Color=192,57,43
+[Color2Intense]
+Color=28,220,154
+[Color3Intense]
+Color=253,188,75
+[Color4Intense]
+Color=61,174,233
+[Color5Intense]
+Color=142,68,173
+[Color6Intense]
+Color=22,160,133
+[Color7Intense]
+Color=255,255,255

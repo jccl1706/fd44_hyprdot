@@ -30,6 +30,9 @@ set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
+# konsole keeps profiles and colour schemes under the DATA directory, not the
+# config one, so linking them needs this as well.
+DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
 
 dry_run=false
 force_all=false
@@ -150,6 +153,26 @@ link wireplumber            "$CONFIG/wireplumber"
 # directory and other packages put their own files in it, so it is not ours to
 # own.
 link fontconfig/99-nerd-fallback.conf "$CONFIG/fontconfig/conf.d/99-nerd-fallback.conf"
+
+# konsole's palette, where there is a konsole. Two files under DATA rather
+# than CONFIG, which is where konsole looks for profiles and schemes.
+#
+# THE SCHEME IS THE TMUX BAR'S COLOURS. tmux.conf names ANSI colours instead
+# of hex so the bar follows the terminal, which puts the choice of palette
+# here. konsole 26 ships no scheme files at all - they are compiled into the
+# binary - and starts on the classic palette, not Breeze, so the only way to
+# be sure what is in the ANSI slots is to write them out.
+#
+# SELECTING the profile is NOT done here. konsolerc is a file konsole
+# rewrites, so it cannot be a symlink; set it once per machine with
+#
+#     kwriteconfig6 --file konsolerc --group "Desktop Entry" \
+#                   --key DefaultProfile fd44.profile
+#
+if wants konsole "konsole profile and Breeze colours"; then
+    link konsole/fd44.profile          "$DATA/konsole/fd44.profile"
+    link konsole/Breeze-fd44.colorscheme "$DATA/konsole/Breeze-fd44.colorscheme"
+fi
 
 # MangoHud, where there is a MangoHud. Linked file by file rather than as a
 # directory: other things write into ~/.config/MangoHud, so it is not ours to own.
