@@ -237,8 +237,14 @@ PanelWindow {
     // `revealed`, because a binding loses the race with the Behavior - it
     // reads `duration` once, at start, and can do so before a dependent
     // binding has been recomputed.
-    readonly property int openDuration: 260
-    readonly property int closeDuration: 140
+    // A FADE WANTS LESS TIME THAN A SLIDE. A slide covers distance and the eye
+    // follows it, so 260ms reads as deliberate; a cross-fade has nothing to
+    // follow and the same 260 reads as the panel being slow to make up its
+    // mind. The scrim shares this number, so shortening it here keeps the card
+    // and the dimming in step - which is the whole reason the two are not
+    // tuned separately.
+    readonly property int openDuration: BarStyle.joined ? 260 : 170
+    readonly property int closeDuration: BarStyle.joined ? 140 : 110
     property int slideDuration: openDuration
 
     // --- card ------------------------------------------------------------
@@ -271,9 +277,39 @@ PanelWindow {
         // freshly mapped layer surface learns its size only after the
         // compositor configures it, so the card would be placed against a
         // stale width and then jump.
-        anchors.rightMargin: root.revealed ? BarStyle.edgeInset : -width
+        anchors.rightMargin: (root.revealed || !BarStyle.joined)
+                             ? BarStyle.edgeInset : -width
 
         Behavior on anchors.rightMargin {
+            NumberAnimation {
+                duration: root.slideDuration
+                easing.type: Easing.InOutCubic
+                onRunningChanged: {
+                    if (!running && !root.revealed) root.visible = false
+                }
+            }
+        }
+
+        // FADE INSTEAD OF SLIDE WHEN FLOATING. A slide is a statement
+        // about where the card comes FROM - out of the bar, in from the
+        // edge - and it only reads that way while the card is joined to
+        // the thing it slides out of. With a gap all round there is
+        // nothing to emerge from, so the same motion looks like the card
+        // is being dragged in from off screen for no reason.
+        //
+        // Exactly one of the two animates in either mode, which matters
+        // because the surface is UNMAPPED from a Behavior's
+        // onRunningChanged: the position binding is constant when
+        // floating and the opacity binding is constant when framed, so a
+        // Behavior whose value never changes never runs, and the one that
+        // does run is always the one that owns the unmap. Both carry the
+        // handler for that reason - drop it from either and closing that
+        // mode leaves a fully transparent overlay mapped across the
+        // screen, still swallowing every click on the dismissing
+        // MouseArea underneath it.
+        opacity: (BarStyle.joined || root.revealed) ? 1 : 0
+
+        Behavior on opacity {
             NumberAnimation {
                 duration: root.slideDuration
                 easing.type: Easing.InOutCubic
