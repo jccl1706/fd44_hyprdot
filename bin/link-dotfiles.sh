@@ -90,24 +90,54 @@ link() {
 
 # --- what this machine has ------------------------------------------------
 #
-# Two of these are not wanted everywhere, and linking them regardless would put
-# configuration on machines that have nothing to read it.
+# Several of these are not wanted everywhere, and linking them regardless would
+# put configuration on machines that have nothing to read it.
+#
+# THE TEST IS ALWAYS "IS THE THING THAT READS THIS INSTALLED", never which
+# desktop was chosen or what the hostname is. A machine that has kitty wants
+# the kitty configuration whichever compositor it runs, and a machine without
+# Hyprland has no use for hypr/ no matter how it was built.
 
-has_battery() { compgen -G "/sys/class/power_supply/BAT*" >/dev/null; }
-has_mangohud() { command -v mangohud >/dev/null 2>&1; }
+has_battery()  { compgen -G "/sys/class/power_supply/BAT*" >/dev/null; }
+have()         { command -v "$1" >/dev/null 2>&1; }
+
+# A DESKTOP that owns the CPU governor - see the power-mode block.
+#
+# Keyed on plasmashell, not on power-profiles-daemon. PPD is installed on
+# every laptop this repository builds, Hyprland ones included, and power-mode
+# has coexisted with it there since it was written - so testing for PPD would
+# stop linking this unit on the machine it was written for. What actually
+# conflicts is powerdevil, which ships with Plasma and drives PPD itself.
+has_desktop_power() { have plasmashell; }
+
+# wants <program> <what the link is for>
+#
+# Prints the skip line and counts it, so a machine that is missing something
+# says so rather than quietly linking less than it did last time.
+wants() {
+    if have "$1" || $force_all; then return 0; fi
+    note "skipped   $2 - $1 is not installed here (--all to link anyway)"
+    skipped=$((skipped + 1))
+    return 1
+}
 
 printf '\nlinking into %s\n\n' "${REPO/#$HOME/\~}"
 
-link hypr                   "$CONFIG/hypr"
-link quickshell             "$CONFIG/quickshell"
-link kitty                  "$CONFIG/kitty"
+# The Hyprland desktop's own configuration. On a machine running something
+# else - the installer can build KDE Plasma instead - these are three symlinks
+# into a checkout that nothing ever reads.
+wants Hyprland  "hypr"       && link hypr       "$CONFIG/hypr"
+wants quickshell "quickshell" && link quickshell "$CONFIG/quickshell"
+wants kitty     "kitty"      && link kitty      "$CONFIG/kitty"
+
+# These three do not care what draws the screen.
 link tmux                   "$CONFIG/tmux"
 link starship/starship.toml "$CONFIG/starship.toml"
 link wireplumber            "$CONFIG/wireplumber"
 
 # MangoHud, where there is a MangoHud. Linked file by file rather than as a
 # directory: other things write into ~/.config/MangoHud, so it is not ours to own.
-if has_mangohud || $force_all; then
+if have mangohud || $force_all; then
     link mangohud/MangoHud.conf "$CONFIG/MangoHud/MangoHud.conf"
     link mangohud/presets.conf  "$CONFIG/MangoHud/presets.conf"
 else
@@ -117,11 +147,23 @@ fi
 
 # The power-mode unit switches the CPU governor on AC and battery, so it has
 # nothing to do on a machine that is always on mains.
-if has_battery || $force_all; then
-    link systemd/power-mode.service "$CONFIG/systemd/user/power-mode.service"
-else
+#
+# AND NOTHING TO DO WHERE A DESKTOP ALREADY OWNS THE GOVERNOR. On KDE Plasma
+# powerdevil does this through power-profiles-daemon, so enabling this unit as
+# well gives two things opposite opinions about the same sysfs files - and the
+# next line this script prints is the command to enable it, which makes that
+# an easy mistake to be talked into.
+#
+# Hyprland laptops keep it: they have PPD installed too, but nothing in that
+# session drives it, which is exactly why this unit exists there.
+if ! has_battery && ! $force_all; then
     note "skipped   power-mode.service - no battery here (--all to link anyway)"
     skipped=$((skipped + 1))
+elif has_desktop_power && ! $force_all; then
+    note "skipped   power-mode.service - Plasma's powerdevil already manages the governor"
+    skipped=$((skipped + 1))
+else
+    link systemd/power-mode.service "$CONFIG/systemd/user/power-mode.service"
 fi
 
 printf '\n  %d linked, %d already right, %d repointed, %d skipped, %d in the way\n' \
