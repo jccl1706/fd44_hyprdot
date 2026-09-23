@@ -33,3 +33,9 @@ hyprlock-colors.conf
 # theme above. Per machine on purpose: the Framework's panel is 204 ppi and the
 # desktop's monitor is not, so a value committed here would be wrong somewhere.
 hypr/monitors_local.lua
+
+# Per-machine tmux overrides, not authored here. See the bottom of
+# tmux/tmux.conf: ~/.config/tmux is a symlink into this checkout, so a file
+# tmux loads by name lands in the repo. The Framework uses one to square off
+# the status bar pills that kitty draws rounded.
+tmux/tmux_local.conf
