@@ -58,7 +58,7 @@ Singleton {
         left: [],
         centerLeft: [],
         centerRight: ["theme", "caffeine"],
-        right: ["notes", "notify", "network", "audio", "battery", "couch", "power"]
+        right: ["tray", "notes", "notify", "network", "audio", "battery", "couch", "power"]
     })
 
     // THE HUMAN NAME AND THE COST OF HIDING, per plugin. Here rather than in
@@ -72,6 +72,8 @@ Singleton {
                     help: "one click between dark and cream. Hidden, the theme is still on the Appearance page and in bin/theme.sh" },
         caffeine: { label: "Caffeine",
                     help: "holds off the idle lock. Hidden, there is no other way to switch it on" },
+        tray:     { label: "System tray",
+                    help: "icons from applications that publish one - Steam, Discord, Nextcloud. Empty until such a program runs, and hidden it takes away the only way to reach their menus" },
         notes:    { label: "Notes",
                     help: "the scratch pad. Hidden, what you wrote is kept but cannot be opened" },
         notify:   { label: "Notifications",

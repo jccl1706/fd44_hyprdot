@@ -74,6 +74,13 @@ PanelWindow {
     Component { id: batteryPlugin; BatteryButton {} }
     Component { id: notesPlugin;   NotesButton {} }
 
+    // The tray is the one plugin that is not a 22x22 button: it is however
+    // many icons are registered, and nothing when none are. It also needs the
+    // window itself, because a tray item's menu belongs to the application
+    // and is anchored to a window and a point inside it - Quickshell 0.3.1
+    // has no attached property that finds the window from a delegate.
+    Component { id: trayPlugin;    Tray { barWindow: root } }
+
     // Where a dragged icon will land: a faint ring the size of a glyph.
     Component {
         id: placeholderPlugin
@@ -104,6 +111,7 @@ PanelWindow {
         case "notify":      return notifyPlugin
         case "battery":     return batteryPlugin
         case "notes":       return notesPlugin
+        case "tray":        return trayPlugin
         case "placeholder": return placeholderPlugin
         }
         return null
@@ -123,6 +131,9 @@ PanelWindow {
         // the branch is the same one twice - the state lives in the button.
         else if (id === "couch" && slot.item)  slot.item.activate()
         else if (id === "power" && slot.item)  slot.item.activate()
+        // "tray" is deliberately absent: each icon handles its own clicks and
+        // opens the application's own menu, so there is nothing bar-wide to
+        // activate and no panel of ours to open.
     }
 
     // The same as clicking plugin `id` wherever it currently sits - for IPC
