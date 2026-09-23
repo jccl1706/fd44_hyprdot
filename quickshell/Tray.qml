@@ -19,7 +19,6 @@
 // bus provides it; on FreeBSD the session has to be started with
 // `dbus-run-session Hyprland` - see hypr/autostart.lua.
 import Quickshell
-import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Services.SystemTray
 import QtQuick
@@ -247,29 +246,34 @@ Item {
                 // with a populated handle. Both were measured on this machine.
                 // TrayMenu.qml reads the entries with QsMenuOpener - which does
                 // work - and draws them as one of this shell's own panels.
-                // BOTH, because an item may advertise Activate and ignore
-                // it. Battle.net under Proton does exactly that: the method is
-                // there, the call returns success, and the window does not
-                // move - measured with the window present and another program
-                // focused, which stayed focused.
+                // ACTIVATE FIRST, THEN A FALLBACK, because an item may
+                // advertise Activate and ignore it. Battle.net under Proton
+                // does exactly that: the method is there, the call returns
+                // success, and the window does not move - measured with the
+                // window present and another program focused, which stayed
+                // focused.
                 //
-                // The second half is best-effort and matches on TITLE, since
-                // that is the only thing the tray item and the window agree
-                // on. Battle.net's item calls itself "Battle.net" while its
-                // window's class is "steam_app_3062427963" - a Steam shortcut
-                // id that nothing in the tray could have guessed.
+                // bin/tray-click.sh handles what QML cannot. It focuses a
+                // window whose TITLE matches the item's, and where there is no
+                // window at all it calls ContextMenu over DBus, which is what
+                // Battle.net answers once it has closed to the tray.
+                // SystemTrayItem exposes activate, secondaryActivate and
+                // scroll but NOT ContextMenu, so there is no way to ask for it
+                // from here.
                 //
-                // Harmless where Activate works: the dispatch then raises the
-                // window Activate already raised. Harmless where no window
-                // matches: Hyprland logs "window not found" and does nothing.
-                // The one risk is another window with the same title, which is
-                // the price of having no better handle than a string.
+                // Harmless where Activate works: the window it raised is the
+                // one the script then focuses.
+                Process { id: clickFallback }
+
                 function activateOrRaise(): void {
                     entry.modelData.activate()
 
-                    const t = (entry.modelData.title || "").replace(/["\\]/g, "")
+                    const t = entry.modelData.title || ""
                     if (t === "") return
-                    Hyprland.dispatch('hl.dsp.focus({ window = "title:' + t + '" })')
+                    clickFallback.command = ["sh", "-c",
+                        "\"$(dirname \"$(readlink -f '" + Quickshell.shellDir
+                        + "')\")/bin/tray-click.sh\" \"$1\"", "sh", t]
+                    clickFallback.running = true
                 }
 
                 function openMenu(): void {
