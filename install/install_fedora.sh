@@ -751,6 +751,21 @@ wizard() {
     target="$(menu "Which disk should be WIPED and installed to?" "$defdisk" "${diskopts[@]}")"
 
     # ---- swap ----------------------------------------------------------
+    #
+    # ON THE FRAMEWORK 13 AMD, ANSWER "none". Not to save the disk - because
+    # resume is unreliable on this hardware. Hibernating works; coming back
+    # from it sometimes crashes the machine, and a crash on resume is worse
+    # than not hibernating at all, since it takes the session with it.
+    # Suspend is unaffected and is what that laptop uses.
+    #
+    # The 2026-09-23 Plasma install answered "none" for exactly this reason,
+    # which is why that machine has zram and no swap LV, and no resume= on
+    # its kernel command line. That is the intended shape of it, not an
+    # unfinished install - worth knowing before someone reads the missing
+    # resume= as a bug and "fixes" it.
+    #
+    # Other machines are not covered by this. A desktop has nothing to
+    # hibernate for, and non-AMD laptops are a different question entirely.
     local suggested="${ram_gib}G"
     swap_size="$(menu "Swap size?  (hibernation needs swap; RAM is ${ram_gib}G)" 2 \
         "none - no swap, no hibernation|none" \
