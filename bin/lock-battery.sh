@@ -51,7 +51,7 @@ warn="${2:-b4637a}"
 #
 # Status: Charging if any battery is, else Discharging if any is, else the
 # first reported ("Not charging" at a charge limit, "Full").
-n=0 now=0 full=0 units="" capsum=0 status=""
+n=0 now=0 full=0 rate=0 units="" capsum=0 status=""
 for d in /sys/class/power_supply/BAT*; do
     [[ -d $d ]] || continue
     n=$((n + 1))
@@ -66,6 +66,24 @@ for d in /sys/class/power_supply/BAT*; do
     if [[ $u != none ]]; then
         now=$((now + $(< "$d/${u}_now")))
         full=$((full + $(< "$d/${u}_full")))
+
+        # The DRAW, for the time estimate further down. Which file holds it
+        # follows the unit the battery reports in: a charge-based battery
+        # measures current in uA, an energy-based one power in uW. Summed
+        # across batteries like the rest - the T480 has two and the pack
+        # empties at their combined rate.
+        #
+        # ABSOLUTE VALUE, because some firmware signs the reading by direction
+        # and reports a negative current while charging. The status field
+        # already says which way it is going, so the sign is redundant at best
+        # and gives a negative time at worst.
+        r=""
+        [[ $u == charge && -r $d/current_now ]] && r="$(< "$d/current_now")"
+        [[ $u == energy && -r $d/power_now   ]] && r="$(< "$d/power_now")"
+        if [[ $r =~ ^-?[0-9]+$ ]]; then
+            (( r < 0 )) && r=$(( -r ))
+            rate=$((rate + r))
+        fi
     fi
     s="$(cat "$d/status" 2>/dev/null || echo Unknown)"
     case $s in
@@ -93,6 +111,44 @@ cap="${LOCK_BATTERY_CAP:-$cap}"
 status="${LOCK_BATTERY_STATUS:-$status}"
 [[ $cap =~ ^[0-9]+$ ]] || exit 0
 
+# ---- how long is left ----------------------------------------------------
+#
+# now / rate is hours, in whatever unit the battery reports: uAh over uA, or
+# uWh over uW. The units cancel, so nothing has to be converted and no voltage
+# has to be guessed at. Checked against upower on the Framework - 2386000 over
+# 593000 gave 4h02 where upower said 4.1 hours.
+#
+# DISCHARGING COUNTS DOWN FROM `now`, CHARGING COUNTS UP TO `full`. They are
+# different sums, and getting them the right way round is the whole of it.
+#
+# BLANK WHENEVER THE ANSWER WOULD BE A GUESS, which is more often than it
+# looks. A rate of zero means nothing is moving - true on this laptop whenever
+# it sits at the BIOS charge limit reporting "Not charging" - and a status
+# that is neither charging nor discharging has no direction to count in. No
+# estimate is better than a confident wrong one, and the bar then shows the
+# percentage exactly as it did before.
+remain=""
+if (( rate > 0 )) && [[ $units == energy || $units == charge ]]; then
+    left=0
+    case $status in
+        Discharging) left=$now ;;
+        Charging)    (( full > now )) && left=$(( full - now )) ;;
+    esac
+    if (( left > 0 )); then
+        mins=$(( (left * 60 + rate / 2) / rate ))
+        # A reading taken as a load changes can be absurd: a machine that has
+        # just woken reports a draw near zero and "99h". Over a day is not
+        # information.
+        if (( mins > 0 && mins < 1440 )); then
+            if (( mins >= 60 )); then
+                remain="$(( mins / 60 ))h$(printf '%02d' $(( mins % 60 )))"
+            else
+                remain="${mins}m"
+            fi
+        fi
+    fi
+fi
+
 # Material Design Icons battery set, the same family the bar's glyphs come
 # from. Written as \U escapes rather than pasted characters so the codepoints
 # are readable and checkable here - a pasted glyph in a shell script is
@@ -119,10 +175,16 @@ low=0
 (( cap < 20 )) && [[ $status != Charging ]] && low=1
 
 if [[ $mode == tmux ]]; then
+    # The estimate is dimmed. The percentage is a fact; the time is a
+    # projection from the draw of this instant and moves about as the machine
+    # does. brightblack says "supporting detail" rather than putting a second
+    # thing in the corner of the bar competing for attention.
+    t=""
+    [[ -n $remain ]] && t="#[fg=brightblack] $remain#[default]"
     if (( low )); then
-        printf '#[fg=red]%s %d%%#[default]  ' "$glyph" "$cap"
+        printf '#[fg=red]%s %d%%#[default]%s  ' "$glyph" "$cap" "$t"
     else
-        printf '%s %d%%  ' "$glyph" "$cap"
+        printf '%s %d%%%s  ' "$glyph" "$cap" "$t"
     fi
     exit 0
 fi
