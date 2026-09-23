@@ -43,6 +43,11 @@ Singleton {
     // answer is drawn in the danger colour.
     property bool ready: false
 
+    // Whether `onAc` below is an answer rather than a file that has not been
+    // read yet. See the note beside it in refresh(); warnings wait for this
+    // because "not plugged in" is the half of the pair that raises alarms.
+    property bool acKnown: false
+
     property int percent: 0
     property string status: "Unknown"
     property bool onAc: false
@@ -106,7 +111,7 @@ Singleton {
     property int warnedAt: 0
 
     function checkWarnings(): void {
-        if (!battery.ready) return
+        if (!battery.ready || !battery.acKnown) return
 
         if (battery.onAc) {
             battery.warnedAt = 0
@@ -141,24 +146,46 @@ Singleton {
 
     property var dirs: []
 
+    // The probe has run. Distinguishes "this machine has no mains adapter",
+    // which is an answer, from "we have not looked yet", which is not.
+    property bool probed: false
+
     Process {
         running: true
+        // Two answers from one probe, tagged so they can be told apart: the
+        // battery packs by the BAT* glob, and the mains adapters by asking
+        // each supply what type it is.
         command: ["sh", "-c",
-                  "for d in /sys/class/power_supply/BAT*; do [ -d \"$d\" ] && echo \"$d\"; done"]
+                  "for d in /sys/class/power_supply/BAT*; do [ -d \"$d\" ] && echo \"B $d\"; done; "
+                  + "for d in /sys/class/power_supply/*; do "
+                  + "[ \"$(cat \"$d/type\" 2>/dev/null)\" = Mains ] && echo \"M $d/online\"; done; :"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const found = text.trim()
-                battery.dirs = found === "" ? [] : found.split("\n")
+                const bats = [], acs = []
+                for (const line of text.trim().split("\n")) {
+                    if (line.startsWith("B ")) bats.push(line.slice(2))
+                    else if (line.startsWith("M ")) acs.push(line.slice(2))
+                }
+                battery.dirs = bats
+                battery.acPaths = acs
+                battery.probed = true
             }
         }
     }
 
-    // The mains adapter. ACAD on the Framework, AC or ADP1 elsewhere - all
-    // three are tried because a missing file reads as empty rather than
-    // failing, so guessing costs nothing.
-    property var acPaths: ["/sys/class/power_supply/ACAD/online",
-                           "/sys/class/power_supply/AC/online",
-                           "/sys/class/power_supply/ADP1/online"]
+    // The mains adapter, found by type rather than by name. It was a list of
+    // three guesses - ACAD on the Framework, AC or ADP1 elsewhere - which was
+    // fine while a missing file merely read as empty, but `acKnown` above now
+    // needs to tell "no adapter on this machine" from "the file has not been
+    // read yet", and a guessed name cannot. Asking sysfs which supply is
+    // Mains answers both.
+    //
+    // Only Mains: the Framework also exposes four `ucsi-source-psy-*` USB
+    // supplies, and charging over USB-C raises ACAD/online anyway. Batteries
+    // are still found by the BAT* glob above rather than by type, because a
+    // wireless mouse reporting through power_supply is type=Battery too and
+    // has no business in the laptop's charge.
+    property var acPaths: []
 
     // --- reading -----------------------------------------------------------
 
@@ -282,6 +309,22 @@ Singleton {
         // only as a fallback - see the note at the top about why averaging
         // two packs is wrong.
         if (cap <= 0 && capSum <= 0) return      // nothing readable yet
+
+        // AND THE NUMERATOR, which the line above does not cover and which is
+        // the other half of the same race. FileView.reload() is asynchronous
+        // and each file calls refresh() as it lands, so charge_full can arrive
+        // a tick before charge_now: cap is already a real number while now is
+        // still 0. That computes an honest-looking 0%, sets `ready`, and on a
+        // machine whose mains file has not landed either it fires "Battery
+        // critical - 0% remaining" while the pack is sitting at 67%. Seen on
+        // the Framework after every shell reload.
+        //
+        // A charge_now of exactly zero with a readable charge_full does not
+        // happen on a running machine - the firmware has cut the power well
+        // before that - so treating it as "not read yet" costs one poll at
+        // worst and nothing in practice.
+        if (cap > 0 && now <= 0) return
+
         let pct = cap > 0 ? Math.round(now * 100 / cap) : Math.round(capSum / n)
         battery.percent = Math.max(0, Math.min(100, pct))
         battery.ready = true
@@ -293,12 +336,21 @@ Singleton {
                        : anyDischarging ? "Discharging"
                        : (seen !== "" ? seen : "Unknown")
 
+        // AN EMPTY MAINS FILE IS NOT A NO. Same race again: until one of the
+        // adapter files has actually been read, "nothing says we are plugged
+        // in" is indistinguishable from "we are not plugged in", and only the
+        // second should let a warning through. A machine with no mains supply
+        // at all - `mains` empty - is a known answer, not an unread one.
         let ac = false
+        let known = battery.probed && battery.acPaths.length === 0
         for (let i = 0; i < mains.count; i++) {
             const m = mains.objectAt(i)
-            if (m && battery.num(m.file, 0) === 1) ac = true
+            if (!m) continue
+            if (String(m.file.text()).trim() !== "") known = true
+            if (battery.num(m.file, 0) === 1) ac = true
         }
         battery.onAc = ac
+        battery.acKnown = known
 
         battery.details = rows
         battery.cycleCount = cycles
