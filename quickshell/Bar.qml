@@ -32,6 +32,12 @@ PanelWindow {
     signal clockRequested(real x)
     signal notesRequested(real x)
 
+    // Unlike the others this carries WHICH tray item was clicked as well as
+    // where: one menu panel serves every icon, because the applications come
+    // and go and a panel per icon would mean creating and destroying windows
+    // as programs start and stop.
+    signal trayMenuRequested(real x, var item)
+
     // Variants sets this, one instance per monitor. The name must be exactly
     // `modelData` - that is what Variants assigns into the delegate.
     required property var modelData

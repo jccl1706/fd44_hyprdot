@@ -19,6 +19,7 @@
 // bus provides it; on FreeBSD the session has to be started with
 // `dbus-run-session Hyprland` - see hypr/autostart.lua.
 import Quickshell
+import Quickshell.Io
 import Quickshell.Services.SystemTray
 import QtQuick
 
@@ -33,6 +34,36 @@ Item {
 
     implicitWidth: row.implicitWidth
     implicitHeight: 22
+
+    // Diagnostic handle, so the menu can be opened without a mouse:
+    //
+    //     qs ipc call tray open      -> first item's menu
+    //     qs ipc call tray count     -> how many items are registered
+    //
+    // Kept because a tray is otherwise only testable by hand, and "nothing
+    // happens when I click" is indistinguishable from "the icon is not there"
+    // without it.
+    // Diagnostic handle, because a tray is otherwise only testable by hand
+    // and "nothing happens when I click" is indistinguishable from "the icon
+    // is not there":
+    //
+    //     qs ipc --pid $(pgrep -n quickshell) call tray count
+    //     qs ipc --pid $(pgrep -n quickshell) call tray describe
+    //
+    IpcHandler {
+        target: "tray"
+
+        function count(): string {
+            return String(SystemTray.items.values.length)
+        }
+
+        function describe(): string {
+            const out = []
+            for (const it of SystemTray.items.values)
+                out.push(it.id + " hasMenu=" + it.hasMenu + " onlyMenu=" + it.onlyMenu)
+            return out.length > 0 ? out.join("\n") : "no items"
+        }
+    }
 
     Row {
         id: row
@@ -115,14 +146,37 @@ Item {
                     anchors.fill: parent
                     acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
 
+                    // THE MENU WINS A LEFT CLICK WHENEVER THERE IS ONE, and
+                    // that is not the obvious reading of the spec - it is what
+                    // the applications actually do.
+                    //
+                    // Activate is OPTIONAL in StatusNotifierItem, and the
+                    // libappindicator/ayatana family simply does not implement
+                    // it: those items are menus with an icon on them. Measured
+                    // on Steam, which is the tray item this was built against:
+                    //
+                    //     busctl --user call ... org.kde.StatusNotifierItem \
+                    //            Activate ii 0 0
+                    //     Call failed: No such method "Activate"
+                    //
+                    // Its introspection lists Scroll and SecondaryActivate and
+                    // no Activate at all. Nor does it set ItemIsMenu, so
+                    // onlyMenu is false and honouring that alone left the icon
+                    // doing nothing whatsoever when clicked.
+                    //
+                    // The cost is that left and right do the same thing on an
+                    // item that has both a menu and a working Activate -
+                    // KeePassXC being the case in point. That is a small loss:
+                    // such a menu almost always carries the same "show the
+                    // window" entry that Activate would have triggered. The
+                    // alternative is an icon that ignores clicks, which is
+                    // worse and is what this replaced. There is no way to ask
+                    // an item whether Activate exists without calling it, and
+                    // a call that fails silently cannot be fallen back from.
                     onClicked: mouse => {
-                        // onlyMenu means the application says a left click has
-                        // no meaning and only the menu does - honouring it is
-                        // the difference between a working icon and one that
-                        // appears dead.
                         if (mouse.button === Qt.LeftButton) {
-                            if (entry.modelData.onlyMenu) entry.openMenu()
-                            else                          entry.modelData.activate()
+                            if (entry.modelData.hasMenu) entry.openMenu()
+                            else                         entry.modelData.activate()
                         } else if (mouse.button === Qt.RightButton) {
                             entry.openMenu()
                         } else if (mouse.button === Qt.MiddleButton) {
@@ -140,15 +194,17 @@ Item {
                     }
                 }
 
-                // The menu is the APPLICATION'S, drawn by Quickshell from the
-                // DBusMenu it exports - not something this file lays out. It is
-                // anchored under the icon: mapToItem(null, ...) gives window
-                // coordinates, which is the same trick Bar.qml uses to place
-                // its drop-down panels.
+                // THE MENU IS A PANEL, not something drawn here. Quickshell
+                // 0.3.1 offers two routes that look right and are not:
+                // SystemTrayItem.display() returns without complaint and draws
+                // nothing, and QsMenuAnchor.open() leaves `visible` false even
+                // with a populated handle. Both were measured on this machine.
+                // TrayMenu.qml reads the entries with QsMenuOpener - which does
+                // work - and draws them as one of this shell's own panels.
                 function openMenu(): void {
                     if (!entry.modelData.hasMenu || !root.barWindow) return
-                    const p = entry.mapToItem(null, 0, entry.height)
-                    entry.modelData.display(root.barWindow, p.x, p.y)
+                    const x = entry.mapToItem(null, entry.width / 2, 0).x
+                    root.barWindow.trayMenuRequested(x, entry.modelData)
                 }
 
                 // NO HOVER TOOLTIP, and that is the repository's stance

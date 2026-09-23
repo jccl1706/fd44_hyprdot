@@ -82,6 +82,14 @@ ShellRoot {
             onNotesRequested: x => shell.eachNotes(p => {
                 if (p.modelData === bar.modelData) p.toggle(x)
             })
+            onTrayMenuRequested: (x, item) => shell.eachTrayMenu(p => {
+                if (p.modelData !== bar.modelData) return
+                // Re-pointing an open menu at a different icon should show the
+                // new one rather than toggle the panel shut.
+                if (p.revealed && p.item !== item) { p.item = item; return }
+                p.item = item
+                p.toggle(x)
+            })
         }
     }
 
@@ -177,6 +185,15 @@ ShellRoot {
         id: notesVariants
         model: Quickshell.screens
         NotesPanel {}
+    }
+
+    // A tray item's own menu. One per monitor like the rest, and one for ALL
+    // tray icons rather than one each - which icon it is showing is a property
+    // set just before it opens.
+    Variants {
+        id: trayMenuVariants
+        model: Quickshell.screens
+        TrayMenu {}
     }
 
     // Notification toasts. The service is a singleton and owns the bus name;
@@ -472,6 +489,13 @@ ShellRoot {
 
     function eachNotes(fn): void {
         const instances = notesVariants.instances
+        for (let i = 0; i < instances.length; i++) {
+            if (instances[i]) fn(instances[i])
+        }
+    }
+
+    function eachTrayMenu(fn): void {
+        const instances = trayMenuVariants.instances
         for (let i = 0; i < instances.length; i++) {
             if (instances[i]) fn(instances[i])
         }
