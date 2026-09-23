@@ -211,7 +211,7 @@ PanelWindow {
     Rectangle {
         anchors {
             fill: parent
-            topMargin:    BarStyle.barBottom
+            topMargin:    BarStyle.scrimTop
             leftMargin:   BarStyle.scrimInset
             rightMargin:  BarStyle.scrimInset
             bottomMargin: BarStyle.scrimInset

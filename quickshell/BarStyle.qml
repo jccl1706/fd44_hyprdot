@@ -86,4 +86,17 @@ Singleton {
     // inset scrim would leave an undimmed band down each side instead.
     readonly property int scrimInset: floating ? 0 : Theme.frameThickness
     readonly property int scrimRadius: floating ? 0 : Theme.cornerRadius
+
+    // WHERE THE DIMMING STARTS. Framed it stops at the bar, because the bar
+    // is an opaque strip in Theme.bg and the boundary between it and the
+    // dimmed desktop below is invisible - both are dark.
+    //
+    // Floating there is no strip, so stopping at the same line left the top
+    // 48px of WALLPAPER at full brightness with everything under it dimmed,
+    // and that hard horizontal edge running the full width of the screen is
+    // what made an open panel look like it had drawn a black rectangle over
+    // the desktop. The scrim covers the whole screen instead. It dims the
+    // floating pills along with everything else, which is the right answer
+    // anyway: while a panel is up the bar is not what you are looking at.
+    readonly property int scrimTop: floating ? 0 : Theme.barHeight
 }
