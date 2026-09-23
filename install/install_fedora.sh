@@ -2497,8 +2497,22 @@ check "nwg-panel not installed"        "! fchroot rpm -q nwg-panel >/dev/null 2>
 # Asserted by RUNNING it, not by checking the package is present: the failure
 # mode is an installed CLI that throws ModuleNotFoundError on every call, which
 # a package check would not notice.
+#
+# WHAT IS ASSERTED IS THE IMPORT, NOT THE ANSWER, and the distinction matters.
+# `powerprofilesctl get` also exits non-zero when it cannot reach the daemon
+# over D-Bus - and there is no D-Bus inside an installroot. This check used
+# exit status, so it was passing only because mount_chroot bind-mounts the
+# host's /run and a Fedora Workstation live ISO happens to be running
+# power-profiles-daemon itself: the CLI was answering about the LIVE system,
+# never about the machine being built. Installing from a Fedora Cloud image,
+# which runs no such daemon, is what exposed it - the check failed on a target
+# where both packages were correctly installed.
+#
+# So the test is the one thing a chroot can honestly answer: the script runs
+# far enough to import its Python bindings. Whether the daemon answers is a
+# question for the installed machine, after it has booted.
 if [[ "$machine" == laptop ]]; then
-    check "powerprofilesctl works"     "fchroot powerprofilesctl get >/dev/null 2>&1"
+    check "powerprofilesctl imports"   "! fchroot powerprofilesctl get 2>&1 | grep -q ModuleNotFoundError"
 fi
 [[ "$desktop" == hyprland ]] && check "getty autologin drop-in"        "grep -q 'autologin $username' '$rootmnt/etc/systemd/system/getty@tty1.service.d/autologin.conf'"
 # Both halves of the power-button handover, because half of it is worse than
