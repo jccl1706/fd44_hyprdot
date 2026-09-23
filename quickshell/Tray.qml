@@ -57,10 +57,18 @@ Item {
             return String(SystemTray.items.values.length)
         }
 
+        // entries= is the number that decides what a left click does, so it
+        // is the one worth printing: >0 shows the menu, 0 activates.
         function describe(): string {
             const out = []
-            for (const it of SystemTray.items.values)
-                out.push(it.id + " hasMenu=" + it.hasMenu + " onlyMenu=" + it.onlyMenu)
+            for (let i = 0; i < row.children.length; i++) {
+                const d = row.children[i]
+                if (!d || d.menuEntries === undefined) continue
+                out.push((d.modelData.title || d.modelData.id)
+                         + "  entries=" + d.menuEntries
+                         + "  hasMenu=" + d.modelData.hasMenu
+                         + "  -> " + (d.menuEntries > 0 ? "menu" : "activate"))
+            }
             return out.length > 0 ? out.join("\n") : "no items"
         }
     }
