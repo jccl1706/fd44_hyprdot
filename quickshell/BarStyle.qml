@@ -84,19 +84,21 @@ Singleton {
     // over the frame's concave corner pieces dims them and they stop looking
     // like part of the border. Floating there is no border to protect, and an
     // inset scrim would leave an undimmed band down each side instead.
-    readonly property int scrimInset: floating ? 0 : Theme.frameThickness
-    readonly property int scrimRadius: floating ? 0 : Theme.cornerRadius
-
-    // WHERE THE DIMMING STARTS. Framed it stops at the bar, because the bar
-    // is an opaque strip in Theme.bg and the boundary between it and the
-    // dimmed desktop below is invisible - both are dark.
+    // THE SCRIM IS A FRAME-MODE THING. An open panel dims the desktop behind
+    // it, which suits a bar welded to a border round the screen: the chrome
+    // is one enclosing shape and a panel coming out of it is modal over
+    // everything inside.
     //
-    // Floating there is no strip, so stopping at the same line left the top
-    // 48px of WALLPAPER at full brightness with everything under it dimmed,
-    // and that hard horizontal edge running the full width of the screen is
-    // what made an open panel look like it had drawn a black rectangle over
-    // the desktop. The scrim covers the whole screen instead. It dims the
-    // floating pills along with everything else, which is the right answer
-    // anyway: while a panel is up the bar is not what you are looking at.
-    readonly property int scrimTop: floating ? 0 : Theme.barHeight
+    // Floating it does not suit at all. It was tried both ways. Stopping the
+    // dimming at the bar left the top 48px of WALLPAPER at full brightness
+    // with everything under it at 60%, and that hard horizontal edge across
+    // the whole screen read as a black rectangle drawn over the desktop.
+    // Dimming the whole screen instead removed the edge but was not wanted
+    // either: a floating panel is an object lying on the wallpaper next to
+    // the pills, not a mode the desktop has entered, and darkening everything
+    // to announce it overstates what just happened.
+    //
+    // Only the PAINT goes. The full-screen MouseArea under it is what closes
+    // a panel on a click outside, and that stays in both modes.
+    readonly property bool scrim: joined
 }

@@ -253,10 +253,10 @@ PanelWindow {
     Rectangle {
         anchors {
             fill: parent
-            topMargin:    BarStyle.scrimTop
-            leftMargin:   BarStyle.scrimInset
-            rightMargin:  BarStyle.scrimInset
-            bottomMargin: BarStyle.scrimInset
+            topMargin:    Theme.barHeight
+            leftMargin:   Theme.frameThickness
+            rightMargin:  Theme.frameThickness
+            bottomMargin: Theme.frameThickness
         }
         // The well is not a rectangle: Frame.qml rounds all four of its inner
         // corners with a concave piece of Theme.cornerRadius that reaches
@@ -268,7 +268,11 @@ PanelWindow {
         // Rounding by the same radius makes this exactly the well's opening:
         // a corner piece's arc runs from (frame + radius) to (frame), which is
         // precisely the arc of a rounded rect inset to the frame.
-        radius: BarStyle.scrimRadius
+        radius: Theme.cornerRadius
+
+        // Frame mode only - see BarStyle.scrim. Not composited at all when
+        // floating, rather than painted at zero alpha.
+        visible: BarStyle.scrim
 
         color: "#000000"
         opacity: root.revealed ? 0.35 : 0

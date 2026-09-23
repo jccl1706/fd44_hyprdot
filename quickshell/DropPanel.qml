@@ -211,12 +211,16 @@ PanelWindow {
     Rectangle {
         anchors {
             fill: parent
-            topMargin:    BarStyle.scrimTop
-            leftMargin:   BarStyle.scrimInset
-            rightMargin:  BarStyle.scrimInset
-            bottomMargin: BarStyle.scrimInset
+            topMargin:    Theme.barHeight
+            leftMargin:   Theme.frameThickness
+            rightMargin:  Theme.frameThickness
+            bottomMargin: Theme.frameThickness
         }
-        radius: BarStyle.scrimRadius
+        radius: Theme.cornerRadius
+
+        // Frame mode only - see BarStyle.scrim. Not composited at all when
+        // floating, rather than painted at zero alpha.
+        visible: BarStyle.scrim
         color: "#000000"
         opacity: root.revealed ? 0.35 : 0
         Behavior on opacity {
