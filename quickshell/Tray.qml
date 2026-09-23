@@ -19,6 +19,7 @@
 // bus provides it; on FreeBSD the session has to be started with
 // `dbus-run-session Hyprland` - see hypr/autostart.lua.
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Services.SystemTray
 import QtQuick
@@ -219,7 +220,7 @@ Item {
                     onClicked: mouse => {
                         if (mouse.button === Qt.LeftButton) {
                             if (entry.menuEntries > 0) entry.openMenu()
-                            else                       entry.modelData.activate()
+                            else                       entry.activateOrRaise()
                         } else if (mouse.button === Qt.RightButton) {
                             // No menu to show means right-click has nothing to
                             // do, rather than opening an empty card.
@@ -246,6 +247,31 @@ Item {
                 // with a populated handle. Both were measured on this machine.
                 // TrayMenu.qml reads the entries with QsMenuOpener - which does
                 // work - and draws them as one of this shell's own panels.
+                // BOTH, because an item may advertise Activate and ignore
+                // it. Battle.net under Proton does exactly that: the method is
+                // there, the call returns success, and the window does not
+                // move - measured with the window present and another program
+                // focused, which stayed focused.
+                //
+                // The second half is best-effort and matches on TITLE, since
+                // that is the only thing the tray item and the window agree
+                // on. Battle.net's item calls itself "Battle.net" while its
+                // window's class is "steam_app_3062427963" - a Steam shortcut
+                // id that nothing in the tray could have guessed.
+                //
+                // Harmless where Activate works: the dispatch then raises the
+                // window Activate already raised. Harmless where no window
+                // matches: Hyprland logs "window not found" and does nothing.
+                // The one risk is another window with the same title, which is
+                // the price of having no better handle than a string.
+                function activateOrRaise(): void {
+                    entry.modelData.activate()
+
+                    const t = (entry.modelData.title || "").replace(/["\\]/g, "")
+                    if (t === "") return
+                    Hyprland.dispatch('hl.dsp.focus({ window = "title:' + t + '" })')
+                }
+
                 function openMenu(): void {
                     if (entry.menuEntries === 0 || !root.barWindow) return
                     const x = entry.mapToItem(null, entry.width / 2, 0).x
