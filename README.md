@@ -231,26 +231,31 @@ bin/theme.sh restore                 # generate the palette files
 
 ## Keybindings
 
+**[The full cheatsheet is in `docs/keybindings.md`](docs/keybindings.md)** — every
+bind, grouped, with the reasoning. The ones worth knowing without looking:
+
 | Key | Action |
 |---|---|
 | `SUPER+Return` | terminal (kitty) |
-| `SUPER+B` / `+E` | browser / file manager |
+| `SUPER+B` / `+E` / `+Y` | browser / file manager / YouTube in its own window |
 | `SUPER+Space` | app launcher |
 | `SUPER+,` | wallpaper picker |
 | `SUPER+SHIFT+,` | settings |
 | `SUPER+T` | toggle theme |
+| `SUPER+Z` | focus mode — hide the bar to a single button |
 | `SUPER+M` | power menu (also the physical power button) |
 | `SUPER+W` / `+F` / `+V` / `+P` | close / fullscreen / float / pseudo-tile |
 | `SUPER+J` | cycle column width |
 | `SUPER+[` / `+]` | consume / expel a window from its column |
 | `SUPER+A` | fit all — zoom out to the whole strip |
 | `SUPER+arrows` | move focus (`+SHIFT` moves the window) |
+| `SUPER+right-drag` / `+left-drag` | move / resize with the mouse |
 | `SUPER+1..0` | focus workspace (`+SHIFT` sends the window) |
 | `SUPER+Tab` | next workspace (`+SHIFT` previous) |
 | `SUPER+S` | scratchpad (`+SHIFT` send) |
 | ``SUPER+` `` | btop, floating, in its own scratchpad (needs `sudo dnf install btop`) |
 | `SUPER+Escape` | passthrough — hand every key to the focused window, e.g. a VM |
-| `Print` | screenshot to clipboard |
+| `Print` / `SUPER+SHIFT+P` | screenshot to clipboard: whole screen / a region |
 | `SUPER+CTRL+P` | screenshot region to `~/Pictures/` |
 
 Volume, brightness and media keys are bound with `locked = true`, so they keep
