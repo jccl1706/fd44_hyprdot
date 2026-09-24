@@ -218,6 +218,12 @@ fi
 # notification daemon wants to be told what was just plugged in, desktop or
 # laptop. The unit's own ConditionPathExists handles the case this script
 # cannot see - being run somewhere that will never have Hyprland.
+# Web apps: desktop entries for sites that are better without a browser
+# around them. They go under DATA rather than CONFIG - XDG puts application
+# entries in ~/.local/share/applications - and the launcher picks them up
+# with everything else, no restart needed.
+link applications/youtube.desktop "$DATA/applications/youtube.desktop"
+
 link systemd/usb-notify.service "$CONFIG/systemd/user/usb-notify.service"
 
 # The display notifier, for the other half of the same question - a monitor

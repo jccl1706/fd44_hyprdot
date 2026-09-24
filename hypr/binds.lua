@@ -72,6 +72,21 @@ hl.bind(Mod .. " + SHIFT + comma", hl.dsp.global("quickshell:settings"))
 -- to leave: a key pressed by accident must not need a second key to undo.
 hl.bind(Mod .. " + Z", hl.dsp.global("quickshell:focus"))
 
+-- YouTube, as its own window rather than another browser tab. The desktop
+-- entry is applications/youtube.desktop; this runs the same command it does.
+--
+-- NOT `uwsm app -- youtube.desktop`, which is how the launcher starts things:
+-- that is a Python program and measured 462ms to a window against 218ms for
+-- a direct exec (see quickshell/AppLaunch.qml). A keybind is the one place
+-- that latency is felt, and the systemd unit it buys is worth less here than
+-- the quarter second.
+--
+-- Y is free; the letter matters more than usual on a bind with no visible
+-- control anywhere to remind you of it.
+hl.bind(Mod .. " + Y", hl.dsp.exec_cmd(
+    Apps.browser .. " --app=https://www.youtube.com/"
+))
+
 -- Theme. Flips the whole desktop between themes/dark.conf and
 -- themes/cream.conf - quickshell, kitty, GTK apps and Hyprland all at once.
 --
