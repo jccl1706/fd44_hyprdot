@@ -220,6 +220,10 @@ fi
 # cannot see - being run somewhere that will never have Hyprland.
 link systemd/usb-notify.service "$CONFIG/systemd/user/usb-notify.service"
 
+# The display notifier, for the other half of the same question - a monitor
+# is a drm event and never touches the usb subsystem.
+link systemd/display-notify.service "$CONFIG/systemd/user/display-notify.service"
+
 printf '\n  %d linked, %d already right, %d repointed, %d skipped, %d in the way\n' \
     "$made" "$already" "$fixed" "$skipped" "$blocked"
 
@@ -234,7 +238,7 @@ if [ "$made" -gt 0 ] || [ "$fixed" -gt 0 ]; then
   Two of these need telling:
     systemctl --user restart wireplumber
     systemctl --user daemon-reload
-    systemctl --user enable --now power-mode.service usb-notify.service
+    systemctl --user enable --now power-mode.service usb-notify.service display-notify.service
 
   And the rest of a fresh machine, each opt-in and each explaining itself:
     bin/icon-bridge.sh       so quickshell can see the icon theme at all

@@ -1,0 +1,50 @@
+[Unit]
+# Watches udev's drm events and raises a desktop notification when a monitor
+# is plugged in or unplugged - see bin/display-notify.sh.
+#
+# A SECOND UNIT RATHER THAN MORE OF usb-notify.service, because they watch
+# different subsystems for different things and a script called usb-notify
+# that also handled displays would be lying about itself. They share nothing
+# but the shape of the file.
+#
+# Bound to graphical-session.target so it starts with the Hyprland session and
+# stops with it. There is nothing to notify while logged out, and the thing it
+# talks to - org.freedesktop.Notifications, which quickshell owns - does not
+# exist until the shell is up.
+Description=Notify when a monitor is plugged in or unplugged
+PartOf=graphical-session.target
+After=graphical-session.target
+
+# THE SCRIPT HAS TO BE REACHABLE, and if it is not, do nothing rather than
+# fail forever. Same reasoning as power-mode.service, and the same hard-won
+# details: the condition belongs in [Unit] and is silently ignored in
+# [Service], and the path must be normalised because systemd refuses one
+# containing "..". `systemd-analyze verify` catches both.
+#
+# It tests ~/.config/hypr rather than the script because that link is what
+# makes the ExecStart path resolve at all - and on a machine without it there
+# is no quickshell either, so no notification daemon to send anything to.
+ConditionPathExists=%h/.config/hypr
+
+[Service]
+Type=simple
+# Reached through ~/.config/hypr, which is a symlink into the checkout: the
+# kernel resolves the symlink before applying "..", so this lands in the
+# repo's bin/ wherever the repo actually lives, rather than assuming the
+# clone is at a particular path.
+ExecStart=%h/.config/hypr/../bin/display-notify.sh watch
+
+# The watcher is a pipeline around `udevadm monitor`; if that dies the service
+# should come back rather than silently stop reacting to a cable.
+#
+# ON RESTART IT RE-SNAPSHOTS and announces nothing for what is already
+# attached, which is what makes a restart cheap: the first scan happens
+# before the watch begins, deliberately. Not Restart=always: an ExecStart that cannot even be spawned
+# should fail once and stay failed, which is the state you can see, rather
+# than retrying forever the way power-mode.service once did - 1319 errors in
+# under two hours before anyone looked.
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=graphical-session.target
