@@ -32,10 +32,11 @@
 
 set -uo pipefail
 
-ICON=video-display
-
+# NO ICON IS SENT: the shell draws a coloured dot rather than a picture
+# (quickshell/NotificationToast.qml), so a name here would be read by nobody.
+# video-display is the one to put back if that changes.
 notify() {
-    notify-send -a "Display" -i "$ICON" "$1" "$2" 2>/dev/null \
+    notify-send -a "Display" "$1" "$2" 2>/dev/null \
         || printf 'display-notify: %s - %s\n' "$1" "$2" >&2
 }
 

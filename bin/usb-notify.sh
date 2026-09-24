@@ -140,10 +140,9 @@ probe_kind() {
 # exists precisely to announce that the port has gone into an alternate mode.
 # The video itself never touches USB - it is DisplayPort over the same cable
 # - so the adapter creates no drm device, no class directory, nothing the
-# scan above can see, and a Framework HDMI expansion card was announced as
-# "USB device connected" with a removable-media picture on it. Measured on
-# this one: interface :1.0 is class 11, interface :1.1 is HID with no input
-# device behind it.
+# scan above can see, and a Framework HDMI expansion card was announced as a
+# nameless "USB device connected". Measured on this one: interface :1.0 is
+# class 11, interface :1.1 is HID with no input device behind it.
 #
 # It is not a Framework quirk. Billboard is what any USB-C alt-mode adapter
 # is supposed to present, so this recognises the class rather than the
@@ -194,37 +193,20 @@ storage_detail() {
 # -------------------------------------------------------------------------
 # Announcing
 # -------------------------------------------------------------------------
-# THEMED NAMES, resolved by whoever is drawing the notification.
+# NO ICON IS SENT. The shell draws every notification with a coloured dot
+# rather than a picture (quickshell/NotificationToast.qml), so an icon name
+# here would be read by nobody.
 #
-# This script used to search the filesystem itself - the configured theme,
-# its Inherits chain, svg before png - about ninety lines of it, because
-# quickshell drew the missing-icon chequerboard for any name outside hicolor.
-# That was never a fact about USB devices; it was Qt having no icon theme in
-# a bare Hyprland session, and bin/icon-bridge.sh fixes it at the source by
-# putting the selected theme's categories where the only theme quickshell can
-# see will find them. With that in place a name is enough, and a name is what
-# follows the theme when it changes - this has no opinion about icons now.
+# There used to be a table of them, one per kind, and before that ninety
+# lines that searched the icon theme on disk. Both are gone. What stays is
+# kind_noun below - with no picture, the WORDS are the only thing saying what
+# was plugged in, which makes them worth more than they were.
 #
-# THE BRIDGE HAS TO EXIST, which is the dependency this takes on. It is built
-# at login before quickshell starts (hypr/autostart.lua) and rebuilt by
-# bin/theme.sh on every theme switch, so the only way to be without it is on
-# a machine that has done neither - where the notification still arrives,
-# just with the wrong picture on it.
-#
-# The names are the freedesktop ones. network-wired has no scalable svg in
-# Adwaita, only a png in AdwaitaLegacy, which is a reminder that not every
-# name in this list is the same kind of file.
-declare -A ICON=(
-    [storage]=drive-removable-media
-    [network]=network-wired
-    [display]=video-display
-    [video]=camera-web
-    [printer]=printer
-    [audio]=audio-headset
-    [keyboard]=input-keyboard
-    [mouse]=input-mouse
-    [device]=media-removable
-)
+# Put -i back with a freedesktop name if the toast ever draws icons again:
+# drive-removable-media, network-wired, audio-headset, input-keyboard,
+# input-mouse, video-display, camera-web, printer, media-removable. They
+# resolve because bin/icon-bridge.sh puts the selected theme where
+# quickshell's Qt can see it.
 
 # What each kind is called in the notification.
 kind_noun() {
@@ -242,9 +224,9 @@ kind_noun() {
 }
 
 # -a groups these under one application in the panel's history.
+# -a groups these under one application in the panel's history.
 notify() {
-    local icon=${3:-${ICON[device]}}
-    notify-send -a "USB" -i "$icon" "$1" "$2" 2>/dev/null \
+    notify-send -a "USB" "$1" "$2" 2>/dev/null \
         || printf 'usb-notify: %s - %s\n' "$1" "$2" >&2
 }
 
@@ -293,7 +275,7 @@ announce() {
             [[ $kind == storage || $kind == network ]] || detail=""
 
             notify "$(kind_noun "$kind") connected" \
-                   "$name${detail:+ · $detail}" "${ICON[$kind]-${ICON[device]}}"
+                   "$name${detail:+ · $detail}"
 
             [[ -n $path ]] && { SEEN_NAME[$path]=$name; SEEN_KIND[$path]=$kind; }
             ;;
@@ -305,7 +287,7 @@ announce() {
             # port it was in is at least true.
             [[ -z $name ]] && name="on port ${path##*/}"
 
-            notify "$(kind_noun "$kind") removed" "$name" "${ICON[$kind]-${ICON[device]}}"
+            notify "$(kind_noun "$kind") removed" "$name"
             unset "SEEN_NAME[$path]" "SEEN_KIND[$path]"
             ;;
     esac
