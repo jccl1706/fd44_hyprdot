@@ -4,6 +4,10 @@ Every key this desktop binds, in one page. `SUPER` is the Windows key; the
 source of truth is [`hypr/binds.lua`](../hypr/binds.lua), and `hyprctl binds`
 lists what the running compositor actually has registered.
 
+There is a styled twin, [`keybindings.html`](keybindings.html), for reading on
+the machine itself — `xdg-open docs/keybindings.html`, and `Ctrl+P` prints it on
+two sheets. GitHub serves HTML as source, so this is the page to read here.
+
 > **Nothing here is bound twice by accident.** Hyprland does not shadow an
 > existing bind when you add another on the same key — it registers both and
 > fires both. If a key seems to do two things, that is what happened.

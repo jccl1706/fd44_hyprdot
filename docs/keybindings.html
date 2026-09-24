@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<!--
+=========================================================================
+keybindings.html - the cheatsheet, to look at rather than to read
+=========================================================================
+
+Open it with:  xdg-open docs/keybindings.html
+Print it with: Ctrl+P - the stylesheet has a @media print that drops the
+               toggle, flattens the cards onto two columns and forces the
+               cream palette, so it comes out on one or two sheets.
+
+docs/keybindings.md IS THE ONE THAT RENDERS ON GITHUB and the one to edit
+first; GitHub serves .html as source, so this file is for the machine it
+lives on. They carry the same binds and both are checked against
+hypr/binds.lua - if you change a key, change all three.
+
+SELF-CONTAINED ON PURPOSE. No webfont, no CDN, no script beyond the eleven
+lines that remember the theme: this is a file on a laptop that has to work
+with no network and no browser cache, so everything it needs is in it.
+
+THE COLOURS ARE THE DESKTOP'S OWN, lifted from themes/dark.conf and
+themes/cream.conf rather than invented, so the page sits in front of the bar
+it documents instead of fighting it. It follows prefers-color-scheme by
+default, which SUPER+T already moves through gsettings, and the button in the
+corner overrides that per browser.
+
+The fonts are named, not loaded. JetBrains Mono is installed by
+install/install_fedora.sh and vendored under fonts/; Adwaita Sans arrives with
+the GNOME packages rather than by request, so it is only the first name in a
+stack that falls through Cantarell to whatever a machine has.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hyprland Keys</title>
+<style>
+:root {
+    color-scheme: light dark;
+
+    --bg:      #ffffff;
+    --surface: #fafafa;
+    --high:    #ebebeb;
+    --outline: #d4d4d4;
+    --fg:      #333333;
+    --dim:     #77767b;
+    --accent:  #1a5fb4;
+    --danger:  #c01c28;
+    --rim:     rgba(0, 0, 0, .05);
+    --shadow:  rgba(51, 51, 51, .10);
+
+    --sans: "Adwaita Sans", "Cantarell", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "Noto Sans Mono", ui-monospace, monospace;
+}
+
+/* The dark palette, from themes/dark.conf. Guarded so the toggle wins:
+   :root[data-theme="light"] keeps the block above even on a dark system. */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --bg:      #1e1e1e;
+        --surface: #242424;
+        --high:    #303030;
+        --outline: #3e3e3e;
+        --fg:      #ffffff;
+        --dim:     #9a9996;
+        --accent:  #78aeed;
+        --danger:  #ff7b63;
+        --rim:     rgba(255, 255, 255, .055);
+        --shadow:  rgba(0, 0, 0, .45);
+    }
+}
+:root[data-theme="dark"] {
+    --bg:      #1e1e1e;
+    --surface: #242424;
+    --high:    #303030;
+    --outline: #3e3e3e;
+    --fg:      #ffffff;
+    --dim:     #9a9996;
+    --accent:  #78aeed;
+    --danger:  #ff7b63;
+    --rim:     rgba(255, 255, 255, .055);
+    --shadow:  rgba(0, 0, 0, .45);
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    padding: 48px 16px 96px;
+    background: var(--bg);
+    color: var(--fg);
+    font: 400 15px/1.55 var(--sans);
+    -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 1180px; margin: 0 auto; }
+
+/* ---------------------------------------------------------------- header */
+
+header { margin-bottom: 40px; }
+
+h1 {
+    margin: 0 0 6px;
+    font-size: clamp(28px, 5vw, 40px);
+    font-weight: 700;
+    letter-spacing: -.02em;
+}
+h1 span { color: var(--accent); }
+
+.sub { margin: 0; color: var(--dim); max-width: 62ch; }
+.sub code {
+    font: 500 .88em var(--mono);
+    background: var(--high);
+    padding: .1em .4em;
+    border-radius: 5px;
+}
+
+#theme {
+    position: fixed;
+    top: 16px; right: 16px;
+    z-index: 5;
+    padding: 8px 14px;
+    font: 500 13px var(--sans);
+    color: var(--dim);
+    background: var(--surface);
+    border: 1px solid var(--outline);
+    border-radius: 999px;
+    cursor: pointer;
+}
+#theme:hover { color: var(--fg); border-color: var(--accent); }
+
+/* ------------------------------------------------------------- headline */
+/* The six to learn first, across the top, bigger than everything else. */
+
+.first {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin: 0 0 40px;
+}
+/* Six cards: only 2, 3 and 6 divide evenly, and auto-fit chose 5 - which left
+   one card alone on a second row. Explicit steps instead. */
+@media (min-width: 620px)  { .first { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 1020px) { .first { grid-template-columns: repeat(6, 1fr); } }
+.first > div {
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px solid var(--outline);
+    border-radius: 14px;
+    box-shadow: inset 0 1px 0 var(--rim);
+}
+.first kbd { font-size: 12px; padding: 3px 6px; }
+.first .k { margin-bottom: 8px; }
+.first .t { font-size: 14px; color: var(--dim); }
+
+/* ---------------------------------------------------------------- cards */
+/* Columns rather than a grid: the sections are wildly different lengths, and
+   this lets a short one sit under a short one instead of leaving a hole. */
+
+.cards { columns: 3 330px; column-gap: 20px; }
+
+section {
+    break-inside: avoid;
+    display: inline-block;   /* keeps the card whole inside a column */
+    width: 100%;
+    margin: 0 0 20px;
+    padding: 20px 22px 8px;
+    background: var(--surface);
+    border: 1px solid var(--outline);
+    border-radius: 16px;
+    box-shadow: 0 1px 2px var(--shadow), inset 0 1px 0 var(--rim);
+}
+
+h2 {
+    margin: 0 0 14px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+
+/* ----------------------------------------------------------------- rows */
+
+.row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    padding: 9px 0;
+    border-top: 1px solid var(--outline);
+}
+.row:first-of-type { border-top: 0; padding-top: 0; }
+.row .t { flex: 1 1 130px; font-size: 14px; color: var(--dim); }
+.row .k { flex: 0 0 auto; }
+
+/* ----------------------------------------------------------------- keys */
+
+kbd {
+    display: inline-block;
+    min-width: 1.9em;
+    padding: 3px 7px;
+    font: 500 12.5px/1.35 var(--mono);
+    text-align: center;
+    color: var(--fg);
+    background: var(--bg);
+    border: 1px solid var(--outline);
+    border-bottom-width: 2px;
+    border-radius: 7px;
+    white-space: nowrap;
+}
+kbd.mod { color: var(--accent); border-color: var(--accent); }
+kbd.wide { font-size: 11.5px; letter-spacing: .02em; }
+.plus { color: var(--dim); font-size: 11px; padding: 0 1px; }
+
+/* ----------------------------------------------------------------- note */
+
+.note {
+    margin: 14px 0 12px;
+    padding: 11px 13px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--dim);
+    background: var(--high);
+    border-radius: 10px;
+    border-left: 3px solid var(--outline);
+}
+.note.warn { border-left-color: var(--danger); }
+.note b { color: var(--fg); font-weight: 600; }
+.note code { font: 500 .9em var(--mono); }
+
+footer {
+    margin: 40px 0 0;
+    font-size: 13px;
+    color: var(--dim);
+}
+footer code { font: 500 .92em var(--mono); }
+
+/* ------------------------------------------------------------ narrow */
+
+@media (max-width: 560px) {
+    body { padding: 32px 16px 64px; }
+    .cards { columns: 1; }
+    #theme { position: static; display: block; margin: 0 0 20px; }
+}
+
+/* ------------------------------------------------------------- printed */
+/* Forced light, because a dark page costs a whole cartridge. */
+
+@media print {
+    :root {
+        --bg: #fff; --surface: #fff; --high: #f2f2f2;
+        --outline: #ccc; --fg: #000; --dim: #444;
+        --accent: #1a5fb4; --rim: transparent; --shadow: transparent;
+    }
+    body { padding: 0; font-size: 10.5pt; }
+    #theme, footer { display: none; }
+    .cards { columns: 2; column-gap: 14px; }
+    section { box-shadow: none; padding: 12px 14px 4px; margin-bottom: 12px; }
+    .first { grid-template-columns: repeat(3, 1fr); }
+    .note { background: #f6f6f6; }
+}
+</style>
+</head>
+<body>
+
+<button id="theme" type="button">theme</button>
+
+<div class="wrap">
+
+<header>
+    <h1>Hyprland <span>keys</span></h1>
+    <p class="sub">Every bind on this desktop. <code>SUPER</code> is the
+    Windows key. The source of truth is <code>hypr/binds.lua</code>;
+    <code>hyprctl binds</code> lists what the running compositor has actually
+    registered.</p>
+</header>
+
+<div class="first">
+    <div><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd class="wide">Return</kbd></div><div class="t">A terminal</div></div>
+    <div><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd class="wide">Space</kbd></div><div class="t">App launcher</div></div>
+    <div><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>W</kbd></div><div class="t">Close the window</div></div>
+    <div><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>←</kbd><kbd>→</kbd></div><div class="t">Move focus along the strip</div></div>
+    <div><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>A</kbd></div><div class="t">Zoom out to every window</div></div>
+    <div><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>M</kbd></div><div class="t">Power menu</div></div>
+</div>
+
+<div class="cards">
+
+<section>
+    <h2>Applications</h2>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd class="wide">Return</kbd></div><div class="t">Terminal — kitty</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>B</kbd></div><div class="t">Browser — whichever is installed</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>E</kbd></div><div class="t">File manager — nautilus</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>Y</kbd></div><div class="t">YouTube, in a window of its own</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd class="wide">Space</kbd></div><div class="t">App launcher</div></div>
+    <div class="note">The launcher and the panels below are surfaces inside the
+    already-running Quickshell, reached through Hyprland's global-shortcuts
+    protocol rather than by running a command — so a keypress starts
+    <b>no process</b>. With Quickshell down they do nothing at all, which is the
+    same harmless failure as an unbound key.</div>
+</section>
+
+<section>
+    <h2>Session</h2>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>,</kbd></div><div class="t">Wallpaper picker</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd class="wide">SHIFT</kbd><span class="plus">+</span><kbd>,</kbd></div><div class="t">Settings — also one click on the logo</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>T</kbd></div><div class="t">Theme, dark ⇄ cream: bar, terminal, GTK apps and compositor together</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>Z</kbd></div><div class="t">Focus mode — hide the bar to a single button</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>M</kbd></div><div class="t">Power menu</div></div>
+    <div class="row"><div class="k"><kbd class="wide">power button</kbd></div><div class="t">The same menu. Hold it to power off regardless</div></div>
+    <div class="note">Focus mode changes a <b>setting</b> rather than showing a
+    window, so it survives a shell restart — and the bar keeps a visible button
+    to leave it, because a mode entered by accident must not need a second
+    secret key to undo.</div>
+    <div class="note">The power button is deliberately not <code>locked</code>:
+    with the screen locked it stays inert, so no shutdown menu can be raised
+    over the lock screen.</div>
+</section>
+
+<section>
+    <h2>Screenshots</h2>
+    <div class="row"><div class="k"><kbd class="wide">Print</kbd></div><div class="t">Whole screen → clipboard</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd class="wide">SHIFT</kbd><span class="plus">+</span><kbd>P</kbd></div><div class="t">Select a region → clipboard</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd class="wide">CTRL</kbd><span class="plus">+</span><kbd>P</kbd></div><div class="t">Select a region → <code>~/Pictures/</code></div></div>
+</section>
+
+<section>
+    <h2>Windows</h2>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>W</kbd></div><div class="t">Close</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>F</kbd></div><div class="t">True fullscreen — ignores gaps and the bar</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>V</kbd></div><div class="t">Float / tile</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>P</kbd></div><div class="t">Pseudo-tile</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd></div><div class="t">Move focus</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd class="wide">SHIFT</kbd><span class="plus">+</span><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd></div><div class="t">Move the window within the layout</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd class="wide">right-drag</kbd></div><div class="t">Move it with the mouse</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd class="wide">left-drag</kbd></div><div class="t">Resize it with the mouse</div></div>
+    <div class="note"><b>Right drags, left resizes</b> — the opposite way round
+    from the Hyprland default. Moving is done constantly and resizing
+    occasionally, and the right button is the one a free hand finds without
+    looking. Both still need <code>SUPER</code>: a bare right drag would stop
+    right-click reaching applications at all, so no context menus anywhere.</div>
+</section>
+
+<section>
+    <h2>The scrolling layout</h2>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>J</kbd></div><div class="t">Cycle the focused column's width</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>[</kbd></div><div class="t">Consume — pull the next column's window into this one</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>]</kbd></div><div class="t">Expel — push it back out into its own column</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>A</kbd></div><div class="t">Fit all — the whole strip on one screen</div></div>
+    <div class="note">Windows live in a horizontal strip of columns rather than
+    a tree, and several can share one column — that is the layout's main trick.
+    <code>SUPER+A</code> is how you find a window once the strip is longer than
+    the screen.</div>
+</section>
+
+<section>
+    <h2>Workspaces</h2>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>1</kbd>…<kbd>0</kbd></div><div class="t">Focus workspace 1–10</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd class="wide">SHIFT</kbd><span class="plus">+</span><kbd>1</kbd>…<kbd>0</kbd></div><div class="t">Send the window there</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd class="wide">Tab</kbd></div><div class="t">Next workspace that exists, skipping empty ones</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd class="wide">SHIFT</kbd><span class="plus">+</span><kbd class="wide">Tab</kbd></div><div class="t">Previous one that exists</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd class="wide">scroll</kbd></div><div class="t">The same, with the wheel</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>S</kbd></div><div class="t">Scratchpad, over whatever is on screen</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd class="wide">SHIFT</kbd><span class="plus">+</span><kbd>S</kbd></div><div class="t">Send the window to the scratchpad</div></div>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd>`</kbd></div><div class="t">btop, floating, in a scratchpad of its own</div></div>
+    <div class="note">The btop scratchpad needs nothing started first: a
+    workspace rule launches btop whenever it opens empty, so quitting with
+    <code>q</code> just means the next press gets a fresh one. It does want
+    btop installed — <code>sudo dnf install btop</code>.</div>
+</section>
+
+<section>
+    <h2>Volume, light and media</h2>
+    <div class="row"><div class="k"><kbd class="wide">Vol ±</kbd></div><div class="t">±5%, clamped at 100% so it never software-amplifies</div></div>
+    <div class="row"><div class="k"><kbd class="wide">Mute</kbd></div><div class="t">Mute the output</div></div>
+    <div class="row"><div class="k"><kbd class="wide">Mic mute</kbd></div><div class="t">Mute the microphone</div></div>
+    <div class="row"><div class="k"><kbd class="wide">Bright ±</kbd></div><div class="t">±5% on a 4th-power curve, never fully dark</div></div>
+    <div class="row"><div class="k"><kbd class="wide">Play/Pause</kbd></div><div class="t">Play / pause</div></div>
+    <div class="row"><div class="k"><kbd class="wide">Next</kbd><kbd class="wide">Prev</kbd></div><div class="t">Next / previous track</div></div>
+    <div class="note">All bound with <b><code>locked = true</code></b>, so they
+    keep working on the lock screen — which is where media keys are most
+    useful. Each changes the value <b>before</b> asking for the on-screen
+    display, because the OSD reads the real number from PipeWire or sysfs;
+    announcing first would show the old one. The OSD is decoration, never a
+    dependency.</div>
+    <div class="note">Brightness goes through <code>bin/backlight.sh</code>,
+    which resolves the panel from <code>/sys/class/backlight</code> —
+    <code>amdgpu_bl1</code> here, <code>intel_backlight</code> elsewhere,
+    nothing at all on a desktop, where these keys correctly do nothing rather
+    than needing to be deleted.</div>
+</section>
+
+<section>
+    <h2>Passthrough — VMs</h2>
+    <div class="row"><div class="k"><kbd class="mod">SUPER</kbd><span class="plus">+</span><kbd class="wide">Escape</kbd></div><div class="t">Toggle the passthrough submap</div></div>
+    <div class="note">A VM — or another Wayland session — inside this one means
+    two compositors competing for <code>SUPER</code>, and the host always wins.
+    While passthrough is active <b>none of the binds on this page exist</b>, so
+    every key goes straight to the focused window.</div>
+    <div class="note warn">A stuck passthrough looks exactly like a broken
+    keyboard. <code>hyprctl submap</code> says which submap is active, and
+    <code>SUPER+Escape</code> is the <b>only</b> bind the submap defines — the
+    same key always gets you out.</div>
+</section>
+
+<section>
+    <h2>Inside the terminal</h2>
+    <div class="row"><div class="k"><kbd class="wide">CTRL</kbd><span class="plus">+</span><kbd>B</kbd></div><div class="t">tmux prefix</div></div>
+    <div class="row"><div class="k"><kbd class="wide">ALT</kbd><span class="plus">+</span><kbd>←</kbd><kbd>→</kbd></div><div class="t">Previous / next tmux window, no prefix needed</div></div>
+    <div class="row"><div class="k"><kbd class="wide">ALT</kbd><span class="plus">+</span><kbd>1</kbd>…<kbd>9</kbd></div><div class="t">Jump straight to that tmux window</div></div>
+</section>
+
+</div><!-- /cards -->
+
+<footer>
+    All 52 <code>hl.bind</code> calls in <code>hypr/binds.lua</code> appear on
+    this page — it is the whole set, not a selection. The markdown twin,
+    <code>docs/keybindings.md</code>, is the one GitHub renders.
+    <code>Ctrl+P</code> prints this on two sheets.
+</footer>
+
+</div><!-- /wrap -->
+
+<script>
+// Three states, cycled: follow the system, force dark, force light. Stored per
+// browser in localStorage, wrapped because a private window can throw on read.
+const B = document.getElementById("theme"), R = document.documentElement;
+const NEXT = { system: "dark", dark: "light", light: "system" };
+const LABEL = { system: "theme: system", dark: "theme: dark", light: "theme: cream" };
+let mode = "system";
+function paint() {
+    if (mode === "system") R.removeAttribute("data-theme");
+    else R.setAttribute("data-theme", mode);
+    B.textContent = LABEL[mode];
+}
+try { mode = localStorage.getItem("kb-theme") || "system"; } catch (e) {}
+if (!NEXT[mode]) mode = "system";
+paint();
+B.addEventListener("click", () => {
+    mode = NEXT[mode];
+    paint();
+    try { localStorage.setItem("kb-theme", mode); } catch (e) {}
+});
+</script>
+</body>
+</html>

@@ -232,7 +232,9 @@ bin/theme.sh restore                 # generate the palette files
 ## Keybindings
 
 **[The full cheatsheet is in `docs/keybindings.md`](docs/keybindings.md)** — every
-bind, grouped, with the reasoning. The ones worth knowing without looking:
+bind, grouped, with the reasoning. The same thing styled, for reading on the
+machine and for printing, is [`docs/keybindings.html`](docs/keybindings.html)
+(`xdg-open docs/keybindings.html`). The ones worth knowing without looking:
 
 | Key | Action |
 |---|---|
