@@ -511,6 +511,19 @@ apply() {
     printf '[Settings]\ngtk-application-prefer-dark-theme=%d\ngtk-icon-theme-name=%s\n' \
         "$prefer" "$icons" > "$g4/settings.ini"
 
+    # AND QUICKSHELL, WHICH CANNOT READ ANY OF THE ABOVE. Its icon lookup goes
+    # through Qt, and Qt has no icon theme in a bare Hyprland session - it can
+    # only see "hicolor". bin/icon-bridge.sh puts the selected theme's
+    # categories where hicolor will find them; without this line it would go
+    # on pointing at whichever theme was selected when it was last built, and
+    # the notifications would keep the old palette's icons.
+    #
+    # Quiet, and never fatal: an icon that does not change is not a reason for
+    # a theme switch to report failure.
+    if [[ -x $repo/bin/icon-bridge.sh ]]; then
+        "$repo/bin/icon-bridge.sh" >/dev/null 2>&1 || true
+    fi
+
     # GTK4 / libadwaita, which needs its own copy and gets no live switch.
     #
     # libadwaita ignores gtk-theme-name entirely - measured: nudging that

@@ -24,6 +24,35 @@ Rectangle {
     required property string body
     required property string appName
     required property string appIcon
+
+    // WHAT THE ICON ACTUALLY IS, once, rather than a chain of conditionals
+    // evaluated in two places that then disagree with each other.
+    //
+    // A notification's image-path hint may be a file or a themed NAME - the
+    // spec allows both - and quickshell hands either to us already wrapped as
+    // image://icon/…, its own provider. The provider resolves a name through
+    // Qt, which in this session can only see the hicolor theme (see
+    // bin/icon-bridge.sh), so a name it cannot find renders as the
+    // missing-icon chequerboard rather than as nothing. Asking
+    // hasThemeIcon() first is what turns that into an honest "no icon", and
+    // the dot below then has something to take over from.
+    //
+    // A path arrives wrapped too, as image://icon//usr/share/…, which the
+    // provider happens to handle - but only by accident of the leading
+    // slash. Unwrapping it into a plain file: URL says what is meant.
+    readonly property string iconSource: {
+        if (toast.image !== "") return toast.resolveIcon(toast.image)
+        if (toast.appIcon !== "") return Quickshell.iconPath(toast.appIcon, true)
+        return ""
+    }
+
+    function resolveIcon(url: string): string {
+        const prefix = "image://icon/"
+        if (!url.startsWith(prefix)) return url
+        const name = decodeURIComponent(url.substring(prefix.length).split("?")[0])
+        if (name.startsWith("/")) return "file://" + name
+        return Quickshell.hasThemeIcon(name) ? url : ""
+    }
     required property string image
     required property int    urgency
     required property int    duration          // 0 means it stays until touched
@@ -75,9 +104,7 @@ Rectangle {
 
             IconImage {
                 anchors.fill: parent
-                source: toast.image !== "" ? toast.image
-                      : toast.appIcon !== "" ? Quickshell.iconPath(toast.appIcon, true)
-                      : ""
+                source: toast.iconSource
                 visible: source !== ""
             }
 
@@ -85,7 +112,12 @@ Rectangle {
                 anchors.centerIn: parent
                 width: 8; height: 8; radius: 4
                 color: toast.critical ? Theme.danger : Theme.accent
-                visible: toast.image === "" && toast.appIcon === ""
+                // Keyed on the RESOLVED source, not on whether a notification
+                // named an icon. Those differ whenever the name does not
+                // resolve, and when they did the toast drew neither - no dot,
+                // because an icon had been named, and no icon, because it
+                // could not be found. A chequerboard sat there instead.
+                visible: toast.iconSource === ""
             }
         }
 

@@ -237,6 +237,7 @@ if [ "$made" -gt 0 ] || [ "$fixed" -gt 0 ]; then
     systemctl --user enable --now power-mode.service usb-notify.service
 
   And the rest of a fresh machine, each opt-in and each explaining itself:
+    bin/icon-bridge.sh       so quickshell can see the icon theme at all
     bin/starship-setup.sh    the two-line prompt
     bin/icon-theme.sh        the Reversal icons the palettes ask for
     bin/gaming-setup.sh      MangoHud, gamemode and the Steam pieces
