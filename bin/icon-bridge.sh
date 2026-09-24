@@ -187,10 +187,26 @@ theme_dir_map() {
                 if (type[d] == "Scalable") h = "scalable/" c
                 else if (size[d] != "")    h = size[d] "x" size[d] "/" c
                 else continue
-                print h "\t" d
+
+                # RANK, because several directories can declare the same
+                # Context and only one of them can have the hicolor path.
+                # In Reversal, preferences/32 declares Context=Applications
+                # - it is a settings icon set, reasonably enough - and by
+                # declaration order it took scalable/apps away from
+                # apps/scalable, which holds 5327 application icons against
+                # its 453 preference ones. Nothing named firefox resolved on
+                # that machine as a result.
+                #
+                # A directory that is NAMED after the context is the one that
+                # means it. Adwaita spells that as the last component,
+                # 16x16/apps; Reversal as the first, apps/32. Either counts.
+                first = d; sub("/.*", "", first)
+                last  = d; sub(".*/", "", last)
+                rank = (first == c || last == c) ? 0 : 1
+                print h "\t" rank "\t" d
             }
         }
-    ' "$index"
+    ' "$index" | sort -t"$(printf '\t')" -k1,1 -k2,2n | cut -f1,3
 }
 
 # Every hicolor directory this machine can fill, as "<hicolor path>\t<source
