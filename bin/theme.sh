@@ -258,7 +258,23 @@ apply() {
         # Backgrounded: pkill walks /proc and costs about 50ms, and nothing
         # here needs its result - the signal is sent either way. Two of these
         # were a sixth of the whole switch.
-        { pkill -USR1 -x kitty 2>/dev/null || true; } &
+        #
+        # BOTH SPELLINGS, because `pkill -x kitty` matched nothing on the NixOS
+        # desktop while kitty was running: nixpkgs wraps the binary, so the
+        # process's comm - which -x tests - is `.kitty-wrapped` even though
+        # argv[0] is still `kitty`. Every theme switch there wrote theme.conf
+        # correctly and then signalled no one, so open terminals kept the old
+        # colours until they were restarted, which looked like kitty ignoring
+        # the theme rather than like a failed match.
+        #
+        # The alternation is an ERE, which is what pkill takes, and -x still
+        # anchors it to the whole name - so it cannot match some other process
+        # that merely contains "kitty". `pkill -f` would do that and worse: it
+        # would match this script's own command line.
+        #
+        # The same wrapper is why hypr/autostart.lua guards on more than pgrep
+        # and why bin/qs-restart.sh matches by executable instead.
+        { pkill -USR1 -x 'kitty|\.kitty-wrapped' 2>/dev/null || true; } &
     fi
 
     # --- btop ----------------------------------------------------------
