@@ -7,10 +7,26 @@
 // goes inside. Everything comes from Quickshell.Networking, which talks to
 // NetworkManager over D-Bus - no nmcli processes.
 //
-// ETHERNET is status only: connected, link speed, cable unplugged. There is
-// deliberately nothing to click. A misplaced click that drops the wired
-// connection is worse than having to open a terminal for the rare case of
-// wanting to.
+// ETHERNET has a switch of its own now, per device. It was status only, on
+// the reasoning that a misplaced click dropping the wired connection was
+// worse than opening a terminal for the rare case of wanting to - and then
+// the rare case turned up: a USB-C adapter plugged in beside live Wi-Fi,
+// both connected, and no way from here to say which one should carry the
+// traffic.
+//
+// TURNING IT OFF IS TWO OPERATIONS, not one. Disconnecting alone achieves
+// nothing: the connection is set to autoconnect, so NetworkManager brings it
+// straight back up and the switch appears to do nothing at all. Autoconnect
+// is cleared first and the device disconnected after. Turning it back on
+// takes two as well: autoconnect back on, and then an explicit connect
+// through the device's connection profile, because NetworkManager remembers
+// that the disconnect was asked for and will not undo it by itself.
+//
+// SO THE SWITCH TRACKS `autoconnect`, NOT `connected`. Those differ exactly
+// when the cable is out: the device is off the network but nobody asked for
+// it to be, and a switch that flipped itself when a cable was pulled would
+// be reporting the wrong thing. It reads as "may this device be used", which
+// is the same question the Wi-Fi switch above it answers.
 //
 // WI-FI has an on/off switch and the networks in range. Clicking a network
 // opens it in place with what can be done to it:
@@ -202,17 +218,52 @@ DropPanel {
                         color: wiredRow.connected ? Theme.accent : Theme.dim
                     }
 
+                    ToggleSwitch {
+                        id: wiredSwitch
+                        anchors { right: parent.right; rightMargin: 10
+                                  verticalCenter: parent.verticalCenter }
+                        checked: wiredRow.modelData.autoconnect
+                        // A device NetworkManager does not manage is not ours
+                        // to switch - something else owns it.
+                        interactive: wiredRow.modelData.nmManaged
+                        onToggled: {
+                            const d = wiredRow.modelData
+                            if (d.autoconnect) {
+                                // Order matters: clear autoconnect FIRST, or
+                                // NetworkManager reconnects the device before
+                                // the second call lands and the switch looks
+                                // broken.
+                                d.requestSetAutoconnect(false)
+                                d.requestDisconnect()
+                            } else {
+                                // RESTORING AUTOCONNECT IS NOT ENOUGH.
+                                // Measured: the device sat disconnected five
+                                // seconds after autoconnect went back to
+                                // true. NetworkManager remembers that the
+                                // disconnect was asked for and will not
+                                // bring the device up again by itself until
+                                // something like a carrier bounce happens.
+                                // The connection profile on the device has
+                                // requestConnect(), which is the explicit
+                                // ask - no nmcli fork needed for it.
+                                d.requestSetAutoconnect(true)
+                                if (d.network) d.network.requestConnect()
+                            }
+                        }
+                    }
+
                     Column {
                         anchors {
                             left: wiredGlyph.right; leftMargin: 10
-                            right: parent.right;    rightMargin: 10
+                            right: wiredSwitch.left; rightMargin: 10
                             verticalCenter: parent.verticalCenter
                         }
                         spacing: 1
 
                         Text {
                             width: parent.width
-                            text: wiredRow.connected ? "Connected"
+                            text: !wiredRow.modelData.autoconnect ? "Turned off"
+                                : wiredRow.connected ? "Connected"
                                 : wiredRow.modelData.state === ConnectionState.Connecting ? "Connecting…"
                                 : wiredRow.modelData.hasLink ? "Not connected"
                                 : "Cable unplugged"

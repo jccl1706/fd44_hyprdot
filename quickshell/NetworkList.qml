@@ -171,46 +171,14 @@ Item {
                     color: Theme.dim
                 }
 
-                // On/off switch. Unusable while a hardware switch (or rfkill)
-                // holds the radio off - software cannot override that.
-                Rectangle {
-                    id: wifiSwitch
-
-                    readonly property bool on: Networking.wifiEnabled
-                    readonly property bool usable: Networking.wifiHardwareEnabled
-
+                // Unusable while a hardware switch (or rfkill) holds the
+                // radio off - software cannot override that.
+                ToggleSwitch {
                     anchors { right: parent.right; rightMargin: 4
                               verticalCenter: parent.verticalCenter }
-                    width: 34
-                    height: 18
-                    radius: height / 2
-                    opacity: usable ? 1 : 0.4
-                    color: on ? Theme.accent
-                              : Qt.rgba(Theme.dim.r, Theme.dim.g, Theme.dim.b, 0.4)
-                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
-
-                    Rectangle {
-                        y: 2
-                        x: wifiSwitch.on ? parent.width - width - 2 : 2
-                        width: 14
-                        height: 14
-                        radius: width / 2
-                        color: wifiSwitch.on ? Theme.accentFg : Theme.fg
-                        Behavior on x {
-                            NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic }
-                        }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        // A switch this small is a hard target; the click
-                        // area is a little bigger than what is drawn.
-                        anchors.margins: -6
-                        cursorShape: wifiSwitch.usable ? Qt.PointingHandCursor : Qt.ArrowCursor
-                        onClicked: {
-                            if (wifiSwitch.usable) Networking.wifiEnabled = !Networking.wifiEnabled
-                        }
-                    }
+                    checked: Networking.wifiEnabled
+                    interactive: Networking.wifiHardwareEnabled
+                    onToggled: Networking.wifiEnabled = !Networking.wifiEnabled
                 }
             }
 
