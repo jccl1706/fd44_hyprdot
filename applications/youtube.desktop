@@ -18,12 +18,18 @@
 # entry is shared by every machine in the repository, so it goes through
 # bin/browser.sh, which picks whichever is installed.
 #
-# BY NAME, NOT BY PATH. bin/link-dotfiles.sh links that script into
-# ~/.local/bin as "fd44-browser", which is on PATH for the shell and for the
-# systemd user manager that the launcher starts applications through. The
-# alternative - Exec=sh -c '...$HOME/...' - is rejected by
-# desktop-file-validate: the Exec key reserves the single quote and requires
-# a literal $ to be written \\$, which is a quoting puzzle for no gain.
+# BY PATH, THROUGH $HOME, and the escaping is the spec's rather than a
+# shell's. It said Exec=fd44-browser for a few hours, on the basis that
+# bin/link-dotfiles.sh puts the shim in ~/.local/bin and that directory is on
+# PATH for the systemd user manager the launcher starts applications through.
+# That was checked on Fedora and is simply false on NixOS, which does not put
+# ~/.local/bin on PATH unless environment.localBinInPath is set - so on the
+# desktop this entry failed with "Failed to find executable fd44-browser" and
+# the launcher appeared to do nothing at all.
+#
+# The Exec key reserves the single quote, and a literal $ has to be written
+# \\$ - hence the double quotes and the escaped dollar. desktop-file-validate
+# is the arbiter and accepts this form; it rejected three earlier attempts.
 #
 # --class IS IGNORED HERE and there is no use adding it. Chromium on Wayland
 # derives the app_id in --app mode from the URL, so this window comes up as
@@ -44,7 +50,7 @@ Type=Application
 Name=YouTube
 GenericName=Video
 Comment=YouTube in its own window, without the browser around it
-Exec=fd44-browser --app=https://www.youtube.com/
+Exec=sh -c "exec \\$HOME/.local/bin/fd44-browser --app=https://www.youtube.com/"
 Icon=video-display
 Terminal=false
 Categories=AudioVideo;Video;
