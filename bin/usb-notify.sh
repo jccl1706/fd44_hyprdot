@@ -5,7 +5,7 @@
 #
 # Usage:  bin/usb-notify.sh watch            follow udev and notify (the unit)
 #         bin/usb-notify.sh test < file      feed it a recorded event stream
-#         bin/usb-notify.sh probe <devpath>  just the storage lookup
+#         bin/usb-notify.sh probe <devpath>  just the what-is-it lookup
 #
 # Covers anything that enumerates as a USB device, which on this hardware is
 # both ports and every expansion card: flash drives, keyboards, docks, the
@@ -74,43 +74,87 @@ device_name() {
 }
 
 # -------------------------------------------------------------------------
-# Storage
+# What the thing actually is
 # -------------------------------------------------------------------------
-# A stick's size is the one extra fact worth the trouble: it is how you tell
-# which stick you just plugged in when they are all black and unlabelled.
+# ASK SYSFS, NOT THE USB CLASS CODE. The obvious route is bInterfaceClass -
+# 08 mass storage, 02 network, 01 audio, 03 HID - and it does not work. The
+# Realtek 2.5G adapter that prompted this reports class ff, vendor-specific,
+# and its driver binds on the vendor id; a class-code lookup calls it
+# "unknown" and draws the generic icon, which is the thing being fixed. What
+# it DOES do is create a net/ directory under its interface, and so does
+# every other network adapter whatever class it claims. The same is true of
+# block/ for storage, sound/ for audio and input/ for keyboards and mice.
+# Asking what the kernel built is asking what the device turned out to be
+# rather than what it said it was.
 #
-# THE BLOCK DEVICE IS NOT THERE YET when the usb_device event arrives. The
-# kernel binds usb-storage, scans the SCSI host and creates /dev/sdX a moment
-# later, so this polls for it rather than looking once. A second and a half
-# is generous for a stick and short enough that a device which never had a
-# block device - a keyboard, a dock - does not hold the notification up
-# noticeably; it is announced without a size instead.
-storage_line() {
-    local sysfs="/sys${1#/sys}" dev="" i
+# NONE OF IT IS THERE YET when the usb_device event arrives: the kernel
+# binds the driver and creates those directories a moment later. Hence the
+# poll. A second and a half is generous for any of them and short enough
+# that a device which never grows one - a hub, a dock, an expansion card -
+# is announced generically without a noticeable wait.
+#
+# Prints "<kind> <detail>", where the detail is whatever is worth saying
+# about that kind: the block device for storage, the interface name for a
+# network adapter, nothing much for the rest.
+probe_kind() {
+    local sysfs="/sys${1#/sys}" i d
+
+    [[ -d $sysfs ]] || return 1
+
     for ((i = 0; i < 15; i++)); do
         # THE DISK, NOT ITS PARTITIONS. A stick's block device sits at
-        # <usb>/…:1.0/hostN/targetN/N:N:N:N/blockN/sdX - six levels down -
-        # and sdX1 sits one further inside it, which "*/block/*" matches
-        # just as well. Excluding anything deeper keeps this on the whole
-        # device, which is what lsblk wants to be asked about anyway.
-        dev=$(find "$sysfs" -maxdepth 7 \
-                   -path '*/block/*' -not -path '*/block/*/*' \
-                   -printf '%f\n' 2>/dev/null | head -1)
-        [[ -n $dev ]] && break
+        # <usb>/…:1.0/hostN/targetN/N:N:N:N/block/sdX - six levels down - and
+        # sdX1 sits one further inside it, which "*/block/*" matches just as
+        # well. Excluding anything deeper keeps this on the whole device,
+        # which is what lsblk wants to be asked about anyway.
+        d=$(find "$sysfs" -maxdepth 7 -path '*/block/*' -not -path '*/block/*/*' \
+                 -printf '%f\n' -quit 2>/dev/null)
+        [[ -n $d ]] && { printf 'storage %s' "$d"; return 0; }
+
+        d=$(find "$sysfs" -maxdepth 7 -path '*/net/*' -not -path '*/net/*/*' \
+                 -printf '%f\n' -quit 2>/dev/null)
+        [[ -n $d ]] && { printf 'network %s' "$d"; return 0; }
+
+        d=$(find "$sysfs" -maxdepth 7 -path '*/sound/card*' \
+                 -printf '%f\n' -quit 2>/dev/null)
+        [[ -n $d ]] && { printf 'audio %s' "$d"; return 0; }
+
+        d=$(find "$sysfs" -maxdepth 8 -path '*/input/input[0-9]*' \
+                 -printf '%f\n' -quit 2>/dev/null)
+        [[ -n $d ]] && { printf '%s %s' "$(hid_kind "$sysfs")" "$d"; return 0; }
+
         sleep 0.1
     done
-    [[ -z $dev ]] && return 1
+    return 1
+}
 
-    # lsblk reads the partition table, so a stick reports the size of the
-    # whole device and its label if it has one.
-    local size label
+# Keyboard or mouse, from the HID boot protocol on the interface: 1 is a
+# keyboard, 2 is a mouse. A device with neither - a tablet, a gamepad, a
+# fingerprint reader - is just "input", which has no icon of its own here and
+# falls back to the generic one rather than being drawn as a keyboard it is
+# not.
+hid_kind() {
+    local f p
+    for f in "$1"/*/bInterfaceProtocol; do
+        [[ -f $f ]] || continue
+        p=$(<"$f")
+        [[ $p == 01 ]] && { printf 'keyboard'; return; }
+        [[ $p == 02 ]] && { printf 'mouse'; return; }
+    done
+    printf 'input'
+}
+
+# A stick's size is the one extra fact worth the trouble: it is how you tell
+# which stick you just plugged in when they are all black and unlabelled.
+# lsblk reads the partition table, so a stick reports the size of the whole
+# device and its label if it has one.
+storage_detail() {
+    local dev=$1 size label
     size=$(lsblk -ndo SIZE "/dev/$dev" 2>/dev/null | tr -d ' ')
     label=$(lsblk -no LABEL "/dev/$dev" 2>/dev/null | grep -m1 . || true)
-
-    printf '%s' "/dev/$dev"
+    printf '/dev/%s' "$dev"
     [[ -n $size  ]] && printf ' · %s' "$size"
     [[ -n $label ]] && printf ' · %s' "$label"
-    printf '\n'
 }
 
 # -------------------------------------------------------------------------
@@ -145,8 +189,7 @@ storage_line() {
 # is only the find(1) that is worth avoiding, and that now runs when the
 # answer would actually be different.
 ICON_THEME=""
-ICON_STORAGE=""
-ICON_DEVICE=""
+declare -A ICON=()
 
 
 # What the desktop is set to. gsettings is what theme.sh writes last and what
@@ -234,19 +277,44 @@ icon_path() {
     return 1
 }
 
+# ONE ICON PER KIND. A network adapter announced with a flash-card picture
+# is the sort of wrong that is worse than no picture at all - it says
+# something specific and untrue. The names are the freedesktop ones the theme
+# is expected to carry; anything it does not have resolves to empty through
+# icon_path and the toast falls back to its dot.
+#
+# network-wired has no scalable svg in Adwaita, only a 48x48 png in
+# AdwaitaLegacy, which icon_path finds on its second pass - drawn into a 28px
+# box that is fine. Worth knowing before assuming every name here is an svg.
 refresh_icons() {
     local now; now=$(current_icon_theme)
     [[ $now == "$ICON_THEME" ]] && return
     ICON_THEME=$now
-    ICON_STORAGE=$(icon_path drive-removable-media || true)
-    ICON_DEVICE=$(icon_path media-flash || true)
+    ICON[storage]=$(icon_path drive-removable-media || true)
+    ICON[network]=$(icon_path network-wired        || true)
+    ICON[audio]=$(icon_path audio-headset          || true)
+    ICON[keyboard]=$(icon_path input-keyboard      || true)
+    ICON[mouse]=$(icon_path input-mouse            || true)
+    ICON[device]=$(icon_path media-removable       || true)
+}
+
+# What each kind is called in the notification.
+kind_noun() {
+    case $1 in
+        storage)  printf 'USB storage' ;;
+        network)  printf 'USB network adapter' ;;
+        audio)    printf 'USB audio device' ;;
+        keyboard) printf 'USB keyboard' ;;
+        mouse)    printf 'USB mouse' ;;
+        *)        printf 'USB device' ;;
+    esac
 }
 
 # Falls back to no icon at all rather than to a name, because a name is the
 # thing that draws wrong. With -i omitted the toast draws its own accent dot,
 # which at least looks deliberate.
 notify() {
-    local icon=${3:-$ICON_STORAGE}
+    local icon=${3-}
     if [[ -n $icon ]]; then
         notify-send -a "USB" -i "$icon" "$1" "$2" 2>/dev/null && return
     else
@@ -278,23 +346,27 @@ announce() {
 
     refresh_icons
 
-    local path=${DEVPATH-} name kind line
+    local path=${DEVPATH-} name kind detail probe
     name=$(device_name)
 
     case "${ACTION-}" in
         add)
-            if line=$(storage_line "$path"); then
-                kind=storage
-                # A middle dot rather than a newline: the toast renders the
-                # body as one line and collapsed the break into a bare space,
-                # which ran the name into the device node - "SanDisk Ultra
-                # /dev/sda". The same separator the rest of the line uses
-                # reads as deliberate at any width.
-                notify "USB storage connected" "$name · $line" "$ICON_STORAGE"
-            else
-                kind=device
-                notify "USB device connected" "$name" "$ICON_DEVICE"
+            kind=device; detail=""
+            if probe=$(probe_kind "$path"); then
+                kind=${probe%% *}
+                detail=${probe#* }
             fi
+            [[ $kind == storage && -n $detail ]] && detail=$(storage_detail "$detail")
+            # The interface name on its own: after "USB network adapter
+            # connected" there is nothing else it could be, and "· as enp…"
+            # read as a stumble next to the middle dot.
+
+            [[ $kind == audio || $kind == keyboard || $kind == mouse || $kind == input ]] \
+                && detail=""
+
+            notify "$(kind_noun "$kind") connected" \
+                   "$name${detail:+ · $detail}" "${ICON[$kind]-${ICON[device]}}"
+
             [[ -n $path ]] && { SEEN_NAME[$path]=$name; SEEN_KIND[$path]=$kind; }
             ;;
         remove)
@@ -305,11 +377,7 @@ announce() {
             # port it was in is at least true.
             [[ -z $name ]] && name="on port ${path##*/}"
 
-            if [[ $kind == storage ]]; then
-                notify "USB storage removed" "$name" "$ICON_STORAGE"
-            else
-                notify "USB device removed" "$name" "$ICON_DEVICE"
-            fi
+            notify "$(kind_noun "$kind") removed" "$name" "${ICON[$kind]-${ICON[device]}}"
             unset "SEEN_NAME[$path]" "SEEN_KIND[$path]"
             ;;
     esac
@@ -369,6 +437,6 @@ case "${1:-watch}" in
     #   bin/usb-notify.sh probe /devices/pci0000:00/.../usb3/3-2
     # It is the one part that cannot be exercised from a recorded stream,
     # because it goes and reads sysfs rather than the event.
-    probe) storage_line "${2:?usage: $0 probe <devpath>}" || echo "no block device under it" ;;
+    probe) probe_kind "${2:?usage: $0 probe <devpath>}" || echo "nothing under it says what it is" ;;
     *) echo "usage: $0 {watch|test|probe <devpath>}" >&2; exit 2 ;;
 esac
