@@ -196,23 +196,39 @@ hl.animation({ leaf = "border",        enabled = true,  speed = 2,    bezier = "
 -- clonky. They share "glide" now and land together.
 hl.animation({ leaf = "windows",       enabled = true,  speed = 2.0,  spring = "glide" })
 
--- popin 85%. Deeper than the original 90% so the growth is legible as
--- motion, but not the 80% tried alongside the slower spring: the shorter the
--- animation, the less distance it can cover before the travel itself starts
--- to look like a flicker.
-hl.animation({ leaf = "windowsIn",     enabled = true,  speed = 2.0,  spring = "glide",        style = "popin 85%" })
+-- NO SCALING ON THE WINDOW ITSELF. popin 100% means "start at full size",
+-- so this animation has no geometry left to run and the window simply fades
+-- in at the size it is going to keep.
+--
+-- The scale was the clonky part, and not because of its timing. It was tried
+-- at 90%, 85% and 80%, on an overshooting spring and a critically damped
+-- one, from 205ms down to 120ms, and every version had the same flaw: a
+-- window being scaled is a window whose CONTENTS are being resampled. At
+-- this display's 1.5667 the text inside goes soft for the length of the
+-- animation and then snaps into focus, and that reads as a stutter however
+-- fast it runs, because the eye is tracking a change in sharpness rather
+-- than a movement. Nothing that never changes size can do it.
+--
+-- Blur was ruled out first, since dropped frames would have produced the
+-- same complaint for a completely different reason and no amount of curve
+-- tuning would have touched it. Turned off, opening and closing felt
+-- identical - so it was the motion, not the cost of drawing it.
+hl.animation({ leaf = "windowsIn",     enabled = true,  speed = 2.0,  spring = "glide",        style = "popin 100%" })
 
 -- Closing keeps a fixed timeline rather than the spring: a window on its way
 -- out should not decelerate into a place it is not going to be. 90ms on the
 -- front-loaded curve, and fadeOut below is set to the same so the window does
 -- not become invisible partway through shrinking and leave the rest of the
 -- animation playing to nobody - which it did at 60ms against 100ms.
-hl.animation({ leaf = "windowsOut",    enabled = true,  speed = 0.9,  bezier = "snappy",       style = "popin 90%" })
+hl.animation({ leaf = "windowsOut",    enabled = true,  speed = 0.9,  bezier = "snappy",       style = "popin 100%" })
 
 -- Fades are the most latency-sensitive thing here: they gate how quickly a
 -- new window appears to exist. Keep these short.
-hl.animation({ leaf = "fadeIn",        enabled = true,  speed = 0.5,  bezier = "snappy" })
-hl.animation({ leaf = "fadeOut",       enabled = true,  speed = 0.9,  bezier = "snappy" })
+-- THESE TWO ARE NOW THE WHOLE OF OPENING AND CLOSING A WINDOW, since the
+-- scale above no longer does anything. Closing is the quicker of the two, as
+-- everywhere else in this config: a window on its way out is in the way.
+hl.animation({ leaf = "fadeIn",        enabled = true,  speed = 0.6,  bezier = "snappy" })
+hl.animation({ leaf = "fadeOut",       enabled = true,  speed = 0.5,  bezier = "snappy" })
 hl.animation({ leaf = "fade",          enabled = true,  speed = 1.0,  bezier = "snappy" })
 
 -- Layer surfaces: bars, launchers, notification popups. Once Quickshell
