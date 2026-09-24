@@ -522,8 +522,13 @@ sudo bin/btrfs-scrub-setup.sh --dry-run
 sudo bin/btrfs-scrub-setup.sh
 ```
 
-That symlinks `bin/btrfs-scrub.sh` to `/usr/local/sbin/fd44-btrfs-scrub`, links
-the two units out of `systemd/system/` and enables a monthly timer. A scrub reads
+That installs `bin/btrfs-scrub.sh` as `/usr/local/sbin/fd44-btrfs-scrub`, copies
+the two units from `systemd/system/` into `/etc/systemd/system` and enables a
+monthly timer. **Copies, not symlinks, unlike everything else here** — PID 1 is
+confined as `init_t` under SELinux and cannot read a unit file labelled
+`user_home_t`, so a unit symlinked into the checkout fails to enable with
+`Access denied`. The setup script's verification says when an installed copy has
+drifted from the checkout; re-run it after editing either. A scrub reads
 every block back and compares it against the checksum stored with it. On a
 single-device filesystem it can only *report* a data mismatch — there is no
 second copy to repair from — and that is still the point: the disk says it is

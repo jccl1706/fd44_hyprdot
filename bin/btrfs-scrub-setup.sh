@@ -7,10 +7,10 @@
 #         sudo bin/btrfs-scrub-setup.sh --remove
 #
 # WHAT THIS TOUCHES
-#   - symlinks bin/btrfs-scrub.sh to /usr/local/sbin/fd44-btrfs-scrub
-#   - links systemd/system/btrfs-scrub.{service,timer} into /etc/systemd/system
+#   - installs bin/btrfs-scrub.sh as /usr/local/sbin/fd44-btrfs-scrub
+#   - installs systemd/system/btrfs-scrub.{service,timer} into /etc/systemd/system
 #   - enables and starts btrfs-scrub.timer
-#   - verifies all of it
+#   - verifies all of it, including whether the installed copies have drifted
 #
 # Idempotent: run it again after moving the checkout, or to repair.
 #
@@ -24,16 +24,25 @@
 # units use has nothing to hang on. /usr/local/sbin is the FHS location for
 # exactly this: a locally installed administrative program.
 #
-# THE UNITS ARE LINKED, NOT COPIED, so editing them in the checkout is enough
-# and `git status` keeps telling the truth about what the machine runs - the
-# same rule bin/link-dotfiles.sh follows. `systemctl enable` on an absolute
-# path is systemd's own supported way to do that.
+# COPIES, NOT SYMLINKS, WHICH IS THE OPPOSITE OF THE RULE EVERYWHERE ELSE
+# HERE - and this is why. The first version of this script linked the units
+# into the checkout the way bin/link-dotfiles.sh does, and `systemctl enable`
+# answered "Access denied":
 #
-# The cost, written down because it is real: those links point into /home. If
-# /home were ever not mounted, systemd would see a dangling unit and say so on
-# daemon-reload. For a monthly maintenance timer that is a warning, not a
-# broken boot - but it is why the units carry no ordering that anything else
-# depends on.
+#   AVC avc: denied { read } for pid=1 comm="systemd" name="btrfs-scrub.timer"
+#     scontext=system_u:system_r:init_t:s0
+#     tcontext=unconfined_u:object_r:user_home_t:s0 tclass=file
+#
+# PID 1 is confined as init_t and cannot read a file labelled user_home_t.
+# The symlink trick works for USER units because the user's own manager runs
+# unconfined; it cannot work for system units on any machine with SELinux
+# enforcing, and relabelling the checkout would be undone by the next
+# restorecon - which btrfs-patrol's setup has good reason to run.
+#
+# So the unit files and the script are installed as copies, with their
+# contexts restored, and `check` reports when the installed copy has drifted
+# from the checkout. Re-run this script after editing either: that is the
+# price of the copies, and it is stated here rather than discovered.
 
 set -euo pipefail
 
@@ -72,20 +81,25 @@ if ! findmnt -rno FSTYPE | grep -qx btrfs; then
     exit 1
 fi
 
+# install(1) replaces the destination atomically, and `rm -f` first because an
+# earlier version of this script left SYMLINKS there: install would otherwise
+# follow one and write into the checkout.
+put() {
+    local src="$1" dst="$2" mode="$3"
+    run rm -f "$dst"
+    run install -m "$mode" -T "$src" "$dst"
+    # The label matters as much as the bytes - see the header. A file created
+    # under /etc or /usr/local inherits the right type here, but restorecon
+    # makes that true rather than assumed.
+    command -v restorecon >/dev/null 2>&1 && run restorecon -F "$dst" || true
+}
+
 note "the script"
-run ln -sfn "$repo/bin/btrfs-scrub.sh" "$BIN"
-# Inside the guard: printed unconditionally, a dry run reported a symlink it
-# had not made, which is the one thing a dry run must never do.
-#
-# An `if` and not `[[ ... ]] && printf`, which under `set -e` would exit the
-# whole script the moment the test was false - that is, on every dry run.
-if [[ $DRY -eq 0 ]]; then
-    printf '    %s%s -> %s%s\n' "$dim" "$BIN" "$repo/bin/btrfs-scrub.sh" "$reset"
-fi
+put "$repo/bin/btrfs-scrub.sh" "$BIN" 0755
 
 note "the units"
-run systemctl link -f "$repo/systemd/system/btrfs-scrub.service"
-run systemctl link -f "$repo/systemd/system/btrfs-scrub.timer"
+put "$repo/systemd/system/btrfs-scrub.service" "$UNITDIR/btrfs-scrub.service" 0644
+put "$repo/systemd/system/btrfs-scrub.timer"   "$UNITDIR/btrfs-scrub.timer"   0644
 
 note "the timer"
 run systemctl daemon-reload
@@ -105,6 +119,18 @@ for u in btrfs-scrub.service btrfs-scrub.timer; do
     state="$(systemctl is-enabled "$u" 2>&1)"
     printf '    %-34s %s\n' "$u" "$state"
 done
+# COPIES DRIFT; SAY SO. This is the one thing symlinks would have given for
+# free, so it is checked explicitly rather than left to be discovered when an
+# edit in the checkout quietly does nothing.
+for pair in "$repo/bin/btrfs-scrub.sh:$BIN" \
+            "$repo/systemd/system/btrfs-scrub.service:$UNITDIR/btrfs-scrub.service" \
+            "$repo/systemd/system/btrfs-scrub.timer:$UNITDIR/btrfs-scrub.timer"; do
+    if ! cmp -s "${pair%%:*}" "${pair##*:}"; then
+        warn "installed copy differs from the checkout: ${pair##*:} - re-run this script"
+        ok=1
+    fi
+done
+
 next="$(systemctl list-timers --all --no-pager --no-legend btrfs-scrub.timer 2>/dev/null | head -1)"
 [[ -n $next ]] && printf '    %snext: %s%s\n' "$dim" "$next" "$reset" || { warn "timer not scheduled"; ok=1; }
 
