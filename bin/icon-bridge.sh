@@ -202,9 +202,13 @@ bridge_map() {
     while read -r theme; do
         [[ -z $theme || $theme == hicolor ]] && continue
         while read -r base; do
-            # Skip the overlay itself, or the bridge would feed on its own
-            # links from a previous run.
-            [[ $base == "${XDG_DATA_HOME:-$HOME/.local/share}/icons" ]] && continue
+            # NO SKIPPING THE USER'S OWN ICON DIRECTORY, which the first two
+            # versions of this did to avoid the overlay feeding on its own
+            # links. That was both unnecessary and the second reason Reversal
+            # never got used: the overlay is one theme inside that base -
+            # hicolor - and hicolor is already excluded above, while Reversal
+            # is installed into the very directory that was being skipped.
+            # bin/icon-theme.sh puts it there on purpose, needing no root.
             index=$base/$theme/index.theme
             [[ -f $index ]] || continue
             while IFS=$'\t' read -r h d; do
