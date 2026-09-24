@@ -74,7 +74,14 @@ fi
 
 note "the script"
 run ln -sfn "$repo/bin/btrfs-scrub.sh" "$BIN"
-printf '    %s%s -> %s%s\n' "$dim" "$BIN" "$repo/bin/btrfs-scrub.sh" "$reset"
+# Inside the guard: printed unconditionally, a dry run reported a symlink it
+# had not made, which is the one thing a dry run must never do.
+#
+# An `if` and not `[[ ... ]] && printf`, which under `set -e` would exit the
+# whole script the moment the test was false - that is, on every dry run.
+if [[ $DRY -eq 0 ]]; then
+    printf '    %s%s -> %s%s\n' "$dim" "$BIN" "$repo/bin/btrfs-scrub.sh" "$reset"
+fi
 
 note "the units"
 run systemctl link -f "$repo/systemd/system/btrfs-scrub.service"
