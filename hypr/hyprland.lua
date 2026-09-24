@@ -39,9 +39,16 @@ Apps = {
     terminal     = "kitty",
     file_manager = "nautilus",
 
-    -- Fedora's chromium package installs the binary as "chromium-browser",
-    -- not "chromium" - there is no "chromium" symlink.
-    browser      = "chromium-browser",
+    -- NOT A BINARY NAME, because there isn't one that works everywhere:
+    -- Fedora's chromium package installs "chromium-browser" and ships no
+    -- "chromium" symlink, while NixOS and Debian install "chromium". This
+    -- was "chromium-browser", which meant Super+B did nothing at all on the
+    -- NixOS desktop. bin/browser.sh picks whichever is present and execs it.
+    --
+    -- Reached through ~/.config/hypr, which is a symlink into the checkout,
+    -- so the path resolves wherever the repository lives - the same trick the
+    -- systemd units use.
+    browser      = "$HOME/.config/hypr/../bin/browser.sh",
 
     -- The launcher is Quickshell's (quickshell/Launcher.qml), not a separate
     -- program: no wofi/fuzzel/rofi, because Quickshell already owns the bar

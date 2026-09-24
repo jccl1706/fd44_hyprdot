@@ -13,6 +13,18 @@
 # account is for. The cost is that it shares cookies with ordinary browsing,
 # which for this site is the point.
 #
+# THE BROWSER IS NOT NAMED HERE. Fedora calls the binary chromium-browser
+# and ships no "chromium" symlink; NixOS and Debian call it chromium. This
+# entry is shared by every machine in the repository, so it goes through
+# bin/browser.sh, which picks whichever is installed.
+#
+# BY NAME, NOT BY PATH. bin/link-dotfiles.sh links that script into
+# ~/.local/bin as "fd44-browser", which is on PATH for the shell and for the
+# systemd user manager that the launcher starts applications through. The
+# alternative - Exec=sh -c '...$HOME/...' - is rejected by
+# desktop-file-validate: the Exec key reserves the single quote and requires
+# a literal $ to be written \\$, which is a quoting puzzle for no gain.
+#
 # --class IS IGNORED HERE and there is no use adding it. Chromium on Wayland
 # derives the app_id in --app mode from the URL, so this window comes up as
 # chrome-www.youtube.com__-Default whatever is passed. That string is what
@@ -32,7 +44,7 @@ Type=Application
 Name=YouTube
 GenericName=Video
 Comment=YouTube in its own window, without the browser around it
-Exec=chromium-browser --app=https://www.youtube.com/
+Exec=fd44-browser --app=https://www.youtube.com/
 Icon=video-display
 Terminal=false
 Categories=AudioVideo;Video;

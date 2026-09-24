@@ -218,6 +218,14 @@ fi
 # notification daemon wants to be told what was just plugged in, desktop or
 # laptop. The unit's own ConditionPathExists handles the case this script
 # cannot see - being run somewhere that will never have Hyprland.
+# The browser shim, on PATH under a name that cannot collide with a real
+# browser. The YouTube entry below calls it by name rather than by path,
+# because the Exec key reserves the characters a $HOME path would need.
+# $HOME/.local/bin and not $DATA/../bin: they resolve to the same place by
+# default, but ~/.local/bin is its own convention rather than anything under
+# XDG_DATA_HOME, and it is the literal path systemd puts on the user PATH.
+link bin/browser.sh "$HOME/.local/bin/fd44-browser"
+
 # Web apps: desktop entries for sites that are better without a browser
 # around them. They go under DATA rather than CONFIG - XDG puts application
 # entries in ~/.local/share/applications - and the launcher picks them up
