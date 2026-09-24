@@ -58,7 +58,14 @@ Singleton {
     // edges. Everything inside is the same three rounded regions either way -
     // "frame" puts them on an opaque strip welded to a border round the
     // screen, "pill" lets them float on the wallpaper with a gap all round.
-    property string barStyle: "frame"   // "frame" | "pill"
+    property string barStyle: "frame"   // "frame" | "pill" | "focus"
+
+    // WHAT FOCUS GOES BACK TO. Focus mode hides everything on the bar except
+    // a button to leave it, so the shell has to remember what it was showing
+    // before - "back to the default" would silently undo a choice the user
+    // made once and expected to keep. Written whenever focus is entered and
+    // read by the exit button; never by anything else.
+    property string barStylePrev: "frame"
 
     // Launcher ranking: how quickly a launch stops counting. See
     // LauncherFrecency for what the number means.
@@ -108,11 +115,12 @@ Singleton {
             icon: "\u{F03D8}",                       // palette
             rows: [
                 { label: "Bar style", type: "select",
-                  help: "frame welds the bar to a border round the whole screen; pill floats it on the wallpaper",
+                  help: "frame welds the bar to a border round the whole screen; pill floats it on the wallpaper; focus hides it but for a button to come back",
                   get: function() { return Settings.barStyle },
-                  set: function(v) { Settings.setValue("barStyle", v) },
+                  set: function(v) { Settings.setBarStyle(v) },
                   options: [ { value: "frame", label: "Frame" },
-                             { value: "pill",  label: "Floating pill" } ] },
+                             { value: "pill",  label: "Floating pill" },
+                             { value: "focus", label: "Focus" } ] },
                 { label: "Theme", type: "select",
                   help: "runs bin/theme.sh, which restyles the bar, kitty, GTK and Chromium together",
                   get: function() { return Theme.name },
@@ -344,6 +352,20 @@ Singleton {
         themeProc.running = true
     }
 
+    // THE ONE WAY IN, so that barStylePrev cannot be forgotten. Entering
+    // focus from focus would otherwise overwrite the way back with "focus"
+    // and strand the bar there with a button that does nothing.
+    function setBarStyle(v: string): void {
+        if (v === settings.barStyle) return
+        if (v === "focus") settings.setValue("barStylePrev", settings.barStyle)
+        settings.setValue("barStyle", v)
+    }
+
+    // Leave focus mode for whatever was showing before it.
+    function leaveFocus(): void {
+        settings.setValue("barStyle", settings.barStylePrev || "frame")
+    }
+
     function setValue(key: string, v): void {
         if (settings[key] === undefined) {
             console.warn("Settings: no such key", key)
@@ -363,6 +385,7 @@ Singleton {
         settings.osdHideMs = 1500
         settings.frecencyHalfLifeDays = 10
         settings.barStyle = "frame"
+        settings.barStylePrev = "frame"
         settings.dirty = true
         saveTimer.restart()
     }
@@ -385,7 +408,8 @@ Singleton {
                 notifyMaxMs: settings.notifyMaxMs,
                 osdHideMs: settings.osdHideMs,
                 frecencyHalfLifeDays: settings.frecencyHalfLifeDays,
-                barStyle: settings.barStyle
+                barStyle: settings.barStyle,
+                barStylePrev: settings.barStylePrev
             }, null, 1))
             settings.dirty = false
         }

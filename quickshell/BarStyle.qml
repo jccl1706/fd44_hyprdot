@@ -28,8 +28,17 @@ import QtQuick
 Singleton {
     id: style
 
+    // EVERYTHING BUT A BUTTON TO COME BACK. Focus hides the three pills and
+    // leaves a small rounded exit in the middle of the bar, so the screen is
+    // as close to only windows as this shell gets without stopping the shell.
+    readonly property bool focus: Settings.barStyle === "focus"
+
     // The bar floats clear of the screen edges, and Frame.qml is not drawn.
-    readonly property bool floating: Settings.barStyle === "pill"
+    // Focus counts as floating: it has no strip to weld a border to either,
+    // and every derived number below - the margin, the fillets, the scrim -
+    // wants the same answer for both. Only the CONTENTS and the height
+    // differ, which is what `focus` above is for.
+    readonly property bool floating: Settings.barStyle !== "frame"
 
     // The gap the bar keeps from the top and sides when floating.
     readonly property int margin: floating ? Theme.barFloatMargin : 0
@@ -55,7 +64,12 @@ Singleton {
     // it carries above and below the pill is part of that strip's look; with
     // no strip drawn that slack is just wallpaper nothing may tile into, and
     // the gap above the pill would come out larger than the gap beside it.
-    readonly property int barBottom: floating ? pillHeight + margin * 2
+    // The exit button in focus mode. Smaller than a pill because it holds one
+    // glyph and its whole job is to take up less room than what it replaced.
+    readonly property int focusHeight: 22
+
+    readonly property int barBottom: focus    ? focusHeight + margin * 2
+                                  : floating  ? pillHeight  + margin * 2
                                               : Theme.barHeight
 
     // How far a card is held off the left, right and bottom edges of the

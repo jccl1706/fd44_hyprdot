@@ -55,11 +55,6 @@ PanelWindow {
         right: true
     }
 
-    // FRAME OR FLOATING PILL, chosen in the settings panel. The bar's contents
-    // are identical either way - it is already three rounded pills - so this
-    // only decides whether they sit on an opaque strip welded to Frame.qml's
-    // border, or float clear of every edge on the wallpaper.
-    readonly property bool floating: Settings.barStyle === "pill"
 
     // Floating, the window is the pill plus a margin all round; framed, it is
     // the strip's own height. BarStyle owns that sum because the panels below
@@ -314,7 +309,18 @@ PanelWindow {
         // and rim, so with this transparent they read as three objects lying
         // on the wallpaper; Frame.qml is not instantiated in that mode either,
         // so there is no border for them to be welded to.
-        color: root.floating ? "transparent" : Theme.bg
+        // NOTHING TO PAINT WHEN FLOATING. The pills carry their own surface
+        // and rim, so with this transparent they read as three objects lying
+        // on the wallpaper; Frame.qml is not instantiated in that mode either,
+        // so there is no border for them to be welded to. Focus is floating
+        // too, and there the only thing left to draw is the exit button.
+        //
+        // IT USED TO ASK Settings DIRECTLY, `barStyle === "pill"`, which was
+        // fine while pill was the only floating style and quietly wrong the
+        // moment focus arrived: focus painted a full-width opaque strip
+        // behind a single small button. BarStyle is the one place that knows
+        // what a style name means.
+        color: BarStyle.floating ? "transparent" : Theme.bg
 
         // Square on every corner. The bar is the TOP EDGE of the frame that
         // Frame.qml draws down the sides and across the bottom, so rounding
@@ -329,13 +335,56 @@ PanelWindow {
         // on the bar. That is the single change that makes this read as a
         // designed bar instead of icons floating on a strip: it groups what
         // belongs together, and gives the eye edges to rest against.
+        // --- focus mode --------------------------------------------------
+        //
+        // THE ONLY THING ON THE BAR while focus is selected, in the middle
+        // where the clock would be, so the eye already knows where to look
+        // for it. It goes back to whatever was showing before focus rather
+        // than to the default - see Settings.barStylePrev.
+        //
+        // A BUTTON AND NOT A KEYBIND, or at least not only one. Focus hides
+        // every other control the bar has; leaving the way out to something
+        // you have to already know would make the mode a trap on a machine
+        // you had not configured the keys of.
+        Rectangle {
+            id: focusExit
+            visible: BarStyle.focus
+
+            anchors.centerIn: parent
+            height: BarStyle.focusHeight
+            width: height * 2.2
+            radius: height / 2
+
+            // Lit from above, like the pills it replaces.
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: Theme.surfaceTop }
+                GradientStop { position: 1.0; color: Theme.surface }
+            }
+            border.width: 1
+            border.color: exitHover.hovered ? Theme.accent : Theme.rim
+            Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
+
+            Text {
+                anchors.centerIn: parent
+                text: "\u{F0156}"                    // a close cross
+                font.family: Theme.glyphFont
+                font.pixelSize: 15
+                color: exitHover.hovered ? Theme.fg : Theme.pluginIcon
+                Behavior on color { ColorAnimation { duration: Theme.animFast } }
+            }
+
+            HoverHandler { id: exitHover; cursorShape: Qt.PointingHandCursor }
+            TapHandler { onTapped: Settings.leaveFocus() }
+        }
+
         Item {
             id: leftRegion
+            visible: !BarStyle.focus
             // The float margin is ADDED to the usual padding rather than
             // replacing it, so the gap is the same on the sides as it is
             // above and below.
             anchors { left: parent.left; top: parent.top; bottom: parent.bottom
-                      leftMargin: Theme.barPadding + (root.floating ? Theme.barFloatMargin : 0) }
+                      leftMargin: Theme.barPadding + BarStyle.margin }
             width: leftPill.width
 
             Rectangle {
@@ -413,6 +462,7 @@ PanelWindow {
 
         Item {
             id: centerRegion
+            visible: !BarStyle.focus
             anchors.centerIn: parent
             width: centerPill.width
             height: parent.height
@@ -471,8 +521,9 @@ PanelWindow {
 
         Item {
             id: rightRegion
+            visible: !BarStyle.focus
             anchors { right: parent.right; top: parent.top; bottom: parent.bottom
-                      rightMargin: Theme.barPadding + (root.floating ? Theme.barFloatMargin : 0) }
+                      rightMargin: Theme.barPadding + BarStyle.margin }
             width: rightPill.width
 
             Rectangle {

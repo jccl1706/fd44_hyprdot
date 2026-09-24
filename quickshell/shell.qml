@@ -120,7 +120,7 @@ ShellRoot {
     // held open would not. Emptying the model destroys them outright, and
     // switching back rebuilds them - they hold no state worth keeping.
     readonly property var frameScreens:
-        Settings.barStyle === "pill" ? [] : Quickshell.screens
+        BarStyle.joined ? Quickshell.screens : []
 
     Variants {
         model: shell.frameScreens
