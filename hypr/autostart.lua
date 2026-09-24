@@ -194,6 +194,22 @@ hl.on("hyprland.start", function()
              .. "|| pgrep -x pipewire >/dev/null 2>&1    || pipewire &'")
     hl.exec_cmd("sh -c 'systemctl --user -q is-enabled wireplumber.service 2>/dev/null "
              .. "|| pgrep -x wireplumber >/dev/null 2>&1 || wireplumber &'")
+
+    -- The idle daemon, on the same terms and for the same reason.
+    --
+    -- NOTHING IN THIS REPOSITORY STARTED IT UNTIL NOW, which went unnoticed
+    -- because Fedora's hypridle package ships a user unit and it had been
+    -- enabled here by hand - a state no checkout carries. nixpkgs ships the
+    -- same unit with `preset: ignored`, so on the desktop it sat
+    -- "inactive (dead)" with no journal entries at all and the screen never
+    -- locked, for as long as that machine has existed. Found on 2026-09-24
+    -- after more than half an hour of an idle desktop that stayed unlocked.
+    --
+    -- hypridle is NOT one of the binaries nixpkgs wraps - its comm is plain
+    -- `hypridle`, read off the running process rather than assumed, unlike
+    -- Hyprland and quickshell - so one spelling is enough here.
+    hl.exec_cmd("sh -c 'systemctl --user -q is-enabled hypridle.service 2>/dev/null "
+             .. "|| pgrep -x hypridle >/dev/null 2>&1   || hypridle &'")
 end)
 
 -- NOTE: do not try to quit Plymouth from here.
