@@ -172,7 +172,10 @@ else                       glyph=$'\UF0083'  # battery-alert
 fi
 
 low=0
-(( cap < 20 )) && [[ $status != Charging ]] && low=1
+# AT OR BELOW 20, not under it, which is how quickshell/Battery.qml and the
+# "Battery low" notification both read it. `< 20` left exactly 20% as the one
+# reading where the shell said low and this did not.
+(( cap <= 20 )) && [[ $status != Charging ]] && low=1
 
 if [[ $mode == tmux ]]; then
     # The estimate is dimmed. The percentage is a fact; the time is a

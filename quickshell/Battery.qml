@@ -76,7 +76,19 @@ Singleton {
 
     property int cycleCount: 0
 
-    readonly property bool low:      battery.ready && !battery.onAc && battery.percent <= 15
+    // 20 AND 5, WHICH IS WHAT EVERYTHING ELSE ALREADY SAID. `low` was 15, and
+    // nothing else on the machine agreed with it: bin/lock-battery.sh turns
+    // the lock screen and the tmux bar red below 20, and the first of the
+    // warnSteps below announces "Battery low" at 20. So between 20 and 16 the
+    // shell had told you it was low, tmux was red, the lock screen was red,
+    // and the glyph in the bar was still the ordinary colour. Reported from a
+    // machine sitting at 19%.
+    //
+    // These are duplicated in bash in bin/lock-battery.sh - two languages, no
+    // way to share a constant - so they are written the same way on purpose:
+    // "at or below", not "under". The script said `cap < 20` and this said
+    // `<= 15`, which is the second way those two managed to disagree.
+    readonly property bool low:      battery.ready && !battery.onAc && battery.percent <= 20
     readonly property bool critical: battery.ready && !battery.onAc && battery.percent <= 5
 
     // --- warnings ------------------------------------------------------------
