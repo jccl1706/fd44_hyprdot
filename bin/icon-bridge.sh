@@ -50,6 +50,22 @@
 # bin/theme.sh calls this after it switches the icon theme, so the bridge
 # follows the palette rather than being pinned to whatever was selected the
 # day it was first built.
+#
+# KNOWN LIMITATION: ONLY THEMES LAID OUT LIKE hicolor GET THROUGH. The links
+# are named after hicolor's own directories - 16x16/devices, scalable/apps -
+# and a theme is used for one only if it has a directory of that same name.
+# Adwaita does, so the Framework bridges 45 categories straight from it.
+#
+# Reversal does not. Its layout is the inverse - devices/16, actions/symbolic,
+# context first and size second - so none of hicolor's names match, and on the
+# NixOS desktop, where Reversal-grey-dark is the selected theme, all 8 links
+# fell through the Inherits chain to Adwaita instead. Icons resolve; they are
+# simply the wrong theme's.
+#
+# Fixing it means translating each theme's own Directories into hicolor's
+# shape using the Size and Context its index.theme declares, which is a real
+# piece of work and is not done. `--status` prints what each link points at,
+# which is where this was noticed.
 
 set -uo pipefail
 
