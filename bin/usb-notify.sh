@@ -125,6 +125,40 @@ probe_kind() {
 
         sleep 0.1
     done
+
+    # Nothing in sysfs says what it is. Some devices never grow a class
+    # directory because the kernel has no driver to bind - or because the
+    # thing they do is not something the kernel drives at all.
+    kind_from_class "$sysfs"
+}
+
+# THE USB CLASS, as a fallback and not as the first question - see the note
+# above probe_kind for why that order matters. It answers the cases sysfs
+# cannot, and BILLBOARD is the one that prompted it.
+#
+# A USB-C video adapter reports interface class 0x11, "Billboard": the class
+# exists precisely to announce that the port has gone into an alternate mode.
+# The video itself never touches USB - it is DisplayPort over the same cable
+# - so the adapter creates no drm device, no class directory, nothing the
+# scan above can see, and a Framework HDMI expansion card was announced as
+# "USB device connected" with a removable-media picture on it. Measured on
+# this one: interface :1.0 is class 11, interface :1.1 is HID with no input
+# device behind it.
+#
+# It is not a Framework quirk. Billboard is what any USB-C alt-mode adapter
+# is supposed to present, so this recognises the class rather than the
+# vendor id.
+kind_from_class() {
+    local sysfs=$1 f c
+    for f in "$sysfs"/*/bInterfaceClass; do
+        [[ -f $f ]] || continue
+        c=$(<"$f")
+        case $c in
+            11) printf 'display'; return 0 ;;   # USB-C alt mode adapter
+            0e) printf 'video';   return 0 ;;   # UVC camera
+            07) printf 'printer'; return 0 ;;
+        esac
+    done
     return 1
 }
 
@@ -183,6 +217,9 @@ storage_detail() {
 declare -A ICON=(
     [storage]=drive-removable-media
     [network]=network-wired
+    [display]=video-display
+    [video]=camera-web
+    [printer]=printer
     [audio]=audio-headset
     [keyboard]=input-keyboard
     [mouse]=input-mouse
@@ -194,6 +231,9 @@ kind_noun() {
     case $1 in
         storage)  printf 'USB storage' ;;
         network)  printf 'USB network adapter' ;;
+        display)  printf 'USB display adapter' ;;
+        video)    printf 'USB camera' ;;
+        printer)  printf 'USB printer' ;;
         audio)    printf 'USB audio device' ;;
         keyboard) printf 'USB keyboard' ;;
         mouse)    printf 'USB mouse' ;;
@@ -247,8 +287,10 @@ announce() {
             # connected" there is nothing else it could be, and "· as enp…"
             # read as a stumble next to the middle dot.
 
-            [[ $kind == audio || $kind == keyboard || $kind == mouse || $kind == input ]] \
-                && detail=""
+            # Only storage and network have anything to add; for the rest
+            # the detail is the sysfs node that identified them, which means
+            # nothing to anyone reading a notification.
+            [[ $kind == storage || $kind == network ]] || detail=""
 
             notify "$(kind_noun "$kind") connected" \
                    "$name${detail:+ · $detail}" "${ICON[$kind]-${ICON[device]}}"
