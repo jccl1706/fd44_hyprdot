@@ -127,8 +127,24 @@ end)
 -- own scope via uwsm - see Launcher.qml.
 --
 -- -d daemonizes, so Hyprland's startup is not held open by it.
+--
+-- THE ICON BRIDGE RUNS FIRST, IN THE SAME SHELL, and the ordering is the
+-- whole reason it is written this way rather than as its own exec_cmd.
+-- quickshell resolves icon names through Qt, which in a bare Hyprland
+-- session can only see the "hicolor" theme; bin/icon-bridge.sh symlinks the
+-- selected theme's categories into a user-level hicolor so those names
+-- resolve. Qt reads the theme when it first needs an icon and caches it, so
+-- a bridge built after quickshell has started is a bridge quickshell does
+-- not see until it restarts.
+--
+-- bin/theme.sh also builds it, and that runs above - but exec_cmd does not
+-- wait, so the two would race. The symlinks survive a reboot, so in practice
+-- only the very first login after an install would lose, which is exactly
+-- the login where a missing icon looks like a broken install. `;` and not
+-- `&&`: a bridge that cannot be built is not a reason to leave the desktop
+-- without a shell.
 hl.on("hyprland.start", function()
-    hl.exec_cmd("qs -d")
+    hl.exec_cmd("sh -c '$HOME/.config/hypr/../bin/icon-bridge.sh >/dev/null 2>&1; qs -d'")
 end)
 
 -- Audio, on a system that does not start it for us.

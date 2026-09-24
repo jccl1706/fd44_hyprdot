@@ -160,143 +160,34 @@ storage_detail() {
 # -------------------------------------------------------------------------
 # Announcing
 # -------------------------------------------------------------------------
-# -a groups these under one application in the panel's history, and the icon
-# is a stock freedesktop name so it follows the icon theme rather than being
-# a path into this repo.
+# THEMED NAMES, resolved by whoever is drawing the notification.
 #
-# A PATH, NOT A THEMED NAME, and that is not a style choice. quickshell's
-# notification toast resolves a name through Quickshell.iconPath(), which
-# asks Qt for the current icon theme - and in a bare Hyprland session Qt has
-# not been told what that is, so every named icon comes back as the
-# missing-icon chequerboard. Confirmed it is not about the name: "firefox"
-# draws the chequerboard too, and the same icon passed as an absolute path
-# draws correctly. QT_QPA_PLATFORMTHEME was tried at gtk3, gnome and
-# xdgdesktopportal and changed nothing. That is a shell-wide bug worth
-# fixing on its own; until it is, every notification anything sends with a
-# themed name looks broken, and this script does the lookup itself.
+# This script used to search the filesystem itself - the configured theme,
+# its Inherits chain, svg before png - about ninety lines of it, because
+# quickshell drew the missing-icon chequerboard for any name outside hicolor.
+# That was never a fact about USB devices; it was Qt having no icon theme in
+# a bare Hyprland session, and bin/icon-bridge.sh fixes it at the source by
+# putting the selected theme's categories where the only theme quickshell can
+# see will find them. With that in place a name is enough, and a name is what
+# follows the theme when it changes - this has no opinion about icons now.
 #
-# THROUGH THE THEME THE SYSTEM IS SET TO, not whichever copy of the file
-# turns up first. bin/theme.sh writes that name - the palette's icon_theme,
-# or Adwaita while Reversal is not installed - into gsettings and the GTK
-# settings files, so the icon in the notification changes with the rest of
-# the desktop instead of being pinned to one theme.
+# THE BRIDGE HAS TO EXIST, which is the dependency this takes on. It is built
+# at login before quickshell starts (hypr/autostart.lua) and rebuilt by
+# bin/theme.sh on every theme switch, so the only way to be without it is on
+# a machine that has done neither - where the notification still arrives,
+# just with the wrong picture on it.
 #
-# CACHED, BUT RE-READ WHEN THE THEME CHANGES. Resolving once at startup was
-# the first version and it was wrong for the thing this is for: bin/theme.sh
-# switches the icon theme with the palette, and a service started hours
-# earlier would have gone on pointing at the old theme's files until the
-# session was restarted. Checking the theme NAME is one gsettings call; it
-# is only the find(1) that is worth avoiding, and that now runs when the
-# answer would actually be different.
-ICON_THEME=""
-declare -A ICON=()
-
-
-# What the desktop is set to. gsettings is what theme.sh writes last and what
-# GTK4 reads, the settings.ini is the GTK3 copy of the same answer, and
-# hicolor is the spec's own fallback - every theme inherits it and it is the
-# only one guaranteed to exist.
-current_icon_theme() {
-    local t
-    t=$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null | tr -d "\"'")
-    if [[ -n $t && $t != "@as"* ]]; then printf '%s' "$t"; return; fi
-    t=$(sed -n 's/^gtk-icon-theme-name=//p' \
-            "${XDG_CONFIG_HOME:-$HOME/.config}/gtk-3.0/settings.ini" 2>/dev/null | tail -1)
-    if [[ -n $t ]]; then printf '%s' "$t"; return; fi
-    printf 'hicolor'
-}
-
-# Every directory a theme could live in, in the order the icon spec searches
-# them: the user's own first, then XDG_DATA_DIRS. ~/.icons is the old
-# location and is still what bin/icon-theme.sh's upstream installer uses on
-# some systems, so it stays in the list.
-icon_bases() {
-    local dirs d
-    IFS=: read -ra dirs <<< "${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
-    printf '%s\n' "$HOME/.icons" "${XDG_DATA_HOME:-$HOME/.local/share}/icons"
-    for d in "${dirs[@]}"; do printf '%s\n' "$d/icons"; done
-}
-
-# A theme names its fallbacks in index.theme. Reversal-grey-dark inherits
-# Reversal-grey which inherits Adwaita, and following that chain is the
-# difference between "the theme has no icon for this" and "the theme has not
-# bothered to redraw one that Adwaita already has".
-theme_parents() {
-    local theme=$1 base line
-    while read -r base; do
-        [[ -f $base/$theme/index.theme ]] || continue
-        line=$(sed -n 's/^Inherits=//p' "$base/$theme/index.theme" | head -1)
-        [[ -n $line ]] && printf '%s\n' "${line//,/ }"
-        return
-    done < <(icon_bases)
-}
-
-# SVG BEFORE PNG WITHIN A THEME, and the largest PNG when there is no SVG.
-# Asking find for both at once returned AdwaitaLegacy's 16x16 png before
-# Adwaita's scalable svg, and 16px drawn into the toast's 28px box is a
-# blurry postage stamp. The size comes out of the NNxNN directory the spec
-# requires, and anything without one sorts last rather than being dropped -
-# a scalable/ png is still better than nothing.
-icon_in_theme() {
-    local theme=$1 name=$2 base hit
-    while read -r base; do
-        [[ -d $base/$theme ]] || continue
-        hit=$(find -L "$base/$theme" -name "$name.svg" -print -quit 2>/dev/null)
-        [[ -n $hit ]] && { printf '%s' "$hit"; return 0; }
-    done < <(icon_bases)
-
-    while read -r base; do
-        [[ -d $base/$theme ]] || continue
-        hit=$(find -L "$base/$theme" -name "$name.png" 2>/dev/null |
-              sed -E 's#.*/([0-9]+)x[0-9]+/.*#\1 &#; t; s#^#0 #' |
-              sort -rn | head -1 | cut -d" " -f2-)
-        [[ -n $hit ]] && { printf '%s' "$hit"; return 0; }
-    done < <(icon_bases)
-    return 1
-}
-
-# THE CHAIN ENDS AT ADWAITA, NOT AT HICOLOR, which the spec would have it do.
-# hicolor is the fallback every theme inherits and it is nearly empty - it
-# holds what applications drop into it, not a device set - so a theme without
-# a drive icon reached the end of the chain and produced nothing at all. Both
-# other themes installed here, oxygen and Bluecurve, are cursor-only
-# directories with no device icons and no index.theme, and under the strict
-# order they lost the icon entirely rather than borrowing a reasonable one.
-# Adwaita is the default theme on this platform and the one theme.sh itself
-# falls back to, so ending there matches what the rest of the desktop does.
-icon_path() {
-    local name=$1 theme t hit
-    theme=$(current_icon_theme)
-    for t in "$theme" $(theme_parents "$theme") hicolor Adwaita; do
-        [[ -z $t ]] && continue
-        hit=$(icon_in_theme "$t" "$name") && { printf '%s' "$hit"; return 0; }
-    done
-    # Outside any theme, and the last place the spec says to look.
-    [[ -f /usr/share/pixmaps/$name.svg ]] && { printf '/usr/share/pixmaps/%s.svg' "$name"; return 0; }
-    [[ -f /usr/share/pixmaps/$name.png ]] && { printf '/usr/share/pixmaps/%s.png' "$name"; return 0; }
-    return 1
-}
-
-# ONE ICON PER KIND. A network adapter announced with a flash-card picture
-# is the sort of wrong that is worse than no picture at all - it says
-# something specific and untrue. The names are the freedesktop ones the theme
-# is expected to carry; anything it does not have resolves to empty through
-# icon_path and the toast falls back to its dot.
-#
-# network-wired has no scalable svg in Adwaita, only a 48x48 png in
-# AdwaitaLegacy, which icon_path finds on its second pass - drawn into a 28px
-# box that is fine. Worth knowing before assuming every name here is an svg.
-refresh_icons() {
-    local now; now=$(current_icon_theme)
-    [[ $now == "$ICON_THEME" ]] && return
-    ICON_THEME=$now
-    ICON[storage]=$(icon_path drive-removable-media || true)
-    ICON[network]=$(icon_path network-wired        || true)
-    ICON[audio]=$(icon_path audio-headset          || true)
-    ICON[keyboard]=$(icon_path input-keyboard      || true)
-    ICON[mouse]=$(icon_path input-mouse            || true)
-    ICON[device]=$(icon_path media-removable       || true)
-}
+# The names are the freedesktop ones. network-wired has no scalable svg in
+# Adwaita, only a png in AdwaitaLegacy, which is a reminder that not every
+# name in this list is the same kind of file.
+declare -A ICON=(
+    [storage]=drive-removable-media
+    [network]=network-wired
+    [audio]=audio-headset
+    [keyboard]=input-keyboard
+    [mouse]=input-mouse
+    [device]=media-removable
+)
 
 # What each kind is called in the notification.
 kind_noun() {
@@ -310,17 +201,11 @@ kind_noun() {
     esac
 }
 
-# Falls back to no icon at all rather than to a name, because a name is the
-# thing that draws wrong. With -i omitted the toast draws its own accent dot,
-# which at least looks deliberate.
+# -a groups these under one application in the panel's history.
 notify() {
-    local icon=${3-}
-    if [[ -n $icon ]]; then
-        notify-send -a "USB" -i "$icon" "$1" "$2" 2>/dev/null && return
-    else
-        notify-send -a "USB" "$1" "$2" 2>/dev/null && return
-    fi
-    printf 'usb-notify: %s - %s\n' "$1" "$2" >&2
+    local icon=${3:-${ICON[device]}}
+    notify-send -a "USB" -i "$icon" "$1" "$2" 2>/dev/null \
+        || printf 'usb-notify: %s - %s\n' "$1" "$2" >&2
 }
 
 # WHAT WAS PLUGGED INTO EACH PORT, remembered from the add event and read
@@ -334,17 +219,18 @@ notify() {
 # key.
 #
 # The kind is remembered too, not just the name, so that a stick shows the
-# same icon and the same wording going out as coming in. It was the icon
-# that gave this away: connecting drew the drive and disconnecting drew the
-# card, because the remove branch had no way to know which it had been.
+# same icon and the same wording going out as coming in.
+#
+# DECLARED, and that is not decoration: without `declare -A` bash treats
+# SEEN_NAME[$path] as an ARITHMETIC subscript and a sysfs path is not
+# arithmetic. It fails with "operand expected" on the first device plugged
+# in, and under `set -u` that ends the watcher.
 declare -A SEEN_NAME=()
 declare -A SEEN_KIND=()
 
 announce() {
     [[ ${DEVTYPE-} == usb_device ]]  || return 0
     [[ ${ID_VENDOR_ID-} == 1d6b ]]   && return 0   # root hub, see above
-
-    refresh_icons
 
     local path=${DEVPATH-} name kind detail probe
     name=$(device_name)
