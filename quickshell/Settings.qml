@@ -366,6 +366,14 @@ Singleton {
         settings.setValue("barStyle", settings.barStylePrev || "frame")
     }
 
+    // In from wherever, or back out. What the keybind and the IPC call - the
+    // button on the bar only ever leaves, because it only exists while focus
+    // is on.
+    function toggleFocus(): void {
+        if (settings.barStyle === "focus") settings.leaveFocus()
+        else settings.setBarStyle("focus")
+    }
+
     function setValue(key: string, v): void {
         if (settings[key] === undefined) {
             console.warn("Settings: no such key", key)

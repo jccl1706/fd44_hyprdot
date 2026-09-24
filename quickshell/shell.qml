@@ -317,6 +317,16 @@ ShellRoot {
         onPressed: shell.toggleFocused(powerVariants.instances)
     }
 
+    // Focus mode. The only one of these that changes a SETTING rather than
+    // showing a window, and the only one that is reversible without it: the
+    // bar keeps a button to come back, so a key pressed by accident is not a
+    // machine you have to know a second key to recover.
+    GlobalShortcut {
+        appid: "quickshell"
+        name: "focus"
+        onPressed: Settings.toggleFocus()
+    }
+
     // Media transport. One shortcut per key, all reaching Media.qml, which
     // speaks MPRIS directly - so a media key spawns no process at all, where
     // it used to fork playerctl on every press.
@@ -440,6 +450,21 @@ ShellRoot {
 
         // Apply whatever is currently centred - the same thing Return does.
         function apply(): void  { shell.eachRevealed(wallpaperVariants.instances, w => w.applySelected()) }
+    }
+
+    // Focus mode - hide the bar down to its exit button, or bring it back:
+    //   qs ipc call focus toggle
+    //
+    // `on` and `off` as well as `toggle`, so a script that wants the bar out
+    // of the way for something - a screen recording, a presentation - can say
+    // so without having to know what state it was in.
+    IpcHandler {
+        target: "focus"
+
+        function toggle(): void { Settings.toggleFocus() }
+        function on(): void     { Settings.setBarStyle("focus") }
+        function off(): void    { Settings.leaveFocus() }
+        function status(): string { return Settings.barStyle }
     }
 
     IpcHandler {

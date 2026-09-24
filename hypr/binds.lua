@@ -57,6 +57,21 @@ hl.bind(Mod .. " + space", hl.dsp.global("quickshell:launcher"))
 hl.bind(Mod .. " + comma", hl.dsp.global("quickshell:wallpaper"))
 hl.bind(Mod .. " + SHIFT + comma", hl.dsp.global("quickshell:settings"))
 
+-- Focus mode: hides the bar down to a single button to come back, or brings
+-- it back. quickshell/BarStyle.qml has what it changes.
+--
+-- Z FOR ZEN, because the obvious keys were taken or spoken for. F is
+-- fullscreen a few lines below, and SHIFT + F is not free either - the
+-- comment there offers it to whoever wants maximize-with-gaps, and quietly
+-- taking a key that the file has already promised elsewhere is how a config
+-- starts contradicting itself.
+--
+-- Unlike the shortcuts above it this changes a SETTING rather than showing a
+-- window, so it survives a shell restart. That is the point - focus is a mode
+-- you are in, not a panel that is up - and it is why the bar keeps a button
+-- to leave: a key pressed by accident must not need a second key to undo.
+hl.bind(Mod .. " + Z", hl.dsp.global("quickshell:focus"))
+
 -- Theme. Flips the whole desktop between themes/dark.conf and
 -- themes/cream.conf - quickshell, kitty, GTK apps and Hyprland all at once.
 --
