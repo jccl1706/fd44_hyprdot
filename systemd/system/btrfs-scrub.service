@@ -1,0 +1,33 @@
+[Unit]
+# Reads every block of every mounted btrfs back and compares it against the
+# checksum stored with it - see bin/btrfs-scrub.sh for what that is worth on a
+# single-device filesystem, and for what it deliberately does not do.
+#
+# A SYSTEM UNIT, unlike everything else in this repository's systemd/
+# directory, which holds user units linked into ~/.config/systemd/user by
+# bin/link-dotfiles.sh. A scrub reads the raw device and cannot run as the
+# user, so this one is installed separately by bin/btrfs-scrub-setup.sh and
+# lives in systemd/system/ to keep the two kinds apart.
+Description=Scrub every mounted btrfs filesystem
+Documentation=man:btrfs-scrub(8)
+
+# The script is reached at a fixed path rather than through the checkout,
+# because a system unit has no %h and root's home is not where the repository
+# is. bin/btrfs-scrub-setup.sh symlinks it there. If it is missing - an
+# uninstalled setup, a checkout moved away - do nothing rather than fail every
+# month, the same rule the user units follow.
+ConditionPathExists=/usr/local/sbin/fd44-btrfs-scrub
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/fd44-btrfs-scrub
+
+# Get out of the way of whatever the machine is actually doing. Both of these
+# are best-effort: ioprio needs scheduler support that NVMe's `none` scheduler
+# does not provide, and there they are simply ignored rather than refused.
+Nice=19
+IOSchedulingClass=idle
+
+# NOT ProtectSystem/PrivateDevices and the rest of the sandbox: a scrub reads
+# the block device directly and issues filesystem ioctls, which is exactly
+# what those options exist to prevent.

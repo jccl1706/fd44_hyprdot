@@ -494,6 +494,54 @@ It only restores onto the machine the backup came from: device IDs are hashes of
 the hardware, so it refuses if the Quadro in the backup is not present, or if the
 installed CoolerControl version differs.
 
+## Disks — snapshots and scrubs
+
+Two different jobs, neither of which is a backup.
+
+**Snapshots and rollback** are [btrfs-patrol](https://github.com/jccl1706/btrfs-patrol),
+which is packaged rather than kept here. On a Fedora machine with the default
+layout:
+
+```sh
+sudo dnf copr enable jccl1706/btrfs-patrol
+sudo dnf install btrfs-patrol libdnf5-plugin-actions
+sudo btrfs-patrol setup --dry-run     # read this before the next line
+sudo btrfs-patrol setup
+sudo btrfs-patrol snapshot -d "clean system" --keep
+```
+
+`libdnf5-plugin-actions` is the half that matters: without it you get the daily
+timer but no snapshot before each `dnf` transaction, which is the one that saves
+you from a bad kernel. `--keep` marks a snapshot so pruning never takes it.
+
+**Scrubbing** is this repository's, because nothing packages it — Fedora's
+`btrfs-progs` ships no scrub unit at all:
+
+```sh
+sudo bin/btrfs-scrub-setup.sh --dry-run
+sudo bin/btrfs-scrub-setup.sh
+```
+
+That symlinks `bin/btrfs-scrub.sh` to `/usr/local/sbin/fd44-btrfs-scrub`, links
+the two units out of `systemd/system/` and enables a monthly timer. A scrub reads
+every block back and compares it against the checksum stored with it. On a
+single-device filesystem it can only *report* a data mismatch — there is no
+second copy to repair from — and that is still the point: the disk says it is
+going while the file is still readable. Metadata is DUP even on one device, so
+metadata damage is genuinely repaired.
+
+It exits non-zero when it finds anything, so a bad month shows up in
+`systemctl --failed` rather than only in a log nobody reads.
+
+> `systemd/system/` is the only directory here holding **system** units.
+> Everything else in `systemd/` is a user unit that `bin/link-dotfiles.sh`
+> links into `~/.config/systemd/user`; a scrub reads the raw device and cannot
+> run as the user, which is why it has its own opt-in installer.
+
+**What is still missing: a copy somewhere else.** A snapshot lives on the same
+LUKS volume and dies with it; a scrub only tells you it is dying. Nothing in
+this repository backs anything up.
+
 ## After a reinstall
 
 What to do on a machine that has just been wiped, whichever distribution it

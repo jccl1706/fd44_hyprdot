@@ -1,0 +1,29 @@
+[Unit]
+Description=Scrub every mounted btrfs filesystem monthly
+Documentation=man:btrfs-scrub(8)
+
+[Timer]
+# MONTHLY, which is what btrfs's own documentation and every distribution that
+# ships a scrub timer settle on. A scrub reads the whole filesystem: here that
+# is a few seconds on 2.6 GiB of NVMe, but it is minutes on a full disk, and
+# there is nothing to gain from doing it more often than rot happens.
+OnCalendar=monthly
+
+# The first of the month at midnight is when every other machine in the world
+# also scrubs. Two hours of jitter costs nothing here and is simply good
+# manners on shared storage.
+RandomizedDelaySec=2h
+AccuracySec=1h
+
+# CATCH UP AFTER A MISSED MONTH. A laptop that was off on the first would
+# otherwise skip the month entirely; Persistent runs it at the next boot.
+Persistent=true
+
+# NO ConditionACPower, considered and rejected. Skipping the run on battery
+# sounds careful, but a condition that fails is not retried by Persistent, so
+# a laptop that happened to be unplugged would silently go a month - or a year
+# - without a scrub, which is worse than a few minutes of idle-priority
+# reading. Nice=19 and idle I/O in the service are the compromise instead.
+
+[Install]
+WantedBy=timers.target
