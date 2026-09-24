@@ -214,6 +214,12 @@ else
     link systemd/power-mode.service "$CONFIG/systemd/user/power-mode.service"
 fi
 
+# The USB notifier has nothing machine-specific about it: any session with a
+# notification daemon wants to be told what was just plugged in, desktop or
+# laptop. The unit's own ConditionPathExists handles the case this script
+# cannot see - being run somewhere that will never have Hyprland.
+link systemd/usb-notify.service "$CONFIG/systemd/user/usb-notify.service"
+
 printf '\n  %d linked, %d already right, %d repointed, %d skipped, %d in the way\n' \
     "$made" "$already" "$fixed" "$skipped" "$blocked"
 
@@ -227,7 +233,8 @@ if [ "$made" -gt 0 ] || [ "$fixed" -gt 0 ]; then
 
   Two of these need telling:
     systemctl --user restart wireplumber
-    systemctl --user daemon-reload && systemctl --user enable --now power-mode.service
+    systemctl --user daemon-reload
+    systemctl --user enable --now power-mode.service usb-notify.service
 
   And the rest of a fresh machine, each opt-in and each explaining itself:
     bin/starship-setup.sh    the two-line prompt

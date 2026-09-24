@@ -1,0 +1,42 @@
+[Unit]
+# Watches udev and raises a desktop notification when a USB device is plugged
+# in or pulled out - see bin/usb-notify.sh for what counts as one.
+#
+# Bound to graphical-session.target so it starts with the Hyprland session and
+# stops with it. There is nothing to notify while logged out, and the thing it
+# talks to - org.freedesktop.Notifications, which quickshell owns - does not
+# exist until the shell is up.
+Description=Notify on USB device plug and unplug
+PartOf=graphical-session.target
+After=graphical-session.target
+
+# THE SCRIPT HAS TO BE REACHABLE, and if it is not, do nothing rather than
+# fail forever. Same reasoning as power-mode.service, and the same hard-won
+# details: the condition belongs in [Unit] and is silently ignored in
+# [Service], and the path must be normalised because systemd refuses one
+# containing "..". `systemd-analyze verify` catches both.
+#
+# It tests ~/.config/hypr rather than the script because that link is what
+# makes the ExecStart path resolve at all - and on a machine without it there
+# is no quickshell either, so no notification daemon to send anything to.
+ConditionPathExists=%h/.config/hypr
+
+[Service]
+Type=simple
+# Reached through ~/.config/hypr, which is a symlink into the checkout: the
+# kernel resolves the symlink before applying "..", so this lands in the
+# repo's bin/ wherever the repo actually lives, rather than assuming the
+# clone is at a particular path.
+ExecStart=%h/.config/hypr/../bin/usb-notify.sh watch
+
+# The watcher is a pipeline around `udevadm monitor`; if that dies the service
+# should come back rather than silently stop reacting to anything being
+# plugged in. Not Restart=always: an ExecStart that cannot even be spawned
+# should fail once and stay failed, which is the state you can see, rather
+# than retrying forever the way power-mode.service once did - 1319 errors in
+# under two hours before anyone looked.
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=graphical-session.target
