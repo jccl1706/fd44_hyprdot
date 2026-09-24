@@ -181,3 +181,10 @@ Not Hyprland's, but the two that come up daily:
 | `CTRL` `B` | tmux prefix |
 | `ALT` `←` `→` | Previous / next tmux window, no prefix needed |
 | `ALT` `1` … `9` | Jump straight to that tmux window |
+| click a URL | Open it in the browser — `CTRL` `SHIFT` click where something else has taken the plain click |
+| `CTRL` `SHIFT` `E` | Hints mode: label every URL on screen and pick one by letter |
+
+Links go through `bin/browser.sh` rather than `xdg-open`, so a link in the
+terminal and `SUPER` `B` open the same program by construction. Hints mode is
+the one to learn: it needs no mouse, so it still works over SSH and inside tmux,
+where mouse reporting swallows the click.

@@ -409,6 +409,14 @@ footer code { font: 500 .92em var(--mono); }
     <div class="row"><div class="k"><kbd class="wide">CTRL</kbd><span class="plus">+</span><kbd>B</kbd></div><div class="t">tmux prefix</div></div>
     <div class="row"><div class="k"><kbd class="wide">ALT</kbd><span class="plus">+</span><kbd>←</kbd><kbd>→</kbd></div><div class="t">Previous / next tmux window, no prefix needed</div></div>
     <div class="row"><div class="k"><kbd class="wide">ALT</kbd><span class="plus">+</span><kbd>1</kbd>…<kbd>9</kbd></div><div class="t">Jump straight to that tmux window</div></div>
+    <div class="row"><div class="k"><kbd class="wide">click a URL</kbd></div><div class="t">Open it in the browser</div></div>
+    <div class="row"><div class="k"><kbd class="wide">CTRL</kbd><span class="plus">+</span><kbd class="wide">SHIFT</kbd><span class="plus">+</span><kbd class="wide">click</kbd></div><div class="t">The same, where something else has taken the plain click</div></div>
+    <div class="row"><div class="k"><kbd class="wide">CTRL</kbd><span class="plus">+</span><kbd class="wide">SHIFT</kbd><span class="plus">+</span><kbd>E</kbd></div><div class="t">Hints mode — label every URL and pick one by letter</div></div>
+    <div class="note">Links go through <code>bin/browser.sh</code> rather than
+    <code>xdg-open</code>, so a link in the terminal and <code>SUPER+B</code>
+    open the same program by construction. Hints mode needs no mouse, so it
+    still works over SSH and inside tmux, where mouse reporting swallows the
+    click.</div>
 </section>
 
 </div><!-- /cards -->
