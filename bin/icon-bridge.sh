@@ -131,18 +131,91 @@ hicolor_dirs() {
     sed -n 's/^Directories=//p' "$HICOLOR_INDEX" | head -1 | tr ',' '\n' | sed '/^$/d'
 }
 
-# The first theme in the chain that actually has this category.
-source_for() {
-    local dir=$1 theme base
+# WHERE A THEME KEEPS ITS ICONS, TRANSLATED INTO hicolor's NAMES.
+#
+# The first version of this looked for a directory in the theme with the same
+# name as the hicolor one - 16x16/devices, scalable/apps - which works only
+# because Adwaita happens to be laid out that way. Reversal is not: its
+# directories are devices/16, actions/symbolic, context first and size
+# second. Nothing matched, so on the NixOS desktop every link fell through to
+# Adwaita and the selected theme was never used at all.
+#
+# So the theme's own index.theme is read instead. Every section it declares
+# carries the two facts needed to place it - Context says what kind of icons
+# are in there, Size and Type say how big - and hicolor's name for that
+# combination is size x size / context, or scalable/context. A theme laid out
+# like Adwaita produces section names identical to the paths they map to, so
+# the same code covers both without a special case.
+#
+# CONTEXT, NOT THE DIRECTORY NAME. Reversal keeps its MimeTypes icons in a
+# directory called "mimes" and hicolor calls that "mimetypes"; reading the
+# declared Context is what makes those meet. The table below is the
+# freedesktop context names and the directory hicolor gives each - notably
+# Applications is "apps", which is the one that would silently lose every
+# application icon if it were guessed from the name.
+theme_dir_map() {
+    local index=$1
+    awk '
+        BEGIN {
+            ctxdir["applications"] = "apps"
+            ctxdir["mimetypes"]    = "mimetypes"
+            ctxdir["devices"]      = "devices"
+            ctxdir["actions"]      = "actions"
+            ctxdir["places"]       = "places"
+            ctxdir["status"]       = "status"
+            ctxdir["emblems"]      = "emblems"
+            ctxdir["emotes"]       = "emotes"
+            ctxdir["categories"]   = "categories"
+            ctxdir["animations"]   = "animations"
+            ctxdir["filesystems"]  = "filesystems"
+            ctxdir["international"]= "intl"
+        }
+        /^\[/ {
+            sec = substr($0, 2, length($0) - 2)
+            if (sec != "Icon Theme") order[++n] = sec
+            next
+        }
+        sec == "" || sec == "Icon Theme" { next }
+        /^Size=/    { size[sec] = substr($0, 6) }
+        /^Type=/    { type[sec] = substr($0, 6) }
+        /^Context=/ { ctx[sec]  = tolower(substr($0, 9)) }
+        END {
+            for (i = 1; i <= n; i++) {
+                d = order[i]
+                c = ctxdir[ctx[d]]
+                if (c == "") continue                  # a context hicolor has no place for
+                if (type[d] == "Scalable") h = "scalable/" c
+                else if (size[d] != "")    h = size[d] "x" size[d] "/" c
+                else continue
+                print h "\t" d
+            }
+        }
+    ' "$index"
+}
+
+# Every hicolor directory this machine can fill, as "<hicolor path>\t<source
+# directory>", nearest theme first and first claim winning. Printed once and
+# read twice - build() links it and status() shows it.
+bridge_map() {
+    local theme base index line h d
+    declare -A taken=()
     while read -r theme; do
         [[ -z $theme || $theme == hicolor ]] && continue
         while read -r base; do
+            # Skip the overlay itself, or the bridge would feed on its own
+            # links from a previous run.
             [[ $base == "${XDG_DATA_HOME:-$HOME/.local/share}/icons" ]] && continue
-            [[ -d $base/$theme/$dir ]] || continue
-            printf '%s' "$base/$theme/$dir"; return 0
+            index=$base/$theme/index.theme
+            [[ -f $index ]] || continue
+            while IFS=$'\t' read -r h d; do
+                [[ -z ${taken[$h]-} ]] || continue
+                [[ -d $base/$theme/$d ]] || continue
+                taken[$h]=1
+                printf '%s\t%s\n' "$h" "$base/$theme/$d"
+            done < <(theme_dir_map "$index")
+            break
         done < <(icon_bases)
     done < <(theme_chain "$(current_icon_theme)")
-    return 1
 }
 
 # --- the three things it can do ------------------------------------------
@@ -167,13 +240,17 @@ build() {
     [[ $removed -gt 0 ]] && note "cleared $removed old link(s)"
 
     local made=0 dir src
-    while read -r dir; do
-        src=$(source_for "$dir") || continue
+    # ONLY WHAT hicolor ACTUALLY LISTS. Qt searches the directories the
+    # system's index declares and no others, so a link outside that set would
+    # be a directory nothing ever looks in.
+    local want; want=$(hicolor_dirs)
+    while IFS=$'\t' read -r dir src; do
+        grep -qxF "$dir" <<< "$want" || continue
         mkdir -p "$OVERLAY/$(dirname "$dir")"
         # A real directory here is an application's own; leave it alone.
         [[ -e $OVERLAY/$dir && ! -L $OVERLAY/$dir ]] && continue
         ln -sfn "$src" "$OVERLAY/$dir" && made=$((made + 1))
-    done < <(hicolor_dirs)
+    done < <(bridge_map)
 
     note "bridged $made categor$([[ $made == 1 ]] && echo y || echo ies) from ${bold}$theme${reset}"
     printf '    %sinto %s%s\n' "$dim" "$OVERLAY" "$reset"
