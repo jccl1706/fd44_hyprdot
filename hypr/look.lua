@@ -148,6 +148,18 @@ hl.curve("snap",   { type = "spring", mass = 1, stiffness = 420, dampening = 34 
 -- this on windowsIn if you want more character on window open.
 hl.curve("bouncy", { type = "spring", mass = 1, stiffness = 350, dampening = 24 })
 
+-- zeta = 39 / (2*sqrt(380)) = 1.0003 - critically damped: the fastest
+-- approach that never overshoots.
+--
+-- OVERSHOOT IS FINE ON POSITION AND WRONG ON SIZE, which is why this exists
+-- alongside "snap". A window sliding past its place and coming back reads as
+-- weight. A window scaling past its size does not: every glyph inside it is
+-- being resampled, so the overshoot arrives as a frame or two of blurred,
+-- wrong-sized text and then a correction. That is the "clonky" part of an
+-- open or close, and no amount of tuning the duration fixes it - the defect
+-- is the direction reversing at all.
+hl.curve("glide",  { type = "spring", mass = 1, stiffness = 380, dampening = 39 })
+
 
 -- -------------------------------------------------------------------------
 -- Animations
@@ -171,14 +183,30 @@ hl.animation({ leaf = "border",        enabled = true,  speed = 2,    bezier = "
 -- than by a fixed timeline. NOTE: `speed` is still a REQUIRED field even for
 -- spring animations - omitting it is a config error - so it is supplied here
 -- and simply carries little weight compared to stiffness/dampening.
-hl.animation({ leaf = "windows",       enabled = true,  speed = 2.0,  spring = "snap" })
-hl.animation({ leaf = "windowsIn",     enabled = true,  speed = 2.0,  spring = "snap",         style = "popin 90%" })
-hl.animation({ leaf = "windowsOut",    enabled = true,  speed = 1.0,  bezier = "snappy",       style = "popin 90%" })
+-- ONE CURVE FOR THE WHOLE GESTURE. Opening a window in a tiling layout is
+-- not one animation, it is two: the new window arrives and every neighbour
+-- resizes to make room. Those used to run on different curves - the arrival
+-- on an underdamped spring, the re-tile on the same spring but a different
+-- distance - so the screen settled in stages, which is most of what read as
+-- clonky. They share "glide" now and land together.
+hl.animation({ leaf = "windows",       enabled = true,  speed = 2.0,  spring = "glide" })
+
+-- popin 80%, not 90%. The scale has to be deep enough to be legible as
+-- motion; at 90% the whole gesture is a tenth of the window's size, which
+-- looks less like growing than like a hiccup on arrival.
+hl.animation({ leaf = "windowsIn",     enabled = true,  speed = 2.0,  spring = "glide",        style = "popin 80%" })
+
+-- Closing keeps a fixed timeline rather than the spring: a window on its way
+-- out should not decelerate into a place it is not going to be. 120ms, and
+-- fadeOut below is set to the same so the window does not become invisible
+-- partway through shrinking and leave the rest of the animation playing to
+-- nobody - which it did at 60ms against 100ms.
+hl.animation({ leaf = "windowsOut",    enabled = true,  speed = 1.2,  bezier = "easeOutFast",  style = "popin 85%" })
 
 -- Fades are the most latency-sensitive thing here: they gate how quickly a
 -- new window appears to exist. Keep these short.
 hl.animation({ leaf = "fadeIn",        enabled = true,  speed = 0.8,  bezier = "snappy" })
-hl.animation({ leaf = "fadeOut",       enabled = true,  speed = 0.6,  bezier = "snappy" })
+hl.animation({ leaf = "fadeOut",       enabled = true,  speed = 1.2,  bezier = "easeOutFast" })
 hl.animation({ leaf = "fade",          enabled = true,  speed = 1.0,  bezier = "snappy" })
 
 -- Layer surfaces: bars, launchers, notification popups. Once Quickshell
