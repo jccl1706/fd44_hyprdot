@@ -108,7 +108,9 @@ PanelWindow {
 
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: root.layerNamespace
-    WlrLayershell.keyboardFocus: revealed ? WlrKeyboardFocus.Exclusive
+    // OnDemand rather than Exclusive - see the focus-grab note below, which is
+    // where the reason lives.
+    WlrLayershell.keyboardFocus: revealed ? WlrKeyboardFocus.OnDemand
                                           : WlrKeyboardFocus.None
 
     anchors { left: true; right: true; top: true; bottom: true }
@@ -206,11 +208,49 @@ PanelWindow {
 
 
 
-    // A click landed on the bar while this panel was covering it. The panel
-    // does NOT close itself first: the bar decides what the click meant, and
-    // closing here would make pressing this panel's own glyph close it and
-    // then immediately reopen it. See Bar.clickAt.
-    signal barClicked(real x, real y)
+    // --- reaching the bar through an open panel --------------------------
+    //
+    // THE BAR IS A HOLE IN THIS WINDOW'S INPUT REGION, and the bar is inside
+    // the focus grab. Both are needed; neither works alone, which took four
+    // measurements to establish. With the pointer parked on the speaker glyph
+    // and a panel open, its hover highlight reads 457 against the 765 it
+    // shows unobstructed:
+    //
+    //   mask alone, exclusive focus          457   nothing reaches the bar
+    //   mask + grab of this window only      457   the grab blocks it
+    //   input region of ONE PIXEL            457   so it was never the mask
+    //   mask + grab listing the bar too      765   the bar gets the pointer
+    //
+    // The one-pixel test is the one that settles it: a window accepting input
+    // almost nowhere still kept the bar dark, so the input region was never
+    // what stood in the way. A Hyprland focus grab restricts input to the
+    // windows it lists, and the bar was not one of them.
+    //
+    // KEYBOARD FOCUS IS OnDemand, NOT Exclusive, and that is the other half.
+    // Exclusive put the reading straight back to 457 even with the bar listed
+    // - it is the thing Hyprland routes the pointer to whatever anyone else
+    // declares, which is the behaviour already written up in the monitor note
+    // above. The panel does not lose its keys by giving it up: the grab
+    // carries focus to the listed windows, so the card still has activeFocus
+    // when it opens and Escape still closes it. Both measured.
+    Item {
+        id: hitArea
+        anchors { fill: parent; topMargin: BarStyle.barBottom }
+    }
+    mask: Region { item: hitArea }
+
+    // Set by shell.qml to the bar on this panel's own screen.
+    property var barWindow: null
+
+    HyprlandFocusGrab {
+        id: grab
+        windows: root.barWindow ? [root, root.barWindow] : [root]
+        active: root.revealed
+        // A click outside every listed window. The dismissing MouseArea below
+        // catches most of those already - it covers everything under the bar -
+        // so this is the case it cannot see rather than a duplicate.
+        onCleared: root.close()
+    }
 
     // --- scrim -----------------------------------------------------------
     //
@@ -239,24 +279,12 @@ PanelWindow {
 
     // Covers the bar too, so clicking the bar glyph again closes the panel
     // rather than reaching the bar underneath and reopening it.
+    // Everything below the bar. The bar itself is outside this window's input
+    // region now, so a click there is the bar's and never arrives here - which
+    // is the whole point, and is why this no longer has to forward anything.
     MouseArea {
         anchors.fill: parent
-        onClicked: mouse => {
-            // THE BAR'S CLICKS STILL BELONG TO THE BAR. This overlay covers it
-            // so that pressing the same glyph closes the panel instead of
-            // reaching through and reopening it - but that also made every
-            // OTHER glyph dead while anything was open, so a click on one
-            // closed what you had and never opened what you asked for.
-            // Handing the position over lets the bar answer both cases: its
-            // own glyph toggles shut, another one opens and closes this on
-            // the way, and bare bar with nothing under the pointer comes back
-            // as barDismissed.
-            if (mouse.y < BarStyle.barBottom) {
-                root.barClicked(mouse.x, mouse.y)
-                return
-            }
-            root.close()
-        }
+        onClicked: root.close()
     }
 
     // --- card ------------------------------------------------------------

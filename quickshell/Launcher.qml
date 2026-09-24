@@ -23,6 +23,7 @@
 
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import QtQuick
 
@@ -95,7 +96,8 @@ PanelWindow {
     WlrLayershell.namespace: "quickshell-launcher"
 
     // Only while open - see the header note.
-    WlrLayershell.keyboardFocus: revealed ? WlrKeyboardFocus.Exclusive
+    // OnDemand rather than Exclusive - see the focus-grab note below.
+    WlrLayershell.keyboardFocus: revealed ? WlrKeyboardFocus.OnDemand
                                           : WlrKeyboardFocus.None
 
     anchors { left: true; right: true; top: true; bottom: true }
@@ -246,11 +248,30 @@ PanelWindow {
 
 
 
-    // A click landed on the bar while this panel was covering it. The panel
-    // does NOT close itself first: the bar decides what the click meant, and
-    // closing here would make pressing this panel's own glyph close it and
-    // then immediately reopen it. See Bar.clickAt.
-    signal barClicked(real x, real y)
+
+
+    // --- reaching the bar through an open panel --------------------------
+    //
+    // The same pair as DropPanel.qml, and the long note is there: the bar is
+    // cut out of this window's input region AND listed in the focus grab,
+    // because neither alone lets a click through, and keyboard focus drops to
+    // OnDemand because Exclusive is what Hyprland routes the pointer to
+    // regardless. The grab carries focus to the windows it lists, so this
+    // still has its keys.
+    Item {
+        id: hitArea
+        anchors { fill: parent; topMargin: BarStyle.barBottom }
+    }
+    mask: Region { item: hitArea }
+
+    // Set by shell.qml to the bar on this panel's own screen.
+    property var barWindow: null
+
+    HyprlandFocusGrab {
+        windows: root.barWindow ? [root, root.barWindow] : [root]
+        active: root.revealed
+        onCleared: root.close()
+    }
 
     // --- scrim -----------------------------------------------------------
 
@@ -294,24 +315,12 @@ PanelWindow {
     // Click anywhere to dismiss. Separate from the scrim because it must cover
     // the whole surface including the chrome, while the scrim must not.
     // The card sits above this and swallows its own clicks.
+    // Everything below the bar. The bar itself is outside this window's
+    // input region now, so a click there is the bar's and never arrives
+    // here - which is why this no longer forwards anything.
     MouseArea {
         anchors.fill: parent
-        onClicked: mouse => {
-            // THE BAR'S CLICKS STILL BELONG TO THE BAR. This overlay covers it
-            // so that pressing the same glyph closes the panel instead of
-            // reaching through and reopening it - but that also made every
-            // OTHER glyph dead while anything was open, so a click on one
-            // closed what you had and never opened what you asked for.
-            // Handing the position over lets the bar answer both cases: its
-            // own glyph toggles shut, another one opens and closes this on
-            // the way, and bare bar with nothing under the pointer comes back
-            // as barDismissed.
-            if (mouse.y < BarStyle.barBottom) {
-                root.barClicked(mouse.x, mouse.y)
-                return
-            }
-            root.close()
-        }
+        onClicked: root.close()
     }
 
     // --- card ------------------------------------------------------------

@@ -94,10 +94,6 @@ ShellRoot {
                 if (!p.revealed) shell.closeBarPanels(bar.modelData, p)
                 p.toggle(x)
             })
-            // Bar, but not on anything: close whatever was up. Only reachable
-            // from a panel forwarding a click it was covering - see clickAt.
-            onBarDismissed: shell.closeBarPanels(bar.modelData, null)
-
             onTrayMenuRequested: (x, item) => shell.eachTrayMenu(p => {
                 if (p.modelData !== bar.modelData) return
                 // Re-pointing an open menu at a different icon should show the
@@ -141,7 +137,7 @@ ShellRoot {
         id: launcherVariants
         model: Quickshell.screens
         Launcher {
-            onBarClicked: (x, y) => shell.toBar(modelData, x, y)
+            barWindow: shell.barFor(modelData)
         }
     }
 
@@ -166,7 +162,7 @@ ShellRoot {
         id: powerVariants
         model: Quickshell.screens
         PowerMenu {
-            onBarClicked: (x, y) => shell.toBar(modelData, x, y)
+            barWindow: shell.barFor(modelData)
         }
     }
 
@@ -176,7 +172,7 @@ ShellRoot {
         id: audioVariants
         model: Quickshell.screens
         AudioPanel {
-            onBarClicked: (x, y) => shell.toBar(modelData, x, y)
+            barWindow: shell.barFor(modelData)
         }
     }
 
@@ -186,7 +182,7 @@ ShellRoot {
         id: networkVariants
         model: Quickshell.screens
         NetworkPanel {
-            onBarClicked: (x, y) => shell.toBar(modelData, x, y)
+            barWindow: shell.barFor(modelData)
         }
     }
 
@@ -196,7 +192,7 @@ ShellRoot {
         id: notifyPanelVariants
         model: Quickshell.screens
         NotificationPanel {
-            onBarClicked: (x, y) => shell.toBar(modelData, x, y)
+            barWindow: shell.barFor(modelData)
         }
     }
 
@@ -207,7 +203,7 @@ ShellRoot {
         id: batteryPanelVariants
         model: Quickshell.screens
         BatteryPanel {
-            onBarClicked: (x, y) => shell.toBar(modelData, x, y)
+            barWindow: shell.barFor(modelData)
         }
     }
 
@@ -216,7 +212,7 @@ ShellRoot {
         id: calendarVariants
         model: Quickshell.screens
         CalendarPanel {
-            onBarClicked: (x, y) => shell.toBar(modelData, x, y)
+            barWindow: shell.barFor(modelData)
         }
     }
 
@@ -225,7 +221,7 @@ ShellRoot {
         id: notesVariants
         model: Quickshell.screens
         NotesPanel {
-            onBarClicked: (x, y) => shell.toBar(modelData, x, y)
+            barWindow: shell.barFor(modelData)
         }
     }
 
@@ -236,7 +232,7 @@ ShellRoot {
         id: trayMenuVariants
         model: Quickshell.screens
         TrayMenu {
-            onBarClicked: (x, y) => shell.toBar(modelData, x, y)
+            barWindow: shell.barFor(modelData)
         }
     }
 
@@ -565,16 +561,14 @@ ShellRoot {
         trayMenuVariants, powerVariants, launcherVariants
     ]
 
-    // Hand a click back to the bar on that screen. The panels are full-screen
-    // overlays and cover the bar while they are up, so a press on a glyph
-    // arrives here rather than there; Bar.clickAt runs it through the bar's
-    // own hit test and the click behaves as if the overlay had not existed.
-    function toBar(screen, x, y): void {
+    // The bar on a given screen. The panels list it in their Hyprland focus
+    // grab so that a click on a bar glyph still reaches the bar while one of
+    // them is open - see the note in DropPanel.qml.
+    function barFor(screen): var {
         const bars = barVariants.instances
-        for (let i = 0; i < bars.length; i++) {
-            const b = bars[i]
-            if (b && b.modelData === screen) { b.clickAt(x, y); return }
-        }
+        for (let i = 0; i < bars.length; i++)
+            if (bars[i] && bars[i].modelData === screen) return bars[i]
+        return null
     }
 
     function closeBarPanels(screen, keep): void {

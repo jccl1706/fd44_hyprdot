@@ -154,41 +154,6 @@ PanelWindow {
         return true
     }
 
-    // Nothing on the bar was under the pointer: whatever is open should just
-    // close. shell.qml owns the panels and does it.
-    signal barDismissed()
-
-    // A CLICK THAT LANDED ON THE BAR WHILE A PANEL WAS COVERING IT.
-    //
-    // An open panel is a full-screen overlay holding exclusive keyboard
-    // focus, and Hyprland routes the pointer to it whatever input region it
-    // declares - the same behaviour already documented in DropPanel.qml,
-    // where a click meant for the other monitor's bar was swallowed. Masking
-    // the bar's strip out of the overlay was tried and changed nothing:
-    // measured with the pointer parked on the speaker glyph, its hover
-    // highlight stayed off.
-    //
-    // So the panel hands the click here instead, in its own window
-    // coordinates - which are the bar's too, both being surfaces on the same
-    // output - and this runs it through the bar's own hit test. The effect is
-    // the same as if the overlay had not been there: the glyph you pressed
-    // does what it always does.
-    function clickAt(x: real, y: real): void {
-        const hit = root.slotAt(x, y)
-        if (hit && root.activate(hit.id, hit.slot)) return
-
-        // The clock is not a plugin and sits in no zone, so slotAt cannot see
-        // it, but it opens a panel like the rest and should behave like it.
-        const c = clockItem.mapToItem(dragArea, 0, 0)
-        if (x >= c.x && x <= c.x + clockItem.width
-            && y >= c.y && y <= c.y + clockItem.height) {
-            root.clockRequested(clockItem.mapToItem(null, clockItem.width / 2, 0).x)
-            return
-        }
-
-        root.barDismissed()
-    }
-
     // The same as clicking plugin `id` wherever it currently sits - for IPC
     // and keybinds, so a panel opened without the mouse still drops down
     // under its glyph.
