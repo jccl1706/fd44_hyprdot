@@ -158,7 +158,12 @@ hl.curve("bouncy", { type = "spring", mass = 1, stiffness = 350, dampening = 24 
 -- wrong-sized text and then a correction. That is the "clonky" part of an
 -- open or close, and no amount of tuning the duration fixes it - the defect
 -- is the direction reversing at all.
-hl.curve("glide",  { type = "spring", mass = 1, stiffness = 380, dampening = 39 })
+--
+-- STIFFNESS IS THE SPEED KNOB. Settling time is roughly 4 / sqrt(stiffness):
+-- 380 settles in about 205ms, 1100 in about 120ms. Dampening has to rise with
+-- it to hold zeta at 1 - it is 2 * sqrt(stiffness) for critical damping - or
+-- raising the stiffness alone just makes it bouncy instead of fast.
+hl.curve("glide",  { type = "spring", mass = 1, stiffness = 1100, dampening = 66 })
 
 
 -- -------------------------------------------------------------------------
@@ -191,22 +196,23 @@ hl.animation({ leaf = "border",        enabled = true,  speed = 2,    bezier = "
 -- clonky. They share "glide" now and land together.
 hl.animation({ leaf = "windows",       enabled = true,  speed = 2.0,  spring = "glide" })
 
--- popin 80%, not 90%. The scale has to be deep enough to be legible as
--- motion; at 90% the whole gesture is a tenth of the window's size, which
--- looks less like growing than like a hiccup on arrival.
-hl.animation({ leaf = "windowsIn",     enabled = true,  speed = 2.0,  spring = "glide",        style = "popin 80%" })
+-- popin 85%. Deeper than the original 90% so the growth is legible as
+-- motion, but not the 80% tried alongside the slower spring: the shorter the
+-- animation, the less distance it can cover before the travel itself starts
+-- to look like a flicker.
+hl.animation({ leaf = "windowsIn",     enabled = true,  speed = 2.0,  spring = "glide",        style = "popin 85%" })
 
 -- Closing keeps a fixed timeline rather than the spring: a window on its way
--- out should not decelerate into a place it is not going to be. 120ms, and
--- fadeOut below is set to the same so the window does not become invisible
--- partway through shrinking and leave the rest of the animation playing to
--- nobody - which it did at 60ms against 100ms.
-hl.animation({ leaf = "windowsOut",    enabled = true,  speed = 1.2,  bezier = "easeOutFast",  style = "popin 85%" })
+-- out should not decelerate into a place it is not going to be. 90ms on the
+-- front-loaded curve, and fadeOut below is set to the same so the window does
+-- not become invisible partway through shrinking and leave the rest of the
+-- animation playing to nobody - which it did at 60ms against 100ms.
+hl.animation({ leaf = "windowsOut",    enabled = true,  speed = 0.9,  bezier = "snappy",       style = "popin 90%" })
 
 -- Fades are the most latency-sensitive thing here: they gate how quickly a
 -- new window appears to exist. Keep these short.
-hl.animation({ leaf = "fadeIn",        enabled = true,  speed = 0.8,  bezier = "snappy" })
-hl.animation({ leaf = "fadeOut",       enabled = true,  speed = 1.2,  bezier = "easeOutFast" })
+hl.animation({ leaf = "fadeIn",        enabled = true,  speed = 0.5,  bezier = "snappy" })
+hl.animation({ leaf = "fadeOut",       enabled = true,  speed = 0.9,  bezier = "snappy" })
 hl.animation({ leaf = "fade",          enabled = true,  speed = 1.0,  bezier = "snappy" })
 
 -- Layer surfaces: bars, launchers, notification popups. Once Quickshell
