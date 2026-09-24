@@ -57,9 +57,13 @@ device_name() {
     vendor=${vendor//_/ }
 
     if [[ -z $model && -z $vendor ]]; then
-        # Nothing readable: fall back to the numeric id, which is at least
-        # enough to look up. An unnamed device is usually a hub or a bridge.
-        printf 'USB device %s:%s' "${ID_VENDOR_ID-????}" "${ID_MODEL_ID-????}"
+        # Nothing readable. The numeric id is at least enough to look up, so
+        # it is used when there is one - but only then: a REMOVE event has no
+        # ID_* properties at all, and printing the placeholders unconditionally
+        # produced "USB device ????:????", which tells nobody anything.
+        # Returning empty lets the caller say something true instead.
+        [[ -n ${ID_VENDOR_ID-} && -n ${ID_MODEL_ID-} ]] \
+            && printf 'USB device %s:%s' "$ID_VENDOR_ID" "$ID_MODEL_ID"
         return
     fi
     if [[ -z $vendor || $model == *"$vendor"* ]]; then
@@ -251,28 +255,62 @@ notify() {
     printf 'usb-notify: %s - %s\n' "$1" "$2" >&2
 }
 
+# WHAT WAS PLUGGED INTO EACH PORT, remembered from the add event and read
+# back on the remove.
+#
+# A REMOVE EVENT CARRIES ALMOST NOTHING. udev has already torn the device
+# down by the time it is announced, so the ID_VENDOR and ID_MODEL properties
+# every name here comes from are simply absent - unplugging a stick that had
+# been announced as "SanDisk Ultra" produced "USB device ????:????" on the
+# way out. The sysfs path is the one thing both events agree on, so it is the
+# key.
+#
+# The kind is remembered too, not just the name, so that a stick shows the
+# same icon and the same wording going out as coming in. It was the icon
+# that gave this away: connecting drew the drive and disconnecting drew the
+# card, because the remove branch had no way to know which it had been.
+declare -A SEEN_NAME=()
+declare -A SEEN_KIND=()
+
 announce() {
     [[ ${DEVTYPE-} == usb_device ]]  || return 0
     [[ ${ID_VENDOR_ID-} == 1d6b ]]   && return 0   # root hub, see above
 
     refresh_icons
 
-    local name; name=$(device_name)
+    local path=${DEVPATH-} name kind line
+    name=$(device_name)
 
     case "${ACTION-}" in
         add)
-            local line
-            if line=$(storage_line "${DEVPATH-}"); then
-                notify "USB storage connected" "$name"$'\n'"$line"
+            if line=$(storage_line "$path"); then
+                kind=storage
+                # A middle dot rather than a newline: the toast renders the
+                # body as one line and collapsed the break into a bare space,
+                # which ran the name into the device node - "SanDisk Ultra
+                # /dev/sda". The same separator the rest of the line uses
+                # reads as deliberate at any width.
+                notify "USB storage connected" "$name · $line" "$ICON_STORAGE"
             else
+                kind=device
                 notify "USB device connected" "$name" "$ICON_DEVICE"
             fi
+            [[ -n $path ]] && { SEEN_NAME[$path]=$name; SEEN_KIND[$path]=$kind; }
             ;;
         remove)
-            # Nothing to look up on the way out: the sysfs path is already
-            # gone by the time this runs, which is why the size is only ever
-            # reported on the way in.
-            notify "USB device removed" "$name" "$ICON_DEVICE"
+            kind=${SEEN_KIND[$path]-device}
+            [[ -z $name ]] && name=${SEEN_NAME[$path]-}
+            # Still nothing - the device was already plugged in when this
+            # service started, so there was no add event to learn from. The
+            # port it was in is at least true.
+            [[ -z $name ]] && name="on port ${path##*/}"
+
+            if [[ $kind == storage ]]; then
+                notify "USB storage removed" "$name" "$ICON_STORAGE"
+            else
+                notify "USB device removed" "$name" "$ICON_DEVICE"
+            fi
+            unset "SEEN_NAME[$path]" "SEEN_KIND[$path]"
             ;;
     esac
 }
