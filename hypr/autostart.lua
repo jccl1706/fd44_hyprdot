@@ -170,9 +170,30 @@ end)
 --     dbus-run-session Hyprland
 --
 -- which is what the systemd user bus does for us on Fedora.
+--
+-- THE pgrep GUARD ALONE WAS NOT ENOUGH, and a sweep on 2026-09-24 found out
+-- how. It asks whether pipewire is running YET, not whether something else
+-- is going to start it - and on Fedora that is a race with socket
+-- activation. Hyprland got there first, started pipewire by hand, and when
+-- the socket unit fired a moment later its service could not have the socket
+-- and died: pipewire.service and pipewire.socket sat "failed" for fifteen
+-- hours with working audio behind them, supervised by nothing.
+--
+-- So the question is now whether SYSTEMD OWNS IT, not whether it happens to
+-- be up. `systemctl --user -q is-enabled` answers that, and fails on a
+-- machine with no systemd at all - which is the case this exists for.
+--
+-- AND `pgrep -q` WAS NEVER A GUARD ON LINUX. procps-ng has no -q; it prints
+-- its usage and exits non-zero, so the `||` fell through and this started a
+-- second pipewire on every single login no matter what was already running.
+-- FreeBSD's pgrep does have -q, which is where it will have come from - this
+-- block exists for FreeBSD - and it looked right on both. `-x` with the
+-- output thrown away is the spelling that works on either.
 hl.on("hyprland.start", function()
-    hl.exec_cmd("sh -c 'pgrep -q pipewire    || pipewire &'")
-    hl.exec_cmd("sh -c 'pgrep -q wireplumber || wireplumber &'")
+    hl.exec_cmd("sh -c 'systemctl --user -q is-enabled pipewire.socket 2>/dev/null "
+             .. "|| pgrep -x pipewire >/dev/null 2>&1    || pipewire &'")
+    hl.exec_cmd("sh -c 'systemctl --user -q is-enabled wireplumber.service 2>/dev/null "
+             .. "|| pgrep -x wireplumber >/dev/null 2>&1 || wireplumber &'")
 end)
 
 -- NOTE: do not try to quit Plymouth from here.

@@ -341,6 +341,20 @@ case "${1:-watch}" in
         # the ID_* properties filled in, which is where every readable name
         # in this script comes from. The kernel's own events have none of it.
         udevadm monitor --udev --subsystem-match=usb --property | pump
+
+    # THE WATCH IS NOT SUPPOSED TO END, so ending is a failure and has to be
+    # reported as one. `udevadm monitor` exiting closes the pipeline, the loop
+    # sees EOF and the script falls off the end with status 0 - and
+    # Restart=on-failure does nothing with a clean exit, so the unit sits
+    # "inactive (dead)" and nothing reacts to anything ever again.
+    #
+    # Not hypothetical: on 2026-09-23 a stray `pkill -f 'udevadm monitor'`
+    # meant for a throwaway process took power-mode.service's with it. The
+    # unit exited 0 at 20:48 and was still dead thirteen hours later - no
+    # governor switching, no brightness changes, and nothing anywhere saying
+    # so. Found by a sweep rather than by noticing.
+        echo "usb-notify: udevadm monitor ended" >&2
+        exit 1
         ;;
     test) pump ;;
     # The storage lookup on its own, against a DEVPATH that already exists:

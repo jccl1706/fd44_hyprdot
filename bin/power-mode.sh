@@ -156,6 +156,20 @@ watch_events() {
             unplug_suspend "$now"
         fi
     done
+
+    # THE WATCH IS NOT SUPPOSED TO END, so ending is a failure and has to be
+    # reported as one. `udevadm monitor` exiting closes the pipeline, the loop
+    # sees EOF and the script falls off the end with status 0 - and
+    # Restart=on-failure does nothing with a clean exit, so the unit sits
+    # "inactive (dead)" and nothing reacts to anything ever again.
+    #
+    # Not hypothetical: on 2026-09-23 a stray `pkill -f 'udevadm monitor'`
+    # meant for a throwaway process took power-mode.service's with it. The
+    # unit exited 0 at 20:48 and was still dead thirteen hours later - no
+    # governor switching, no brightness changes, and nothing anywhere saying
+    # so. Found by a sweep rather than by noticing.
+    log "udevadm monitor ended - exiting so systemd restarts this"
+    return 1
 }
 
 case "${1:-apply}" in
