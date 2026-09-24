@@ -98,15 +98,44 @@ DropPanel {
             }
         }
 
-        Repeater {
+        // A LIST THAT SCROLLS, NOT A COLUMN THAT GROWS. This was a Repeater,
+        // so every entry in the history became another 54px of card and the
+        // card had nothing stopping it: thirty notifications is 1620px on a
+        // 960px screen, and the bottom of the panel - including the "Clear
+        // history" button that would have let you do something about it -
+        // was off the display entirely.
+        //
+        // DropPanel sizes its card to its contents by design, which is right
+        // for a panel whose contents are bounded. This one's are not: the
+        // history is however much has happened. So the cap belongs here,
+        // where the unbounded thing is, rather than as a clip in DropPanel
+        // that would silently cut off any panel that outgrew the screen.
+        //
+        // 420 to match the launcher's maxHeight, which is the other list in
+        // this shell that had to choose a number. About seven and a half
+        // rows, and the card is then roughly half the screen with the header
+        // and footer on it.
+        ListView {
+            id: historyList
+
+            width: parent.width
+            visible: root.entries.length > 0
+            height: visible ? Math.min(contentHeight, 420) : 0
+
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            // No grab handle on something that fits: a list you can drag when
+            // there is nowhere to drag it to feels broken.
+            interactive: contentHeight > height
+
             model: root.entries
 
-            Item {
+            delegate: Item {
                 id: row
                 required property var modelData
                 required property int index
 
-                width: parent.width
+                width: historyList.width
                 height: 54
 
                 Rectangle {
