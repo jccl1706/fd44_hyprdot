@@ -122,36 +122,120 @@ storage_line() {
 # not been told what that is, so every named icon comes back as the
 # missing-icon chequerboard. Confirmed it is not about the name: "firefox"
 # draws the chequerboard too, and the same icon passed as an absolute path
-# draws correctly. Setting QT_QPA_PLATFORMTHEME=gtk3 did not fix it either.
-# That is a shell-wide bug worth fixing on its own; until it is, every
-# notification anything sends with a themed name looks broken, and this
-# script sidesteps it by doing the lookup itself.
+# draws correctly. QT_QPA_PLATFORMTHEME was tried at gtk3, gnome and
+# xdgdesktopportal and changed nothing. That is a shell-wide bug worth
+# fixing on its own; until it is, every notification anything sends with a
+# themed name looks broken, and this script does the lookup itself.
 #
-# ONCE, AT STARTUP. Icon files do not move while the service runs, and this
-# would otherwise be a find(1) on every plug.
+# THROUGH THE THEME THE SYSTEM IS SET TO, not whichever copy of the file
+# turns up first. bin/theme.sh writes that name - the palette's icon_theme,
+# or Adwaita while Reversal is not installed - into gsettings and the GTK
+# settings files, so the icon in the notification changes with the rest of
+# the desktop instead of being pinned to one theme.
+#
+# CACHED, BUT RE-READ WHEN THE THEME CHANGES. Resolving once at startup was
+# the first version and it was wrong for the thing this is for: bin/theme.sh
+# switches the icon theme with the palette, and a service started hours
+# earlier would have gone on pointing at the old theme's files until the
+# session was restarted. Checking the theme NAME is one gsettings call; it
+# is only the find(1) that is worth avoiding, and that now runs when the
+# answer would actually be different.
+ICON_THEME=""
 ICON_STORAGE=""
 ICON_DEVICE=""
 
-# The first file matching the name, searched the way the icon spec says to:
-# the user's own directory first, then everything in XDG_DATA_DIRS, which is
-# what makes this work on a distro that does not keep icons in /usr/share -
-# NixOS puts them under /run/current-system/sw/share.
-# SVG FIRST, ACROSS EVERY DIRECTORY, then PNG - not the first file of either
-# kind in the first directory. Searching for both at once found
-# AdwaitaLegacy's 16x16 png before Adwaita's scalable svg, and a 16px icon
-# drawn into the toast's 28px box is a blurry postage stamp. A separate pass
-# per extension costs one extra find and always prefers the one that scales.
-icon_path() {
-    local name=$1 ext dirs d hit
+
+# What the desktop is set to. gsettings is what theme.sh writes last and what
+# GTK4 reads, the settings.ini is the GTK3 copy of the same answer, and
+# hicolor is the spec's own fallback - every theme inherits it and it is the
+# only one guaranteed to exist.
+current_icon_theme() {
+    local t
+    t=$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null | tr -d "\"'")
+    if [[ -n $t && $t != "@as"* ]]; then printf '%s' "$t"; return; fi
+    t=$(sed -n 's/^gtk-icon-theme-name=//p' \
+            "${XDG_CONFIG_HOME:-$HOME/.config}/gtk-3.0/settings.ini" 2>/dev/null | tail -1)
+    if [[ -n $t ]]; then printf '%s' "$t"; return; fi
+    printf 'hicolor'
+}
+
+# Every directory a theme could live in, in the order the icon spec searches
+# them: the user's own first, then XDG_DATA_DIRS. ~/.icons is the old
+# location and is still what bin/icon-theme.sh's upstream installer uses on
+# some systems, so it stays in the list.
+icon_bases() {
+    local dirs d
     IFS=: read -ra dirs <<< "${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
-    for ext in svg png; do
-        for d in "${XDG_DATA_HOME:-$HOME/.local/share}" "${dirs[@]}"; do
-            [[ -d $d/icons ]] || continue
-            hit=$(find -L "$d/icons" -name "$name.$ext" -print -quit 2>/dev/null)
-            [[ -n $hit ]] && { printf '%s' "$hit"; return 0; }
-        done
-    done
+    printf '%s\n' "$HOME/.icons" "${XDG_DATA_HOME:-$HOME/.local/share}/icons"
+    for d in "${dirs[@]}"; do printf '%s\n' "$d/icons"; done
+}
+
+# A theme names its fallbacks in index.theme. Reversal-grey-dark inherits
+# Reversal-grey which inherits Adwaita, and following that chain is the
+# difference between "the theme has no icon for this" and "the theme has not
+# bothered to redraw one that Adwaita already has".
+theme_parents() {
+    local theme=$1 base line
+    while read -r base; do
+        [[ -f $base/$theme/index.theme ]] || continue
+        line=$(sed -n 's/^Inherits=//p' "$base/$theme/index.theme" | head -1)
+        [[ -n $line ]] && printf '%s\n' "${line//,/ }"
+        return
+    done < <(icon_bases)
+}
+
+# SVG BEFORE PNG WITHIN A THEME, and the largest PNG when there is no SVG.
+# Asking find for both at once returned AdwaitaLegacy's 16x16 png before
+# Adwaita's scalable svg, and 16px drawn into the toast's 28px box is a
+# blurry postage stamp. The size comes out of the NNxNN directory the spec
+# requires, and anything without one sorts last rather than being dropped -
+# a scalable/ png is still better than nothing.
+icon_in_theme() {
+    local theme=$1 name=$2 base hit
+    while read -r base; do
+        [[ -d $base/$theme ]] || continue
+        hit=$(find -L "$base/$theme" -name "$name.svg" -print -quit 2>/dev/null)
+        [[ -n $hit ]] && { printf '%s' "$hit"; return 0; }
+    done < <(icon_bases)
+
+    while read -r base; do
+        [[ -d $base/$theme ]] || continue
+        hit=$(find -L "$base/$theme" -name "$name.png" 2>/dev/null |
+              sed -E 's#.*/([0-9]+)x[0-9]+/.*#\1 &#; t; s#^#0 #' |
+              sort -rn | head -1 | cut -d" " -f2-)
+        [[ -n $hit ]] && { printf '%s' "$hit"; return 0; }
+    done < <(icon_bases)
     return 1
+}
+
+# THE CHAIN ENDS AT ADWAITA, NOT AT HICOLOR, which the spec would have it do.
+# hicolor is the fallback every theme inherits and it is nearly empty - it
+# holds what applications drop into it, not a device set - so a theme without
+# a drive icon reached the end of the chain and produced nothing at all. Both
+# other themes installed here, oxygen and Bluecurve, are cursor-only
+# directories with no device icons and no index.theme, and under the strict
+# order they lost the icon entirely rather than borrowing a reasonable one.
+# Adwaita is the default theme on this platform and the one theme.sh itself
+# falls back to, so ending there matches what the rest of the desktop does.
+icon_path() {
+    local name=$1 theme t hit
+    theme=$(current_icon_theme)
+    for t in "$theme" $(theme_parents "$theme") hicolor Adwaita; do
+        [[ -z $t ]] && continue
+        hit=$(icon_in_theme "$t" "$name") && { printf '%s' "$hit"; return 0; }
+    done
+    # Outside any theme, and the last place the spec says to look.
+    [[ -f /usr/share/pixmaps/$name.svg ]] && { printf '/usr/share/pixmaps/%s.svg' "$name"; return 0; }
+    [[ -f /usr/share/pixmaps/$name.png ]] && { printf '/usr/share/pixmaps/%s.png' "$name"; return 0; }
+    return 1
+}
+
+refresh_icons() {
+    local now; now=$(current_icon_theme)
+    [[ $now == "$ICON_THEME" ]] && return
+    ICON_THEME=$now
+    ICON_STORAGE=$(icon_path drive-removable-media || true)
+    ICON_DEVICE=$(icon_path media-flash || true)
 }
 
 # Falls back to no icon at all rather than to a name, because a name is the
@@ -170,6 +254,8 @@ notify() {
 announce() {
     [[ ${DEVTYPE-} == usb_device ]]  || return 0
     [[ ${ID_VENDOR_ID-} == 1d6b ]]   && return 0   # root hub, see above
+
+    refresh_icons
 
     local name; name=$(device_name)
 
@@ -232,9 +318,6 @@ pump() {
     # service that has finished and one systemd keeps resurrecting.
     return 0
 }
-
-ICON_STORAGE=$(icon_path drive-removable-media || true)
-ICON_DEVICE=$(icon_path media-flash || true)
 
 case "${1:-watch}" in
     watch)
