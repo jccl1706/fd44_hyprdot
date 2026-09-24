@@ -7,10 +7,15 @@
 #         bin/browser.sh --which          print the binary it would use
 #
 # THE BINARY HAS A DIFFERENT NAME ON EVERY DISTRIBUTION. Fedora's chromium
-# package installs "chromium-browser" and ships no "chromium" symlink; NixOS
-# and Debian install it as "chromium". hypr/hyprland.lua had Fedora's spelling
-# written into Apps.browser, which meant Super+B - and the YouTube web app
-# that reuses it - did nothing at all on the desktop.
+# package installs "chromium-browser" and ships no "chromium" symlink; Debian
+# installs "chromium" and nothing else. hypr/hyprland.lua had Fedora's
+# spelling written into Apps.browser, which every machine in the repository
+# reads.
+#
+# The NixOS desktop turned out to have BOTH names, so nothing was actually
+# broken there - that was a guess, and checking it afterwards is what turned
+# it into a fact. The shim stays anyway: one machine carrying both spellings
+# is not a reason to depend on it.
 #
 # The order is the same one bin/chrome-theme.sh already searches, and for the
 # same reason: whichever of these is installed is the one the theme script

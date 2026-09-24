@@ -41,9 +41,15 @@ Apps = {
 
     -- NOT A BINARY NAME, because there isn't one that works everywhere:
     -- Fedora's chromium package installs "chromium-browser" and ships no
-    -- "chromium" symlink, while NixOS and Debian install "chromium". This
-    -- was "chromium-browser", which meant Super+B did nothing at all on the
-    -- NixOS desktop. bin/browser.sh picks whichever is present and execs it.
+    -- "chromium" symlink, while Debian installs "chromium" and nothing else.
+    -- bin/browser.sh picks whichever is present and execs it.
+    --
+    -- THE NIXOS DESKTOP WAS FINE, checked rather than assumed - after this
+    -- was written on the guess that it would not be. It has both names. The
+    -- shim is still worth having: one machine happening to carry both is not
+    -- a reason to write one distribution's spelling into a file every
+    -- machine reads, and bin/chrome-theme.sh already searched a list for
+    -- exactly this reason.
     --
     -- Reached through ~/.config/hypr, which is a symlink into the checkout,
     -- so the path resolves wherever the repository lives - the same trick the
