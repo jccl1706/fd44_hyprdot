@@ -35,7 +35,26 @@ DropPanel {
     property int viewYear: 0
     property int viewMonth: 0
 
-    readonly property date today: new Date()
+    // TODAY HAS TO KEEP UP WITH THE CLOCK. This was `new Date()`, which a QML
+    // property binding evaluates ONCE - when the shell starts - so after
+    // midnight the panel still circled yesterday and the line at the bottom
+    // still read yesterday's date. A shell that is restarted every day hides
+    // it; this one runs for weeks.
+    //
+    // onOpening already took a fresh date for the MONTH, which is why the
+    // grid was right and only the highlight and the date line were wrong -
+    // the two things that come from `today`.
+    //
+    // HOURS, NOT MINUTES. SystemClock ticks on the boundary, and the only
+    // thing read from it here is which day it is, which changes on an hour
+    // boundary and no other: 24 wakes a day instead of 1440 for the same
+    // answer. Clock.qml asks for Minutes because it shows minutes.
+    SystemClock {
+        id: dayClock
+        precision: SystemClock.Hours
+    }
+
+    readonly property date today: dayClock.date
 
     // Opened without a position - from IPC or a keybind rather than from a
     // click - it centres on the screen, which is where the clock is. The
