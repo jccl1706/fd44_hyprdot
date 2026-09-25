@@ -14,7 +14,6 @@
 
 import Quickshell
 import QtQuick
-import QtQuick.Shapes
 
 PanelWindow {
     id: root
@@ -312,132 +311,6 @@ PanelWindow {
         // every other control the bar has; leaving the way out to something
         // you have to already know would make the mode a trap on a machine
         // you had not configured the keys of.
-        // DRAWN AS A PATH, NOT A ROUNDED RECTANGLE. The bottom fillets alone
-        // would give a tab stuck onto the screen; what makes the eye read
-        // "the screen is cut away here" is the pair of CONCAVE corners where
-        // the shape meets the top edge, curving outwards into the bar. A
-        // Rectangle cannot do concave, so this is a Shape - Qt 6.11 here, and
-        // QtQuick.Shapes has been present since 5.10.
-        //
-        // The path, clockwise from the top left of the flare:
-        //   out along the edge, curving down into the notch    (concave)
-        //   down the left side
-        //   round the bottom left                              (convex)
-        //   across the bottom
-        //   round the bottom right                             (convex)
-        //   up the right side, curving back out to the edge    (concave)
-        Item {
-            id: focusExit
-            visible: BarStyle.focus
-
-            anchors.top: parent.top
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: BarStyle.notchWidth + BarStyle.notchFlare * 2
-            height: BarStyle.notchHeight
-
-            readonly property int flare: BarStyle.notchFlare
-            readonly property int fillet: BarStyle.notchRadius
-            readonly property bool lit: exitHover.hovered
-
-            Shape {
-                anchors.fill: parent
-                preferredRendererType: Shape.CurveRenderer   // antialiases without multisampling
-
-                ShapePath {
-                    fillColor: focusExit.lit ? Theme.surfaceHigh : Theme.bg
-                    strokeColor: focusExit.lit ? Theme.accent : Theme.outline
-                    strokeWidth: 1
-                    capStyle: ShapePath.RoundCap
-                    joinStyle: ShapePath.RoundJoin
-
-                    Behavior on fillColor { ColorAnimation { duration: Theme.animFast } }
-                    Behavior on strokeColor { ColorAnimation { duration: Theme.animFast } }
-
-                    startX: 0
-                    startY: 0
-
-                    // The left flare: outward-curving, so the notch appears to
-                    // grow out of the edge rather than hang from it.
-                    PathArc {
-                        x: focusExit.flare; y: focusExit.flare
-                        radiusX: focusExit.flare; radiusY: focusExit.flare
-                        direction: PathArc.Clockwise
-                    }
-                    PathLine { x: focusExit.flare; y: focusExit.height - focusExit.fillet }
-                    PathArc {
-                        x: focusExit.flare + focusExit.fillet; y: focusExit.height
-                        radiusX: focusExit.fillet; radiusY: focusExit.fillet
-                        direction: PathArc.Counterclockwise
-                    }
-                    PathLine { x: focusExit.width - focusExit.flare - focusExit.fillet
-                               y: focusExit.height }
-                    PathArc {
-                        x: focusExit.width - focusExit.flare; y: focusExit.height - focusExit.fillet
-                        radiusX: focusExit.fillet; radiusY: focusExit.fillet
-                        direction: PathArc.Counterclockwise
-                    }
-                    PathLine { x: focusExit.width - focusExit.flare; y: focusExit.flare }
-                    PathArc {
-                        x: focusExit.width; y: 0
-                        radiusX: focusExit.flare; radiusY: focusExit.flare
-                        direction: PathArc.Clockwise
-                    }
-                    PathLine { x: 0; y: 0 }        // back along the screen edge
-                }
-            }
-
-            // THE CLOCK LIVES IN THE NOTCH, and the cross only appears under
-            // the pointer. Focus mode hides the bar's own clock along with
-            // everything else, and the one thing worth keeping on a screen
-            // you are concentrating on is the time - a cut-out that just
-            // holds a close button is a button, while one that tells the time
-            // is part of the machine.
-            //
-            // THE WAY OUT IS STILL DISCOVERABLE, which is the thing this must
-            // not lose: the pointer entering the notch swaps the time for the
-            // cross, so anyone who wonders what the shape is finds out by
-            // moving the mouse at it. Both are always present and cross-fade,
-            // rather than one being created on hover, so neither can arrive a
-            // frame late or change the notch's width as it appears.
-            SystemClock {
-                id: notchClock
-                precision: SystemClock.Minutes
-            }
-
-            Item {
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: (BarStyle.notchHeight - height) / 2
-                width: Math.max(notchTime.implicitWidth, notchClose.implicitWidth)
-                height: Math.max(notchTime.implicitHeight, notchClose.implicitHeight)
-
-                Text {
-                    id: notchTime
-                    anchors.centerIn: parent
-                    text: Qt.formatDateTime(notchClock.date, "HH:mm")
-                    font.family: Theme.font
-                    font.pixelSize: 13
-                    font.weight: Font.Medium
-                    color: Theme.fg
-                    opacity: focusExit.lit ? 0 : 1
-                    Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
-                }
-
-                Text {
-                    id: notchClose
-                    anchors.centerIn: parent
-                    text: "\u{F0156}"                    // a close cross
-                    font.family: Theme.glyphFont
-                    font.pixelSize: 14
-                    color: Theme.fg
-                    opacity: focusExit.lit ? 1 : 0
-                    Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
-                }
-            }
-
-            HoverHandler { id: exitHover; cursorShape: Qt.PointingHandCursor }
-            TapHandler { onTapped: Settings.leaveFocus() }
-        }
-
         Item {
             id: leftRegion
             visible: !BarStyle.focus
@@ -523,7 +396,10 @@ PanelWindow {
 
         Item {
             id: centerRegion
-            visible: !BarStyle.focus
+            // STAYS IN FOCUS MODE, and is the only thing that does. The pill
+            // is unchanged - the same theme toggle, clock and caffeine button
+            // as every other style - so focus looks like the desktop with its
+            // sides cleared rather than like a different program.
             anchors.centerIn: parent
             width: centerPill.width
             height: parent.height
@@ -563,8 +439,16 @@ PanelWindow {
                     Clock {
                         id: clockItem
                         anchors.verticalCenter: parent.verticalCenter
-                        onActivated: root.clockRequested(
-                            clockItem.mapToItem(null, clockItem.width / 2, 0).x)
+
+                        // In focus mode the clock is the way out; everywhere
+                        // else it opens the calendar. The pill's other two
+                        // controls keep their own jobs either way.
+                        exits: BarStyle.focus
+                        onActivated: {
+                            if (BarStyle.focus) Settings.leaveFocus()
+                            else root.clockRequested(
+                                clockItem.mapToItem(null, clockItem.width / 2, 0).x)
+                        }
                     }
 
                     BarZone {

@@ -64,33 +64,12 @@ Singleton {
     // it carries above and below the pill is part of that strip's look; with
     // no strip drawn that slack is just wallpaper nothing may tile into, and
     // the gap above the pill would come out larger than the gap beside it.
-    // The exit button in focus mode. Smaller than a pill because it holds one
-    // glyph and its whole job is to take up less room than what it replaced.
-    readonly property int focusHeight: 22
-
-    // --- the notch ---------------------------------------------------------
-    //
-    // In focus mode the way out is drawn as a notch hanging from the top edge
-    // of the screen, the shape a MacBook's camera housing makes: square where
-    // it meets the edge, round along the bottom, and flared outwards at the
-    // two top corners so it reads as part of the screen rather than a tab
-    // sitting on it.
-    //
-    // FLUSH, WITH NO MARGIN ABOVE IT. Every other floating thing here is
-    // inset from the edge by `margin`; this one is the exception, and has to
-    // be - a notch with a gap above it is a lozenge, and the whole illusion
-    // is that the screen itself is cut away.
-    readonly property int notchHeight: 26
-    readonly property int notchWidth:  120
-
-    //: The bottom corners' radius, and the radius of the concave flare at the
-    //: top. The flare is smaller than the fillet: at equal sizes the shape
-    //: reads as an hourglass rather than as a notch.
-    readonly property int notchRadius: 13
-    readonly property int notchFlare:  9
-
-    readonly property int barBottom: focus    ? notchHeight
-                                  : floating  ? pillHeight  + margin * 2
+    // FOCUS NEEDS NO CASE OF ITS OWN any more. It keeps the centre pill, so
+    // it reserves exactly what the floating styles reserve - and since focus
+    // is itself floating, the floating branch already answers it. It briefly
+    // had a third case, for a notch drawn flush to the screen edge; the pill
+    // is what was asked for and it is also less to keep in step.
+    readonly property int barBottom: floating ? pillHeight + margin * 2
                                               : Theme.barHeight
 
     // How far a card is held off the left, right and bottom edges of the

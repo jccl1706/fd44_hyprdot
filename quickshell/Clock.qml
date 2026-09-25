@@ -28,6 +28,21 @@ Item {
     // rather than going through componentFor and activate().
     signal activated()
 
+    // IN FOCUS MODE THIS IS THE WAY OUT, and says so under the pointer: the
+    // time fades to a close cross while the pointer is on it, and Bar.qml
+    // sends `activated` to Settings.leaveFocus() instead of to the calendar.
+    //
+    // The clock is the right place for it. Focus hides every pill but the
+    // middle one, so the middle one is where the eye already is - which is
+    // where the first version of this feature put a button, before the button
+    // grew into a notch and the notch turned out to be a worse pill.
+    //
+    // THE CROSS TAKES THE TIME'S WIDTH, not its own. Swapping a five-glyph
+    // label for a one-glyph icon would shrink the pill around it and shift
+    // the two zones either side, so the cross is centred inside the label's
+    // footprint and nothing moves.
+    property bool exits: false
+
     implicitWidth: label.implicitWidth
     implicitHeight: label.implicitHeight
 
@@ -63,7 +78,20 @@ Item {
         // Brightens under the pointer, the same acknowledgement the bar's
         // glyphs give. No backdrop: the clock is wider than a glyph and a
         // pill behind it would read as a button, which it is not really.
-        opacity: hover.hovered ? 1 : 0.92
+        opacity: (root.exits && hover.hovered) ? 0
+                                               : (hover.hovered ? 1 : 0.92)
+        Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+    }
+
+    Text {
+        id: exitCross
+        anchors.centerIn: label
+        text: "\u{F0156}"
+        font.family: Theme.glyphFont
+        font.pixelSize: Theme.fontSizeClock
+        color: Theme.fg
+        opacity: (root.exits && hover.hovered) ? 1 : 0
+        visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
     }
 
