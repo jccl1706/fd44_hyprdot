@@ -324,21 +324,34 @@ PanelWindow {
             Rectangle {
                 id: leftPill
 
-                // The pill follows its contents, and the workspace row's
-                // contents change as workspaces come and go. Animated with the
-                // same curve the dots inside use, so the pill closing up reads
-                // as one movement with them rather than as the frame snapping
-                // around a row that glided.
-                Behavior on width {
-                    NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
-                }
                 anchors.verticalCenter: parent.verticalCenter
                 height: BarStyle.pillHeight
-                // Tracks its contents, so the OSD sliding out and a plugin
-                // dropped in both widen the pill with them. Each of the three
-                // parts animates its own width, and the pill adds them up.
-                width: leftRow.implicitWidth + leftZone.width + osd.implicitWidth
-                       + BarStyle.pillPadding * 2
+
+                // ONLY THE WORKSPACE HALF IS ANIMATED HERE, and the difference
+                // matters. The row of dots changes width on its own - a
+                // workspace appears or goes - and wants the pill's edge to
+                // travel with it, on the same curve its dots glide on.
+                //
+                // THE OSD ALREADY ANIMATES ITSELF. Putting a Behavior across
+                // the whole width animated the pill a SECOND time, behind the
+                // OSD's own expansion: the pill lagged its own contents, so
+                // the level bar and its percentage spilled out past the pill's
+                // edge, and the focused-window circle - anchored after the
+                // pill - sat in the middle of them until the pill caught up.
+                //
+                // So the parts that need easing are eased and the part that
+                // brings its own is passed straight through.
+                // NOT `readonly`: a Behavior animates a property by WRITING to
+                // it, so a readonly one refuses the assignment and the whole
+                // config fails to load - "Invalid property assignment:
+                // fixedWidth is a read-only property", and a desktop with no
+                // bar until it is fixed.
+                property real fixedWidth:
+                    leftRow.implicitWidth + leftZone.width + BarStyle.pillPadding * 2
+                Behavior on fixedWidth {
+                    NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+                }
+                width: fixedWidth + osd.implicitWidth
                 radius: height / 2
 
                 // Lit from above - see the depth note in Theme.qml.
