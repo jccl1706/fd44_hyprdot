@@ -386,18 +386,52 @@ PanelWindow {
                 }
             }
 
-            Text {
-                // Centred in the notch itself, not in the item: the flares are
-                // part of the item's width and would pull the glyph off centre
-                // by nothing, but the intent is worth stating - the glyph
-                // belongs to the notch.
+            // THE CLOCK LIVES IN THE NOTCH, and the cross only appears under
+            // the pointer. Focus mode hides the bar's own clock along with
+            // everything else, and the one thing worth keeping on a screen
+            // you are concentrating on is the time - a cut-out that just
+            // holds a close button is a button, while one that tells the time
+            // is part of the machine.
+            //
+            // THE WAY OUT IS STILL DISCOVERABLE, which is the thing this must
+            // not lose: the pointer entering the notch swaps the time for the
+            // cross, so anyone who wonders what the shape is finds out by
+            // moving the mouse at it. Both are always present and cross-fade,
+            // rather than one being created on hover, so neither can arrive a
+            // frame late or change the notch's width as it appears.
+            SystemClock {
+                id: notchClock
+                precision: SystemClock.Minutes
+            }
+
+            Item {
                 anchors.horizontalCenter: parent.horizontalCenter
-                y: (BarStyle.notchHeight - height) / 2 + 1
-                text: "\u{F0156}"                    // a close cross
-                font.family: Theme.glyphFont
-                font.pixelSize: 14
-                color: focusExit.lit ? Theme.fg : Theme.pluginIcon
-                Behavior on color { ColorAnimation { duration: Theme.animFast } }
+                y: (BarStyle.notchHeight - height) / 2
+                width: Math.max(notchTime.implicitWidth, notchClose.implicitWidth)
+                height: Math.max(notchTime.implicitHeight, notchClose.implicitHeight)
+
+                Text {
+                    id: notchTime
+                    anchors.centerIn: parent
+                    text: Qt.formatDateTime(notchClock.date, "HH:mm")
+                    font.family: Theme.font
+                    font.pixelSize: 13
+                    font.weight: Font.Medium
+                    color: Theme.fg
+                    opacity: focusExit.lit ? 0 : 1
+                    Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+                }
+
+                Text {
+                    id: notchClose
+                    anchors.centerIn: parent
+                    text: "\u{F0156}"                    // a close cross
+                    font.family: Theme.glyphFont
+                    font.pixelSize: 14
+                    color: Theme.fg
+                    opacity: focusExit.lit ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+                }
             }
 
             HoverHandler { id: exitHover; cursorShape: Qt.PointingHandCursor }
