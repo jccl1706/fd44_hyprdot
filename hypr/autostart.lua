@@ -210,6 +210,18 @@ hl.on("hyprland.start", function()
     -- Hyprland and quickshell - so one spelling is enough here.
     hl.exec_cmd("sh -c 'systemctl --user -q is-enabled hypridle.service 2>/dev/null "
              .. "|| pgrep -x hypridle >/dev/null 2>&1   || hypridle &'")
+
+    -- The EVO4's own output, which the card brings up at 0 - see
+    -- bin/evo4-gain.sh. Nothing else sets it: WirePlumber is told to leave
+    -- that control alone (wireplumber.conf.d/51-evo4-soft-mixer.conf) and
+    -- this machine has no alsa-restore to carry it across a reboot, so the
+    -- gaming desktop booted silent every time while every software indicator
+    -- said 95%.
+    --
+    -- Here rather than in a unit of its own because it has to happen after
+    -- the card exists and after PipeWire has claimed it, and it costs one
+    -- `[[ -d /proc/asound/EVO4 ]]` on a machine that has no such card.
+    hl.exec_cmd("$HOME/.config/hypr/../bin/evo4-gain.sh")
 end)
 
 -- NOTE: do not try to quit Plymouth from here.
