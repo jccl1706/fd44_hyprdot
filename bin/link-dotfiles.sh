@@ -244,6 +244,11 @@ link systemd/display-notify.service "$CONFIG/systemd/user/display-notify.service
 link systemd/backup.service "$CONFIG/systemd/user/backup.service"
 link systemd/backup.timer   "$CONFIG/systemd/user/backup.timer"
 
+# The wallpaper that follows the sun. Linked but not enabled: it changes the
+# desktop under you, which is a thing to ask for rather than to inherit.
+link systemd/daylight.service "$CONFIG/systemd/user/daylight.service"
+link systemd/daylight.timer   "$CONFIG/systemd/user/daylight.timer"
+
 printf '\n  %d linked, %d already right, %d repointed, %d skipped, %d in the way\n' \
     "$made" "$already" "$fixed" "$skipped" "$blocked"
 
@@ -262,6 +267,7 @@ if [ "$made" -gt 0 ] || [ "$fixed" -gt 0 ]; then
 
   And the rest of a fresh machine, each opt-in and each explaining itself:
     bin/backup.sh setup      the copy that is not on this disk
+    systemctl --user enable --now daylight.timer   wallpaper that follows the sun
     bin/icon-bridge.sh       so quickshell can see the icon theme at all
     bin/starship-setup.sh    the two-line prompt
     bin/icon-theme.sh        the Reversal icons the palettes ask for

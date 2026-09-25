@@ -267,6 +267,62 @@ working on the lock screen.
 > is the point — so a stuck passthrough looks exactly like a broken keyboard.
 > `hyprctl submap` says which is active; the same key gets you out.
 
+## The wallpaper follows the sun
+
+Four wallpapers and two palettes, anchored to sunrise and sunset rather than to
+the clock:
+
+| slot | from | to |
+|---|---|---|
+| morning | sunrise − 30m | sunrise + 2h |
+| day | sunrise + 2h | sunset − 90m |
+| evening | sunset − 90m | sunset + 30m |
+| night | — | everything else |
+
+```sh
+bin/daylight.py --status                      # where the sun is, and what is due
+bin/daylight.py --dry-run                     # what it would change
+systemctl --user enable --now daylight.timer  # let it
+```
+
+Opt-in, and linked but not enabled by `link-dotfiles.sh`: it changes the
+desktop under you, which is a thing to ask for rather than to inherit.
+
+**No network, no API key, no geoclue.** Sunrise and sunset are arithmetic given
+a date and a place, and the place comes from the timezone database —
+`zone1970.tab` carries a latitude and longitude for every zone, so
+`America/New_York` answers 40.71, −74.01 without asking anyone. Set `latitude`
+and `longitude` in `daylight/slots.conf` if you are far from the zone's city: a
+degree of longitude is four minutes of sunrise.
+
+Checked against the almanac at three points in the year, which is the whole
+reason for not using fixed hours:
+
+| | sunrise | sunset |
+|---|---|---|
+| midsummer | 05:24 | 20:30 |
+| equinox | 06:46 | 18:49 |
+| midwinter | 07:16 | 16:31 |
+
+Above the Arctic circle in December it returns "the sun does not rise or set
+today" and changes nothing, rather than dividing by a cosine it has no right to.
+
+**A manual choice wins until tomorrow**, per thing: pick a wallpaper and the
+wallpaper stops following the sun until the next day, while the palette carries
+on; switch the theme with `SUPER+T` and the reverse. That is the rule
+`bin/theme.sh` already uses, and the reason a feature that moves your desktop
+about is bearable at all.
+
+It writes the same two things anything else would — `bin/wallpaper.sh set` and
+`bin/theme.sh set` — so the picker, `SUPER+T` and this cannot disagree about
+what "the wallpaper" is.
+
+> **Every five minutes**, which sounds like a lot for four changes a day and is
+> not: the run is a few milliseconds of arithmetic and exits having touched
+> nothing when the slot has not moved. Computing the next boundary and sleeping
+> until it is the obvious alternative and is wrong on a laptop, which suspends
+> daily and would wake up with a timer pointing at a moment that has passed.
+
 ## Layout
 
 ```

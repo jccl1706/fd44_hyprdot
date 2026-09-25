@@ -1,0 +1,23 @@
+[Unit]
+Description=Follow the sun, every five minutes
+ConditionPathExists=%h/.config/hypr
+
+[Timer]
+# EVERY FIVE MINUTES, which sounds like a lot for something that changes four
+# times a day and is not: the run costs a few milliseconds of arithmetic and
+# exits without touching anything when the slot has not changed. The
+# alternative - computing the next boundary and sleeping until it - is a timer
+# that drifts wrong the moment the machine suspends, which a laptop does daily.
+OnCalendar=*:0/5
+
+# And shortly after login, so a machine that was off all night does not wait
+# up to five minutes to stop showing yesterday's evening.
+OnStartupSec=45s
+
+# A laptop shut at dusk and opened at night should land on night, not run
+# the dusk change it missed.
+Persistent=false
+AccuracySec=30s
+
+[Install]
+WantedBy=default.target

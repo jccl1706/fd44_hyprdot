@@ -1,0 +1,17 @@
+[Unit]
+# Sets the wallpaper, and the palette with it, for the time of day - see
+# bin/daylight.py for where the slots are and daylight/slots.conf for what
+# goes in them.
+#
+# A USER UNIT: it writes ~/.local/state/wallpaper, which is this user's
+# desktop, and runs bin/theme.sh, which writes this user's configuration.
+Description=Follow the sun: wallpaper and palette
+ConditionPathExists=%h/.config/hypr
+
+[Service]
+Type=oneshot
+ExecStart=%h/.config/hypr/../bin/daylight.py
+
+# Not Restart=on-failure: the timer comes round again in five minutes, which
+# is sooner than any retry would be worth, and a failure that persists should
+# be visible in `systemctl --user --failed` rather than hidden by retries.
