@@ -601,6 +601,40 @@ with the disk. It carries no password, by design.
 > noise; there is no recovery, by design. `bin/backup.sh escrow` prints what
 > has to be kept somewhere that is not this laptop.
 
+### Sorting a Google Photos Takeout
+
+`bin/photo-sort.py` turns a Takeout's year folders — "Photos from 2015" and
+friends, one folder per year — into `YEAR/MONTH`:
+
+```sh
+bin/photo-sort.py "/path/to/Takeout/Google Photos"            # what it would do
+bin/photo-sort.py "/path/to/Takeout/Google Photos" --apply    # do it
+bin/photo-sort.py --undo /path/to/photo-sort-<date>.csv       # put it all back
+```
+
+**The date comes from Takeout's own sidecar**, `<name>.<ext>.supplemental-metadata.json`,
+which carries `photoTakenTime` as a UTC epoch. That is the date Google itself
+holds, and it is right even for the files that carry no date of their own —
+here that is every `.mov`, `.mp` and `.png`. A filename like
+`IMG_20150830_130750.jpg` is the fallback. **The modification time is never
+used**: the export rewrote every one of them to the day it was downloaded, so
+mtime claims 2025 for a photo from 2015.
+
+Measured on a real Takeout, one year of 992 files: **957 dated by sidecar**, 3
+from an original's sidecar, 30 from the filename, and 2 with no date anywhere —
+those two were left exactly where they were rather than guessed at.
+
+Nothing is deleted and nothing is overwritten: a destination that already
+exists is compared by size and then by SHA-256, identical files are left alone,
+different ones get a `-1` suffix. Every move is written to a CSV manifest and
+`--undo` replays it backwards, removing the folders it created if they are
+empty. Checked by round-tripping a sample: 47 files out and back, with the same
+checksum-of-checksums at both ends.
+
+Within one filesystem a move is a rename — instant, atomic, needing no free
+space, which matters on a disk with 49 GB left. Across filesystems it refuses
+unless you pass `--copy`.
+
 **Still missing: anything off-site.** A disk in the same room as the laptop
 answers a dead disk, not a fire.
 
