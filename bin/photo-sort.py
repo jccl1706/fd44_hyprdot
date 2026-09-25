@@ -57,10 +57,18 @@ from pathlib import Path
 MEDIA = {".jpg", ".jpeg", ".png", ".heic", ".gif", ".webp", ".tif", ".tiff",
          ".mov", ".mp4", ".m4v", ".3gp", ".avi", ".mkv", ".mp", ".dng", ".raw"}
 
-#: Google truncates the whole sidecar name to a fixed length, so the suffix
-#: appears as .supplemental-metadata.json, .supplemental-met.json,
-#: .supplemental-m.json and so on. Older exports use a bare .json.
-SIDECAR_HINTS = ("supplemental", "metadata")
+#: Google truncates the WHOLE sidecar name to 51 characters, and the suffix is
+#: what gets cut: .supplemental-metadata.json becomes .supplement.json,
+#: .supplem.json, .suppleme.json, even .s.json, and a long enough media name
+#: leaves no suffix at all. A first version tested for the word "supplemental"
+#: and so matched none of those - 34 sidecars in one year of a real Takeout
+#: were left behind while their photos moved.
+#:
+#: So sidecars are resolved from the JSON side instead: strip .json, strip any
+#: "(N)", then cut trailing dot-separated pieces until what is left ends in a
+#: media extension. That reaches every spelling above, because it never has to
+#: guess how much of the suffix survived.
+NUMBERED = re.compile(r"^(?P<base>.*?)\((?P<n>\d+)\)$")
 
 #: IMG_20150830_130750 / PXL_20211203_174512345 / VID_20190101_ / 20230115_
 FILENAME_DATE = re.compile(r"(?<!\d)(20\d{2}|19\d{2})[-_]?(\d{2})[-_]?(\d{2})(?!\d)")
@@ -78,28 +86,74 @@ def sha256(path: Path, chunk: int = 1 << 20) -> str:
     return h.hexdigest()
 
 
-def find_sidecar(media: Path) -> Path | None:
-    """The JSON Takeout wrote for this file, under any of its spellings."""
-    candidates = []
-    # The common shapes, cheapest first.
-    candidates.append(media.with_name(media.name + ".supplemental-metadata.json"))
-    candidates.append(media.with_name(media.name + ".json"))
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    # Truncated spellings: anything starting with the media name and ending
-    # .json, which is how Google's length limit leaves them.
-    prefix = media.name
-    for sibling in media.parent.glob(glob_escape(prefix) + "*.json"):
-        if any(hint in sibling.name for hint in SIDECAR_HINTS):
-            return sibling
-    # "IMG_1234(1).jpg" -> "IMG_1234.jpg(1).json"
-    match = re.match(r"^(?P<base>.+?)\((?P<n>\d+)\)(?P<ext>\.[^.]+)$", media.name)
+def media_for_sidecar(sidecar: Path) -> str | None:
+    """The media filename a sidecar belongs to, or None if it cannot be told.
+
+    "IMG_1234.jpg.supplemental-metadata.json" -> "IMG_1234.jpg"
+    "IMG_1234.jpg.supplement.json"            -> "IMG_1234.jpg"   (truncated)
+    "IMG_1234.jpg.supplemental-metadata(1).json" -> "IMG_1234(1).jpg"
+    """
+    name = sidecar.name[:-len(".json")] if sidecar.name.lower().endswith(".json") else sidecar.name
+    number = None
+    match = NUMBERED.match(name)
     if match:
-        alt = media.with_name(f"{match['base']}{match['ext']}({match['n']}).json")
-        if alt.exists():
-            return alt
+        name, number = match["base"], match["n"]
+    while True:
+        stem, dot, ext = name.rpartition(".")
+        if not dot:
+            return None
+        if ("." + ext).lower() in MEDIA:
+            if number is not None:
+                return f"{stem}({number}).{ext}"
+            return name
+        name = stem
+
+
+def media_from_title(sidecar: Path) -> str | None:
+    """The filename the sidecar itself claims, for names truncated past repair.
+
+    Three sidecars in a real Takeout had been cut so hard that the media
+    extension was gone - "PXL_..._exported_0_171855652714.json" - so nothing
+    could be read out of the name. The JSON says so itself, in "title".
+    """
+    try:
+        data = json.loads(sidecar.read_text(encoding="utf-8", errors="replace"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    title = data.get("title")
+    if isinstance(title, str) and os.path.splitext(title)[1].lower() in MEDIA:
+        return title
     return None
+
+
+#: How much of a name has to agree before two truncations are called the same
+#: file. Google cuts BOTH the media name and the sidecar name, at different
+#: points, so the title from the JSON is often longer than what is on disk:
+#: "..._1718556495768.jpg" in the metadata against "..._17185564957.jpg" on
+#: the filesystem. Forty characters is past the timestamp in every Pixel and
+#: Samsung name, and a match is only accepted when exactly one file agrees.
+PREFIX_MATCH = 40
+
+
+def locate(owner: str, filed: dict[str, Path]) -> Path | None:
+    exact = filed.get(owner)
+    if exact:
+        return exact
+    key = owner[:PREFIX_MATCH]
+    if len(key) < PREFIX_MATCH:
+        return None
+    hits = [path for name, path in filed.items() if name.startswith(key)]
+    return hits[0] if len(hits) == 1 else None
+
+
+def sidecars_in(directory: Path) -> dict[str, list[Path]]:
+    """Every sidecar in a directory, grouped by the media file it belongs to."""
+    out: dict[str, list[Path]] = {}
+    for candidate in directory.glob("*.json"):
+        owner = media_for_sidecar(candidate) or media_from_title(candidate)
+        if owner:
+            out.setdefault(owner, []).append(candidate)
+    return out
 
 
 def glob_escape(text: str) -> str:
@@ -142,17 +196,15 @@ def date_from_name(media: Path) -> datetime | None:
         return None
 
 
-def taken(media: Path) -> tuple[datetime | None, str]:
-    sidecar = find_sidecar(media)
-    if sidecar:
+def taken(media: Path, index: dict[str, list[Path]]) -> tuple[datetime | None, str]:
+    for sidecar in index.get(media.name, []):
         when = date_from_sidecar(sidecar)
         if when:
             return when, "sidecar"
     origin = original_of(media)
     if origin:
-        origin_sidecar = find_sidecar(origin)
-        if origin_sidecar:
-            when = date_from_sidecar(origin_sidecar)
+        for sidecar in index.get(origin.name, []):
+            when = date_from_sidecar(sidecar)
             if when:
                 return when, "original's sidecar"
     when = date_from_name(media)
@@ -222,8 +274,10 @@ def main() -> int:
     undated: list[Path] = []
     identical = 0
 
+    indexes: dict[Path, dict[str, list[Path]]] = {}
     for media in media_files:
-        when, how = taken(media)
+        index = indexes.setdefault(media.parent, sidecars_in(media.parent))
+        when, how = taken(media, index)
         sources[how] += 1
         if when is None:
             undated.append(media)
@@ -235,9 +289,32 @@ def main() -> int:
         if final is None:
             identical += 1
             continue
-        sidecar = find_sidecar(media)
-        sidecar_target = final.with_name(sidecar.name) if sidecar else None
-        moves.append((media, final, sidecar, sidecar_target))
+        # ALL of them: a file can have both .supplemental-metadata.json and a
+        # truncated twin, and leaving either behind is what this rewrite is for.
+        companions = [(sc, final.parent / sc.name) for sc in index.get(media.name, [])]
+        moves.append((media, final, companions))
+
+    # --- strays --------------------------------------------------------
+    #
+    # A sidecar whose media is NOT beside it any more: either an earlier run
+    # moved the media and left this behind, or the two were separated some
+    # other way. Reuniting them is the repair for exactly that, and on a fresh
+    # archive it finds nothing.
+    filed: dict[str, Path] = {}
+    for path in dest_root.rglob("*"):
+        if path.is_file() and path.suffix.lower() in MEDIA:
+            filed.setdefault(path.name, path)
+
+    strays: list[tuple[Path, Path]] = []
+    for sidecar in source.rglob("*.json"):
+        owner = media_for_sidecar(sidecar) or media_from_title(sidecar)
+        if not owner or (sidecar.parent / owner).exists():
+            continue
+        home = locate(owner, filed)
+        if home and home.parent != sidecar.parent:
+            target = home.parent / sidecar.name
+            if not target.exists():
+                strays.append((sidecar, target))
 
     print(f"  {len(media_files):>6} media files under {source}")
     for how, count in sources.items():
@@ -253,11 +330,13 @@ def main() -> int:
         if len(undated) > 5:
             print(f"         ... and {len(undated) - 5} more")
 
-    if not moves:
+    if strays:
+        print(f"  {len(strays):>6} stranded sidecars would rejoin their media")
+    if not moves and not strays:
         return 0
     if not args.apply:
         print("\n  Examples:")
-        for src, dst, _, _ in moves[:5]:
+        for src, dst, _ in moves[:5]:
             print(f"    {src.relative_to(source)}\n      -> {dst.relative_to(dest_root)}")
         print("\n  dry run: nothing moved. Add --apply to do it.")
         return 0
@@ -265,21 +344,36 @@ def main() -> int:
     manifest_path = args.manifest or (dest_root / f"photo-sort-{datetime.now():%Y%m%d-%H%M%S}.csv")
     moved = failed = 0
     with manifest_path.open("w", newline="", encoding="utf-8") as fh:
-        writer = csv.writer(fh)
+        # LF, not the csv module's default CRLF: the manifest is read by shell
+        # one-liners as often as by this script, and a trailing \r turns every
+        # path into one that does not exist - which had me reporting 1840
+        # missing files that were all present.
+        writer = csv.writer(fh, lineterminator="\n")
         writer.writerow(["source", "destination"])
-        for src, dst, sidecar, sidecar_dst in moves:
+        for src, dst, companions in moves:
             try:
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 transfer(src, dst, args.copy)
                 writer.writerow([str(src), str(dst)])
-                if sidecar and sidecar_dst and not sidecar_dst.exists():
-                    transfer(sidecar, sidecar_dst, args.copy)
-                    writer.writerow([str(sidecar), str(sidecar_dst)])
+                for sidecar, sidecar_dst in companions:
+                    if sidecar.exists() and not sidecar_dst.exists():
+                        transfer(sidecar, sidecar_dst, args.copy)
+                        writer.writerow([str(sidecar), str(sidecar_dst)])
                 moved += 1
             except OSError as error:
                 print(f"  failed: {src}: {error}", file=sys.stderr)
                 failed += 1
             fh.flush()                    # so an interruption still leaves a usable manifest
+        for sidecar, target in strays:
+            try:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                transfer(sidecar, target, args.copy)
+                writer.writerow([str(sidecar), str(target)])
+                moved += 1
+            except OSError as error:
+                print(f"  failed: {sidecar}: {error}", file=sys.stderr)
+                failed += 1
+        fh.flush()
     print(f"\n  moved {moved}, failed {failed}")
     print(f"  manifest: {manifest_path}")
     print(f"  to undo:  {sys.argv[0]} --undo {manifest_path}")
