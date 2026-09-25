@@ -42,8 +42,7 @@ Row {
         const taken = WorkspacePins.inheritedFor(root.screenName)
 
         // Nothing inherited: the ordinary case, both monitors present.
-        if (taken.length === 0)
-            return root.occupied(own.length > 0 ? own : [1, 2, 3, 4, 5])
+        if (taken.length === 0) return own.length > 0 ? own : [1, 2, 3, 4, 5]
 
         // A monitor is unplugged and this screen has taken its workspaces
         // in. Show THOSE, not both sets - the other screen's numbers are
@@ -62,34 +61,7 @@ Row {
                 if (all[j].id === own[i]) { live.push(own[i]); break }
             }
         }
-        return root.occupied(taken.concat(live).sort((a, b) => a - b))
-    }
-
-    // EMPTY ONES ARE NOT DRAWN. Hyprland destroys a workspace the moment its
-    // last window leaves, so "in Hyprland.workspaces" is the same question as
-    // "has anything on it" - no window count to read, and the destroyworkspace
-    // event keeps it current without polling.
-    //
-    // THE FOCUSED ONE IS ALWAYS KEPT, even standing on an empty workspace with
-    // nothing on it: the row exists to say where you are, and the one case it
-    // must never go blank is the one where you have just arrived somewhere
-    // empty and are looking at the bar to check you did.
-    //
-    // The row changes width as workspaces come and go. There is no animation
-    // for that and there cannot easily be one - a Repeater destroys the item,
-    // so there is nothing left to shrink - which is why the dots have a gap
-    // between them rather than being welded into a strip.
-    function occupied(ids: var): var {
-        const live = Hyprland.workspaces.values
-        const focusedId = Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : -1
-        const out = []
-        for (let i = 0; i < ids.length; i++) {
-            if (ids[i] === focusedId) { out.push(ids[i]); continue }
-            for (let j = 0; j < live.length; j++) {
-                if (live[j].id === ids[i]) { out.push(ids[i]); break }
-            }
-        }
-        return out
+        return taken.concat(live).sort((a, b) => a - b)
     }
 
     spacing: 6
@@ -161,8 +133,22 @@ Row {
             // The dots after the focused one slide along as it grows, and
             // that is the effect rather than a side effect: the row reads as
             // one thing shifting its weight, not as six things redrawing.
-            width: chip.focused ? 26 : (hover.containsMouse ? 14 : 8)
-            height: 8
+            // EMPTY ONES SHRINK RATHER THAN VANISH. Hiding them outright was
+            // tried for a few hours and broke the row's one job: with nothing
+            // drawn for 4 and 5 there was nothing to click to reach them, and
+            // landing on one by keyboard looked identical to landing on the
+            // other - the focused dot simply appeared in the same slot either
+            // way, because the slots around it were not there.
+            //
+            // Four pixels against eight is enough to read as "nothing here"
+            // at a glance and still be a target. The row NEVER CHANGES WIDTH
+            // because of what is on the workspaces, so nothing shifts under
+            // the pointer as windows open and close.
+            width: chip.focused ? 26
+                 : hover.containsMouse ? 14
+                 : chip.exists ? 8
+                               : 4
+            height: chip.focused || chip.exists || hover.containsMouse ? 8 : 4
 
             // OUTBACK, which overshoots by a hair and settles back. Normally
             // this file would refuse that - hypr/look.lua rejects overshoot
@@ -172,6 +158,11 @@ Row {
             // the dot has weight. 250ms for the same reason: long enough to
             // watch, which is the only reason to move at all.
             Behavior on width {
+                NumberAnimation { duration: 250; easing.type: Easing.OutBack }
+            }
+            // The same curve, so a dot that fills with a window grows in both
+            // directions as one movement.
+            Behavior on height {
                 NumberAnimation { duration: 250; easing.type: Easing.OutBack }
             }
 
@@ -189,12 +180,10 @@ Row {
             // URGENT BEATS EVERYTHING, including focused - a window asking
             // for attention on the workspace you are already looking at is
             // still worth seeing, and the pulse below is what carries it.
-            // `exists` survives as the last branch only to cover the frame
-            // between a workspace being destroyed and the row rebuilding.
             color: chip.urgent ? Theme.danger
                  : focused     ? Theme.accent
                  : exists      ? Qt.rgba(Theme.fg.r, Theme.fg.g, Theme.fg.b, 0.25)
-                               : "transparent"
+                               : Qt.rgba(Theme.fg.r, Theme.fg.g, Theme.fg.b, 0.12)
 
             // No border: the outlined circle used to mean "this workspace is
             // in your set but has nothing on it", and nothing is drawn for
