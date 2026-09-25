@@ -285,7 +285,8 @@ quickshell/      the shell itself, QML
   AudioButton · AudioPanel       volume and output/input selection
   NetworkButton · NetworkPanel   Wi-Fi and Ethernet
   CaffeineButton · Caffeine      coffee cup: stay awake - no idle lock, screen-off
-                                 or suspend while on (lid close still suspends)
+                                 or suspend while on, and the lid stops
+                                 suspending too (the screen still goes off)
   DropPanel        the slide-down card both panels are built on
   BarLayout · BarZone   movable plugins: press and hold a glyph, drag it along
                    the bar, drop it; its panel then opens under it. Saved per
@@ -1002,8 +1003,30 @@ done and end with the same verification passes.
 | Suspend | 15:00 | never (lid close only) |
 
 Locking is not power-dependent; only the display-off timeout is. On AC the
-machine stays awake so long downloads and ssh sessions are not cut off — closing
-the lid still suspends, via logind's `HandleLidSwitchExternalPower`.
+machine stays awake so long downloads and ssh sessions are not cut off.
+
+**Closing the lid turns the display off. Whether it also suspends is
+caffeine's decision:**
+
+| caffeine | lid closed |
+|---|---|
+| off | screen off, then suspend — logind's `HandleLidSwitch` |
+| **on** | screen off, machine keeps running |
+
+The screen-off half is `hypr/binds.lua`, on Hyprland's `switch:on:Lid Switch`
+(`switch:on` is the lid *closing* — it reads backwards until you think of the
+switch rather than the lid). The suspend half is logind's, and caffeine holds
+`--what=idle:handle-lid-switch` while it is lit.
+
+> That second `what` is the whole fix. logind **ignores idle inhibitors for
+> the lid switch** — it says so in `logind.conf(5)` — so for as long as
+> caffeine held only `idle`, switching it on and shutting the lid put the
+> machine to sleep anyway. `handle-lid-switch` is the lock that actually stops
+> it, and `systemd-inhibit --list` shows both while the cup is lit.
+
+It is still **not** a `sleep` inhibitor: the power menu's Suspend and a plain
+`systemctl suspend` keep working, because those are things you asked for out
+loud. Only what the lid does on its own is blocked.
 
 **Locking around autologin.** tty1 logs in by itself, so three things keep that
 from being a way in:

@@ -288,6 +288,37 @@ hl.bind("XF86AudioPrev",  hl.dsp.global("quickshell:media-prev"),   { locked = t
 
 
 -- -------------------------------------------------------------------------
+-- The lid
+-- -------------------------------------------------------------------------
+-- Shut the lid and the screen goes off; open it and it comes back. What
+-- happens BESIDES that is logind's business: with caffeine off it suspends
+-- (HandleLidSwitch=suspend, in /etc/systemd/logind.conf.d), and with caffeine
+-- on it does not, because quickshell/Caffeine.qml holds a handle-lid-switch
+-- inhibitor for exactly as long as the cup is lit. So a laptop left downloading
+-- with its lid shut keeps going, dark, and one closed in a bag still sleeps.
+--
+-- `switch:on:` IS THE LID CLOSING and `switch:off:` is it opening, which reads
+-- backwards until you think of the switch rather than the lid. The device name
+-- is what `hyprctl devices` calls it, under Switches.
+--
+-- `locked = true` because the whole point is a screen that is off, and the
+-- session may well be locked by then - hypridle locks at five minutes. Without
+-- it, opening the lid on a locked machine would leave the display dark.
+--
+-- THROUGH bin/idle-action.sh AND NOT `dpms off`, because that dispatcher does
+-- not do what its name says on 0.56: it ignores its argument and toggles, so
+-- blanking an already-blank screen turns it on. The script reads dpmsStatus
+-- first and only toggles when the state is wrong. Its whole header is about
+-- this.
+hl.bind("switch:on:Lid Switch",
+        hl.dsp.exec_cmd("$HOME/.config/hypr/../bin/idle-action.sh blank always"),
+        { locked = true })
+hl.bind("switch:off:Lid Switch",
+        hl.dsp.exec_cmd("$HOME/.config/hypr/../bin/idle-action.sh wake"),
+        { locked = true })
+
+
+-- -------------------------------------------------------------------------
 -- Screenshots
 -- -------------------------------------------------------------------------
 -- grim, slurp and wl-clipboard are all installed, so these work as-is.
