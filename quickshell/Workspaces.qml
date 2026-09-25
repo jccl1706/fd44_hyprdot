@@ -42,8 +42,7 @@ Row {
         const taken = WorkspacePins.inheritedFor(root.screenName)
 
         // Nothing inherited: the ordinary case, both monitors present.
-        if (taken.length === 0)
-            return root.occupied(own.length > 0 ? own : [1, 2, 3, 4, 5])
+        if (taken.length === 0) return own.length > 0 ? own : [1, 2, 3, 4, 5]
 
         // A monitor is unplugged and this screen has taken its workspaces
         // in. Show THOSE, not both sets - the other screen's numbers are
@@ -62,34 +61,7 @@ Row {
                 if (all[j].id === own[i]) { live.push(own[i]); break }
             }
         }
-        return root.occupied(taken.concat(live).sort((a, b) => a - b))
-    }
-
-    // EMPTY ONES ARE NOT DRAWN. Hyprland destroys a workspace the moment its
-    // last window leaves, so "in Hyprland.workspaces" is the same question as
-    // "has anything on it" - no window count to read, and the destroyworkspace
-    // event keeps it current without polling.
-    //
-    // THE FOCUSED ONE IS ALWAYS KEPT, even standing on an empty workspace with
-    // nothing on it: the row exists to say where you are, and the one case it
-    // must never go blank is the one where you have just arrived somewhere
-    // empty and are looking at the bar to check you did.
-    //
-    // The row changes width as workspaces come and go. There is no animation
-    // for that and there cannot easily be one - a Repeater destroys the item,
-    // so there is nothing left to shrink - which is why the dots have a gap
-    // between them rather than being welded into a strip.
-    function occupied(ids: var): var {
-        const live = Hyprland.workspaces.values
-        const focusedId = Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : -1
-        const out = []
-        for (let i = 0; i < ids.length; i++) {
-            if (ids[i] === focusedId) { out.push(ids[i]); continue }
-            for (let j = 0; j < live.length; j++) {
-                if (live[j].id === ids[i]) { out.push(ids[i]); break }
-            }
-        }
-        return out
+        return taken.concat(live).sort((a, b) => a - b)
     }
 
     spacing: 6
@@ -239,6 +211,26 @@ Row {
             // still worth seeing, and the pulse below is what carries it.
             // `exists` survives as the last branch only to cover the frame
             // between a workspace being destroyed and the row rebuilding.
+            // AN EMPTY WORKSPACE KEEPS ITS PLACE AND SHOWS NOTHING. Removing
+            // the dot entirely is what made the row jump: leave an empty
+            // workspace for another one and Hyprland destroys the first, the
+            // Repeater drops its item, and every dot after it slides along to
+            // fill the gap - a whole row twitching sideways because you
+            // changed which nothing you were looking at.
+            //
+            // Invisible rather than absent: the slot is still laid out, so
+            // nothing moves, and the only thing that changes width is the
+            // focused dot's own stretch, which is the movement the row is
+            // FOR. It also leaves the empty workspaces clickable, which is a
+            // side effect rather than the reason, but a welcome one - 4 and 5
+            // are reachable with the mouse again without drawing anything for
+            // them.
+            opacity: chip.exists || chip.focused ? 1 : 0
+            Behavior on opacity {
+                enabled: chip.settled
+                NumberAnimation { duration: Theme.animFast }
+            }
+
             color: chip.urgent ? Theme.danger
                  : focused     ? Theme.accent
                  : exists      ? Qt.rgba(Theme.fg.r, Theme.fg.g, Theme.fg.b, 0.25)
