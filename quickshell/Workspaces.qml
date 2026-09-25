@@ -120,36 +120,37 @@ Row {
             // should read as urgent.
             readonly property bool urgent: ws !== null && ws.urgent === true
 
-            // THE FOCUSED CHIP STRETCHES INTO AN OVAL. A circle among
-            // circles says which one is current by colour alone; growing it
-            // says so by shape as well, and the growth itself is the signal -
-            // the eye follows the movement to the new workspace rather than
-            // hunting for which disc changed colour.
+            // DOTS, NOT NUMBERED CHIPS. Eight pixels tall, so the row is a
+            // line of punctuation rather than six labelled buttons: at a
+            // glance you read the SHAPE of where you are - one long dash
+            // among short ones - without reading anything at all.
             //
-            // The chips after it slide along as it grows, and that is the
-            // effect rather than a side effect: the row reads as one thing
-            // shifting its weight, not as six things redrawing.
-            width: chip.focused ? 26 : 18
-            height: 18
+            // THREE WIDTHS, and the middle one is what makes it feel alive:
+            //   8   empty or merely occupied
+            //   14  under the pointer - the row answers before you click
+            //   26  focused
+            //
+            // The dots after the focused one slide along as it grows, and
+            // that is the effect rather than a side effect: the row reads as
+            // one thing shifting its weight, not as six things redrawing.
+            width: chip.focused ? 26 : (hover.containsMouse ? 14 : 8)
+            height: 8
 
-            // ANIMATED, or the stretch is just a jump. OutCubic so it leaves
-            // quickly and arrives gently, which is what makes it read as the
-            // chip settling rather than snapping. animReveal (220ms) rather
-            // than animNormal: at 140 the movement is over before the eye has
-            // followed it, which wastes the only reason to move at all.
+            // OUTBACK, which overshoots by a hair and settles back. Normally
+            // this file would refuse that - hypr/look.lua rejects overshoot
+            // for windows, where a thing sailing past its place and coming
+            // back reads as sloppy - but at eight pixels the overshoot is
+            // under a pixel of travel and what it buys is the feeling that
+            // the dot has weight. 250ms for the same reason: long enough to
+            // watch, which is the only reason to move at all.
             Behavior on width {
-                NumberAnimation { duration: Theme.animReveal; easing.type: Easing.OutCubic }
+                NumberAnimation { duration: 250; easing.type: Easing.OutBack }
             }
 
-            // Fully rounded at both sizes - a circle at 18, an oval at 26 -
+            // Fully rounded at every width - a disc at 8, a pill at 26 -
             // because the radius follows the HEIGHT, which does not change.
-            // Half the width would make the oval a lozenge that flattens as
-            // it grows, and the corners would animate along with it.
-            //
-            // Not Theme.cornerRadius either: it is 12, larger than half this
-            // chip's height, and Qt clamps a radius at half the shorter side.
-            // It would land on the same circle by accident rather than on
-            // purpose, and stop being one the moment the chip grew.
+            // Half the width would flatten the pill as it grew and animate
+            // the corners along with it.
             radius: height / 2
 
             // A STATE LAYER, in the Material sense: hover does not swap the
@@ -187,38 +188,31 @@ Row {
                 NumberAnimation { to: 1.0;  duration: 1000; easing.type: Easing.InOutSine }
             }
 
-            Text {
-                anchors.centerIn: parent
-                text: chip.wsId
-                font.family: Theme.font
-                font.pixelSize: Theme.fontSizeSmall
-                // One weight for every chip, a step up from the medium the
-                // unfocused ones used to carry. The focused one no longer
-                // needs a heavier number to stand out - it is the only
-                // coloured square in the row - and matching weights suit
-                // chips that are now all the same size.
-                //
-                // Semi rather than Bold: Theme reserves Bold for the clock,
-                // which should stay the heaviest thing in the bar.
-                font.weight: Theme.weightSemi
-                font.letterSpacing: Theme.trackingLoose
-                color: chip.focused ? Theme.accentFg
-                     : chip.exists  ? Theme.fg
-                                    : Theme.dim
-                visible: chip.focused || chip.exists
-            }
-
-            Rectangle {
-                anchors.fill: parent
-                radius: parent.radius
-                color: Theme.fg
-                opacity: hover.containsMouse && !chip.focused ? 0.12 : 0
-                Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
-            }
+            // NO NUMBER, and that is the trade this design makes. A dot
+            // eight pixels tall cannot carry a legible digit, so the row
+            // stops telling you WHICH workspace you are on and tells you
+            // only where you are in the line - which, with six of them and
+            // SUPER+1..0 on the keyboard, is what the eye actually used it
+            // for. The chips that carried numbers are in the history if the
+            // trade turns out wrong.
+            //
+            // NO HOVER FILM EITHER. The old chips brightened under the
+            // pointer because they could not change size without pushing the
+            // row about; these answer by growing to 14, which is the same
+            // acknowledgement in the vocabulary this row already speaks.
 
             MouseArea {
                 id: hover
                 anchors.fill: parent
+
+                // BIGGER THAN THE DOT IT SERVES. Eight pixels is a hard
+                // target for a pointer and an impossible one in a hurry; the
+                // margin takes the hit area out to the full height of the
+                // pill without changing what is drawn. Negative margins
+                // overlap between neighbours by design - the gap is 6, so
+                // each dot claims three pixels of it and none is dead space.
+                anchors.margins: -5
+
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
 
