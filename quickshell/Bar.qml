@@ -86,6 +86,7 @@ PanelWindow {
     Component { id: notifyPlugin;  NotifyButton {} }
     Component { id: batteryPlugin; BatteryButton {} }
     Component { id: notesPlugin;   NotesButton {} }
+    Component { id: focusedPlugin; FocusedApp {} }
 
     // The tray is the one plugin that is not a 22x22 button: it is however
     // many icons are registered, and nothing when none are. It also needs the
@@ -117,6 +118,7 @@ PanelWindow {
         switch (id) {
         case "audio":       return audioPlugin
         case "network":     return networkPlugin
+        case "focused":     return focusedPlugin
         case "theme":       return themePlugin
         case "caffeine":    return caffeinePlugin
         case "couch":       return couchPlugin

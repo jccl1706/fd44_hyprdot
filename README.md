@@ -338,6 +338,8 @@ quickshell/      the shell itself, QML
   Bar · Frame · Launcher · WallpaperPicker · PowerMenu · Osd · Media
   Wallpaper · WallpaperState    the wallpaper, drawn here - no wallpaper daemon;
                                  crossfades when the choice changes
+  FocusedApp                     the icon of whatever window has the keyboard,
+                                 beside the chips: they say where, it says what
   AudioButton · AudioPanel       volume and output/input selection
   NetworkButton · NetworkPanel   Wi-Fi and Ethernet
   CaffeineButton · Caffeine      coffee cup: stay awake - no idle lock, screen-off

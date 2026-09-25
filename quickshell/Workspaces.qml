@@ -66,6 +66,26 @@ Row {
 
     spacing: 6
 
+    // SCROLL THE ROW TO CHANGE WORKSPACE, the same gesture SUPER+scroll does
+    // over the desktop (hypr/binds.lua), here without the modifier because
+    // the pointer is already on the thing it acts on.
+    //
+    // e+1/e-1 STEP THROUGH WORKSPACES THAT EXIST, skipping empty ones, rather
+    // than to id+1 - the same call the keybind makes, so a wheel click on the
+    // bar and one over a window land in the same place.
+    //
+    // Hyprland 0.56 EVALUATES DISPATCHES AS LUA: "workspace e+1" is a syntax
+    // error, not a command, and fails silently from the bar's side. The
+    // chips' own click handler carries the same note.
+    WheelHandler {
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        onWheel: event => {
+            Hyprland.dispatch(event.angleDelta.y > 0
+                ? 'hl.dsp.focus({ workspace = "e-1" })'
+                : 'hl.dsp.focus({ workspace = "e+1" })')
+        }
+    }
+
     Repeater {
         model: root.slots
 
@@ -91,6 +111,14 @@ Row {
             readonly property bool exists: ws !== null
             readonly property bool focused: Hyprland.focusedWorkspace
                                             && Hyprland.focusedWorkspace.id === wsId
+
+            // Set by Hyprland when a window on a workspace you are NOT
+            // looking at asks for attention - xdg-activation, or an X11
+            // client setting the urgency hint. `=== true` rather than a plain
+            // truth test: on a workspace that does not exist `ws` is null and
+            // on an older Hyprland the property may be undefined, and neither
+            // should read as urgent.
+            readonly property bool urgent: ws !== null && ws.urgent === true
 
             // THE FOCUSED CHIP STRETCHES INTO AN OVAL. A circle among
             // circles says which one is current by colour alone; growing it
@@ -129,9 +157,13 @@ Row {
             // already is. That way an occupied chip and an empty one both
             // respond to the pointer, and neither has to know what the other
             // looks like.
-            color: focused  ? Theme.accent
-                 : exists   ? Qt.rgba(Theme.fg.r, Theme.fg.g, Theme.fg.b, 0.25)
-                            : "transparent"
+            // URGENT BEATS EVERYTHING, including focused - a window asking
+            // for attention on the workspace you are already looking at is
+            // still worth seeing, and the pulse below is what carries it.
+            color: chip.urgent ? Theme.danger
+                 : focused     ? Theme.accent
+                 : exists      ? Qt.rgba(Theme.fg.r, Theme.fg.g, Theme.fg.b, 0.25)
+                               : "transparent"
 
             border.width: exists || focused ? 0 : 1
             border.color: Qt.rgba(Theme.dim.r, Theme.dim.g, Theme.dim.b, 0.5)
@@ -141,6 +173,19 @@ Row {
             // animation that used to sit beside this went with the widening:
             // a Behavior on a property that never changes is dead code.
             Behavior on color  { ColorAnimation  { duration: Theme.animNormal } }
+
+            // A SLOW BREATH, not a blink. Two seconds a cycle and never below
+            // 0.55: an indicator that flashes is read as an error in the bar
+            // itself, and one that disappears entirely is invisible exactly
+            // when it is trying to be seen. Runs only while urgent, so it
+            // costs nothing the rest of the time.
+            SequentialAnimation on opacity {
+                running: chip.urgent
+                loops: Animation.Infinite
+                alwaysRunToEnd: true
+                NumberAnimation { to: 0.55; duration: 1000; easing.type: Easing.InOutSine }
+                NumberAnimation { to: 1.0;  duration: 1000; easing.type: Easing.InOutSine }
+            }
 
             Text {
                 anchors.centerIn: parent
