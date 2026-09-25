@@ -208,7 +208,28 @@ Item {
                 radius: parent.radius
                 width: parent.width * Math.max(0, Math.min(1, root.value))
                 color: root.muted && root.drawMode === "volume" ? Theme.dim : Theme.accent
-                Behavior on width { NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic } }
+                // A SMOOTHED ANIMATION, NOT A TIMED ONE, because the target
+                // moves while the animation is running. Holding a volume key
+                // repeats about thirty times a second - hypr/binds.lua marks
+                // those binds `repeating` - and each press moved the fill by
+                // 5% of 70px. A 100ms NumberAnimation was therefore
+                // interrupted a third of the way through, every time, and
+                // restarted from wherever it had got to with a fresh
+                // easing-in: the fill lurched instead of travelling, which is
+                // what "not fluid" was.
+                //
+                // SmoothedAnimation is built for a target that keeps moving.
+                // It runs at a velocity rather than over a duration, so a new
+                // value redirects it without restarting it, and a held key
+                // draws one continuous sweep.
+                //
+                // 220 px/s against a 70px track: a full 0 to 100% takes about
+                // a third of a second, and a single 5% step lands in 16ms -
+                // one frame, so a lone tap still feels instant rather than
+                // eased.
+                Behavior on width {
+                    SmoothedAnimation { velocity: 220; duration: 300 }
+                }
             }
         }
 
