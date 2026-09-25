@@ -403,6 +403,43 @@ PanelWindow {
             }
         }
 
+        // THE FOCUSED WINDOW, IN A CIRCLE OF ITS OWN. Beside the workspaces
+        // pill rather than inside it: the dots answer "where am I" and this
+        // answers "what is here", and the gap between them is the cheapest way
+        // to say those are different questions. It lived inside the pill once
+        // and read as one more thing crowding the row.
+        //
+        // A CIRCLE, NOT A PILL, for the same reason the dots are discs: it
+        // holds exactly one thing and never grows, so a shape that could
+        // stretch would promise something it will not do.
+        Rectangle {
+            id: focusBubble
+
+            anchors { left: leftRegion.right
+                      leftMargin: 8
+                      verticalCenter: leftRegion.verticalCenter }
+            height: BarStyle.pillHeight
+            width: height
+            radius: height / 2
+
+            // Nothing focused, or a window whose class matches no desktop
+            // entry: no circle at all rather than an empty one.
+            visible: focusIcon.iconSource !== ""
+
+            // Lit from above, like every other pill on this bar.
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: Theme.surfaceTop }
+                GradientStop { position: 1.0; color: Theme.surface }
+            }
+            border.width: 1
+            border.color: Theme.rim
+
+            FocusedApp {
+                id: focusIcon
+                anchors.centerIn: parent
+            }
+        }
+
         Item {
             id: centerRegion
             // STAYS IN FOCUS MODE, and is the only thing that does. The pill
