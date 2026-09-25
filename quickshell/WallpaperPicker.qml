@@ -80,18 +80,33 @@ PanelWindow {
 
     anchors { left: true; right: true; top: true; bottom: true }
 
-    // NO ExclusionMode.Ignore here, unlike the launcher - the surface is
-    // deliberately allowed to be shrunk to the content well (4,38 1432x918)
-    // by the bar's and frame's exclusive zones.
+    // WHETHER THE SURFACE IS SHRUNK DEPENDS ON WHETHER THERE IS A FRAME.
     //
-    // That is what makes the background blur possible. Hyprland's layer blur
-    // applies to a whole SURFACE, not to the parts of it that are painted, so
-    // a full-screen picker would blur the frame along with everything else -
-    // the frame's hard 1px edge turned to a 4.5px mush when this was tried on
-    // the launcher. Confined to the well, the blur cannot reach the frame.
+    // Hyprland's layer blur applies to a whole SURFACE, not to the parts of it
+    // that are painted, and it stops dead at the surface's edge. Both halves
+    // of that matter here, and they pull opposite ways:
     //
-    // The cost is that clicking the 4px frame or the bar no longer dismisses
-    // the picker. Clicking anywhere else still does.
+    // IN FRAME MODE the surface must be shrunk to the content well. A
+    // full-screen picker would blur the frame along with everything else - the
+    // frame's hard 1px edge turned to 4.5px of mush when this was tried on the
+    // launcher. Confined to the well, the blur cannot reach it, and the
+    // boundary where blur stops lands exactly on the frame's inner edge, where
+    // there is already a line and nobody sees a second one.
+    //
+    // IN PILL AND FOCUS MODE there is no frame, and shrinking is what causes
+    // the fault: the surface starts below the bar's exclusive zone, so the
+    // blur stops there too and draws a hard horizontal seam across the whole
+    // screen just under the pills - blurred below, sharp above. Reported from
+    // a screenshot on 2026-09-25 and plainly visible in it.
+    //
+    // So the surface is shrunk only when there is something to protect. In the
+    // floating styles it covers the screen and the blur is uniform, which is
+    // the same trade the launcher made and the opposite conclusion, because
+    // the thing it was protecting is not on screen.
+    //
+    // The cost, in frame mode only: clicking the 4px frame or the bar does not
+    // dismiss the picker. Clicking anywhere else does.
+    exclusionMode: BarStyle.floating ? ExclusionMode.Ignore : ExclusionMode.Normal
     color: "transparent"
     visible: false
 
