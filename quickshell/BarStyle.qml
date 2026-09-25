@@ -68,7 +68,28 @@ Singleton {
     // glyph and its whole job is to take up less room than what it replaced.
     readonly property int focusHeight: 22
 
-    readonly property int barBottom: focus    ? focusHeight + margin * 2
+    // --- the notch ---------------------------------------------------------
+    //
+    // In focus mode the way out is drawn as a notch hanging from the top edge
+    // of the screen, the shape a MacBook's camera housing makes: square where
+    // it meets the edge, round along the bottom, and flared outwards at the
+    // two top corners so it reads as part of the screen rather than a tab
+    // sitting on it.
+    //
+    // FLUSH, WITH NO MARGIN ABOVE IT. Every other floating thing here is
+    // inset from the edge by `margin`; this one is the exception, and has to
+    // be - a notch with a gap above it is a lozenge, and the whole illusion
+    // is that the screen itself is cut away.
+    readonly property int notchHeight: 26
+    readonly property int notchWidth:  120
+
+    //: The bottom corners' radius, and the radius of the concave flare at the
+    //: top. The flare is smaller than the fillet: at equal sizes the shape
+    //: reads as an hourglass rather than as a notch.
+    readonly property int notchRadius: 13
+    readonly property int notchFlare:  9
+
+    readonly property int barBottom: focus    ? notchHeight
                                   : floating  ? pillHeight  + margin * 2
                                               : Theme.barHeight
 

@@ -14,6 +14,7 @@
 
 import Quickshell
 import QtQuick
+import QtQuick.Shapes
 
 PanelWindow {
     id: root
@@ -311,30 +312,91 @@ PanelWindow {
         // every other control the bar has; leaving the way out to something
         // you have to already know would make the mode a trap on a machine
         // you had not configured the keys of.
-        Rectangle {
+        // DRAWN AS A PATH, NOT A ROUNDED RECTANGLE. The bottom fillets alone
+        // would give a tab stuck onto the screen; what makes the eye read
+        // "the screen is cut away here" is the pair of CONCAVE corners where
+        // the shape meets the top edge, curving outwards into the bar. A
+        // Rectangle cannot do concave, so this is a Shape - Qt 6.11 here, and
+        // QtQuick.Shapes has been present since 5.10.
+        //
+        // The path, clockwise from the top left of the flare:
+        //   out along the edge, curving down into the notch    (concave)
+        //   down the left side
+        //   round the bottom left                              (convex)
+        //   across the bottom
+        //   round the bottom right                             (convex)
+        //   up the right side, curving back out to the edge    (concave)
+        Item {
             id: focusExit
             visible: BarStyle.focus
 
-            anchors.centerIn: parent
-            height: BarStyle.focusHeight
-            width: height * 2.2
-            radius: height / 2
+            anchors.top: parent.top
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: BarStyle.notchWidth + BarStyle.notchFlare * 2
+            height: BarStyle.notchHeight
 
-            // Lit from above, like the pills it replaces.
-            gradient: Gradient {
-                GradientStop { position: 0.0; color: Theme.surfaceTop }
-                GradientStop { position: 1.0; color: Theme.surface }
+            readonly property int flare: BarStyle.notchFlare
+            readonly property int fillet: BarStyle.notchRadius
+            readonly property bool lit: exitHover.hovered
+
+            Shape {
+                anchors.fill: parent
+                preferredRendererType: Shape.CurveRenderer   // antialiases without multisampling
+
+                ShapePath {
+                    fillColor: focusExit.lit ? Theme.surfaceHigh : Theme.bg
+                    strokeColor: focusExit.lit ? Theme.accent : Theme.outline
+                    strokeWidth: 1
+                    capStyle: ShapePath.RoundCap
+                    joinStyle: ShapePath.RoundJoin
+
+                    Behavior on fillColor { ColorAnimation { duration: Theme.animFast } }
+                    Behavior on strokeColor { ColorAnimation { duration: Theme.animFast } }
+
+                    startX: 0
+                    startY: 0
+
+                    // The left flare: outward-curving, so the notch appears to
+                    // grow out of the edge rather than hang from it.
+                    PathArc {
+                        x: focusExit.flare; y: focusExit.flare
+                        radiusX: focusExit.flare; radiusY: focusExit.flare
+                        direction: PathArc.Clockwise
+                    }
+                    PathLine { x: focusExit.flare; y: focusExit.height - focusExit.fillet }
+                    PathArc {
+                        x: focusExit.flare + focusExit.fillet; y: focusExit.height
+                        radiusX: focusExit.fillet; radiusY: focusExit.fillet
+                        direction: PathArc.Counterclockwise
+                    }
+                    PathLine { x: focusExit.width - focusExit.flare - focusExit.fillet
+                               y: focusExit.height }
+                    PathArc {
+                        x: focusExit.width - focusExit.flare; y: focusExit.height - focusExit.fillet
+                        radiusX: focusExit.fillet; radiusY: focusExit.fillet
+                        direction: PathArc.Counterclockwise
+                    }
+                    PathLine { x: focusExit.width - focusExit.flare; y: focusExit.flare }
+                    PathArc {
+                        x: focusExit.width; y: 0
+                        radiusX: focusExit.flare; radiusY: focusExit.flare
+                        direction: PathArc.Clockwise
+                    }
+                    PathLine { x: 0; y: 0 }        // back along the screen edge
+                }
             }
-            border.width: 1
-            border.color: exitHover.hovered ? Theme.accent : Theme.rim
-            Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
 
             Text {
-                anchors.centerIn: parent
+                // Centred in the notch itself, not in the item: the flares are
+                // part of the item's width and would pull the glyph off centre
+                // by nothing, but the intent is worth stating - the glyph
+                // belongs to the notch.
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: (BarStyle.notchHeight - height) / 2 + 1
                 text: "\u{F0156}"                    // a close cross
                 font.family: Theme.glyphFont
-                font.pixelSize: 15
-                color: exitHover.hovered ? Theme.fg : Theme.pluginIcon
+                font.pixelSize: 14
+                color: focusExit.lit ? Theme.fg : Theme.pluginIcon
                 Behavior on color { ColorAnimation { duration: Theme.animFast } }
             }
 
