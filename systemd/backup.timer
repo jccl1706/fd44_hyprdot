@@ -1,0 +1,18 @@
+[Unit]
+Description=Back up this account daily
+Documentation=man:restic(1)
+
+[Timer]
+# DAILY, AND NOT AT A ROUND HOUR. The disk is usually not connected, so most
+# runs cost a lsblk and exit; the point of running often is to catch the days
+# it IS connected without anyone thinking about it.
+OnCalendar=daily
+RandomizedDelaySec=30m
+AccuracySec=5m
+
+# The laptop is asleep at 00:00 more often than not, so without this the timer
+# would fire on the rare night it happened to be awake.
+Persistent=true
+
+[Install]
+WantedBy=default.target

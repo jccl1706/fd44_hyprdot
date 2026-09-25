@@ -238,6 +238,12 @@ link systemd/usb-notify.service "$CONFIG/systemd/user/usb-notify.service"
 # is a drm event and never touches the usb subsystem.
 link systemd/display-notify.service "$CONFIG/systemd/user/display-notify.service"
 
+# The backup, which does nothing at all until bin/backup.sh setup has been
+# pointed at a disk - the timer then runs daily and exits in milliseconds on
+# every day the disk is not plugged in.
+link systemd/backup.service "$CONFIG/systemd/user/backup.service"
+link systemd/backup.timer   "$CONFIG/systemd/user/backup.timer"
+
 printf '\n  %d linked, %d already right, %d repointed, %d skipped, %d in the way\n' \
     "$made" "$already" "$fixed" "$skipped" "$blocked"
 
@@ -255,6 +261,7 @@ if [ "$made" -gt 0 ] || [ "$fixed" -gt 0 ]; then
     systemctl --user enable --now power-mode.service usb-notify.service display-notify.service
 
   And the rest of a fresh machine, each opt-in and each explaining itself:
+    bin/backup.sh setup      the copy that is not on this disk
     bin/icon-bridge.sh       so quickshell can see the icon theme at all
     bin/starship-setup.sh    the two-line prompt
     bin/icon-theme.sh        the Reversal icons the palettes ask for

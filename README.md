@@ -543,9 +543,59 @@ It exits non-zero when it finds anything, so a bad month shows up in
 > links into `~/.config/systemd/user`; a scrub reads the raw device and cannot
 > run as the user, which is why it has its own opt-in installer.
 
-**What is still missing: a copy somewhere else.** A snapshot lives on the same
-LUKS volume and dies with it; a scrub only tells you it is dying. Nothing in
-this repository backs anything up.
+**Backups** are the third job, and the only one that survives the disk being
+gone. `bin/backup.sh` copies to an external USB disk with
+[restic](https://restic.net):
+
+```sh
+sudo dnf install restic
+bin/backup.sh setup          # pick the disk, set the repository password
+bin/backup.sh run            # or leave it to backup.timer, daily
+bin/backup.sh status
+bin/backup.sh verify         # restore something and diff it
+```
+
+The list of what it copies is short because it was measured rather than
+guessed. This home directory is 933 MB, of which `~/Work` is four git
+checkouts that are all pushed, `~/.local/share/claude` is a program that
+reinstalls itself, and `Documents`, `Pictures`, `Videos`, `Music` and
+`Downloads` are empty. What is left is about **400 MB**, and the part that
+would really hurt is **80 KB of keys**:
+
+| | |
+|---|---|
+| `~/.ssh` | four private keys — the only thing here that cannot be regenerated at all |
+| `~/.config/gh`, `~/.config/copr` | tokens that act as this account |
+| `~/.claude`, `~/.claude.json` | sessions, memory, settings |
+| `~/.config/chromium` | logins, cookies, bookmarks — minus its caches |
+| `~/Work` | pushed already; what is not pushed is whatever you were writing |
+| shell config, `~/.local/state/fd44-hyprdot` | small, and the difference between your machine and a machine |
+
+It is an **include list, not an exclude list**: an include list fails by
+missing a file, which `verify` and a restore will show, while an exclude list
+fails by quietly copying a 50 GB cache that nobody notices until the disk is
+full.
+
+**The disk needs no LUKS.** restic encrypts the repository itself — contents,
+metadata and filenames — so the password is the only secret, and the disk can
+be read on any machine that has it.
+
+**Found by UUID, never by `/dev/sdX`**, since which letter a USB disk gets
+depends on what else is plugged in. It is mounted through `udisks` as you, so
+there is no root and no `fstab` entry for a disk that is usually absent.
+
+> **The hard part of a disk you plug in is plugging it in**, and no script
+> fixes that. What this one does is refuse to be quiet: a run with no disk is
+> not an error — that is a laptop on a train — but once the last successful
+> backup is more than a fortnight old the unit **fails**, which puts it in
+> `systemctl --failed`, where a sweep of the machine looks first.
+
+> **The repository password is the backup.** Lose it and the disk is 400 MB of
+> noise; there is no recovery, by design. `bin/backup.sh escrow` prints what
+> has to be kept somewhere that is not this laptop.
+
+**Still missing: anything off-site.** A disk in the same room as the laptop
+answers a dead disk, not a fire.
 
 ## After a reinstall
 

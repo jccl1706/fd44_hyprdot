@@ -1,0 +1,26 @@
+[Unit]
+# Copies the handful of things that exist nowhere else onto an external disk -
+# see bin/backup.sh for what those are and why the list is so short.
+#
+# A USER UNIT, because everything it reads belongs to this user: ~/.ssh, the
+# browser profile, the checkouts. Running it as root would need no privilege it
+# does not already have and would write root-owned files into the repository.
+Description=Back up this account to the external disk
+Documentation=man:restic(1)
+
+# Same reasoning as the other units here: if the checkout is not where the
+# symlink says, do nothing rather than fail every day.
+ConditionPathExists=%h/.config/hypr
+
+[Service]
+Type=oneshot
+ExecStart=%h/.config/hypr/../bin/backup.sh run
+
+# NOT Restart=on-failure. The ordinary failure is "the disk is not plugged in",
+# which the script already treats as success until the last backup is a
+# fortnight old - retrying that on a timer would only burn battery. When it
+# does fail, it should stay failed and show up in `systemctl --failed`.
+
+# It reads a whole browser profile and writes to a USB disk; neither is urgent.
+Nice=10
+IOSchedulingClass=idle
