@@ -59,8 +59,29 @@ Item {
         return null
     }
 
-    readonly property string appClass: root.focused
-        ? (root.focused.class || root.focused.initialClass || "") : ""
+    // WHAT THE EVENT SAID, WITHOUT WAITING TO BE TOLD AGAIN.
+    //
+    // `activewindow` arrives as "class,title" - the class is right there, and
+    // it is the same string the client list would give a round trip later.
+    // Waiting for that round trip is what made the icon lag: measured at four
+    // consecutive screenshots, roughly 400ms, between stepping onto a
+    // workspace and its icon appearing.
+    //
+    // An empty string is meaningful rather than missing: Hyprland sends
+    // `activewindow>>,` with nothing after the comma when focus lands
+    // somewhere with no window, so the icon clears at once instead of
+    // lingering until the refresh confirms it.
+    property string liveClass: ""
+
+    // The refreshed client list is still the authority - it is what survives a
+    // shell restart, when no event has been seen at all - but only until the
+    // next event, which is fresher by definition.
+    readonly property string appClass: root.liveEvent
+        ? root.liveClass
+        : (root.focused ? (root.focused.class || root.focused.initialClass || "") : "")
+
+    //: Set once an event has been seen; before that the model answers.
+    property bool liveEvent: false
 
     // The desktop entry whose id matches the window class, case-insensitively
     // because Hyprland reports what the application set and applications are
@@ -90,9 +111,10 @@ Item {
     implicitHeight: Theme.glyphSize
     visible: implicitWidth > 0
 
-    Behavior on implicitWidth {
-        NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic }
-    }
+    // NO WIDTH ANIMATION. The icon already travels when the workspace row
+    // beside it changes size - it is anchored after it - and animating its own
+    // width on top of that made it arrive twice: slide, then grow. It appears
+    // at full size and lets the fade do the rest.
 
     Image {
         id: icon
@@ -102,13 +124,24 @@ Item {
         sourceSize.height: Theme.glyphSize * 2
         fillMode: Image.PreserveAspectFit
         smooth: true
-        asynchronous: true
+
+        // SYNCHRONOUS, WHICH IS THE RIGHT WAY ROUND FOR A 20px ICON. Async
+        // loading exists so a big image cannot stall the frame; these are
+        // small, already on disk, and Qt caches them after the first look, so
+        // the only thing the background thread bought was a frame or two of
+        // blank space every time focus moved. Measured at ~200ms from the
+        // switch to the first pixel, most of it waiting rather than working.
+        asynchronous: false
+        cache: true
 
         // A swap without this is a blink; with it the new icon arrives as the
         // old one leaves, which is what the workspace chips do when focus
         // moves and is the reason the two read as one movement.
+        // The fade stays, but at half the length: long enough that a swap
+        // between two applications is a dissolve rather than a cut, short
+        // enough that it is not felt as the icon "taking a moment".
         opacity: status === Image.Ready ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+        Behavior on opacity { NumberAnimation { duration: Theme.animFast / 2 } }
     }
 
     // Hyprland says "focus moved"; it does not say what focusHistoryID now is
@@ -118,7 +151,15 @@ Item {
         target: Hyprland
         function onRawEvent(event): void {
             switch (event.name) {
-            case "activewindow":
+            case "activewindow": {
+                // "class,title", and an empty class when nothing is focused.
+                const data = event.data || ""
+                const comma = data.indexOf(",")
+                root.liveClass = comma >= 0 ? data.substring(0, comma) : data
+                root.liveEvent = true
+                Hyprland.refreshToplevels()
+                return
+            }
             case "activewindowv2":
             case "openwindow":
             case "closewindow":
@@ -130,6 +171,11 @@ Item {
             case "workspace":
             case "workspacev2":
             case "focusedmon":
+                // A workspace change with no window on the other side sends no
+                // `activewindow` of its own on some paths, so the model is
+                // asked - and `liveClass` is left alone, because the event
+                // that set it is still the most recent thing anyone said about
+                // focus.
                 Hyprland.refreshToplevels()
             }
         }

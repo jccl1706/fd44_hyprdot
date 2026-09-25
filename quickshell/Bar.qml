@@ -332,7 +332,7 @@ PanelWindow {
                 // as one movement with them rather than as the frame snapping
                 // around a row that glided.
                 Behavior on width {
-                    NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+                    NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
                 }
                 anchors.verticalCenter: parent.verticalCenter
                 height: BarStyle.pillHeight

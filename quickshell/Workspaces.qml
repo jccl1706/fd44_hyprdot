@@ -111,8 +111,13 @@ Row {
     // nothing left to fade. What the eye sees instead is the survivors
     // gliding into the gap, which reads as the row closing up rather than as
     // a snap.
+    // 140ms, NOT 200. The glide is what stops the row jumping, and it is also
+    // what the focused-window icon rides on - it sits after this row, so it
+    // cannot land until the dots have finished moving. At 200ms that read as
+    // the icon "taking a moment to show up" when stepping onto a workspace.
+    // Short enough not to be waited for, long enough to be followed.
     move: Transition {
-        NumberAnimation { properties: "x"; duration: 200; easing.type: Easing.OutCubic }
+        NumberAnimation { properties: "x"; duration: 140; easing.type: Easing.OutCubic }
     }
 
     // A LISTMODEL, NOT THE ARRAY ITSELF, and this is what makes the glide
