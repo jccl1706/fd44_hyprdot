@@ -171,7 +171,55 @@ Row {
             // under a pixel of travel and what it buys is the feeling that
             // the dot has weight. 250ms for the same reason: long enough to
             // watch, which is the only reason to move at all.
+            // A CHIP THAT HAS JUST BEEN CREATED MUST NOT ANIMATE INTO EXISTENCE.
+            // Switching to an empty workspace inserts a dot, and a Behavior
+            // runs on a property's FIRST value as readily as on its later
+            // ones - so the new dot grew from nothing while its colour faded
+            // from grey to the accent, which looked like a lozenge flashing
+            // in the middle of the row rather than like arriving somewhere.
+            //
+            // Both Behaviors are therefore off until the chip has been built
+            // and painted once. After that they do what they are for:
+            // animating a CHANGE.
+            // AND IT IS NOT ENOUGH TO DO THIS ONCE. A Repeater fed a JavaScript
+            // array RECYCLES its delegates: switching to an empty workspace
+            // does not build a new dot, it hands an existing one a different
+            // wsId. That dot was created long ago, so `settled` was already
+            // true and the colour animated from whatever the PREVIOUS
+            // workspace's dot looked like - grey sliding to accent, which is
+            // the flash that was reported.
+            //
+            // So the gate closes again whenever a chip changes identity, and
+            // reopens on the next turn of the event loop, by which time the
+            // bindings have painted the new workspace's real colour and size.
+            property bool settled: false
+            Component.onCompleted: resettle.restart()
+            onWsIdChanged: {
+                chip.settled = false
+                resettle.restart()
+            }
+
+            // A QUARTER SECOND, NOT ONE MILLISECOND, and the difference is the
+            // whole fix. The chip is created the instant Hyprland creates the
+            // workspace, and at that instant `Hyprland.focusedWorkspace` still
+            // names the workspace being LEFT - so the chip's first colour is
+            // the grey of an occupied-but-unfocused dot, and focus lands a few
+            // frames later. With animations already armed, that second value
+            // arrived as a 140ms grey-to-accent slide: a pale lozenge
+            // appearing in the row and then turning blue, which is what got
+            // reported as weird glyphs when switching to an empty workspace.
+            //
+            // Waiting lets the first few frames settle silently. Anything that
+            // changes within 250ms of a chip appearing is part of it arriving,
+            // not a change worth animating.
+            Timer {
+                id: resettle
+                interval: 250
+                onTriggered: chip.settled = true
+            }
+
             Behavior on width {
+                enabled: chip.settled
                 NumberAnimation { duration: 250; easing.type: Easing.OutBack }
             }
 
@@ -204,7 +252,10 @@ Row {
             // jump. Kept short - the bar should feel instant. The width
             // animation that used to sit beside this went with the widening:
             // a Behavior on a property that never changes is dead code.
-            Behavior on color  { ColorAnimation  { duration: Theme.animNormal } }
+            Behavior on color  {
+                enabled: chip.settled
+                ColorAnimation { duration: Theme.animNormal }
+            }
 
             // A SLOW BREATH, not a blink. Two seconds a cycle and never below
             // 0.55: an indicator that flashes is read as an error in the bar
