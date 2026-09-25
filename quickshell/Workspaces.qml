@@ -42,23 +42,109 @@ Row {
         const taken = WorkspacePins.inheritedFor(root.screenName)
 
         // Nothing inherited: the ordinary case, both monitors present.
-        if (taken.length === 0) return own.length > 0 ? own : [1, 2, 3, 4, 5]
+        if (taken.length === 0)
+            return root.occupied(own.length > 0 ? own : [1, 2, 3, 4, 5])
 
-        // A monitor is unplugged and this screen has taken its workspaces in.
-        // BOTH SETS GET A SLOT - the inherited ones and our own - and the
-        // nine chips this comment used to warn about never appear, because a
-        // slot with nothing on it draws nothing at all.
+        // A monitor is unplugged and this screen has taken its workspaces
+        // in. Show THOSE, not both sets - the other screen's numbers are
+        // where the windows went, and nine chips on a 13" panel is not a
+        // bar, it is a ruler.
         //
-        // It used to include our own only when they EXISTED, which is what
-        // was left of the old "do not show nine chips" rule, and it is what
-        // made the row jump when you visited 6 to 9: the slot was created on
-        // arrival and destroyed on leaving, so the pill grew and shrank and
-        // the app icon beside it slid about. Reserving them costs horizontal
-        // space that draws nothing and buys a row that never moves.
-        return taken.concat(own).sort((a, b) => a - b)
+        // EXCEPT ANY OF OUR OWN THAT ACTUALLY EXIST. A workspace with
+        // windows on it must always be on the bar; hiding one is the bug
+        // this file was just fixed for, and it would be no better inverted.
+        // In practice the laptop's own 6-9 are empty when the external is
+        // unplugged, so this shows five chips and not nine.
+        const live = []
+        const all = Hyprland.workspaces.values
+        for (let i = 0; i < own.length; i++) {
+            for (let j = 0; j < all.length; j++) {
+                if (all[j].id === own[i]) { live.push(own[i]); break }
+            }
+        }
+        return root.occupied(taken.concat(live).sort((a, b) => a - b))
+    }
+
+    // EMPTY ONES ARE NOT DRAWN. Hyprland destroys a workspace the moment its
+    // last window leaves, so "in Hyprland.workspaces" is the same question as
+    // "has anything on it" - no window count to read, and the destroyworkspace
+    // event keeps it current without polling.
+    //
+    // THE FOCUSED ONE IS ALWAYS KEPT, even standing on an empty workspace with
+    // nothing on it: the row exists to say where you are, and the one case it
+    // must never go blank is the one where you have just arrived somewhere
+    // empty and are looking at the bar to check you did.
+    //
+    // The row changes width as workspaces come and go. There is no animation
+    // for that and there cannot easily be one - a Repeater destroys the item,
+    // so there is nothing left to shrink - which is why the dots have a gap
+    // between them rather than being welded into a strip.
+    function occupied(ids: var): var {
+        const live = Hyprland.workspaces.values
+        const focusedId = Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : -1
+        const out = []
+        for (let i = 0; i < ids.length; i++) {
+            if (ids[i] === focusedId) { out.push(ids[i]); continue }
+            for (let j = 0; j < live.length; j++) {
+                if (live[j].id === ids[i]) { out.push(ids[i]); break }
+            }
+        }
+        return out
     }
 
     spacing: 6
+
+    // THE DOTS GLIDE INTO PLACE RATHER THAN SNAPPING. This row's contents
+    // change as you work: a workspace with nothing left on it is destroyed by
+    // Hyprland, its dot goes, and every dot after it has a new place to be.
+    // Without these the whole row teleports sideways, which is what "the jump"
+    // was - and reserving a slot for every possible workspace fixed it at the
+    // cost of a pill full of air.
+    //
+    // `move` covers the dots that were already here and now belong somewhere
+    // else. `add` covers one arriving, which happens the moment you step onto
+    // an empty workspace: it fades up in place instead of shoving its
+    // neighbours aside.
+    //
+    // REMOVAL CANNOT BE ANIMATED, and that is a Repeater's nature rather than
+    // an oversight: the item is destroyed when the model shrinks, so there is
+    // nothing left to fade. What the eye sees instead is the survivors
+    // gliding into the gap, which reads as the row closing up rather than as
+    // a snap.
+    move: Transition {
+        NumberAnimation { properties: "x"; duration: 200; easing.type: Easing.OutCubic }
+    }
+
+    // A LISTMODEL, NOT THE ARRAY ITSELF, and this is what makes the glide
+    // possible at all. A Repeater fed a JavaScript array rebuilds every
+    // delegate whenever the array changes identity - so a single workspace
+    // disappearing destroyed and recreated the whole row, every dot counted as
+    // newly added, and there was nothing left in place for `move` to animate.
+    // The first attempt at this fixed the jump by fading the entire row in and
+    // out, which was worse than the jump.
+    //
+    // Syncing row by row means the dots that stay ARE the same objects. Only
+    // the one that went is destroyed, and the survivors glide into the gap.
+    ListModel { id: chipModel }
+
+    function syncModel(): void {
+        const want = root.slots
+        // Drop what is no longer there, from the end so the indices hold.
+        for (let i = chipModel.count - 1; i >= 0; i--) {
+            if (want.indexOf(chipModel.get(i).wsId) === -1) chipModel.remove(i)
+        }
+        // Insert what is new, in the position its number calls for.
+        for (let w = 0; w < want.length; w++) {
+            let at = -1
+            for (let i = 0; i < chipModel.count; i++) {
+                if (chipModel.get(i).wsId === want[w]) { at = i; break }
+            }
+            if (at === -1) chipModel.insert(w, { wsId: want[w] })
+        }
+    }
+
+    onSlotsChanged: root.syncModel()
+    Component.onCompleted: root.syncModel()
 
     // SCROLL THE ROW TO CHANGE WORKSPACE, the same gesture SUPER+scroll does
     // over the desktop (hypr/binds.lua), here without the modifier because
@@ -81,16 +167,17 @@ Row {
     }
 
     Repeater {
-        model: root.slots
+        model: chipModel
 
         Rectangle {
             id: chip
 
-            // Repeater hands array entries over as `modelData`. It used to
-            // count from `index`, which only worked while the slots were
-            // always 1..5.
-            required property var modelData
-            readonly property int wsId: chip.modelData
+            // The ListModel's own role, declared as a required property the
+            // way a Repeater delegate takes any model role. It used to count
+            // from `index`, which only worked while the slots were always
+            // 1..5, and then from `modelData`, which is what an ARRAY model
+            // hands over - a ListModel names its roles instead.
+            required property int wsId
 
             // Does this workspace exist in Hyprland right now? A workspace
             // only exists once something is on it.
@@ -205,26 +292,6 @@ Row {
             // still worth seeing, and the pulse below is what carries it.
             // `exists` survives as the last branch only to cover the frame
             // between a workspace being destroyed and the row rebuilding.
-            // AN EMPTY WORKSPACE KEEPS ITS PLACE AND SHOWS NOTHING. Removing
-            // the dot entirely is what made the row jump: leave an empty
-            // workspace for another one and Hyprland destroys the first, the
-            // Repeater drops its item, and every dot after it slides along to
-            // fill the gap - a whole row twitching sideways because you
-            // changed which nothing you were looking at.
-            //
-            // Invisible rather than absent: the slot is still laid out, so
-            // nothing moves, and the only thing that changes width is the
-            // focused dot's own stretch, which is the movement the row is
-            // FOR. It also leaves the empty workspaces clickable, which is a
-            // side effect rather than the reason, but a welcome one - 4 and 5
-            // are reachable with the mouse again without drawing anything for
-            // them.
-            opacity: chip.exists || chip.focused ? 1 : 0
-            Behavior on opacity {
-                enabled: chip.settled
-                NumberAnimation { duration: Theme.animFast }
-            }
-
             color: chip.urgent ? Theme.danger
                  : focused     ? Theme.accent
                  : exists      ? Qt.rgba(Theme.fg.r, Theme.fg.g, Theme.fg.b, 0.25)

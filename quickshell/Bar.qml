@@ -325,6 +325,15 @@ PanelWindow {
 
             Rectangle {
                 id: leftPill
+
+                // The pill follows its contents, and the workspace row's
+                // contents change as workspaces come and go. Animated with the
+                // same curve the dots inside use, so the pill closing up reads
+                // as one movement with them rather than as the frame snapping
+                // around a row that glided.
+                Behavior on width {
+                    NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+                }
                 anchors.verticalCenter: parent.verticalCenter
                 height: BarStyle.pillHeight
                 // Tracks its contents, so the OSD sliding out and a plugin

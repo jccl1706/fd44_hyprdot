@@ -39,3 +39,6 @@ hypr/monitors_local.lua
 # tmux loads by name lands in the repo. The Framework uses one to square off
 # the status bar pills that kitty draws rounded.
 tmux/tmux_local.conf
+
+# Python leaves these beside any script it imports.
+__pycache__/
