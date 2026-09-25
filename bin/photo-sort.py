@@ -73,6 +73,14 @@ NUMBERED = re.compile(r"^(?P<base>.*?)\((?P<n>\d+)\)$")
 #: IMG_20150830_130750 / PXL_20211203_174512345 / VID_20190101_ / 20230115_
 FILENAME_DATE = re.compile(r"(?<!\d)(20\d{2}|19\d{2})[-_]?(\d{2})[-_]?(\d{2})(?!\d)")
 
+#: 00100dPORTRAIT_00100_BURST20171118140446463_COV.jpg - a date with a
+#: millisecond timestamp run straight onto it. The pattern above refuses these
+#: because it insists nothing follows the day, which is right for avoiding
+#: false hits in serial numbers and wrong for 48 files in this archive. Here
+#: the trailing digits are REQUIRED, which is what makes it safe: a bare run
+#: of digits does not match, and datetime() still has to accept the result.
+BURST_DATE = re.compile(r"(?:^|\D)(20\d{2}|19\d{2})(\d{2})(\d{2})\d{6,}")
+
 #: "IMG_1234(1).jpg" is Google's duplicate marker; "IMG_1234-edited.jpg" its
 #: edit. Both belong with the original, whose sidecar carries the date.
 DERIVED = re.compile(r"^(?P<stem>.+?)(?:\(\d+\))?(?:-edited|-EFFECTS|-ANIMATION)?$")
@@ -126,33 +134,55 @@ def media_from_title(sidecar: Path) -> str | None:
     return None
 
 
-#: How much of a name has to agree before two truncations are called the same
-#: file. Google cuts BOTH the media name and the sidecar name, at different
-#: points, so the title from the JSON is often longer than what is on disk:
-#: "..._1718556495768.jpg" in the metadata against "..._17185564957.jpg" on
-#: the filesystem. Forty characters is past the timestamp in every Pixel and
-#: Samsung name, and a match is only accepted when exactly one file agrees.
-PREFIX_MATCH = 40
-
-
 def locate(owner: str, filed: dict[str, Path]) -> Path | None:
+    """The file `owner` names, allowing for the name on disk being truncated.
+
+    A FIXED PREFIX IS NOT ENOUGH, which two sidecars proved: both
+    ..._BURST20190509204951181_COVER.jpg and ..._BURST20190509204951965_COVER.jpg
+    agree for their first forty characters, so a forty-character key matched
+    two files and gave up on both. What is actually true of a truncation is
+    that the shorter name is a PREFIX of the longer one, all the way to where
+    it was cut - so that is what is tested, and the longest agreement wins.
+    """
     exact = filed.get(owner)
     if exact:
         return exact
-    key = owner[:PREFIX_MATCH]
-    if len(key) < PREFIX_MATCH:
+    stem, _ = os.path.splitext(owner)
+    hits = [(len(os.path.splitext(name)[0]), path) for name, path in filed.items()
+            if stem.startswith(os.path.splitext(name)[0])]
+    if not hits:
         return None
-    hits = [path for name, path in filed.items() if name.startswith(key)]
-    return hits[0] if len(hits) == 1 else None
+    best = max(length for length, _ in hits)
+    longest = [path for length, path in hits if length == best]
+    if len(longest) == 1:
+        return longest[0]
+    # Google's "(1)" duplicates tie on length. The original - no (N) before the
+    # extension - is the one the metadata describes.
+    plain = [h for h in longest if not re.search(r"\(\d+\)\.[^.]+$", h.name)]
+    return plain[0] if len(plain) == 1 else None
 
 
 def sidecars_in(directory: Path) -> dict[str, list[Path]]:
-    """Every sidecar in a directory, grouped by the media file it belongs to."""
+    """Every sidecar in a directory, grouped by the media file it belongs to.
+
+    KEYED BY THE NAME ON DISK, not by the name the metadata claims. Google
+    truncates the media file too, and at a different point than the sidecar:
+    the JSON says 00100lPORTRAIT_00100_BURST20190509204951181_COVER.jpg and the
+    file beside it is ..._COV.jpg. Matching those by exact name left three
+    sidecars behind in a 14,551-file archive - the media moved, they did not.
+    """
+    here = {path.name: path for path in directory.iterdir()
+            if path.is_file() and path.suffix.lower() in MEDIA}
     out: dict[str, list[Path]] = {}
     for candidate in directory.glob("*.json"):
         owner = media_for_sidecar(candidate) or media_from_title(candidate)
-        if owner:
-            out.setdefault(owner, []).append(candidate)
+        if not owner:
+            continue
+        if owner not in here:
+            resolved = locate(owner, here)
+            if resolved:
+                owner = resolved.name
+        out.setdefault(owner, []).append(candidate)
     return out
 
 
@@ -186,14 +216,16 @@ def date_from_sidecar(sidecar: Path) -> datetime | None:
 
 
 def date_from_name(media: Path) -> datetime | None:
-    match = FILENAME_DATE.search(media.stem)
-    if not match:
-        return None
-    year, month, day = (int(part) for part in match.groups())
-    try:
-        return datetime(year, month, day, tzinfo=timezone.utc)
-    except ValueError:
-        return None
+    for pattern in (FILENAME_DATE, BURST_DATE):
+        match = pattern.search(media.stem)
+        if not match:
+            continue
+        year, month, day = (int(part) for part in match.groups())
+        try:
+            return datetime(year, month, day, tzinfo=timezone.utc)
+        except ValueError:
+            continue
+    return None
 
 
 def taken(media: Path, index: dict[str, list[Path]]) -> tuple[datetime | None, str]:
