@@ -631,6 +631,19 @@ different ones get a `-1` suffix. Every move is written to a CSV manifest and
 empty. Checked by round-tripping a sample: 47 files out and back, with the same
 checksum-of-checksums at both ends.
 
+**Videos can go in their own folder**, with `--video-dir video`: they are filed
+under `video/YEAR/MONTH` while the stills keep `YEAR/MONTH`. A video that is
+*part of a still* stays with the still — a Pixel motion photo is `X.MP` beside
+`X.MP.jpg`, an iPhone live photo is `IMG_0018.MOV` beside `IMG_0018.HEIC`, and
+filing those under `video/` would separate a photo from its own motion. On this
+archive that rule kept 594 `.MP` and 23 `.MOV` with their photos and moved
+5,265 real videos — 327 GB of the 375.
+
+> The companion test is **case-insensitive**, and has to be: the stills are
+> `.HEIC` and `.JPG` in upper case while the videos are `.MOV`. A
+> case-sensitive version found no pairs at all and would have moved every one
+> of them.
+
 Within one filesystem a move is a rename — instant, atomic, needing no free
 space, which matters on a disk with 49 GB left. Across filesystems it refuses
 unless you pass `--copy`.

@@ -54,8 +54,10 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-MEDIA = {".jpg", ".jpeg", ".png", ".heic", ".gif", ".webp", ".tif", ".tiff",
-         ".mov", ".mp4", ".m4v", ".3gp", ".avi", ".mkv", ".mp", ".dng", ".raw"}
+STILL = {".jpg", ".jpeg", ".png", ".heic", ".gif", ".webp", ".tif", ".tiff",
+         ".dng", ".raw"}
+VIDEO = {".mov", ".mp4", ".m4v", ".3gp", ".avi", ".mkv", ".mp"}
+MEDIA = STILL | VIDEO
 
 #: Google truncates the WHOLE sidecar name to 51 characters, and the suffix is
 #: what gets cut: .supplemental-metadata.json becomes .supplement.json,
@@ -245,9 +247,29 @@ def taken(media: Path, index: dict[str, list[Path]]) -> tuple[datetime | None, s
     return None, "unknown"
 
 
-def destination(root: Path, when: datetime, name: str, local: bool) -> Path:
+def has_still_companion(media: Path) -> bool:
+    """Is this video a PART of a photo rather than a video in its own right?
+
+    A Pixel motion photo is X.MP beside X.MP.jpg; an iPhone live photo is
+    IMG_0018.MOV beside IMG_0018.HEIC. Filing those under video/ separates a
+    still from its own motion, which is not what "move the videos" means. Here
+    that is 594 of 605 .MP files and 23 .MOV - and, checked rather than
+    assumed, none of the 1352 .MP4.
+
+    Case-insensitively, because the stills are .HEIC and .JPG in upper case
+    while the videos are .MOV: a case-sensitive test found no pairs at all and
+    would have moved every one of them.
+    """
+    here = {path.name.lower() for path in media.parent.iterdir() if path.is_file()}
+    stem, full = media.stem.lower(), media.name.lower()
+    return any(stem + ext in here or full + ext in here for ext in STILL)
+
+
+def destination(root: Path, when: datetime, name: str, local: bool,
+                video_dir: str | None = None) -> Path:
     moment = when.astimezone() if local else when
-    return root / f"{moment:%Y}" / f"{moment:%m}" / name
+    base = root / video_dir if video_dir else root
+    return base / f"{moment:%Y}" / f"{moment:%m}" / name
 
 
 def unique(path: Path, source: Path) -> tuple[Path | None, str]:
@@ -274,6 +296,10 @@ def main() -> int:
     parser.add_argument("--dest", type=Path, help="where YEAR/MONTH goes (default: SOURCE)")
     parser.add_argument("--copy", action="store_true",
                         help="copy instead of moving, needed across filesystems")
+    parser.add_argument("--video-dir", metavar="NAME",
+                        help="file videos under NAME/YEAR/MONTH instead of YEAR/MONTH; "
+                             "a video that is part of a still (motion and live photos) "
+                             "stays with the still")
     parser.add_argument("--utc", action="store_true",
                         help="group by UTC rather than this machine's timezone")
     parser.add_argument("--manifest", type=Path, help="where to write the record of moves")
@@ -314,7 +340,11 @@ def main() -> int:
         if when is None:
             undated.append(media)
             continue
-        target = destination(dest_root, when, media.name, local=not args.utc)
+        into_video = (args.video_dir
+                      and media.suffix.lower() in VIDEO
+                      and not has_still_companion(media))
+        target = destination(dest_root, when, media.name, local=not args.utc,
+                             video_dir=args.video_dir if into_video else None)
         if target.parent == media.parent:
             continue                      # already filed
         final, what = unique(target, media)
