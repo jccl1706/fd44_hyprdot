@@ -27,11 +27,18 @@
 # So the control is written once, here, by something that runs after the card
 # is there.
 #
-# ALL FOUR CHANNELS, THROUGH THE SIMPLE CONTROL. `cset numid=4 254,254,254,254`
-# sets the front pair and silently leaves the rear pair at 0 - measured, twice.
-# `sset` writes every channel, and the EVO4's profile is "Headphone / Line
-# Out", so the rear pair is the other socket: set only the front pair and
-# headphones stay silent.
+# THE CONTROL HAS FOUR CHANNELS AND ONLY TWO OF THEM ARE REAL. Front Left and
+# Front Right are the output; Rear Left and Rear Right are aux channels the
+# EVO4 does not use, they refuse to be written, and they read 0 for ever -
+# checked by setting them and watching them fall back within seconds.
+# 51-evo4-soft-mixer.conf said so already, in the line about amixer answering
+# "Invalid argument" for two of them; I set all four, saw two hold, and
+# concluded the rear pair was a second socket. It is not.
+#
+# That is why the check below reads the FIRST value rather than looking for
+# "[0%]" anywhere in the output: the rear channels are always at 0%, so a
+# naive match would rewrite the control on every single login - which is the
+# hammering the soft-mixer config exists to avoid.
 #
 # HARMLESS WITHOUT AN EVO4. Every machine in this repository reads the same
 # autostart; a laptop with no such card exits 0 having done nothing.
@@ -55,8 +62,10 @@ command -v amixer >/dev/null 2>&1 || { echo "evo4-gain: alsa-utils not installed
 # Idempotent: if it is already open, say nothing and change nothing. This runs
 # on every login and on every replug, and a write to this control is exactly
 # what the soft-mixer config exists to avoid doing often.
-if amixer -c "$CARD" sget "$CONTROL" 2>/dev/null | grep -q "\[0%\]"; then
+current="$(amixer -c "$CARD" cget numid=4 2>/dev/null |
+           awk -F'values=' '/: values=/ { split($2, a, ","); print a[1]; exit }')"
+if [[ ${current:-0} -lt 254 ]]; then
     amixer -c "$CARD" sset "$CONTROL" 100% >/dev/null 2>&1 ||
         { echo "evo4-gain: could not set $CONTROL on $CARD" >&2; exit 1; }
-    echo "evo4-gain: opened $CARD's output (was at 0, which is silence)"
+    echo "evo4-gain: opened $CARD's output (was at ${current:-0}/254, and 0 is silence)"
 fi
