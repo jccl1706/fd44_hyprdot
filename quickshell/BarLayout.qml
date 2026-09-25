@@ -55,9 +55,7 @@ Singleton {
     // the panels next to them - a slip off the audio glyph lands on empty
     // frame rather than on something that ends the session.
     readonly property var defaults: ({
-        // The focused window's icon, beside the chips: they say which
-        // workspace, it says what is on it.
-        left: ["focused"],
+        left: [],
         centerLeft: [],
         centerRight: ["theme", "caffeine"],
         right: ["tray", "notes", "notify", "network", "audio", "battery", "couch", "power"]

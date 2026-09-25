@@ -82,7 +82,7 @@ sudo bin/chromium-policy-setup.sh            # --remove takes it out again
 ## What it gives you
 
 <p align="center">
-  <img src="docs/bar.png" alt="the bar: logo, workspace dots, the focused window's icon, clock, and the right-hand pill" width="100%">
+  <img src="docs/bar.png" alt="the bar: logo, workspace dots, clock, and the right-hand pill" width="100%">
 </p>
 
 - **Bar** — workspaces, clock, theme toggle, and an OSD that slides out of the
@@ -342,8 +342,6 @@ quickshell/      the shell itself, QML
   Bar · Frame · Launcher · WallpaperPicker · PowerMenu · Osd · Media
   Wallpaper · WallpaperState    the wallpaper, drawn here - no wallpaper daemon;
                                  crossfades when the choice changes
-  FocusedApp                     the icon of whatever window has the keyboard,
-                                 beside the chips: they say where, it says what
   AudioButton · AudioPanel       volume and output/input selection
   NetworkButton · NetworkPanel   Wi-Fi and Ethernet
   CaffeineButton · Caffeine      coffee cup: stay awake - no idle lock, screen-off
