@@ -193,9 +193,16 @@ cmd_setup() {
     mkdir -p "$CONFIG_DIR" "$STATE_DIR"
     chmod 700 "$CONFIG_DIR"
 
-    note "disks with a filesystem, excluding this machine's own"
-    lsblk -o NAME,SIZE,FSTYPE,LABEL,UUID,MOUNTPOINT,TRAN |
-        awk 'NR==1 || /usb/ || /part/' | sed 's/^/    /'
+    # EVERY FILESYSTEM WITH A UUID, which is what the question below asks for.
+    # This filtered rows matching /part/ while asking lsblk for columns that do
+    # not include TYPE, so nothing matched and the only row printed was the
+    # whole-disk one - which has no UUID, so the list answered nothing.
+    note "filesystems that could hold the repository"
+    lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,UUID,MOUNTPOINT,TRAN |
+        awk 'NR == 1 || ($4 != "" && $4 != "swap")' | sed 's/^/    /'
+    echo
+    printf '    %sthis machine boots from %s; anything else is removable%s\n' \
+        "$dim" "$(findmnt -no SOURCE / 2>/dev/null || echo unknown)" "$reset"
     echo
     local uuid
     read -rp "UUID of the backup disk: " uuid
@@ -296,16 +303,30 @@ cmd_status() {
     else
         printf '  %-22s %s\n' "last backup" "never"
     fi
-    (( age > STALE_DAYS )) && warn "older than $STALE_DAYS days - the timer will start failing"
+    if [[ ! -f $LAST_RUN ]]; then
+        warn "nothing has been backed up yet - run: bin/backup.sh run"
+    elif (( age > STALE_DAYS )); then
+        warn "older than $STALE_DAYS days - the timer fails until this succeeds"
+    fi
     disk_present || return 0
     with_repo
     restic snapshots --tag fd44 --latest 3 2>/dev/null | tail -5 | sed 's/^/  /'
 }
 
+#: NOT a local. The EXIT trap runs after cmd_verify has returned, by which
+#: point a local of its is gone - and under `set -u` the trap then died with
+#: "temp: unbound variable" and removed nothing, leaving a restored copy of
+#: ~/.ssh in /tmp. Private keys, left behind by the command whose whole job is
+#: to prove the backup works.
+VERIFY_TMP=""
+cleanup_verify() { [[ -n ${VERIFY_TMP:-} ]] && rm -rf "$VERIFY_TMP"; return 0; }
+
 cmd_verify() {
     with_repo
-    local temp; temp="$(mktemp -d)"
-    trap 'rm -rf "$temp"' EXIT
+    VERIFY_TMP="$(mktemp -d)"
+    chmod 700 "$VERIFY_TMP"
+    trap cleanup_verify EXIT INT TERM
+    local temp="$VERIFY_TMP"
     note "restoring the latest snapshot into $temp"
     restic restore latest --target "$temp" --include "$HOME/.ssh" >/dev/null
     local restored="$temp$HOME/.ssh"
