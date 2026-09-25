@@ -590,6 +590,13 @@ there is no root and no `fstab` entry for a disk that is usually absent.
 > backup is more than a fortnight old the unit **fails**, which puts it in
 > `systemctl --failed`, where a sweep of the machine looks first.
 
+**The disk explains itself.** Every successful run rewrites `RESTORE.md` into
+the repository directory: what is in there, which two things you need, and the
+exact commands to look, restore one file, restore everything, or browse the
+snapshots as a filesystem. A restore is the moment when nothing else is to
+hand — no checkout, no notes, possibly no laptop — so the instructions travel
+with the disk. It carries no password, by design.
+
 > **The repository password is the backup.** Lose it and the disk is 400 MB of
 > noise; there is no recovery, by design. `bin/backup.sh escrow` prints what
 > has to be kept somewhere that is not this laptop.

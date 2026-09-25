@@ -11,6 +11,7 @@
 #         bin/backup.sh verify       restore the latest into a temp dir and diff it
 #         bin/backup.sh restore DIR  restore the latest snapshot into DIR
 #         bin/backup.sh mount DIR    browse the snapshots as a filesystem
+#         bin/backup.sh readme       write RESTORE.md onto the disk
 #         bin/backup.sh escrow       what has to be kept OFF this machine
 #
 # WHAT THIS IS FOR. A snapshot (btrfs-patrol) and a scrub (btrfs-scrub.sh)
@@ -243,6 +244,7 @@ cmd_setup() {
         restic init
         note "created the repository at $repo"
     fi
+    cmd_readme
     echo
     cmd_escrow
 }
@@ -275,6 +277,7 @@ cmd_run() {
         # yesterday"; monthly for a year catches "that file existed in March".
         [[ ${1-} == --dry-run ]] || restic forget --tag fd44 \
             --keep-daily 7 --keep-weekly 4 --keep-monthly 12 --prune
+        cmd_readme >/dev/null
         notify "Backup complete" "$(restic snapshots --tag fd44 --json 2>/dev/null | grep -c '"time"') snapshots on the disk"
     else
         notify "Backup failed" "see: journalctl --user -u backup.service" critical
@@ -342,6 +345,118 @@ cmd_verify() {
     note "a restore works. THIS is what makes it a backup rather than a hope."
 }
 
+# A README ON THE DISK ITSELF, because the disk is the one thing that survives
+# this machine, and a restore is exactly the moment when nothing else is to
+# hand: no checkout, no notes, possibly no laptop. Written by `setup` and
+# rewritten after every successful backup, so it cannot describe a repository
+# that has moved.
+#
+# IT CONTAINS NO PASSWORD and must not. Anyone holding the disk can read it;
+# the password is what stops them reading the backup.
+cmd_readme() {
+    load_config
+    local where repo target
+    where="$(mount_point)"
+    [[ -n $where ]] || die "the backup disk is not mounted"
+    repo="$(repo_path "$where")"
+    target="$repo/RESTORE.md"
+    cat > "$target" <<TEXT
+# How to get this back
+
+This directory is a [restic](https://restic.net) repository holding the home
+directory of **$(whoami)@$(hostname 2>/dev/null || cat /etc/hostname)**.
+Written by \`bin/backup.sh\` from the fd44_hyprdot repository.
+
+Last written: $(date '+%Y-%m-%d %H:%M %Z')
+
+## You need two things
+
+1. **restic.** \`sudo dnf install restic\`, \`apt install restic\`,
+   \`brew install restic\`, or the single binary from restic.net - it needs no
+   configuration and no daemon.
+2. **The repository password.** It is *not* on this disk, by design. Without it
+   everything here is noise; there is no recovery and no back door.
+
+## Point restic at this folder
+
+\`\`\`sh
+export RESTIC_REPOSITORY=/path/to/this/folder   # the folder holding this file
+\`\`\`
+
+On the machine it was written from that path was
+\`$where/$REPO_SUBDIR\`, but a disk mounts wherever the machine
+you plug it into decides, so use the path you actually see.
+
+Every command below reads that variable and will ask for the password.
+
+## Look before you restore
+
+\`\`\`sh
+restic snapshots      # what is here, and from when
+restic ls latest      # every file in the newest one
+\`\`\`
+
+## Get one file back
+
+\`\`\`sh
+restic restore latest --target /tmp/out --include '/home/*/.ssh'
+\`\`\`
+
+Paths are absolute, as they were on the machine that was backed up, and
+\`--target\` is a prefix - the line above puts the keys in
+\`/tmp/out/home/<user>/.ssh\`. **Restore somewhere empty and copy across by
+hand**; restoring straight over a live home directory is how a good backup
+ruins a working machine.
+
+## Get everything back
+
+\`\`\`sh
+restic restore latest --target /tmp/out
+\`\`\`
+
+Then copy what you want.
+
+**Permissions come back on their own.** restic keeps mode and ownership inside
+the repository rather than on the disk, so \`~/.ssh\` restores as 0700 with its
+keys at 0600 even though the disk itself is exfat and has no idea what a Unix
+permission is - checked, not assumed. Ownership is only restored when restic
+runs as root; as an ordinary user everything comes back owned by you, which is
+what you want when moving to a new machine anyway.
+
+## Browse it like a filesystem
+
+\`\`\`sh
+mkdir /tmp/browse && restic mount /tmp/browse
+\`\`\`
+
+Every snapshot appears under \`/tmp/browse/snapshots/\`, read-only. Ctrl-C to
+unmount. Needs FUSE.
+
+## What is in here
+
+| | |
+| --- | --- |
+| \`~/.ssh\` | private keys - the only thing that cannot be regenerated |
+| \`~/.config/gh\`, \`~/.config/copr\` | API tokens |
+| \`~/.claude\`, \`~/.claude.json\` | sessions, memory, settings |
+| \`~/.config/chromium\` | logins, cookies, bookmarks, history |
+| \`~/Work\` | git checkouts - also on GitHub, but not the uncommitted parts |
+| shell config, desktop state | small, and what makes the machine yours |
+
+The system itself is not here and does not need to be: it is rebuilt from
+<https://github.com/jccl1706/fd44_hyprdot>, which is what put this file here.
+
+## If something looks wrong
+
+\`\`\`sh
+restic check              # verify the repository
+restic check --read-data  # slower, reads every byte
+\`\`\`
+
+TEXT
+    note "wrote $target"
+}
+
 cmd_escrow() {
     load_config 2>/dev/null || true
     cat <<TEXT
@@ -368,6 +483,7 @@ case "${1-}" in
     verify)     cmd_verify ;;
     restore)    [[ -n ${2-} ]] || die "usage: $0 restore DIR"; with_repo; restic restore latest --target "$2" ;;
     mount)      [[ -n ${2-} ]] || die "usage: $0 mount DIR"; with_repo; mkdir -p "$2"; restic mount "$2" ;;
+    readme)     cmd_readme ;;
     escrow)     cmd_escrow ;;
     *) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac
