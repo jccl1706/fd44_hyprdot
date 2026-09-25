@@ -44,24 +44,18 @@ Row {
         // Nothing inherited: the ordinary case, both monitors present.
         if (taken.length === 0) return own.length > 0 ? own : [1, 2, 3, 4, 5]
 
-        // A monitor is unplugged and this screen has taken its workspaces
-        // in. Show THOSE, not both sets - the other screen's numbers are
-        // where the windows went, and nine chips on a 13" panel is not a
-        // bar, it is a ruler.
+        // A monitor is unplugged and this screen has taken its workspaces in.
+        // BOTH SETS GET A SLOT - the inherited ones and our own - and the
+        // nine chips this comment used to warn about never appear, because a
+        // slot with nothing on it draws nothing at all.
         //
-        // EXCEPT ANY OF OUR OWN THAT ACTUALLY EXIST. A workspace with
-        // windows on it must always be on the bar; hiding one is the bug
-        // this file was just fixed for, and it would be no better inverted.
-        // In practice the laptop's own 6-9 are empty when the external is
-        // unplugged, so this shows five chips and not nine.
-        const live = []
-        const all = Hyprland.workspaces.values
-        for (let i = 0; i < own.length; i++) {
-            for (let j = 0; j < all.length; j++) {
-                if (all[j].id === own[i]) { live.push(own[i]); break }
-            }
-        }
-        return taken.concat(live).sort((a, b) => a - b)
+        // It used to include our own only when they EXISTED, which is what
+        // was left of the old "do not show nine chips" rule, and it is what
+        // made the row jump when you visited 6 to 9: the slot was created on
+        // arrival and destroyed on leaving, so the pill grew and shrank and
+        // the app icon beside it slid about. Reserving them costs horizontal
+        // space that draws nothing and buys a row that never moves.
+        return taken.concat(own).sort((a, b) => a - b)
     }
 
     spacing: 6
