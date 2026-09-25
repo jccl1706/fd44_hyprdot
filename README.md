@@ -30,11 +30,11 @@ all follow — nothing restarts.
 <tr>
 <td width="50%" valign="top">
 <img src="docs/theme-dark.png" alt="dark theme">
-<p align="center"><sub><b>dark</b> — Catppuccin Mocha</sub></p>
+<p align="center"><sub><b>dark</b> — Adwaita dark</sub></p>
 </td>
 <td width="50%" valign="top">
 <img src="docs/theme-cream.png" alt="cream theme">
-<p align="center"><sub><b>cream</b> — Rosé Pine Dawn</sub></p>
+<p align="center"><sub><b>cream</b> — Adwaita light</sub></p>
 </td>
 </tr>
 </table>
@@ -80,6 +80,10 @@ sudo bin/chromium-policy-setup.sh            # --remove takes it out again
 ```
 
 ## What it gives you
+
+<p align="center">
+  <img src="docs/bar.png" alt="the bar: logo, workspace dots, the focused window's icon, clock, and the right-hand pill" width="100%">
+</p>
 
 - **Bar** — workspaces, clock, theme toggle, and an OSD that slides out of the
   left pill for volume and brightness
