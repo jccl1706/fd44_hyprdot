@@ -34,11 +34,27 @@ import QtQuick
 Item {
     id: root
 
+    // focusHistoryID 0 IS NOT ENOUGH, and that was a bug: move to an empty
+    // workspace and Hyprland does not reset the history, so the window you
+    // were last in keeps id 0 while sitting on the workspace you just left.
+    // The bar went on showing its icon over an empty screen.
+    //
+    // Measured on workspace 7 with nothing on it:
+    //
+    //     activewindow        ''            (nothing is focused)
+    //     focusHistoryID 0 -> kitty on workspace 2
+    //     focused workspace   7
+    //
+    // So the window must ALSO be on the workspace being looked at. Both
+    // halves are needed: the workspace alone would match every window on it,
+    // and the history alone matches a window that is not here.
     readonly property var focused: {
-        const all = Hyprland.toplevels.values
-        for (const t of all) {
+        const here = Hyprland.focusedWorkspace
+        if (!here) return null
+        for (const t of Hyprland.toplevels.values) {
             const o = t.lastIpcObject
-            if (o && o.focusHistoryID === 0) return o
+            if (o && o.focusHistoryID === 0 && o.workspace && o.workspace.id === here.id)
+                return o
         }
         return null
     }
@@ -107,6 +123,13 @@ Item {
             case "openwindow":
             case "closewindow":
             case "movewindow":
+            // Moving between workspaces changes nothing about the windows and
+            // everything about which one is "here", and an empty workspace
+            // emits only this - `activewindow` arrives with an empty class,
+            // but the workspace event is what says where you now are.
+            case "workspace":
+            case "workspacev2":
+            case "focusedmon":
                 Hyprland.refreshToplevels()
             }
         }
