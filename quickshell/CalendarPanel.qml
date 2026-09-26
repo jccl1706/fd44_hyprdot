@@ -52,9 +52,22 @@ DropPanel {
     SystemClock {
         id: dayClock
         precision: SystemClock.Hours
+        onDateChanged: root.today = dayClock.date
     }
 
-    readonly property date today: dayClock.date
+    // AND NOT A BINDING ON dayClock.date, WHICH GOES STALE ACROSS SUSPEND.
+    // SystemClock arms a timer for the next boundary, and the timer counts
+    // monotonic time, which does not advance while the machine is asleep. A
+    // laptop that suspends at 21:29 and wakes at 08:14 comes back with most
+    // of that hour still on the clock, so `date` reads 21:xx YESTERDAY until
+    // the timer finally fires - up to an hour after resume, and a whole wrong
+    // day if the sleep crossed midnight. Which it does every night.
+    //
+    // So `today` is written, not bound: by the tick while the shell runs, and
+    // from the system date every time the panel opens. Opening is the only
+    // moment any of this is on screen, and `new Date()` at that moment cannot
+    // be stale. The tick still matters for a panel left open past midnight.
+    property date today: new Date()
 
     // Opened without a position - from IPC or a keybind rather than from a
     // click - it centres on the screen, which is where the clock is. The
@@ -71,6 +84,7 @@ DropPanel {
 
     onOpening: {
         const now = new Date()
+        root.today = now
         root.viewYear = now.getFullYear()
         root.viewMonth = now.getMonth()
     }
