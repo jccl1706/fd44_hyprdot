@@ -73,11 +73,23 @@ hyprctl version >/dev/null 2>&1 || die "cannot reach Hyprland (instance $HYPRLAN
 # Reading it also cannot match this script, the ssh command line that started
 # it, or an editor with the word in a filename - which is why the tempting
 # `pkill -f quickshell` is still not used.
+# AND THE " (deleted)" SUFFIX HAS TO COME OFF, which is not a detail: it is
+# what the kernel appends to the exe link of every process whose binary has
+# been replaced on disk, and an upgrade replaces it. Straight after
+# `dnf upgrade quickshell` the running shell reads
+#
+#     /proc/192675/exe -> /usr/bin/quickshell (deleted)
+#
+# so the basename was "quickshell (deleted)", nothing matched, the old shell
+# was not killed, and a second one started beside it - two bars stacked, which
+# is the precise failure this function was written to prevent. Upgrading is
+# also the single most likely moment for anyone to restart the shell.
 running() {
     local p exe
     for p in /proc/[0-9]*; do
         [[ -O $p ]] || continue                        # our own processes only
-        exe="$(readlink -f "$p/exe" 2>/dev/null)" || continue
+        exe="$(readlink "$p/exe" 2>/dev/null)" || continue
+        exe="${exe% (deleted)}"
         case "${exe##*/}" in
             qs|quickshell|.qs-wrapped|.quickshell-wrapped) echo "${p##*/}" ;;
         esac
