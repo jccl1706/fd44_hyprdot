@@ -374,6 +374,24 @@ ShellRoot {
         function close(): void  { shell.closeAll(audioVariants.instances)      }
     }
 
+    // Pending packages (Updates.qml, bin/updates.sh).
+    //
+    //   qs ipc call updates status    what the last check found
+    //   qs ipc call updates check     ask again now, rather than on the hour
+    //   qs ipc call updates open      the update terminal, as if clicked
+    IpcHandler {
+        target: "updates"
+
+        function status(): string {
+            if (Updates.count < 0)
+                return "unknown" + (Updates.error ? " - " + Updates.error : "")
+            return Updates.kind + " " + Updates.count
+                 + (Updates.summary ? " (" + Updates.summary + ")" : "")
+        }
+        function check(): void { Updates.check() }
+        function open(): void  { Updates.open() }
+    }
+
     // The movable plugins' arrangement (BarLayout.qml).
     IpcHandler {
         target: "bar"

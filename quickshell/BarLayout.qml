@@ -57,7 +57,7 @@ Singleton {
     readonly property var defaults: ({
         left: [],
         centerLeft: [],
-        centerRight: ["theme", "caffeine"],
+        centerRight: ["theme", "caffeine", "updates"],
         right: ["tray", "notes", "notify", "network", "audio", "battery", "couch", "power"]
     })
 
@@ -72,6 +72,8 @@ Singleton {
                     help: "one click between dark and cream. Hidden, the theme is still on the Appearance page and in bin/theme.sh" },
         caffeine: { label: "Caffeine",
                     help: "holds off the idle lock. Hidden, there is no other way to switch it on" },
+        updates:  { label: "Updates",
+                    help: "appears only when packages are waiting, and opens a terminal to install them. Hidden, nothing tells you the machine is behind - bin/updates.sh check still answers from a terminal" },
         tray:     { label: "System tray",
                     help: "icons from applications that publish one - Steam, Discord, Nextcloud. Empty until such a program runs, and hidden it takes away the only way to reach their menus" },
         notes:    { label: "Notes",

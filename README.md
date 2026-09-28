@@ -350,6 +350,11 @@ quickshell/      the shell itself, QML
   CaffeineButton · Caffeine      coffee cup: stay awake - no idle lock, screen-off
                                  or suspend while on, and the lid stops
                                  suspending too (the screen still goes off)
+  UpdatesButton · Updates        a box and a count, in the centre pill, ONLY
+                                 while packages are waiting; one click opens a
+                                 terminal that installs them. bin/updates.sh
+                                 answers what is pending - dnf on Fedora, how
+                                 far flake.lock trails nixpkgs on NixOS
   DropPanel        the slide-down card both panels are built on
   BarLayout · BarZone   movable plugins: press and hold a glyph, drag it along
                    the bar, drop it; its panel then opens under it. Saved per

@@ -38,7 +38,12 @@ Item {
 
     readonly property int count: keys.count
 
-    width: count > 0 ? row.implicitWidth + (gapSide !== "" ? gap : 0) : 0
+    // row.implicitWidth, NOT count, decides whether there is a zone at all:
+    // a plugin can be present and draw nothing - the tray with no items, the
+    // update box with nothing to install - and a zone holding only those
+    // would otherwise still reserve its gap to the fixed modules.
+    width: count > 0 && row.implicitWidth > 0
+           ? row.implicitWidth + (gapSide !== "" ? gap : 0) : 0
     height: 22
     clip: true
 
@@ -95,6 +100,21 @@ Item {
                 required property string key
                 anchors.verticalCenter: parent.verticalCenter
                 sourceComponent: zone.componentFor(key)
+
+                // A Row still spaces around a child of zero width, so a
+                // plugin that draws nothing would leave a 10px hole between
+                // its neighbours. An INVISIBLE child is skipped by the
+                // positioner entirely, so a plugin that wants no space is
+                // hidden here.
+                //
+                // BY ITS WIDTH, NOT BY ITS `visible`. Reading item.visible
+                // looks like the obvious test and deadlocks: QQuickItem's
+                // visible getter returns EFFECTIVE visibility, so an item
+                // inside a hidden Loader reports false whatever it asked for,
+                // the Loader stays hidden on that answer, and the plugin can
+                // never come back. The update box was invisible with seven
+                // packages waiting for exactly this reason.
+                visible: item ? item.implicitWidth > 0 : true
             }
         }
     }
