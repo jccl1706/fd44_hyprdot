@@ -126,7 +126,6 @@ work="$(mktemp -d)"
 hl_pid=""
 sig=""
 cleanup() {
-    restore_session_env
     [[ -n $hl_pid ]] && kill "$hl_pid" 2>/dev/null
     # The compositor's children go with it, but give them a moment to notice
     # before the socket disappears under them.
@@ -138,6 +137,30 @@ cleanup() {
     # script's own.
     [[ -n $sig && -d $XDG_RUNTIME_DIR/hypr/$sig ]] && rm -rf "${XDG_RUNTIME_DIR:?}/hypr/${sig:?}"
     rm -rf "$work"
+
+    # AFTER THE COMPOSITOR IS GONE, NOT BEFORE. Restoring first looks right
+    # and does nothing: Hyprland writes its environment into the user manager
+    # AGAIN on the way out, so a value put back while it was still running was
+    # overwritten by its own shutdown. Traced on the desktop:
+    #
+    #     1 start:          wayland-1
+    #     2 nested running: wayland-2
+    #     3 after restore:  wayland-1
+    #     4 after kill:     wayland-2      <- it rewrote it while dying
+    #
+    # So this waits for the process to actually be gone, and then checks its
+    # own work - a late write would otherwise leave the session pointing at a
+    # socket that no longer exists, which is what stopped the app launcher
+    # from starting anything.
+    local n
+    for n in 1 2 3 4 5 6 7 8 9 10; do
+        kill -0 "$hl_pid" 2>/dev/null || break
+        sleep 0.2
+    done
+    sleep 0.3
+    restore_session_env
+    sleep 0.5
+    restore_session_env
 }
 trap cleanup EXIT INT TERM
 
