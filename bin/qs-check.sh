@@ -86,10 +86,47 @@ command -v Hyprland >/dev/null || { red "qs-check: Hyprland is not installed"; e
 
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 
+# WHAT THE SESSION'S OWN ENVIRONMENT SAYS, BEFORE A NESTED COMPOSITOR LIES
+# ABOUT IT. Hyprland exports WAYLAND_DISPLAY and friends into the systemd user
+# manager when it starts - correct for the session's compositor, catastrophic
+# for a throwaway one: the nested instance gets wayland-2, exports it, exits,
+# and every app launched afterwards through systemd-run is pointed at a socket
+# that no longer exists.
+#
+# Measured, not guessed. On the gaming desktop the app launcher stopped
+# starting kitty, with "Wayland: Failed to connect to display" in the unit's
+# journal, and:
+#
+#     before qs-check: WAYLAND_DISPLAY=wayland-1
+#     after  qs-check: WAYLAND_DISPLAY=wayland-2      (no such socket)
+#
+# So the session's values are saved here and put back in cleanup.
+declare -A saved_env=()
+save_session_env() {
+    local v value
+    for v in WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP; do
+        value="$(systemctl --user show-environment 2>/dev/null | sed -n "s/^$v=//p")"
+        [[ -n $value ]] && saved_env["$v"]="$value"
+    done
+}
+
+restore_session_env() {
+    local v now
+    for v in "${!saved_env[@]}"; do
+        now="$(systemctl --user show-environment 2>/dev/null | sed -n "s/^$v=//p")"
+        [[ $now == "${saved_env[$v]}" ]] && continue
+        systemctl --user set-environment "$v=${saved_env[$v]}" 2>/dev/null || true
+        # The bus keeps its own copy, and an app started by a .desktop
+        # activation reads that one rather than the manager's.
+        dbus-update-activation-environment --systemd "$v" 2>/dev/null || true
+    done
+}
+
 work="$(mktemp -d)"
 hl_pid=""
 sig=""
 cleanup() {
+    restore_session_env
     [[ -n $hl_pid ]] && kill "$hl_pid" 2>/dev/null
     # The compositor's children go with it, but give them a moment to notice
     # before the socket disappears under them.
@@ -129,6 +166,8 @@ fi
     red "qs-check: no Wayland session to nest in - this needs a running desktop"
     exit 2
 }
+
+save_session_env
 
 log "starting a nested compositor"
 Hyprland -c "$work/empty.conf" > "$work/hyprland.log" 2>&1 &
