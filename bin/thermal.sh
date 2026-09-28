@@ -148,10 +148,17 @@ cmd_report() {
             "$(bar "$vmem" "$vtotal" 22 "$green")"
     fi
 
-    # Everything else the machine measures, on one line each - by NAME, since
-    # hwmonN numbering reshuffles between boots.
-    printf '\n  %sthe rest of the machine%s\n\n' "$bold" "$reset"
-    local h n t label
+    # Everything else the machine measures, GROUPED - drives, processor,
+    # chassis, memory, the rest - with a blank line between. Printed in hwmon
+    # order it was a wall of eight near-identical bars, and near-identical is
+    # exactly what these are at idle: a blank line is what lets the eye find
+    # "the drives" without reading every label.
+    #
+    # Resolved BY NAME, since hwmonN numbering reshuffles between boots.
+    printf '\n  %sthe rest of the machine%s\n' "$bold" "$reset"
+
+    local -a drives=() cpus=() chassis=() memory=() others=()
+    local h n t label row
     for h in /sys/class/hwmon/hwmon*; do
         n="$(cat "$h/name" 2>/dev/null)" || continue
         t="$(read_milli "$h/temp1_input" 2>/dev/null)" || continue
@@ -174,23 +181,40 @@ cmd_report() {
             quadro)           label="fan hub" ;;
             *)                label="$n" ;;
         esac
+
         # Truncated to the column, because a driver name is not always short
         # - iwlwifi_1 pushed its own row one character out of line, which on a
-        # screen full of aligned bars is the only thing the eye sees.
-        printf '  %-12.12s %s%4s°%s   %s\n' \
-            "$label" "$(temp_colour "$t")" "$t" "$reset" "$(bar "$t" 100 22 "$(temp_colour "$t")")"
+        # screen of aligned bars is the only thing the eye sees.
+        row="$(printf '  %-12.12s %s%4s°%s   %s' \
+            "$label" "$(temp_colour "$t")" "$t" "$reset" "$(bar "$t" 100 22 "$(temp_colour "$t")")")"
+
+        case "$n" in
+            nvme)             drives+=("$row") ;;
+            k10temp|coretemp) cpus+=("$row") ;;
+            nct6799|nct6687|quadro) chassis+=("$row") ;;
+            spd5118)          memory+=("$row") ;;
+            *)                others+=("$row") ;;
+        esac
     done
 
+    # The fans belong with the chassis they are in, not on their own at the
+    # bottom where they read as an afterthought.
     local fan
     for h in /sys/class/hwmon/hwmon*; do
         [[ "$(cat "$h/name" 2>/dev/null)" =~ ^nct ]] || continue
         [[ -r $h/fan1_input ]] || continue
         fan="$(cat "$h/fan1_input" 2>/dev/null)"
-        printf '  %-12.12s %4s rpm   %s\n' "fans" "$fan" \
-            "$( (( fan == 0 )) && printf '%sstopped - below the curve%s' "$dim" "$reset" )"
+        chassis+=("$(printf '  %-12.12s %4s rpm   %s' "fans" "$fan" \
+            "$( (( fan == 0 )) && printf '%sstopped - below the curve%s' "$dim" "$reset" )")")
         break
     done
 
+    local -n group
+    for group in drives cpus chassis memory others; do
+        (( ${#group[@]} )) || continue
+        printf '\n'
+        printf '%s\n' "${group[@]}"
+    done
     printf '\n  %sfor a fan curve, sample a real workload: bin/thermal-log.sh%s\n' "$dim" "$reset"
 }
 
