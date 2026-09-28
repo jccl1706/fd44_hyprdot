@@ -392,6 +392,26 @@ ShellRoot {
         function open(): void  { Updates.open() }
     }
 
+    // Temperatures (Thermals.qml, bin/thermal.sh).
+    //
+    //   qs ipc call thermal status   the current reading
+    //   qs ipc call thermal check    ask again now
+    //   qs ipc call thermal open     the live view, in a terminal
+    IpcHandler {
+        target: "thermal"
+
+        function status(): string {
+            if (!Thermals.present)
+                return "no discrete GPU" + (Thermals.error ? " - " + Thermals.error : "")
+            return "gpu " + Thermals.gpuTemp + "C " + Thermals.gpuUtil + "% "
+                 + Thermals.gpuPower + "W " + Thermals.gpuClock + "MHz"
+                 + ", cpu " + Thermals.cpuTemp + "C"
+                 + (Thermals.fanRpm >= 0 ? ", fan " + Thermals.fanRpm + "rpm" : "")
+        }
+        function check(): void { Thermals.check() }
+        function open(): void  { Thermals.open() }
+    }
+
     // Anything that has failed (Units.qml, bin/units.sh).
     //
     //   qs ipc call units status   what the last check found
