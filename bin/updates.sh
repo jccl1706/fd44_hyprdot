@@ -142,6 +142,50 @@ run_fedora() {
 
 # --- NixOS ----------------------------------------------------------------
 
+# The nixpkgs revision flake.lock currently pins, short.
+locked_rev_of() { # flake.lock
+    nix_json "$1" 'builtins.substring 0 7 (j.nodes.nixpkgs.locked.rev or "-")'
+}
+
+# COMMIT AND PUSH THE LOCK, BUT ONLY ONCE THE SYSTEM IS RUNNING IT. The lock
+# file is the record of what this machine is built from, and a lock that has
+# moved on disk while the repository still says otherwise is a machine nobody
+# can rebuild from the repository - `git checkout flake.lock` would quietly
+# put the old pin back and the next rebuild would undo the update.
+#
+# After the switch, because that is the point at which the new pin is known to
+# work. A lock committed before it is activated could be a build that fails.
+#
+# ONLY flake.lock, by pathspec: whatever else is being worked on in that
+# checkout is not this script's business and must not end up in the commit.
+#
+# Failing to push is reported and not fatal - the commit is made either way,
+# and the update itself already succeeded. Set FD44_UPDATES_NO_PUSH=1 to
+# commit without pushing.
+record_lock() { # dir before after
+    local dir="$1" before="$2" after="$3"
+    git -C "$dir" diff --quiet -- flake.lock && {
+        printf '\033[1;32m==>\033[0m %s\n' "flake.lock unchanged - nothing to record"
+        return 0
+    }
+    printf '\n\033[1;32m==>\033[0m %s\n' "Recording the new pin in the repository"
+    git -C "$dir" commit -q -m "nixpkgs: $before -> $after" -- flake.lock || {
+        printf '  %s\n' "could not commit flake.lock - left in the working tree"
+        return 0
+    }
+    printf '  %s\n' "committed: $(git -C "$dir" log --oneline -1)"
+    if [[ -n ${FD44_UPDATES_NO_PUSH:-} ]]; then
+        printf '  %s\n' "not pushing (FD44_UPDATES_NO_PUSH is set)"
+        return 0
+    fi
+    if GIT_TERMINAL_PROMPT=0 git -C "$dir" push -q origin HEAD 2>/dev/null; then
+        printf '  %s\n' "pushed to $(git -C "$dir" remote get-url origin)"
+    else
+        printf '  %s\n' "PUSH FAILED - the commit is local. Retry with:"
+        printf '  %s\n' "    git -C $dir push origin HEAD"
+    fi
+}
+
 # Read a JSON file with nix and print the fields an expression selects. `j` is
 # the parsed document; the expression must evaluate to a string, which is read
 # back as whitespace-separated fields.
@@ -200,7 +244,7 @@ check_nixos() {
 }
 
 run_nixos() {
-    local dir host reply out_link
+    local dir host reply out_link before after
     out_link="$(mktemp)"
     trap 'rm -f "$out_link"' RETURN
     dir="$(nixos_dir)"
@@ -216,7 +260,9 @@ run_nixos() {
     # Building as your own user is also what proves the configuration
     # evaluates at all, so a broken flake fails here rather than halfway
     # through an activation.
+    before="$(locked_rev_of "$dir/flake.lock")"
     nix flake update || die "nix flake update failed"
+    after="$(locked_rev_of "$dir/flake.lock")"
     git --no-pager diff --stat flake.lock
     printf '\n\033[1;32m==>\033[0m %s\n\n' "Building the new system (no root needed)"
     nix build --no-link --print-out-paths ".#nixosConfigurations.$host.config.system.build.toplevel" \
@@ -235,7 +281,9 @@ run_nixos() {
            printf '%s\n' "  to undo that:  git -C $dir checkout flake.lock"
            return 0 ;;
     esac
-    sudo nixos-rebuild switch --flake ".#$host"
+    sudo nixos-rebuild switch --flake ".#$host" || die "the switch failed - flake.lock is left in the working tree, uncommitted"
+
+    record_lock "$dir" "$before" "$after"
 }
 
 # --- the terminal ---------------------------------------------------------
