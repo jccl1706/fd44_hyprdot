@@ -628,6 +628,8 @@ gone. `bin/backup.sh` copies to an external USB disk with
 sudo dnf install restic
 bin/backup.sh setup          # pick the disk, set the repository password
 bin/backup.sh run            # or leave it to backup.timer, daily
+bin/backup.sh disks          # the disks it knows, and which one is here
+bin/backup.sh add-disk UUID  # rotate between two: whichever is plugged in wins
 bin/backup.sh status
 bin/backup.sh verify         # restore something and diff it
 ```

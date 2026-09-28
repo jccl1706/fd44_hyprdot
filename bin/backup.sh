@@ -13,6 +13,21 @@
 #         bin/backup.sh mount DIR    browse the snapshots as a filesystem
 #         bin/backup.sh readme       write RESTORE.md onto the disk
 #         bin/backup.sh escrow       what has to be kept OFF this machine
+#         bin/backup.sh disks        the disks it knows, and which is here
+#         bin/backup.sh add-disk U   also back up to the disk with UUID U
+#         bin/backup.sh remove-disk U  stop backing up to it (nothing is erased)
+#
+# MORE THAN ONE DISK, FOR ROTATION. BACKUP_UUID is a LIST: whichever of them is
+# plugged in gets the backup, first listed wins when several are. That is what
+# makes "one disk in use, one in a drawer or at another address" work without
+# re-running setup every time they swap - re-running setup would also move the
+# indicator in the bar, which would then go red whenever the "wrong" disk was
+# attached.
+#
+# Each disk holds a complete repository of its own rather than half of one,
+# so either can restore this machine alone. They are independent: a snapshot
+# taken while disk A was attached is not on disk B until B is attached and a
+# run happens.
 #
 # WHAT THIS IS FOR. A snapshot (btrfs-patrol) and a scrub (btrfs-scrub.sh)
 # both live on the disk they protect: they answer "I broke it" and "the disk
@@ -139,17 +154,70 @@ load_config() {
     source "$CONFIG"
     [[ -n ${BACKUP_UUID:-} ]] || die "$CONFIG has no BACKUP_UUID"
     [[ -s $PASSWORD_FILE ]] || die "no repository password at $PASSWORD_FILE"
+    # A LIST, SPLIT ON WHITESPACE - which is why a config written before this
+    # existed still works: one UUID is a list of one, and nothing about
+    # BACKUP_UUID=8C26-3AF6 has to change.
+    read -r -a UUIDS <<<"$BACKUP_UUID"
+    (( ${#UUIDS[@]} )) || die "$CONFIG has an empty BACKUP_UUID"
+    # Until select_disk finds one attached, the first is what messages name.
+    ACTIVE_UUID="${UUIDS[0]}"
+
+    # THE ONE DISK THAT EXISTED BEFORE PER-DISK DATES DID. Without this, the
+    # first `status` after this change says "never" about the disk that was
+    # backed up an hour ago, because only the global file had the date. With
+    # one disk configured the global date IS that disk's date, and this is the
+    # only moment that can be said safely: once a second disk is added, which
+    # of them the old date belonged to is no longer knowable.
+    if (( ${#UUIDS[@]} == 1 )) && [[ -f $LAST_RUN && ! -f $(last_run_file "${UUIDS[0]}") ]]; then
+        cp -p "$LAST_RUN" "$(last_run_file "${UUIDS[0]}")" 2>/dev/null || true
+    fi
+}
+
+# The first configured disk that is actually attached. Sets ACTIVE_UUID, which
+# every other disk function reads, and returns 1 when none of them is here.
+select_disk() {
+    local u
+    for u in "${UUIDS[@]}"; do
+        if lsblk -rno UUID 2>/dev/null | grep -qx "$u"; then
+            ACTIVE_UUID="$u"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# WHEN EACH DISK WAS LAST WRITTEN, which one global file cannot say once there
+# is more than one: with a disk in a drawer, "the last backup was today" is
+# true of the pair and says nothing about the copy that is off-site. The
+# global LAST_RUN stays as the newest of any disk - that is what the bar's
+# staleness means, and it is what tells you whether A copy exists - and
+# `disks` prints the per-disk dates beside it.
+last_run_file() { printf '%s/backup-last-%s' "$STATE_DIR" "${1//\//_}"; }
+
+days_since_file() {
+    local f="$1" then now
+    [[ -f $f ]] || { echo 99999; return; }
+    then=$(cat "$f" 2>/dev/null || echo 0)
+    now=$(date +%s)
+    echo $(( (now - then) / 86400 ))
+}
+
+# A label a person recognises, since a UUID is not one.
+disk_label() {
+    local u="$1" label
+    label="$(lsblk -rno UUID,LABEL 2>/dev/null | awk -v u="$u" '$1 == u { $1=""; sub(/^ /,""); print; exit }')"
+    printf '%s' "${label:-$u}"
 }
 
 #: Where the disk with that UUID is mounted, or nothing.
 mount_point() {
     lsblk -rno UUID,MOUNTPOINT 2>/dev/null |
-        awk -v uuid="$BACKUP_UUID" '$1 == uuid && $2 != "" { print $2; exit }' |
+        awk -v uuid="$ACTIVE_UUID" '$1 == uuid && $2 != "" { print $2; exit }' |
         sed 's/\\x20/ /g'
 }
 
 disk_present() {
-    lsblk -rno UUID 2>/dev/null | grep -qx "$BACKUP_UUID"
+    select_disk
 }
 
 # Mount through udisks, as the user, so this needs no root and no fstab entry
@@ -160,7 +228,7 @@ ensure_mounted() {
     [[ -n $where ]] && { echo "$where"; return 0; }
     disk_present || return 1
     local device
-    device="$(lsblk -rno UUID,PATH 2>/dev/null | awk -v u="$BACKUP_UUID" '$1==u{print $2; exit}')"
+    device="$(lsblk -rno UUID,PATH 2>/dev/null | awk -v u="$ACTIVE_UUID" '$1==u{print $2; exit}')"
     udisksctl mount -b "$device" >/dev/null 2>&1 || true
     where="$(mount_point)"
     [[ -n $where ]] || return 1
@@ -216,7 +284,7 @@ cmd_setup() {
     [[ -n $uuid ]] || die "no UUID given"
     lsblk -rno UUID | grep -qx "$uuid" || die "no filesystem with UUID $uuid is attached"
 
-    printf 'BACKUP_UUID=%s\n' "$uuid" > "$CONFIG"
+    printf 'BACKUP_UUID="%s"\n' "$uuid" > "$CONFIG"
     chmod 600 "$CONFIG"
     note "wrote $CONFIG"
 
@@ -264,7 +332,11 @@ cmd_run() {
             notify "Backup disk not connected" "No backup for $age days" critical
             die "the backup disk is not here, and the last backup was $age days ago"
         fi
-        note "the backup disk is not connected - nothing to do (last backup ${age}d ago)"
+        if (( ${#UUIDS[@]} > 1 )); then
+            note "none of the ${#UUIDS[@]} backup disks is connected - nothing to do (last backup ${age}d ago)"
+        else
+            note "the backup disk is not connected - nothing to do (last backup ${age}d ago)"
+        fi
         return 0
     fi
     repo="$(repo_path "$where")"
@@ -276,9 +348,20 @@ cmd_run() {
     while IFS= read -r path; do args+=(--exclude "$path"); done < <(excludes)
     [[ ${1-} == --dry-run ]] && args+=(--dry-run --verbose)
 
+    # A DISK'S FIRST RUN CREATES ITS REPOSITORY. `setup` does this for the
+    # first disk, but the second one is added by `add-disk` and may not even be
+    # plugged in at the time - so the run that first sees it is what has to
+    # initialise it, or rotation would need a setup step per disk.
+    if ! restic cat config >/dev/null 2>&1; then
+        mkdir -p "$repo"
+        note "first backup to $(disk_label "$ACTIVE_UUID") - creating the repository"
+        restic init || die "could not create a repository on $repo"
+        cmd_readme >/dev/null
+    fi
+
     note "backing up to $repo"
     if restic "${args[@]}"; then
-        [[ ${1-} == --dry-run ]] || date +%s > "$LAST_RUN"
+        [[ ${1-} == --dry-run ]] || { date +%s > "$LAST_RUN"; date +%s > "$(last_run_file "$ACTIVE_UUID")"; }
         # A LOCK LEFT BY AN INTERRUPTED RUN WOULD BLOCK THIS FOREVER, and it
         # did: a run killed on 24 September left its lock behind, and the
         # first prune afterwards died with "repository is already locked by
@@ -307,7 +390,7 @@ cmd_run() {
         die "restic failed"
     fi
 
-    [[ ${MOUNTED_BY_US:-0} == 1 ]] && udisksctl unmount -b "$(lsblk -rno UUID,PATH | awk -v u="$BACKUP_UUID" '$1==u{print $2; exit}')" >/dev/null 2>&1 || true
+    [[ ${MOUNTED_BY_US:-0} == 1 ]] && udisksctl unmount -b "$(lsblk -rno UUID,PATH | awk -v u="$ACTIVE_UUID" '$1==u{print $2; exit}')" >/dev/null 2>&1 || true
     return 0
 }
 
@@ -334,33 +417,107 @@ with_repo() {
 # The terminal the bar's backup icon opens: `run` with its output on screen.
 # A backup talks - what it is reading, what it sent, how long it took - and
 # that is worth a window rather than a notification saying "done".
+cmd_disks() {
+    load_config
+    local u mark age_u here
+    printf '  %-38s %-10s %s\n' "UUID" "state" "last backup to it"
+    for u in "${UUIDS[@]}"; do
+        if lsblk -rno UUID 2>/dev/null | grep -qx "$u"; then
+            here="$(lsblk -rno UUID,MOUNTPOINT 2>/dev/null | awk -v x="$u" '$1==x && $2!="" {print $2; exit}')"
+            mark="attached"
+        else
+            here=""
+            mark="absent"
+        fi
+        age_u="$(days_since_file "$(last_run_file "$u")")"
+        if (( age_u > 99998 )); then age_u="never"; else age_u="${age_u} days ago"; fi
+        printf '  %-38s %-10s %s%s\n' "$u" "$mark" "$age_u" "${here:+  ($here)}"
+    done
+    echo
+    printf '    %sthe first attached disk in this list gets the backup%s\n' "$dim" "$reset"
+}
+
+cmd_add_disk() {
+    local uuid="${1-}"
+    [[ -n $uuid ]] || die "usage: $0 add-disk UUID   (see: lsblk -o NAME,SIZE,LABEL,UUID)"
+    load_config
+    local u
+    for u in "${UUIDS[@]}"; do
+        [[ $u == "$uuid" ]] && { note "$uuid is already in the list"; return 0; }
+    done
+    # NOT REQUIRED TO BE ATTACHED. The point of a second disk is that it
+    # spends most of its life somewhere else, and a rule that it must be
+    # plugged in to be added would mean adding it from the machine you are
+    # trying to protect against losing. It is only warned about.
+    lsblk -rno UUID 2>/dev/null | grep -qx "$uuid" \
+        || warn "no filesystem with UUID $uuid is attached right now - added anyway"
+    # QUOTED, because the config is SOURCED: BACKUP_UUID=a b parses as an
+    # assignment followed by the command `b`, which is how the first version of
+    # this printed "1234-ABCD: command not found" and then read no disks at
+    # all. A single UUID needs no quotes and a list does, so everything that
+    # writes this file quotes.
+    printf 'BACKUP_UUID="%s"\n' "${BACKUP_UUID} $uuid" > "$CONFIG"
+    chmod 600 "$CONFIG"
+    note "added $uuid - $(( ${#UUIDS[@]} + 1 )) disks configured"
+    note "its repository is created by the first run that finds it attached"
+}
+
+cmd_remove_disk() {
+    local uuid="${1-}"
+    [[ -n $uuid ]] || die "usage: $0 remove-disk UUID"
+    load_config
+    local u kept=()
+    for u in "${UUIDS[@]}"; do [[ $u == "$uuid" ]] || kept+=("$u"); done
+    (( ${#kept[@]} == ${#UUIDS[@]} )) && die "$uuid is not in the list"
+    (( ${#kept[@]} )) || die 'that is the only disk configured - use `setup` to point at another one instead'
+    printf 'BACKUP_UUID="%s"\n' "${kept[*]}" > "$CONFIG"
+    chmod 600 "$CONFIG"
+    # NOTHING ON THE DISK IS TOUCHED. Its repository is complete and still
+    # restores this machine on its own; it simply stops being written to.
+    note "removed $uuid - nothing on that disk was changed, and it can still restore"
+}
+
 cmd_open() {
     local here; here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     exec "$here/in-terminal.sh" "Backup" "$here/backup.sh" run
 }
 
 cmd_json() {
-    local configured=false uuid="" connected=false days=-1 never=true
+    local configured=false uuid="" connected=false days=-1 never=true disks=0
     if [[ -f $CONFIG ]]; then
         # shellcheck source=/dev/null
         source "$CONFIG" 2>/dev/null || true
-        [[ -n ${BACKUP_UUID:-} ]] && { configured=true; uuid="$BACKUP_UUID"; }
+        if [[ -n ${BACKUP_UUID:-} ]]; then
+            configured=true
+            read -r -a UUIDS <<<"$BACKUP_UUID"
+            disks=${#UUIDS[@]}
+            ACTIVE_UUID="${UUIDS[0]}"
+        fi
     fi
     if [[ $configured == true ]]; then
+        # select_disk sets ACTIVE_UUID to whichever is here, so "uuid" names
+        # the disk being used rather than the first one ever configured.
         disk_present && connected=true
+        uuid="$ACTIVE_UUID"
         if [[ -f $LAST_RUN ]]; then
             never=false
             days="$(days_since_last)"
         fi
     fi
-    printf '{"configured":%s,"uuid":"%s","connected":%s,"never":%s,"days":%s,"stale_days":%s}\n' \
-        "$configured" "$uuid" "$connected" "$never" "$days" "$STALE_DAYS"
+    printf '{"configured":%s,"uuid":"%s","disks":%s,"connected":%s,"never":%s,"days":%s,"stale_days":%s}\n' \
+        "$configured" "$uuid" "$disks" "$connected" "$never" "$days" "$STALE_DAYS"
 }
 
 cmd_status() {
     load_config
     local age; age="$(days_since_last)"
-    printf '  %-22s %s\n' "disk UUID" "$BACKUP_UUID"
+    local u mark age_u
+    for u in "${UUIDS[@]}"; do
+        if lsblk -rno UUID 2>/dev/null | grep -qx "$u"; then mark="attached"; else mark="absent"; fi
+        age_u="$(days_since_file "$(last_run_file "$u")")"
+        if (( age_u > 99998 )); then age_u="never"; else age_u="${age_u}d ago"; fi
+        printf '  %-22s %s  %s  %s\n' "disk" "$u" "$(printf '%-8s' "$mark")" "$age_u"
+    done
     printf '  %-22s %s\n' "connected" "$(disk_present && mount_point || echo no)"
     if [[ -f $LAST_RUN ]]; then
         printf '  %-22s %s (%s days ago)\n' "last backup" "$(date -d "@$(cat "$LAST_RUN")" '+%Y-%m-%d %H:%M')" "$age"
@@ -541,6 +698,9 @@ case "${1-}" in
     status)     cmd_status ;;
     json)       cmd_json ;;
     open)       cmd_open ;;
+    disks)      cmd_disks ;;
+    add-disk)   cmd_add_disk "${2-}" ;;
+    remove-disk) cmd_remove_disk "${2-}" ;;
     snapshots)  with_repo; restic snapshots --tag fd44 ;;
     check)      with_repo; restic check ;;
     verify)     cmd_verify ;;
