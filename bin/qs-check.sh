@@ -88,11 +88,18 @@ export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 
 work="$(mktemp -d)"
 hl_pid=""
+sig=""
 cleanup() {
     [[ -n $hl_pid ]] && kill "$hl_pid" 2>/dev/null
     # The compositor's children go with it, but give them a moment to notice
     # before the socket disappears under them.
     sleep 0.3
+    # Hyprland does not tidy its instance directory on the way out, so a check
+    # run before every commit would otherwise leave a litter of them in
+    # $XDG_RUNTIME_DIR/hypr - harmless on tmpfs, but they are also what any
+    # `ls -t` lookup of "the current instance" trips over, including this
+    # script's own.
+    [[ -n $sig && -d $XDG_RUNTIME_DIR/hypr/$sig ]] && rm -rf "${XDG_RUNTIME_DIR:?}/hypr/${sig:?}"
     rm -rf "$work"
 }
 trap cleanup EXIT INT TERM
@@ -144,7 +151,7 @@ for _ in $(seq 1 $((compositor_wait * 5))); do
 done
 [[ -n $sock ]] || { red "qs-check: no new Wayland socket after ${compositor_wait}s"; exit 2; }
 
-sig="$(cd "$XDG_RUNTIME_DIR/hypr" && ls -t 2>/dev/null | head -1)"
+sig="$(cd "$XDG_RUNTIME_DIR/hypr" && ls -t 2>/dev/null | head -1)"   # the one just created
 log "compositor up on $sock"
 
 # --- load the config -----------------------------------------------------
