@@ -392,6 +392,25 @@ ShellRoot {
         function open(): void  { Updates.open() }
     }
 
+    // Anything that has failed (Units.qml, bin/units.sh).
+    //
+    //   qs ipc call units status   what the last check found
+    //   qs ipc call units check    ask again now
+    //   qs ipc call units open     the failures and their logs, in a terminal
+    IpcHandler {
+        target: "units"
+
+        function status(): string {
+            if (Units.total < 0)
+                return "unknown" + (Units.error ? " - " + Units.error : "")
+            if (Units.total === 0) return "nothing failed"
+            return Units.total + " failed (" + Units.system + " system, "
+                 + Units.user + " user): " + Units.names
+        }
+        function check(): void { Units.check() }
+        function open(): void  { Units.open() }
+    }
+
     // How long since the last backup (Backups.qml, bin/backup.sh).
     //
     //   qs ipc call backups status   what the last check found

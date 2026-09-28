@@ -360,6 +360,11 @@ quickshell/      the shell itself, QML
                                  bin/backup.sh's fortnight, red past it or if
                                  the machine has never backed up. One click
                                  runs a backup in a terminal
+  UnitsButton · Units            a pulsing red triangle, ONLY while a systemd
+                                 unit has failed - the general case of the two
+                                 above, since everything careful here reports
+                                 trouble by failing a unit. One click shows the
+                                 failures and their logs; it never clears them
   DropPanel        the slide-down card both panels are built on
   BarLayout · BarZone   movable plugins: press and hold a glyph, drag it along
                    the bar, drop it; its panel then opens under it. Saved per
