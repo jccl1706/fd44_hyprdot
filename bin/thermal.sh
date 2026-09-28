@@ -206,11 +206,12 @@ cmd_report() {
     #
     # So every fan is listed, by its own label where the chip provides one.
     #
-    # A ZERO FROM A LABELLED HUB CHANNEL IS REPORTED; a zero from an unlabelled
-    # board header is not. A hub channel that reads 0 is a fan someone
-    # connected and which is not turning - worth seeing. A board header that
-    # reads 0 is almost always an empty socket, and six rows of empty sockets
-    # bury the two fans that matter.
+    # ONLY FANS THAT ARE TURNING. A zero is either an empty socket or a
+    # channel doing nothing, and neither is worth a row: on this machine that
+    # is six board headers and two unused hub channels, eight lines of nothing
+    # around the two fans that are actually moving air. A fan that stops
+    # matters while you are watching a temperature climb, and then it stops
+    # being listed - which is itself the answer to "why is this getting hot".
     #
     # FLOW METERS ARE NOT FANS: the Quadro reports coolant flow in dL/h
     # through a fan channel, and printing "779 rpm" for it would be a lie.
@@ -223,8 +224,8 @@ cmd_report() {
             fval="$(cat "$f" 2>/dev/null)" || continue
             flabel="$(cat "$fh/fan${fi}_label" 2>/dev/null || true)"
             [[ $flabel == *Flow* || $flabel == *flow* ]] && continue
+            (( fval > 0 )) || continue
             if [[ -z $flabel ]]; then
-                (( fval > 0 )) || continue          # an empty board header
                 flabel="$fname fan$fi"
             else
                 flabel="$(printf '%s' "$flabel" | sed 's/ speed$//')"
@@ -234,8 +235,7 @@ cmd_report() {
             # 2254 rpm saturated the bar while the desktop's 779 rpm looked
             # idle, which is two wrong answers from one arbitrary number. The
             # rpm is the reading; anything else is decoration that lies.
-            chassis+=("$(printf '  %-12.12s %4s rpm   %s' "$flabel" "$fval" \
-                "$( (( fval == 0 )) && printf '%sconnected, not turning%s' "$dim" "$reset" )")")
+            chassis+=("$(printf '  %-12.12s %4s rpm' "$flabel" "$fval")")
         done
     done
 
