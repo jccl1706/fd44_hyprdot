@@ -37,6 +37,12 @@ else
     self="${FD44_HYPRDOT_DIR:-$HOME/Work/fd44_hyprdot}/bin"
 fi
 
+# The palette this report is drawn in. The first version used inline escapes
+# at each printf, which was fine for two headings and unreadable once there
+# were bars, labels and three severities.
+green=$'\033[1;32m'; yellow=$'\033[1;33m'; red=$'\033[1;31m'
+dim=$'\033[2m';      bold=$'\033[1m';     reset=$'\033[0m'
+
 # The hwmon directory whose `name` is $1, or nothing.
 hwmon_by_name() {
     local want="$1" h
@@ -88,23 +94,91 @@ cmd_check() {
         "${gpu_clock:-null}" "${cpu_temp:-null}" "${fan:-null}"
 }
 
+# A BAR, NOT A TABLE OF NUMBERS. nvidia-smi's own CSV is what this printed
+# first, and reading it meant counting commas to find which field was the
+# temperature - on a display that refreshes every two seconds, which is the
+# one place a person should not be parsing. A number with a bar beside it
+# answers "is that a lot" without arithmetic, and the limit is drawn in rather
+# than remembered: 600 W means nothing until you see how much of it is used.
+bar() { # value max width colour
+    local v="$1" max="$2" w="${3:-20}" colour="${4:-}" filled i out=""
+    [[ $v =~ ^[0-9.]+$ && $max =~ ^[0-9.]+$ ]] || { printf '%*s' "$w" ""; return; }
+    filled=$(awk -v v="$v" -v m="$max" -v w="$w" 'BEGIN{ f=int(v/m*w); if(f<0)f=0; if(f>w)f=w; print f }')
+    for ((i = 0; i < filled; i++)); do out+="█"; done
+    for ((i = filled; i < w; i++)); do out+="·"; done
+    printf '%s%s%s' "$colour" "$out" "$reset"
+}
+
+# Which colour a temperature deserves. The thresholds are the bar's, so the
+# terminal and the pill never disagree about what counts as hot.
+temp_colour() {
+    local t="$1"
+    [[ $t =~ ^[0-9]+$ ]] || { printf '%s' "$dim"; return; }
+    (( t >= 83 )) && { printf '%s' "$red"; return; }
+    (( t >= 70 )) && { printf '%s' "$yellow"; return; }
+    printf '%s' "$green"
+}
+
 cmd_report() {
+    local name temp util power limit clock vmem vtotal
     if command -v nvidia-smi >/dev/null 2>&1; then
-        printf '\033[1;32m==>\033[0m %s\n\n' "graphics card"
-        nvidia-smi --query-gpu=name,temperature.gpu,utilization.gpu,power.draw,power.limit,clocks.current.graphics,memory.used,memory.total \
-            --format=csv 2>/dev/null | sed 's/^/  /'
+        IFS=',' read -r name temp util power limit clock vmem vtotal < <(
+            nvidia-smi --query-gpu=name,temperature.gpu,utilization.gpu,power.draw,power.limit,clocks.current.graphics,memory.used,memory.total \
+                --format=csv,noheader,nounits 2>/dev/null | head -1)
+        name="${name# }"; temp="${temp# }"; util="${util# }"; power="${power# }"
+        limit="${limit# }"; clock="${clock# }"; vmem="${vmem# }"; vtotal="${vtotal# }"
     fi
-    printf '\n\033[1;32m==>\033[0m %s\n\n' "everything the board reports"
-    if command -v sensors >/dev/null 2>&1; then
-        sensors 2>/dev/null | sed 's/^/  /'
-    else
-        local h n
-        for h in /sys/class/hwmon/hwmon*; do
-            n="$(cat "$h/name" 2>/dev/null)" || continue
-            printf '  %-12s %s\n' "$n" "$(read_milli "$h/temp1_input" 2>/dev/null | sed 's/$/C/')"
-        done
+
+    if [[ -n ${name:-} ]]; then
+        printf '\n  %s%s%s\n\n' "$bold" "$name" "$reset"
+        printf '  %-7s %s%5s°%s  %s  %sthrottles at 83°%s\n' \
+            "temp"  "$(temp_colour "$temp")" "$temp" "$reset" \
+            "$(bar "$temp" 100 22 "$(temp_colour "$temp")")" "$dim" "$reset"
+        printf '  %-7s %5s%%  %s\n' \
+            "load"  "$util"  "$(bar "$util" 100 22 "$green")"
+        printf '  %-7s %5.0fW  %s  %sof %.0f W%s\n' \
+            "power" "$power" "$(bar "$power" "$limit" 22 "$green")" "$dim" "$limit" "$reset"
+        printf '  %-7s %5s MHz\n' "clock" "$clock"
+        printf '  %-7s %5.1f / %.1f GiB  %s\n' \
+            "vram"  "$(awk -v m="$vmem" 'BEGIN{print m/1024}')" \
+            "$(awk -v t="$vtotal" 'BEGIN{print t/1024}')" \
+            "$(bar "$vmem" "$vtotal" 22 "$green")"
     fi
-    printf '\n\033[2m%s\033[0m\n' "  for a fan curve, sample a real workload instead: bin/thermal-log.sh"
+
+    # Everything else the machine measures, on one line each - by NAME, since
+    # hwmonN numbering reshuffles between boots.
+    printf '\n  %sthe rest of the machine%s\n\n' "$bold" "$reset"
+    local h n t label
+    for h in /sys/class/hwmon/hwmon*; do
+        n="$(cat "$h/name" 2>/dev/null)" || continue
+        t="$(read_milli "$h/temp1_input" 2>/dev/null)" || continue
+        [[ -n $t ]] || continue
+        case "$n" in
+            k10temp|coretemp) label="cpu" ;;
+            nvme)             label="nvme" ;;
+            nct6799|nct6687)  label="board" ;;
+            spd5118)          label="memory" ;;
+            quadro)           label="fan hub" ;;
+            *)                label="$n" ;;
+        esac
+        # Truncated to the column, because a driver name is not always short
+        # - iwlwifi_1 pushed its own row one character out of line, which on a
+        # screen full of aligned bars is the only thing the eye sees.
+        printf '  %-9.9s %s%4s°%s  %s\n' \
+            "$label" "$(temp_colour "$t")" "$t" "$reset" "$(bar "$t" 100 22 "$(temp_colour "$t")")"
+    done
+
+    local fan
+    for h in /sys/class/hwmon/hwmon*; do
+        [[ "$(cat "$h/name" 2>/dev/null)" =~ ^nct ]] || continue
+        [[ -r $h/fan1_input ]] || continue
+        fan="$(cat "$h/fan1_input" 2>/dev/null)"
+        printf '  %-9.9s %4s rpm  %s\n' "fans" "$fan" \
+            "$( (( fan == 0 )) && printf '%sstopped - below the curve%s' "$dim" "$reset" )"
+        break
+    done
+
+    printf '\n  %sfor a fan curve, sample a real workload: bin/thermal-log.sh%s\n' "$dim" "$reset"
 }
 
 cmd_open() {
