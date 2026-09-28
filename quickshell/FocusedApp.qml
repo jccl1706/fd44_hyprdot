@@ -69,18 +69,32 @@ Item {
     // consecutive screenshots, roughly 400ms, between stepping onto a
     // workspace and its icon appearing.
     //
-    // An empty string is meaningful rather than missing: Hyprland sends
-    // `activewindow>>,` with nothing after the comma when focus lands
-    // somewhere with no window, so the icon clears at once instead of
-    // lingering until the refresh confirms it.
+    // AN EMPTY CLASS IS NOT AN ANSWER, AND TREATING IT AS ONE BROKE SLEEP.
+    // Hyprland sends `activewindow>>,` with nothing after the comma whenever
+    // focus leaves every window, and locking or blanking the screen does
+    // exactly that - hyprlock is a layer surface, not a toplevel. Coming back
+    // it hands focus to the same window it took it from, WITHOUT a new
+    // `activewindow`, because from Hyprland's side nothing changed. So the
+    // empty string stayed the last thing said about focus and the circle sat
+    // blank beside an open terminal until the next click. Reproduced after a
+    // resume: `hyprctl activewindow` said kitty, focusHistoryID 0, workspace
+    // 2, and the bar showed nothing.
+    //
+    // So a class only wins while it names something. Empty falls through to
+    // the client list, which answers this correctly and quickly: `focused`
+    // matches the window against the CURRENT workspace, and the workspace
+    // updates from its own event, so stepping onto an empty workspace clears
+    // the icon on the same frame without the empty event being trusted.
     property string liveClass: ""
 
     // The refreshed client list is still the authority - it is what survives a
     // shell restart, when no event has been seen at all - but only until the
-    // next event, which is fresher by definition.
-    readonly property string appClass: root.liveEvent
-        ? root.liveClass
-        : (root.focused ? (root.focused.class || root.focused.initialClass || "") : "")
+    // next event that names a window, which is fresher by definition.
+    readonly property string modelClass: root.focused
+        ? (root.focused.class || root.focused.initialClass || "") : ""
+
+    readonly property string appClass:
+        root.liveEvent && root.liveClass !== "" ? root.liveClass : root.modelClass
 
     //: Set once an event has been seen; before that the model answers.
     property bool liveEvent: false
