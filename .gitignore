@@ -42,3 +42,21 @@ tmux/tmux_local.conf
 
 # Python leaves these beside any script it imports.
 __pycache__/
+
+# WALLPAPERS YOU ADD YOURSELF STAY ON THE MACHINE. This repository is public,
+# so a file committed here is redistributed to anyone who clones it - fine for
+# the set that came with it (wallpapers/README.md says where those are from,
+# and they are already tracked, which an ignore rule does not undo), wrong for
+# a photograph of your own.
+#
+# So new images in wallpapers/ are ignored and simply never offered for
+# commit. The picker reads the DIRECTORY, not git, so an ignored wallpaper
+# works exactly like a tracked one - it is only absent from a fresh clone and
+# from the other machine.
+#
+# To commit one deliberately - your own work, or something CC0:
+#     git add -f wallpapers/whatever.webp
+wallpapers/*.png
+wallpapers/*.jpg
+wallpapers/*.jpeg
+wallpapers/*.webp
