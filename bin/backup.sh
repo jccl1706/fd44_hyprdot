@@ -710,19 +710,49 @@ TEXT
 
 cmd_escrow() {
     load_config 2>/dev/null || true
-    cat <<TEXT
-${bold}Keep these two things somewhere that is not this laptop${reset}
-${dim}A safe, a paper note, a password manager on your phone - anywhere that
-survives the machine. Without them the disk is 400 MB of noise.${reset}
 
-  1. The repository password      (you typed it; it is at $PASSWORD_FILE)
-  2. The disk                     UUID ${BACKUP_UUID:-<not set up>}
+    printf '%sWhat has to live somewhere that is not this machine%s\n' "$bold" "$reset"
+    printf '%sA safe, a paper note, a password manager on your phone - anywhere that\n' "$dim"
+    printf 'survives the machine. Each of these is unreproducible: no backup can\n'
+    printf 'contain the thing that unlocks it.%s\n\n' "$reset"
 
-To restore onto a machine that has nothing but restic and the disk:
+    printf '  1. %-28s %s\n' "the repository password" "you typed it; it is at $PASSWORD_FILE"
+    local bytes; bytes="$(wc -c < "$PASSWORD_FILE" 2>/dev/null || echo 0)"
+    if (( bytes > 0 && bytes < 17 )); then
+        printf '     %s%s%s\n' "$bold" \
+            "it is $((bytes - 1)) characters - short for a key protecting ssh keys and a browser profile" "$reset"
+        printf '     %sadd a longer one with: restic -r <repo> key add, then key remove the old%s\n' "$dim" "$reset"
+    fi
 
-  restic -r /run/media/<you>/<disk>/$REPO_SUBDIR restore latest --target /
+    printf '  2. %-28s %s\n' "the backup disks" "UUID ${BACKUP_UUID:-<not set up>}"
 
-TEXT
+    # ENCRYPTED DISKS ARE THE OTHER HALF, and they were missing from this list
+    # entirely. A restic repository is useless if the machine it restores onto
+    # cannot open its own disk, and the passphrase for that is not in any
+    # backup by definition.
+    local luks=()
+    while read -r dev; do [[ -n $dev ]] && luks+=("$dev"); done < <(
+        lsblk -rno PATH,FSTYPE 2>/dev/null | awk '$2 == "crypto_LUKS" { print $1 }')
+    if (( ${#luks[@]} )); then
+        printf '  3. %-28s %s\n' "the LUKS passphrase" "for ${luks[*]}"
+        printf '     %sand a header backup, which is NOT the same thing: a damaged header\n' "$dim"
+        printf '     cannot be opened by any passphrase. Make one, keep it with the note:%s\n' "$reset"
+        local d
+        for d in "${luks[@]}"; do
+            printf '       sudo cryptsetup luksHeaderBackup %s --header-backup-file luks-header-%s.img\n' \
+                "$d" "$(basename "$d")"
+        done
+    fi
+
+    # WHAT THIS BACKUP DOES NOT HOLD, said out loud, because a list of what to
+    # keep is only useful beside a list of what will be missing.
+    printf '\n%sNot in the backup, and needed to get a fresh machine online%s\n' "$bold" "$reset"
+    printf '  %s- wifi credentials: they live in /etc/NetworkManager, which is root-owned\n' "$dim"
+    printf '    system state rather than this account. Know the password.\n'
+    printf '  - the account and sudo password: a fresh install sets its own.%s\n\n' "$reset"
+
+    printf '%sTo restore onto a machine that has nothing but restic and the disk%s\n\n' "$bold" "$reset"
+    printf '  restic -r /run/media/<you>/<disk>/%s restore latest --target /\n\n' "$REPO_SUBDIR"
 }
 
 case "${1-}" in
