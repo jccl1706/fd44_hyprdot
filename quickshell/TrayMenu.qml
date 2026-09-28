@@ -75,7 +75,18 @@ DropPanel {
                 id: row
                 required property var modelData
 
-                width: root.panelWidth
+                // THE COLUMN'S WIDTH, NOT panelWidth. They are not the same
+                // number: panelWidth is the card, and what a DropPanel's
+                // children are given is the card MINUS its 14px padding on
+                // each side - 232 against 260 here. A row built to 260 is 28px
+                // wider than the space it sits in and overflows to the right,
+                // where the card's own padding hides most of it and the rest
+                // does not: the centred separators cleared the visible edge by
+                // 2px and drew a stub of hairline on the wallpaper, and the
+                // hover highlight - a rounded bar 6px inside its row -
+                // overhung the card by 8px. The heading's rule above used
+                // parent.width all along, which is why it alone stayed inside.
+                width: parent.width
                 // A separator is a hairline with air around it, not a row.
                 height: row.modelData.isSeparator ? 9 : 34
 
