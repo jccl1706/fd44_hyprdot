@@ -539,6 +539,22 @@ ShellRoot {
                  + " dnd=" + NotificationService.doNotDisturb
         }
         function dnd(): void          { NotificationService.toggleDnd() }
+
+        // EXPLICIT, NOT A TOGGLE, and that is the whole point of having both.
+        // A toggle is right for a keybind, where a person sees the result;
+        // it is wrong for a hook, where nobody does. GameMode calls this at
+        // the start and end of every game, and a start that fired twice - or
+        // a game that crashed after the start hook and never reached the end
+        // one - would leave a toggle inverted and notifications silenced for
+        // the rest of the session with nothing to say why.
+        //
+        //   qs ipc call notifications silence on
+        //   qs ipc call notifications silence off
+        function silence(state: string): string {
+            const on = (state === "on" || state === "true" || state === "1")
+            NotificationService.setDnd(on)
+            return "dnd=" + NotificationService.doNotDisturb
+        }
         function panel(): void        { shell.toggleFocused(notifyPanelVariants.instances) }
         function dismissAll(): void   { NotificationService.dismissAll() }
         function clearHistory(): void { NotificationService.clearHistory() }

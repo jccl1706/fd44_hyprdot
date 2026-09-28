@@ -614,11 +614,18 @@ fi
 # user@1000 still up since boot, and a Hyprland started 15:48:30 still without
 # the gamemode group. So the hook re-runs itself through `sg gamemode`, which
 # reads the group database instead - no password for a listed member.
+# WHERE THIS CHECKOUT IS. The gamemode hooks below point at scripts in it, and
+# the MangoHud section further down needs the same answer - it used to work it
+# out for itself at the point of use, which was fine while it was the only
+# caller and is not now.
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 EPP_DEFAULT=balance_performance
 epp_file=/sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference
 epp_rule="$R/etc/tmpfiles.d/fd44-cpu-epp.conf"
 epp_hook="$R/usr/local/bin/fd44-epp"
 gm_ini="$R/etc/gamemode.ini"
+end_hook="$R/usr/local/bin/fd44-game-end"
 log "CPU energy preference after GameMode"
 if [[ ! -e $epp_file ]]; then
     printf '    this CPU driver exposes no energy preference - nothing to restore\n'
@@ -669,14 +676,35 @@ HOOK
     # Not over someone else's GameMode config: say what to add instead.
     if [[ -f $gm_ini ]] && ! grep -q 'fd44-epp' "$gm_ini"; then
         warn "$gm_ini exists and was not written by this script - add to its [custom] section:"
-        warn "  end=/usr/local/bin/fd44-epp $EPP_DEFAULT"
+        warn "  start=$repo/bin/game-dnd.sh on"
+        warn "  end=/usr/local/bin/fd44-epp $EPP_DEFAULT   (and $repo/bin/game-dnd.sh off)"
     else
+        # GameMode allows ONE command per hook, so the end hook is a small
+        # script that runs both things: the energy preference back to its
+        # default, and notifications on again. Separate lines rather than
+        # `&&`, so a failure in the first cannot swallow the second - a
+        # desktop left permanently silent because a sysfs write failed would
+        # be a poor trade.
+        cat > "$end_hook" <<HOOK
+#!/bin/sh
+# Written by bin/gaming-setup.sh (fd44_hyprdot). GameMode end hook.
+/usr/local/bin/fd44-epp $EPP_DEFAULT || true
+"$repo/bin/game-dnd.sh" off || true
+exit 0
+HOOK
+        chmod 0755 "$end_hook"
+
         cat > "$gm_ini" <<INI
 ; Written by bin/gaming-setup.sh (fd44_hyprdot). gamemoded merges this over
 ; /usr/share/gamemode/gamemode.ini, so only what differs is here.
 [custom]
-; Put the CPU energy preference back after a game - see fd44-epp.
-end=/usr/local/bin/fd44-epp $EPP_DEFAULT
+; Silence notifications while a game runs - a toast over a fullscreen game is
+; a surface the compositor has to put above it, and with some titles that is a
+; visible hitch. Critical messages from this repository's own scripts still
+; get through; see quickshell/NotificationService.qml.
+start=$repo/bin/game-dnd.sh on
+; Put the CPU energy preference back, and notifications with it.
+end=$end_hook
 INI
     fi
 
@@ -702,7 +730,6 @@ fi
 #
 # As the player, like everything else in their home. A file already there that
 # is not this link is moved aside, not overwritten.
-repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 mh_dir="$target_home/.config/MangoHud"
 log "MangoHud overlay"
 if [[ ! -f $repo/mangohud/MangoHud.conf || ! -f $repo/mangohud/presets.conf ]]; then

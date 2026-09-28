@@ -382,6 +382,8 @@ wallpapers/      resized, webp
 bin/             link-dotfiles.sh — point ~/.config at this checkout; run it after a reinstall
                  theme.sh · wallpaper.sh · power-mode.sh · idle-action.sh · icon-theme.sh
                  qs-restart.sh — restart quickshell safely (one instance, verified)
+                 game-dnd.sh — silence notifications while a game runs; GameMode's
+                   start and end hooks call it
                  qs-ipc.sh — talk to the running shell from anywhere, including
                    over ssh, where `qs ipc call` cannot find it
                  qs-check.sh — load the config in a headless compositor and fail
