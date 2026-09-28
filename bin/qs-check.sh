@@ -28,9 +28,8 @@
 #
 # IN A COMPOSITOR OF ITS OWN, and that is the whole difficulty. The config is
 # a layer-shell client: it needs a Wayland compositor, and running it against
-# the live one puts a second bar on screen over the real one, registers the
-# global shortcuts twice and leaves the bar flickering every time anyone
-# commits. The alternatives were measured rather than assumed:
+# the live one puts a second bar on screen over the real one and registers the
+# global shortcuts twice. The alternatives were measured rather than assumed:
 #
 #   QT_QPA_PLATFORM=offscreen   loads, then EXITS 255 in teardown
 #                               ("Trying to construct an instance of an
@@ -38,10 +37,22 @@
 #                               bad - it cannot tell them apart, so it is
 #                               useless as a test.
 #
-#   a headless Hyprland         WLR_BACKENDS=headless gives a real compositor
-#                               with no output and no input devices, on its
-#                               own Wayland socket. Nothing appears on screen
-#                               and the running session is untouched.  <- this
+#   a second Hyprland           a real compositor on a Wayland socket of its
+#                               own, which the shell then loads into.  <- this
+#
+# AND IT NESTS RATHER THAN RUNNING HEADLESS, which was worth finding out the
+# hard way. Hyprland uses Aquamarine, not wlroots, so WLR_BACKENDS=headless is
+# ignored, and AQ_BACKENDS, AQ_BACKEND and AQ_FORCE_BACKEND do nothing either:
+# inside a session it opens a real window of class "aquamarine", measured at
+# ~800ms of a 1.4s run, on whatever workspace you were looking at. A window
+# that flashes up at every commit is how a useful check gets switched off, so
+# hypr/rules.lua sends that class to a silent special workspace and it is never
+# seen. Verified by watching `hyprctl clients` through a run.
+#
+# The other side of nesting is that it needs a session to nest INTO: over ssh
+# with no WAYLAND_DISPLAY, Aquamarine falls through to DRM, finds no seat and
+# aborts with "CBackend::create() failed!". That is not a broken config, so it
+# exits 2 and says so rather than failing the commit.
 #
 # WHAT COUNTS AS FAILURE. "Configuration Loaded" must appear, and no WARN or
 # ERROR lines may - except the notification-server clash, which is not a fault
@@ -99,9 +110,21 @@ trap cleanup EXIT INT TERM
 mapfile -t before < <(cd "$XDG_RUNTIME_DIR" && ls -d wayland-[0-9]* 2>/dev/null)
 is_old() { local s; for s in ${before+"${before[@]}"}; do [[ $s == "$1" ]] && return 0; done; return 1; }
 
-log "starting a headless compositor"
-WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 \
-    Hyprland -c "$work/empty.conf" > "$work/hyprland.log" 2>&1 &
+# A session to nest into. Running from a terminal inside the session this is
+# already set; over ssh it is not, and the session's own socket is the one to
+# borrow - the nested compositor is a client of it like any other.
+if [[ -z ${WAYLAND_DISPLAY:-} ]]; then
+    for s in "$XDG_RUNTIME_DIR"/wayland-[0-9]*; do
+        [[ -S $s ]] && { export WAYLAND_DISPLAY="${s##*/}"; break; }
+    done
+fi
+[[ -n ${WAYLAND_DISPLAY:-} ]] || {
+    red "qs-check: no Wayland session to nest in - this needs a running desktop"
+    exit 2
+}
+
+log "starting a nested compositor"
+Hyprland -c "$work/empty.conf" > "$work/hyprland.log" 2>&1 &
 hl_pid=$!
 
 sock=""
@@ -112,7 +135,11 @@ for _ in $(seq 1 $((compositor_wait * 5))); do
         is_old "$name" || { sock="$name"; break; }
     done
     [[ -n $sock ]] && break
-    kill -0 "$hl_pid" 2>/dev/null || { red "qs-check: the compositor exited early"; tail -5 "$work/hyprland.log"; exit 2; }
+    kill -0 "$hl_pid" 2>/dev/null || {
+        red "qs-check: the compositor exited early - this is not a config failure"
+        tail -5 "$work/hyprland.log" | sed 's/^/  /'
+        exit 2
+    }
     sleep 0.2
 done
 [[ -n $sock ]] || { red "qs-check: no new Wayland socket after ${compositor_wait}s"; exit 2; }

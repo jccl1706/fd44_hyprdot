@@ -49,6 +49,28 @@ hl.window_rule({
     no_focus = true,
 })
 
+-- THE CONFIG SMOKE TEST'S OWN COMPOSITOR, out of sight.
+--
+-- bin/qs-check.sh loads the shell in a Hyprland of its own so a broken config
+-- is caught before it reaches the bar. Hyprland has no headless backend to
+-- borrow here - it uses Aquamarine, which ignores wlroots' WLR_BACKENDS, and
+-- AQ_BACKENDS, AQ_BACKEND and AQ_FORCE_BACKEND all do nothing - so inside a
+-- Wayland session it nests, and its window is a real window: measured at ~800
+-- ms of a 1.4 s run, landing on whatever workspace you were looking at.
+--
+-- A window that flashes up during every commit is the sort of thing that gets
+-- a useful check switched off, so it opens on a special workspace instead and
+-- is never seen. `silent` keeps the focus where it is.
+--
+-- The class is Aquamarine's own, so this matches any nested Hyprland, not
+-- only the test's.
+hl.window_rule({
+    name  = "qs-check-compositor",
+    match = { class = "^aquamarine$" },
+
+    workspace = "special:qscheck silent",
+})
+
 -- The Steam client lives on workspace 5, floating.
 --
 -- Steam is one X11 application that opens a lot of small top-level windows -
