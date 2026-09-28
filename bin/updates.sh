@@ -101,10 +101,42 @@ check_fedora() {
     emit dnf "$count" "$names" ""
 }
 
+# WHAT IS ABOUT TO CHANGE, BEFORE ANYTHING ASKS FOR ROOT. dnf prints its own
+# transaction table and waits for a y/N, but only AFTER sudo has taken the
+# password - so the first thing on screen is a password prompt for a list you
+# have not seen yet. This runs first, needs no privileges, and shows the
+# version you have beside the version you would get.
+preview_fedora() {
+    local out pkg ver repo name cur n=0
+    out="$(dnf -q --refresh check-update 2>/dev/null)"
+    while read -r pkg ver repo; do
+        [[ -n $pkg ]] || continue
+        name="${pkg%.*}"
+        # The installed version, asked of rpm rather than of dnf: dnf's
+        # check-update prints only what is available, and "1.2 -> 1.3" is the
+        # sentence anyone actually wants to read.
+        # %{EVR}, not version-release: it carries the epoch when there is
+        # one, which is how dnf prints it - without it vim read as
+        # "9.2.1129-1.fc44 -> 2:9.2.1129-1.fc44", an upgrade to itself.
+        cur="$(rpm -q --qf '%{EVR}' "$name" 2>/dev/null)"
+        printf '  %-32s %-24s \033[1;32m->\033[0m %s\n' "$name" "${cur:-not installed}" "$ver"
+        n=$(( n + 1 ))
+    done < <(awk '/^Obsoleting/ {exit} NF==3 && $1 ~ /\./ {print $1, $2, $3}' <<<"$out")
+    printf '\n'
+    return "$(( n > 0 ? 0 : 1 ))"
+}
+
 run_fedora() {
-    printf '\033[1;32m==>\033[0m %s\n\n' "Fedora packages"
-    # NOT -y. The list is worth a look before it is applied, and the password
-    # prompt is already a stop - one more keypress costs nothing.
+    printf '\033[1;32m==>\033[0m %s\n\n' "Packages waiting"
+    if ! preview_fedora; then
+        printf '  %s\n\n' "nothing to update"
+        return 0
+    fi
+    printf '\033[1;32m==>\033[0m %s\n\n' "Installing them"
+    # NOT -y, even though the list above has already been read: dnf's own
+    # table is the authoritative one - it knows about dependencies and
+    # obsoletes that a list of updatable packages does not - and its y/N is
+    # the last chance to stop once those are visible too.
     sudo dnf --refresh upgrade
 }
 
@@ -168,17 +200,41 @@ check_nixos() {
 }
 
 run_nixos() {
-    local dir host
+    local dir host reply out_link
+    out_link="$(mktemp)"
+    trap 'rm -f "$out_link"' RETURN
     dir="$(nixos_dir)"
     host="$(hostname)"
     [[ -d $dir ]] || die "no NixOS flake at $dir"
     printf '\033[1;32m==>\033[0m %s\n\n' "nixpkgs update for $host"
     cd "$dir" || die "cannot enter $dir"
-    # Two steps, shown separately: the lock file moving is a change worth
-    # seeing on its own, and it is the thing to revert if the rebuild breaks.
+    # Three steps, and the switch is the only one that needs root.
+    #
+    # BUILD BEFORE ASKING, because on NixOS there is no list of packages to
+    # print until the new system has been evaluated - "what is upgrading" is
+    # the difference between two closures and nothing can name it in advance.
+    # Building as your own user is also what proves the configuration
+    # evaluates at all, so a broken flake fails here rather than halfway
+    # through an activation.
     nix flake update || die "nix flake update failed"
     git --no-pager diff --stat flake.lock
+    printf '\n\033[1;32m==>\033[0m %s\n\n' "Building the new system (no root needed)"
+    nix build --no-link --print-out-paths ".#nixosConfigurations.$host.config.system.build.toplevel" \
+        > "$out_link" || die "the build failed - nothing has been changed"
+    local new
+    new="$(tail -1 "$out_link")"
+    printf '\n\033[1;32m==>\033[0m %s\n\n' "What would change"
+    # The package-by-package answer: names, old version -> new version, and
+    # the size it costs. This is the NixOS equivalent of dnf's table.
+    nix store diff-closures /run/current-system "$new" || true
     printf '\n'
+    read -r -p "Activate this system? [y/N] " reply
+    case "$reply" in
+        y|Y|yes|YES) ;;
+        *) printf '\n%s\n' "left alone - flake.lock has moved but nothing is activated."
+           printf '%s\n' "  to undo that:  git -C $dir checkout flake.lock"
+           return 0 ;;
+    esac
     sudo nixos-rebuild switch --flake ".#$host"
 }
 
