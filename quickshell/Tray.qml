@@ -71,6 +71,26 @@ Item {
             }
             return out.length > 0 ? out.join("\n") : "no items"
         }
+
+        // The menu the first item would show on a left click, without a
+        // mouse - which the comment above has promised since this handler was
+        // written and nothing implemented. A tray menu is drawn by us but
+        // filled by the application, so looking at one is the only way to
+        // check how it renders, and doing that by hand means a mouse on the
+        // machine it is running on.
+        function open(index: string): string {
+            const want = index ? parseInt(index, 10) : 0
+            let seen = 0
+            for (let i = 0; i < row.children.length; i++) {
+                const d = row.children[i]
+                if (!d || d.menuEntries === undefined) continue
+                if (seen++ !== want) continue
+                if (d.menuEntries === 0) return "item has no menu"
+                d.openMenu()
+                return "opened " + (d.modelData.title || d.modelData.id)
+            }
+            return "no item at index " + want
+        }
     }
 
     Row {
