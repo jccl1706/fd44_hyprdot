@@ -131,15 +131,18 @@ cmd_report() {
 
     if [[ -n ${name:-} ]]; then
         printf '\n  %s%s%s\n\n' "$bold" "$name" "$reset"
-        printf '  %-7s %s%5s°%s  %s  %sthrottles at 83°%s\n' \
+        # The colour is its OWN argument, not glued to the number: a width of
+        # %4s counts the escape sequence's characters too, which pushed this
+        # row four columns left of every other one.
+        printf '  %-12s %s%4s°%s   %s   %sthrottles at 83°%s\n' \
             "temp"  "$(temp_colour "$temp")" "$temp" "$reset" \
             "$(bar "$temp" 100 22 "$(temp_colour "$temp")")" "$dim" "$reset"
-        printf '  %-7s %5s%%  %s\n' \
+        printf '  %-12s %4s%%   %s\n' \
             "load"  "$util"  "$(bar "$util" 100 22 "$green")"
-        printf '  %-7s %5.0fW  %s  %sof %.0f W%s\n' \
+        printf '  %-12s %4.0fW   %s   %sof %.0f W%s\n' \
             "power" "$power" "$(bar "$power" "$limit" 22 "$green")" "$dim" "$limit" "$reset"
-        printf '  %-7s %5s MHz\n' "clock" "$clock"
-        printf '  %-7s %5.1f / %.1f GiB  %s\n' \
+        printf '  %-12s %4s MHz\n' "clock" "$clock"
+        printf '  %-12s %4.1f / %.1f GiB   %s\n' \
             "vram"  "$(awk -v m="$vmem" 'BEGIN{print m/1024}')" \
             "$(awk -v t="$vtotal" 'BEGIN{print t/1024}')" \
             "$(bar "$vmem" "$vtotal" 22 "$green")"
@@ -155,7 +158,17 @@ cmd_report() {
         [[ -n $t ]] || continue
         case "$n" in
             k10temp|coretemp) label="cpu" ;;
-            nvme)             label="nvme" ;;
+            # WHICH DRIVE, not just "nvme": this machine has two, and two rows
+            # both saying "nvme" answer nothing about the one that is warm.
+            # The model is in the controller's own sysfs directory. Samsung
+            # writes "Samsung SSD 990 PRO 4TB" where the maker's name is the
+            # least useful part, so the prefix comes off and what is left -
+            # "990 PRO 4TB", "CT4000P3PSSD8" - is what is printed on the label
+            # of the drive itself.
+            nvme)
+                label="$(cat "$h/device/model" 2>/dev/null | sed 's/ *$//; s/^Samsung SSD //; s/^WD //; s/^Sabrent //')"
+                label="${label:-nvme}"
+                ;;
             nct6799|nct6687)  label="board" ;;
             spd5118)          label="memory" ;;
             quadro)           label="fan hub" ;;
@@ -164,7 +177,7 @@ cmd_report() {
         # Truncated to the column, because a driver name is not always short
         # - iwlwifi_1 pushed its own row one character out of line, which on a
         # screen full of aligned bars is the only thing the eye sees.
-        printf '  %-9.9s %s%4s°%s  %s\n' \
+        printf '  %-12.12s %s%4s°%s   %s\n' \
             "$label" "$(temp_colour "$t")" "$t" "$reset" "$(bar "$t" 100 22 "$(temp_colour "$t")")"
     done
 
@@ -173,7 +186,7 @@ cmd_report() {
         [[ "$(cat "$h/name" 2>/dev/null)" =~ ^nct ]] || continue
         [[ -r $h/fan1_input ]] || continue
         fan="$(cat "$h/fan1_input" 2>/dev/null)"
-        printf '  %-9.9s %4s rpm  %s\n' "fans" "$fan" \
+        printf '  %-12.12s %4s rpm   %s\n' "fans" "$fan" \
             "$( (( fan == 0 )) && printf '%sstopped - below the curve%s' "$dim" "$reset" )"
         break
     done
