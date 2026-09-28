@@ -382,6 +382,8 @@ wallpapers/      resized, webp
 bin/             link-dotfiles.sh — point ~/.config at this checkout; run it after a reinstall
                  theme.sh · wallpaper.sh · power-mode.sh · idle-action.sh · icon-theme.sh
                  qs-restart.sh — restart quickshell safely (one instance, verified)
+                 qs-ipc.sh — talk to the running shell from anywhere, including
+                   over ssh, where `qs ipc call` cannot find it
                  qs-check.sh — load the config in a headless compositor and fail
                    on any error or warning. `git config core.hooksPath hooks`
                    makes it a pre-commit check for any commit touching QML
