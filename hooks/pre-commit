@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# =========================================================================
+# pre-commit - do not commit a shell config that will not load
+# =========================================================================
+#
+# Enable it once per checkout:
+#
+#     git config core.hooksPath hooks
+#
+# (Hooks are not tracked by git itself; core.hooksPath points at this folder,
+# which IS tracked, so both machines get the same hook from a pull.)
+#
+# Runs bin/qs-check.sh when the commit touches QML, and only then - a commit
+# that changes a shell script or the README has nothing to check and should
+# not pay a second and a half for it.
+#
+# IT CHECKS THE WORKING TREE, not the staged content, which is a deliberate
+# simplification: stashing unstaged changes to test the index exactly is how
+# pre-commit hooks eat people's work when they are interrupted. The case this
+# is for - a QML edit that does not load - is one you are about to commit from
+# the tree you are looking at.
+#
+# Skip it for one commit with:  git commit --no-verify
+
+set -uo pipefail
+
+root="$(git rev-parse --show-toplevel)"
+cd "$root" || exit 0
+
+git diff --cached --name-only --diff-filter=ACM | grep -q '^quickshell/.*\.qml$' || exit 0
+
+printf '\033[1;32m==>\033[0m %s\n' "pre-commit: checking the shell config loads"
+if ! "$root/bin/qs-check.sh" >/dev/null 2>"$root/.git/qs-check.err"; then
+    printf '\033[1;31m%s\033[0m\n' "pre-commit: the configuration does not load - commit refused"
+    # Re-run visibly rather than replaying a captured log: the failure is
+    # short, and seeing it produced is worth more than seeing it quoted.
+    "$root/bin/qs-check.sh"
+    printf '\n%s\n' "  commit anyway with:  git commit --no-verify"
+    exit 1
+fi
+rm -f "$root/.git/qs-check.err"

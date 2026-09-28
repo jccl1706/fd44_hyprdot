@@ -372,6 +372,9 @@ wallpapers/      resized, webp
 bin/             link-dotfiles.sh — point ~/.config at this checkout; run it after a reinstall
                  theme.sh · wallpaper.sh · power-mode.sh · idle-action.sh · icon-theme.sh
                  qs-restart.sh — restart quickshell safely (one instance, verified)
+                 qs-check.sh — load the config in a headless compositor and fail
+                   on any error or warning. `git config core.hooksPath hooks`
+                   makes it a pre-commit check for any commit touching QML
                  lock-at-login.sh — locks at login unless the disk is encrypted
                  ssh-keys-only.sh — sshd accepts keys only (opt-in, for hand-enabled sshd)
                  chrome-theme.sh · chromium-policy-setup.sh — browser colours, root-written
