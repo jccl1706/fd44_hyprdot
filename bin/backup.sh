@@ -62,7 +62,13 @@ note() { printf '%s==>%s %s\n' "$green" "$reset" "$*"; }
 warn() { printf '%s!!%s  %s\n' "$bold" "$reset" "$*" >&2; }
 die()  { printf '%sbackup:%s %s\n' "$red" "$reset" "$*" >&2; exit 1; }
 
-command -v restic >/dev/null 2>&1 || die "restic is not installed (sudo dnf install restic)"
+# NOT FOR `json`, which has to answer on a machine that has never had restic:
+# the bar asks every machine, and the gaming desktop - ext4, no backup set up -
+# would otherwise get an error where it needs a plain "nothing configured
+# here". Everything that actually touches a repository still refuses early.
+if [[ ${1-} != json ]]; then
+    command -v restic >/dev/null 2>&1 || die "restic is not installed (on Fedora: sudo dnf install restic)"
+fi
 
 # --- what gets copied ---------------------------------------------------
 #
