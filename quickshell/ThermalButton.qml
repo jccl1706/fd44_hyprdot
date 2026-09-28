@@ -32,14 +32,8 @@ Item {
     readonly property bool shown: Thermals.present && Thermals.gpuTemp >= 0
 
     visible: root.shown
-    implicitWidth: root.shown ? content.implicitWidth : 0
+    implicitWidth: root.shown ? capsule.width : 0
     implicitHeight: 22
-
-    // A CHIP, NOT A THERMOMETER. The number beside it already carries a
-    // degree sign, so a thermometer would say "temperature" twice and "of
-    // what" not at all. Picked out of a rendered grid, like every other glyph
-    // here - a monitor was the first choice and reads as "display".
-    readonly property string chipGlyph: "\u{F061A}"   // nf-md-memory
 
     // Warm enough to notice; hot enough to care. Measured against this card:
     // idle sits in the low 50s, a game runs in the 60s and 70s, and NVIDIA's
@@ -48,49 +42,66 @@ Item {
     readonly property int hotAt: 83
 
     readonly property color tone:
-        Thermals.gpuTemp >= root.hotAt  ? Theme.danger
-      : Thermals.gpuTemp >= root.warmAt ? Theme.accent
-                                        : Theme.dim
+        Thermals.gpuTemp >= root.hotAt ? Theme.danger : Theme.accent
 
+    // A CAPSULE OF ITS OWN, not a glyph and a number tacked onto the clock.
+    // Rendered side by side against the alternatives before choosing: the
+    // chip glyph was a muddy smudge at 14px, a thermometer read only slightly
+    // better, and both left the number looking like a suffix to the time -
+    // "18:36 52" reads as one thing. Boxed and labelled it reads as a second
+    // thing in the pill, which is what it is. FocusedApp does the same with
+    // its own circle beside the workspaces.
+    //
+    // THE WORD "GPU" IS THE ICON. Three letters at 9px are legible where a
+    // 14px pictogram of a chip is not, and they say which of the machine's
+    // several temperatures this is - something no icon here managed.
     Rectangle {
-        anchors.centerIn: content
-        width: content.implicitWidth + 8
-        height: 22
-        radius: height / 2
-        color: Theme.surfaceHigh
-        opacity: hover.hovered ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
-    }
-
-    Row {
-        id: content
+        id: capsule
         anchors.centerIn: parent
-        spacing: 4
+        width: content.implicitWidth + 14
+        height: 20
+        radius: height / 2
 
-        Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: root.chipGlyph
-            font.family: Theme.glyphFont
-            font.pixelSize: 14
-            color: hover.hovered ? Theme.fg : root.tone
-            Behavior on color { ColorAnimation { duration: Theme.animFast } }
-        }
+        color: hover.hovered ? Theme.surfaceHigh : Theme.surface
+        Behavior on color { ColorAnimation { duration: Theme.animFast } }
 
-        Text {
-            anchors.verticalCenter: parent.verticalCenter
-            // The degree sign, not "C": the unit is never in doubt on a
-            // desktop and the glyph beside it already says what is being
-            // measured, so the letter is two pixels of nothing.
-            text: Thermals.gpuTemp + "°"
-            font.family: Theme.font
-            font.pixelSize: Theme.fontSizeSmall
-            font.weight: Theme.weightMedium
-            // Tabular figures, so the pill does not twitch every time the
-            // temperature crosses a digit - this updates every five seconds
-            // and sits beside a clock.
-            font.features: { "tnum": 1 }
-            color: hover.hovered ? Theme.fg : root.tone
-            Behavior on color { ColorAnimation { duration: Theme.animFast } }
+        // The rim carries the warning as well as the digits do. A number
+        // changing colour is easy to miss at a glance; an outline lighting up
+        // is not, and it keeps the readout legible while it does - the text
+        // stays high-contrast instead of turning into a coloured smudge.
+        border.width: 1
+        border.color: Thermals.gpuTemp >= root.warmAt ? root.tone : Theme.rim
+        Behavior on border.color { ColorAnimation { duration: Theme.animNormal } }
+
+        Row {
+            id: content
+            anchors.centerIn: parent
+            spacing: 4
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "GPU"
+                font.family: Theme.font
+                font.pixelSize: 9
+                font.weight: Theme.weightSemi
+                font.letterSpacing: 0.6
+                color: Theme.dim
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                // The degree sign, not "C": the unit is never in doubt, and
+                // the label beside it already says what is measured.
+                text: Thermals.gpuTemp + "\u00b0"
+                font.family: Theme.font
+                font.pixelSize: 13
+                font.weight: Theme.weightMedium
+                // Tabular figures, so a pill beside a clock does not twitch
+                // every time the temperature crosses a digit.
+                font.features: { "tnum": 1 }
+                color: Thermals.gpuTemp >= root.warmAt ? root.tone : Theme.fg
+                Behavior on color { ColorAnimation { duration: Theme.animNormal } }
+            }
         }
     }
 
