@@ -197,16 +197,46 @@ cmd_report() {
         esac
     done
 
-    # The fans belong with the chassis they are in, not on their own at the
-    # bottom where they read as an afterthought.
-    local fan
-    for h in /sys/class/hwmon/hwmon*; do
-        [[ "$(cat "$h/name" 2>/dev/null)" =~ ^nct ]] || continue
-        [[ -r $h/fan1_input ]] || continue
-        fan="$(cat "$h/fan1_input" 2>/dev/null)"
-        chassis+=("$(printf '  %-12.12s %4s rpm   %s' "fans" "$fan" \
-            "$( (( fan == 0 )) && printf '%sstopped - below the curve%s' "$dim" "$reset" )")")
-        break
+    # THE FANS, AND WHICH ONES THEY ARE. This printed a single row labelled
+    # "fans" reading nct6799's fan1 - one header on the motherboard - and
+    # called it "stopped - below the curve". On this machine all six board
+    # headers read 0 because nothing is plugged into them, while two case fans
+    # were turning at ~750 rpm on the Aquacomputer hub. The row was not merely
+    # vague, it was wrong about the thing it named.
+    #
+    # So every fan is listed, by its own label where the chip provides one.
+    #
+    # A ZERO FROM A LABELLED HUB CHANNEL IS REPORTED; a zero from an unlabelled
+    # board header is not. A hub channel that reads 0 is a fan someone
+    # connected and which is not turning - worth seeing. A board header that
+    # reads 0 is almost always an empty socket, and six rows of empty sockets
+    # bury the two fans that matter.
+    #
+    # FLOW METERS ARE NOT FANS: the Quadro reports coolant flow in dL/h
+    # through a fan channel, and printing "779 rpm" for it would be a lie.
+    local fh fname flabel fi fval
+    for fh in /sys/class/hwmon/hwmon*; do
+        fname="$(cat "$fh/name" 2>/dev/null)" || continue
+        for f in "$fh"/fan*_input; do
+            [[ -r $f ]] || continue
+            fi="${f##*/fan}"; fi="${fi%%_input}"
+            fval="$(cat "$f" 2>/dev/null)" || continue
+            flabel="$(cat "$fh/fan${fi}_label" 2>/dev/null || true)"
+            [[ $flabel == *Flow* || $flabel == *flow* ]] && continue
+            if [[ -z $flabel ]]; then
+                (( fval > 0 )) || continue          # an empty board header
+                flabel="$fname fan$fi"
+            else
+                flabel="$(printf '%s' "$flabel" | sed 's/ speed$//')"
+            fi
+            # NO BAR FOR A FAN. A bar needs a limit to be drawn against, and
+            # a fan has none worth guessing: at a 2000 rpm scale the laptop's
+            # 2254 rpm saturated the bar while the desktop's 779 rpm looked
+            # idle, which is two wrong answers from one arbitrary number. The
+            # rpm is the reading; anything else is decoration that lies.
+            chassis+=("$(printf '  %-12.12s %4s rpm   %s' "$flabel" "$fval" \
+                "$( (( fval == 0 )) && printf '%sconnected, not turning%s' "$dim" "$reset" )")")
+        done
     done
 
     local -n group
