@@ -37,7 +37,16 @@
 
 Apps = {
     terminal     = "kitty",
-    file_manager = "nautilus",
+    -- --new-window, WHICH IS NOT OPTIONAL HERE. Nautilus is a GApplication
+    -- with a single primary instance: plain `nautilus` sends "activate" to
+    -- the one already running, which PRESENTS the existing window rather than
+    -- opening another. So SUPER+E worked once and then appeared to do nothing
+    -- for the rest of the session.
+    --
+    -- Its own desktop entry has always known this - Exec=nautilus
+    -- --new-window %U - which is why launching Files from the launcher
+    -- behaved and the keybind did not.
+    file_manager = "nautilus --new-window",
 
     -- NOT A BINARY NAME, because there isn't one that works everywhere:
     -- Fedora's chromium package installs "chromium-browser" and ships no
