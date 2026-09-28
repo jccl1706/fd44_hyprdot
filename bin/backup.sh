@@ -279,10 +279,27 @@ cmd_run() {
     note "backing up to $repo"
     if restic "${args[@]}"; then
         [[ ${1-} == --dry-run ]] || date +%s > "$LAST_RUN"
+        # A LOCK LEFT BY AN INTERRUPTED RUN WOULD BLOCK THIS FOREVER, and it
+        # did: a run killed on 24 September left its lock behind, and the
+        # first prune afterwards died with "repository is already locked by
+        # PID 19262 ... 91h34m ago". `unlock` removes only STALE locks - one
+        # whose process is gone - and never a live one, so this cannot
+        # interfere with a backup running on another machine.
+        [[ ${1-} == --dry-run ]] || restic unlock >/dev/null 2>&1 || true
+
         # KEEP A YEAR, THINNING OUT. Daily for a week catches "I deleted it
         # yesterday"; monthly for a year catches "that file existed in March".
-        [[ ${1-} == --dry-run ]] || restic forget --tag fd44 \
-            --keep-daily 7 --keep-weekly 4 --keep-monthly 12 --prune
+        #
+        # AND ITS FAILURE IS NOT THE BACKUP'S FAILURE. Under `set -e` a prune
+        # that could not get the lock took the whole run down with it - exit
+        # 11, no README refresh, no notification, the disk left mounted - for
+        # a backup that had ALREADY SUCCEEDED and been recorded. Thinning old
+        # snapshots is housekeeping; it can wait for tomorrow's run.
+        if [[ ${1-} != --dry-run ]]; then
+            restic forget --tag fd44 \
+                --keep-daily 7 --keep-weekly 4 --keep-monthly 12 --prune \
+                || warn "the backup succeeded; thinning old snapshots did not - it will be retried on the next run"
+        fi
         cmd_readme >/dev/null
         notify "Backup complete" "$(restic snapshots --tag fd44 --json 2>/dev/null | grep -c '"time"') snapshots on the disk"
     else
