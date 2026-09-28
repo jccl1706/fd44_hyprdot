@@ -111,8 +111,13 @@ cmd_open() {
     # LIVE, because a single snapshot of a temperature is the least useful
     # form of it - what anyone opening this wants to see is the number moving
     # while a game runs.
+    # -c, OR THE COLOURS ARE PRINTED RATHER THAN APPLIED. watch strips escape
+    # sequences unless told to keep them, so without it the heading arrives as
+    # a literal "[1;32m==>[0m" - seen on screen before this was added.
+    # -t drops watch's own header, which would repeat the command line above a
+    # report that already says what it is.
     exec "$self/in-terminal.sh" "Temperatures" \
-        watch -n 2 -t "$self/thermal.sh" report
+        watch -c -n 2 -t "$self/thermal.sh" report
 }
 
 case "${1:-check}" in
