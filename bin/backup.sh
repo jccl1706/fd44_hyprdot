@@ -72,6 +72,18 @@ STALE_DAYS=14
 #: Where the repository sits on the disk, under its mount point.
 REPO_SUBDIR="fd44-backup"
 
+#: Where LUKS header backups are copied to, BESIDE the repository rather than
+#: inside it. A header locked in an encrypted repository you cannot open
+#: without the machine is the wrong way round: the whole point of the header
+#: is to be readable when you have nothing but this disk. It is protected by
+#: the LUKS passphrase, which is the same thing protecting the disk it came
+#: from - so this adds no exposure that the machine did not already have.
+HEADER_SUBDIR="fd44-luks-headers"
+
+#: Header backups are looked for here, by this pattern. `backup.sh escrow`
+#: prints the cryptsetup command that writes one.
+HEADER_GLOB="$HOME/luks-header-*.img"
+
 green=$'\033[1;32m'; dim=$'\033[2m'; bold=$'\033[1m'; red=$'\033[1;31m'; reset=$'\033[0m'
 note() { printf '%s==>%s %s\n' "$green" "$reset" "$*"; }
 warn() { printf '%s!!%s  %s\n' "$bold" "$reset" "$*" >&2; }
@@ -350,6 +362,21 @@ cmd_setup() {
     cmd_escrow
 }
 
+copy_headers() { # mount point
+    local where="$1" dest f n=0
+    dest="$where/$HEADER_SUBDIR"
+    # shellcheck disable=SC2206  # a glob is what is wanted here
+    local found=( $HEADER_GLOB )
+    [[ -e ${found[0]:-} ]] || return 0
+    mkdir -p "$dest" || return 0
+    for f in "${found[@]}"; do
+        [[ -r $f ]] || { warn "cannot read $f - run: sudo chown $USER $f"; continue; }
+        cp -pu "$f" "$dest/" 2>/dev/null && n=$(( n + 1 ))
+    done
+    (( n )) && note "$n LUKS header backup(s) kept on the disk at $HEADER_SUBDIR/"
+    return 0
+}
+
 cmd_run() {
     load_config
     local where repo
@@ -411,6 +438,11 @@ cmd_run() {
                 --keep-daily 7 --keep-weekly 4 --keep-monthly 12 --prune \
                 || warn "the backup succeeded; thinning old snapshots did not - it will be retried on the next run"
         fi
+        # THE HEADERS TRAVEL WITH THE BACKUP, on every run rather than once by
+        # hand: a second disk added later would otherwise never get one, and a
+        # header goes stale the moment a key slot changes. Copying 16 MiB onto
+        # a disk that just took a backup costs nothing worth measuring.
+        copy_headers "$where"
         cmd_readme >/dev/null
         notify "Backup complete" "$(restic snapshots --tag fd44 --json 2>/dev/null | grep -c '"time"') snapshots on the disk"
     else
@@ -627,6 +659,30 @@ Last written: $(date '+%Y-%m-%d %H:%M %Z')
    configuration and no daemon.
 2. **The repository password.** It is *not* on this disk, by design. Without it
    everything here is noise; there is no recovery and no back door.
+
+$(if [[ -d "$where/$HEADER_SUBDIR" ]]; then cat <<HEADERS
+## Before any of that: the encrypted disk it came from
+
+\`../$HEADER_SUBDIR/\` on this disk holds a LUKS **header backup** for the
+machine's own drive:
+
+\`\`\`
+$(cd "$where/$HEADER_SUBDIR" 2>/dev/null && ls -1 2>/dev/null | sed 's/^/  /')
+\`\`\`
+
+It matters when the drive still exists but will not open - a damaged header
+cannot be unlocked by any passphrase, correct or not. To put one back:
+
+\`\`\`sh
+sudo cryptsetup luksHeaderRestore /dev/nvmeXnYpZ \\
+    --header-backup-file /path/to/luks-header-....img
+\`\`\`
+
+Check the UUID matches the drive first: \`cryptsetup luksDump <the .img>\`.
+This does **not** replace the LUKS passphrase, which is not on this disk
+either - a header without the passphrase opens nothing.
+HEADERS
+fi)
 
 ## Point restic at this folder
 
