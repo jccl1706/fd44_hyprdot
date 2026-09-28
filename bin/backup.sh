@@ -222,18 +222,45 @@ disk_present() {
 
 # Mount through udisks, as the user, so this needs no root and no fstab entry
 # for a disk that is usually not here.
+# IT SETS MOUNT_WHERE RATHER THAN ECHOING IT, and that is not a style
+# preference. Every caller wrote `where="$(ensure_mounted)"`, which runs it in
+# a SUBSHELL - so the two variables it sets were set in a process that then
+# exited:
+#
+#   ACTIVE_UUID     the disk it picked. The parent kept the FIRST configured
+#                   disk, so with the T5 in a drawer and the LaCie attached,
+#                   the repository was correctly created on the LaCie - from
+#                   $where, which did survive - while every later call went
+#                   looking for the T5 and died with "the backup disk is not
+#                   mounted". Invisible until there was a second disk.
+#
+#   MOUNTED_BY_US   whether to unmount afterwards. It was never true in the
+#                   parent, so a disk this script mounted was always left
+#                   mounted. That one was invisible with one disk too: it just
+#                   looked like the disk staying put.
 ensure_mounted() {
+    MOUNT_WHERE=""
     local where
     where="$(mount_point)"
-    [[ -n $where ]] && { echo "$where"; return 0; }
+    [[ -n $where ]] && { MOUNT_WHERE="$where"; return 0; }
     disk_present || return 1
+    # disk_present ran select_disk, so ACTIVE_UUID is now the disk that is
+    # actually here - and in THIS shell, where the rest of the run can see it.
     local device
     device="$(lsblk -rno UUID,PATH 2>/dev/null | awk -v u="$ACTIVE_UUID" '$1==u{print $2; exit}')"
-    udisksctl mount -b "$device" >/dev/null 2>&1 || true
+    # ONLY OURS IF WE ACTUALLY MOUNTED IT. This flag decides whether the disk
+    # is unmounted when the run finishes, and it used to be set whenever the
+    # disk ended up mounted - including when udisksctl failed because somebody
+    # had already mounted it by hand. The run then ejected a disk it did not
+    # mount, out from under whoever was looking at it. (Harmless until the
+    # subshell bug above was fixed, because the flag never reached the parent
+    # shell at all.)
+    local mounted_now=0
+    udisksctl mount -b "$device" >/dev/null 2>&1 && mounted_now=1
     where="$(mount_point)"
     [[ -n $where ]] || return 1
-    MOUNTED_BY_US=1
-    echo "$where"
+    (( mounted_now )) && MOUNTED_BY_US=1
+    MOUNT_WHERE="$where"
 }
 
 repo_path() {
@@ -308,7 +335,7 @@ cmd_setup() {
 
     load_config
     local where repo
-    where="$(ensure_mounted)" || die "could not mount the disk"
+    ensure_mounted || die "could not mount the disk"; where="$MOUNT_WHERE"
     repo="$(repo_path "$where")"
     restic_env "$repo"
     if restic cat config >/dev/null 2>&1; then
@@ -326,7 +353,7 @@ cmd_setup() {
 cmd_run() {
     load_config
     local where repo
-    if ! where="$(ensure_mounted)"; then
+    if ! ensure_mounted; then
         local age; age="$(days_since_last)"
         if (( age > STALE_DAYS )); then
             notify "Backup disk not connected" "No backup for $age days" critical
@@ -339,6 +366,7 @@ cmd_run() {
         fi
         return 0
     fi
+    where="$MOUNT_WHERE"
     repo="$(repo_path "$where")"
     restic_env "$repo"
 
@@ -397,7 +425,7 @@ cmd_run() {
 with_repo() {
     load_config
     local where repo
-    where="$(ensure_mounted)" || die "the backup disk is not connected"
+    ensure_mounted || die "the backup disk is not connected"; where="$MOUNT_WHERE"
     repo="$(repo_path "$where")"
     restic_env "$repo"
 }
@@ -574,8 +602,13 @@ cmd_verify() {
 cmd_readme() {
     load_config
     local where repo target
-    where="$(mount_point)"
-    [[ -n $where ]] || die "the backup disk is not mounted"
+    # ensure_mounted, NOT mount_point: load_config resets ACTIVE_UUID to the
+    # first configured disk every time it runs, so asking for "the mount point
+    # of ACTIVE_UUID" here found the disk in the drawer and died with "the
+    # backup disk is not mounted" - immediately after writing a snapshot to
+    # the one that was actually attached.
+    ensure_mounted || die "the backup disk is not connected"
+    where="$MOUNT_WHERE"
     repo="$(repo_path "$where")"
     target="$repo/RESTORE.md"
     cat > "$target" <<TEXT
