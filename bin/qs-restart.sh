@@ -46,11 +46,23 @@ nap()  { sleep "$1"; }
 # The session's environment, when run from somewhere that lacks it (ssh, a tty).
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
-    # Newest first, and only ls sorts by time. The names are Hyprland's own
-    # instance signatures - no spaces or newlines to trip over.
+    # NEWEST FIRST, BUT ONLY ONE THAT ANSWERS. Taking the newest directory
+    # outright is the obvious version and it broke here: Hyprland leaves its
+    # instance directory behind when it exits, and bin/qs-check.sh starts a
+    # compositor of its own, so the newest name in this folder can easily be
+    # one that died minutes ago. The restart then failed with "cannot reach
+    # Hyprland" while a perfectly good session was running.
+    #
+    # A directory whose socket answers `hyprctl version` is a live compositor
+    # and nothing else is, so ask each in turn, newest first.
     # shellcheck disable=SC2012
-    sig="$(ls -t "$XDG_RUNTIME_DIR/hypr/" 2>/dev/null | head -1 || true)"
-    [[ -n $sig ]] || die "no running Hyprland found in $XDG_RUNTIME_DIR/hypr"
+    for candidate in $(ls -t "$XDG_RUNTIME_DIR/hypr/" 2>/dev/null); do
+        if HYPRLAND_INSTANCE_SIGNATURE="$candidate" hyprctl version >/dev/null 2>&1; then
+            sig="$candidate"
+            break
+        fi
+    done
+    [[ -n ${sig:-} ]] || die "no running Hyprland found in $XDG_RUNTIME_DIR/hypr"
     export HYPRLAND_INSTANCE_SIGNATURE="$sig"
 fi
 if [[ -z ${WAYLAND_DISPLAY:-} ]]; then
