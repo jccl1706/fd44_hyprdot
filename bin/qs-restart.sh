@@ -120,7 +120,24 @@ for _ in $(seq 1 50); do
     nap 0.2
 done
 
-instances="$(qs list 2>/dev/null | grep -c '^Instance' || true)"
+# COUNTED FROM THE PROCESSES, NOT FROM `qs list`. On the gaming desktop over
+# ssh, `qs list` answers "No running instances for
+# /home/jc/.config/quickshell/shell.qml" while `qs list --all` shows exactly
+# that instance running - so this step failed with "expected exactly one
+# instance, found 0" about a shell that had just started correctly. running()
+# reads /proc and cannot disagree with reality; what this check is for - a
+# crash handler having respawned a second shell beside the new one - is a
+# count of processes anyway.
+# AND SETTLED FIRST: `qs -d` daemonises, so for a moment there are two
+# processes - the launcher that is about to exit and the shell it left behind.
+# Counting immediately reported "found 2" for a perfectly good restart, so
+# this waits for the count to come back down before believing it.
+instances="$(running | wc -l)"
+for _ in $(seq 1 25); do
+    (( instances <= 1 )) && break
+    nap 0.2
+    instances="$(running | wc -l)"
+done
 problems="$(qs log 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep -E 'WARN|ERROR' || true)"
 
 printf '    processes : %s\n' "$(running | tr '\n' ' ')"
