@@ -185,6 +185,37 @@ hl.window_rule({
     opacity = 0.92,
 })
 
+-- THE TERMINALS THE BAR OPENS. Clicking the update box, the backup disk, the
+-- failure warning or the temperature readout opens a terminal that says what
+-- it found. Tiled, each one rearranges whatever you were already looking at -
+-- which is a strange thing for a glance at a temperature to do, and a worse
+-- one mid-game.
+--
+-- Matched on TITLE, because they are all kitty: bin/in-terminal.sh sets one
+-- per caller and those four strings are its entire vocabulary. A window of
+-- your own called "Backup" would be caught too, which is a fair trade for not
+-- floating every kitty on the machine.
+--
+-- Sized like btop's scratchpad above - the same 60% by 70% - so the bar's
+-- windows are one recognisable shape rather than four different ones.
+hl.window_rule({
+    name  = "bar-terminals",
+    match = {
+        class = "^kitty$",
+        title = "^(Temperatures|Failed units|Backup|System update)$",
+    },
+
+    float  = true,
+    size   = "monitor_w*0.6 monitor_h*0.7",
+    center = true,
+
+    -- NOT opacity = 1.0 HERE, which was tried and does nothing: kitty draws
+    -- its own translucent background, and a compositor opacity rule only
+    -- SCALES what a client renders - it cannot fill in alpha the client left
+    -- out. bin/in-terminal.sh passes kitty -o background_opacity=1 instead,
+    -- which is the only place that can decide it.
+})
+
 -- Hyprland's own run dialog (hyprland-guiutils): float it near the bottom
 -- left rather than tiling it.
 hl.window_rule({

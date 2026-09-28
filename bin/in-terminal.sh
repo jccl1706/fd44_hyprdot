@@ -34,7 +34,16 @@ done
 
 # The command is passed to bash as "$@" rather than pasted into a string, so
 # an argument with a space in it stays one argument.
-exec "$term" --title "$title" -e bash -c '
+# OPAQUE, for kitty. These windows appear over whatever was already on
+# screen - a terminal full of text, a game - and the translucency that suits a
+# terminal you work in over a wallpaper makes two lines of output compete with
+# everything behind them. Hyprland cannot fix this from a window rule: kitty
+# renders its own alpha and a compositor opacity rule only scales what the
+# client drew.
+opaque=()
+[[ $term == kitty ]] && opaque=(-o background_opacity=1)
+
+exec "$term" "${opaque[@]}" --title "$title" -e bash -c '
     "$@"
     status=$?
     printf "\n\033[1;32m==>\033[0m %s" "done"
