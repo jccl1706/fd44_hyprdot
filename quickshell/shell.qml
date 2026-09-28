@@ -392,6 +392,26 @@ ShellRoot {
         function open(): void  { Updates.open() }
     }
 
+    // How long since the last backup (Backups.qml, bin/backup.sh).
+    //
+    //   qs ipc call backups status   what the last check found
+    //   qs ipc call backups check    ask again now
+    //   qs ipc call backups open     the backup terminal, as if clicked
+    IpcHandler {
+        target: "backups"
+
+        function status(): string {
+            if (!Backups.configured)
+                return "not configured" + (Backups.error ? " - " + Backups.error : "")
+            if (Backups.never) return "never backed up"
+            return Backups.days + "d ago"
+                 + (Backups.connected ? ", disk connected" : ", disk absent")
+                 + (Backups.overdue ? (Backups.critical ? " - CRITICAL" : " - overdue") : "")
+        }
+        function check(): void { Backups.check() }
+        function open(): void  { Backups.open() }
+    }
+
     // The movable plugins' arrangement (BarLayout.qml).
     IpcHandler {
         target: "bar"

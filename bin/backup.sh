@@ -296,6 +296,44 @@ with_repo() {
     restic_env "$repo"
 }
 
+# The same answer as `status`, in one line a program can read: the bar's
+# backup indicator (quickshell/Backups.qml) polls this.
+#
+# IT MUST NOT DIE, whatever the state of the machine. `status` calls
+# load_config, which exits when the machine has never been set up - correct
+# for a person at a terminal, useless for a caller that needs an answer either
+# way. A machine with no backup configured is not an error here, it is
+# "configured": false, and the bar draws nothing.
+#
+# NOTHING IS MOUNTED AND NO PASSWORD IS READ. This runs on a timer in the
+# background; it answers from the state file and from whether the disk is
+# present, so it costs nothing and cannot prompt for anything.
+# The terminal the bar's backup icon opens: `run` with its output on screen.
+# A backup talks - what it is reading, what it sent, how long it took - and
+# that is worth a window rather than a notification saying "done".
+cmd_open() {
+    local here; here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    exec "$here/in-terminal.sh" "Backup" "$here/backup.sh" run
+}
+
+cmd_json() {
+    local configured=false uuid="" connected=false days=-1 never=true
+    if [[ -f $CONFIG ]]; then
+        # shellcheck source=/dev/null
+        source "$CONFIG" 2>/dev/null || true
+        [[ -n ${BACKUP_UUID:-} ]] && { configured=true; uuid="$BACKUP_UUID"; }
+    fi
+    if [[ $configured == true ]]; then
+        disk_present && connected=true
+        if [[ -f $LAST_RUN ]]; then
+            never=false
+            days="$(days_since_last)"
+        fi
+    fi
+    printf '{"configured":%s,"uuid":"%s","connected":%s,"never":%s,"days":%s,"stale_days":%s}\n' \
+        "$configured" "$uuid" "$connected" "$never" "$days" "$STALE_DAYS"
+}
+
 cmd_status() {
     load_config
     local age; age="$(days_since_last)"
@@ -478,6 +516,8 @@ case "${1-}" in
     setup)      cmd_setup ;;
     run)        shift; cmd_run "${1-}" ;;
     status)     cmd_status ;;
+    json)       cmd_json ;;
+    open)       cmd_open ;;
     snapshots)  with_repo; restic snapshots --tag fd44 ;;
     check)      with_repo; restic check ;;
     verify)     cmd_verify ;;

@@ -289,18 +289,10 @@ run_nixos() {
 # --- the terminal ---------------------------------------------------------
 
 open_terminal() {
-    local term
-    # kitty is the terminal on both machines; the others are there so this
-    # still works on a machine that has something else.
-    for term in kitty alacritty foot xterm; do
-        command -v "$term" >/dev/null 2>&1 && break
-        term=""
-    done
-    [[ -n $term ]] || die "no terminal found (tried kitty, alacritty, foot, xterm)"
-    # The window stays open after the update so its output can be read - a
-    # terminal that vanishes on success tells you nothing about what it did.
-    exec "$term" --title "System update" -e bash -c \
-        "'$self/updates.sh' run; printf '\n\033[1;32m==>\033[0m %s' 'done - press enter to close'; read -r"
+    # bin/in-terminal.sh owns the window: which terminal, and staying open
+    # afterwards so the transcript can be read. bin/backup.sh opens its own
+    # the same way.
+    exec "$self/in-terminal.sh" "System update" "$self/updates.sh" run
 }
 
 # --- entry point ----------------------------------------------------------

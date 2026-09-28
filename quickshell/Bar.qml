@@ -87,6 +87,7 @@ PanelWindow {
     Component { id: batteryPlugin; BatteryButton {} }
     Component { id: notesPlugin;   NotesButton {} }
     Component { id: updatesPlugin; UpdatesButton {} }
+    Component { id: backupPlugin; BackupButton {} }
 
     // The tray is the one plugin that is not a 22x22 button: it is however
     // many icons are registered, and nothing when none are. It also needs the
@@ -126,6 +127,7 @@ PanelWindow {
         case "battery":     return batteryPlugin
         case "notes":       return notesPlugin
         case "updates":     return updatesPlugin
+        case "backup":      return backupPlugin
         case "tray":        return trayPlugin
         case "placeholder": return placeholderPlugin
         }
@@ -149,6 +151,7 @@ PanelWindow {
         // hand anywhere - see UpdatesButton.qml for why the bar never
         // installs anything itself.
         else if (id === "updates")             Updates.open()
+        else if (id === "backup")              Backups.open()
         // Both of these arm on the first click and fire on the second, so
         // the branch is the same one twice - the state lives in the button.
         else if (id === "couch" && slot.item)  slot.item.activate()
