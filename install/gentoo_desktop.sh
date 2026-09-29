@@ -95,6 +95,57 @@ for repo in guru hyproverlay; do
     emaint sync --repo "$repo" >/dev/null 2>&1 || emaint sync --repo "$repo"
 done
 
+# --- the DRM node, without which no compositor starts -----------------------
+#
+# THE MACHINE COULD NOT SURVIVE A REBOOT AND NOBODY KNEW. The desktop worked for
+# a week, then the first reboot after it worked gave a tty that returned to the
+# login prompt the moment the password was accepted. Hyprland was crashing:
+#
+#   terminate called after throwing an instance of 'std::runtime_error'
+#     what():  CBackend::create() failed!
+#
+# and /dev/dri did not exist at all. nvidia and nvidia_uvm were loaded - uvm
+# arrives whenever anything calls nvidia-smi, which is why the card looked fine
+# and nvidia-smi listed the 5090 throughout - but nvidia_drm was not, and
+# nvidia_drm is what publishes the DRM node every Wayland compositor needs.
+#
+# IT HAD ONLY EVER BEEN LOADED BY HAND, during the driver install, which lasted
+# exactly as long as that boot. nvidia-drivers' own modprobe.d file does not set
+# modeset - the only mention is a commented-out fbdev line - and nothing loads the
+# module at boot, because udev loads a module on demand FOR a DRM device and the
+# DRM device is what this module creates. Nothing breaks that circle by itself.
+#
+# THE SYMPTOM POINTS AT THE WRONG THING, which is the part worth writing down:
+# ~/.bash_profile execs uwsm, so a compositor that dies takes the login shell with
+# it and the tty goes straight back to the login prompt - indistinguishable from a
+# refused password. An hour can go into the login before anyone looks at the GPU.
+note "nvidia_drm with modeset, which Hyprland cannot start without"
+if (( LIST_ONLY )); then
+    :
+else
+    cat > /etc/modprobe.d/fd44-nvidia-drm.conf <<'CONF'
+# Written by install/gentoo_desktop.sh (fd44_hyprdot). Hyprland's Aquamarine
+# backend needs a DRM node, and on this driver that node exists only when
+# nvidia_drm is loaded with modeset enabled. fbdev=1 puts the tty's framebuffer on
+# the same device, so console and compositor agree about the display.
+options nvidia-drm modeset=1 fbdev=1
+CONF
+    cat > /etc/modules-load.d/fd44-nvidia.conf <<'CONF'
+# Not autoloaded: udev would load this on demand for a DRM device, but the DRM
+# device is the thing it creates. See install/gentoo_desktop.sh.
+nvidia_drm
+CONF
+    # Now as well as at the next boot, and CHECKED - a silent failure here is a
+    # machine that boots to a login prompt it will not leave.
+    modprobe nvidia_drm modeset=1 2>/dev/null || modprobe nvidia-drm modeset=1 2>/dev/null || true
+    if [[ -e /dev/dri/card0 ]]; then
+        note "/dev/dri/card0 is there; modeset=$(cat /sys/module/nvidia_drm/parameters/modeset 2>/dev/null)"
+    else
+        warn "no /dev/dri/card0 - Hyprland will crash with CBackend::create() failed!"
+        warn "  check that nvidia-drivers matches the running kernel: $(uname -r)"
+    fi
+fi
+
 # --- what is actually available -------------------------------------------
 
 available=()
