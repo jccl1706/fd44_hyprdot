@@ -55,6 +55,33 @@ GURU=(
     gui-libs/xdg-desktop-portal-hyprland
 )
 
+# THE FONTS, WHICH ARE NOT DECORATION HERE. Two of them are named by the
+# configs this repo links, and fontconfig answers a name it does not have with
+# a SUBSTITUTION rather than an error - so a missing font costs you nothing
+# visible at install time and everything afterwards. On a first Gentoo desktop
+# only Liberation was present, and the result was a bar rendered in Liberation
+# Sans and a terminal in Liberation Mono, with nothing anywhere reporting a
+# problem.
+#
+#   Inter Variable    quickshell/Theme.qml font
+#   Noto Sans Mono    kitty.conf font_family
+#   Symbols Nerd Font quickshell/Theme.qml glyphFont - every icon in the bar
+#
+# THE REST IS WHAT FEDORA HAS, because that is the comparison that matters:
+# Noto for the generic families, DejaVu beside it, emoji so that a browser can
+# draw them at all, and CJK so that pages in those scripts are text rather than
+# boxes. Liberation stays - it is what answers when a document asks for Arial
+# or Times by name, which is the job it exists for.
+FONTS=(
+    media-fonts/inter               # GURU; rsms upstream, as Fedora packages
+    media-fonts/noto
+    media-fonts/noto-emoji
+    media-fonts/noto-cjk
+    media-fonts/dejavu
+    media-fonts/jetbrains-mono
+    media-fonts/symbols-nerd-font   # in ::gentoo, unlike on Fedora
+)
+
 # TWO OVERLAYS, BECAUSE THEY CARRY DIFFERENT HALVES. GURU has quickshell and
 # nothing else on this list; Hyprland and its companions live in hyproverlay
 # (codeberg.org/hyproverlay/hyproverlay), which is likewise in Gentoo's
@@ -73,7 +100,7 @@ done
 available=()
 missing=()
 printf '\n  %s%-40s %s%s\n' "$bold" "package" "newest ebuild" "$reset"
-for p in "${MAIN[@]}" "${GURU[@]}"; do
+for p in "${MAIN[@]}" "${GURU[@]}" "${FONTS[@]}"; do
     # `|| true` BECAUSE OF pipefail. The script asks for `set -o pipefail`,
     # and when a package is absent the leading `ls` fails, which fails the
     # whole pipeline, which under `set -e` kills the script - in the middle
@@ -129,9 +156,80 @@ note "installing ${#available[@]} packages - quickshell is Qt6 and will compile"
 emerge --getbinpkg --autounmask --autounmask-continue \
     --autounmask-keep-keywords=n "${available[@]}"
 
+# --- fontconfig -----------------------------------------------------------
+#
+# THE RENDERING KNOBS ARE ALREADY RIGHT on a stock Gentoo - hinting-slight,
+# yes-antialias and lcdfilter-default are enabled by default, and freetype is
+# built with harfbuzz, cleartype-hinting and adobe-cff. Fedora does the same
+# and enables no subpixel config either; both are grayscale antialiased. There
+# was nothing to fix there, which is worth writing down because it is where
+# everyone looks first.
+#
+# WHAT DIFFERS IS WHICH FONT ANSWERS A GENERIC NAME. Fedora ships a per-font
+# priority config for each family it packages, numbered so they sort - Noto at
+# 56, DejaVu at 57, Liberation at 59. Gentoo ships none of them, so the static
+# list in 60-latin.conf decides and Liberation wins every unstyled page.
+note "fontconfig: the generics, and the configs that need these fonts to exist"
+
+# Small sizes and non-latin faces look better unhinted; these configs could not
+# be enabled before because the fonts they name were not installed.
+for c in 20-unhint-small-dejavu-sans.conf \
+         20-unhint-small-dejavu-sans-mono.conf \
+         20-unhint-small-dejavu-serif.conf \
+         25-unhint-nonlatin.conf \
+         75-noto-emoji-fallback.conf; do
+    eselect fontconfig enable "$c" >/dev/null 2>&1 \
+        && printf '    enabled  %s\n' "$c" \
+        || printf '    skipped  %s%s (not available)%s\n' "$dim" "$c" "$reset"
+done
+
+# `|| true` BECAUSE OF set -e: with no local.conf to save, the && chain returns
+# non-zero and takes the whole script down - on the ordinary first install.
+if [[ -e /etc/fonts/local.conf ]]; then
+    cp -a /etc/fonts/local.conf "/etc/fonts/local.conf.before-fd44-$(date +%F)" || true
+    note "existing local.conf saved beside it"
+fi
+cat > /etc/fonts/local.conf <<'XML'
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+<!--
+  Written by install/gentoo_desktop.sh (fd44_hyprdot).
+
+  Prefer Noto for the generic families, which is what Fedora resolves to.
+  Gentoo does not ship Fedora's per-font priority configs, so without this the
+  static list in 60-latin.conf wins and everything unstyled renders in
+  Liberation - a metric-compatible Arial/Times stand-in, meant for matching
+  document layout rather than for reading all day.
+-->
+<fontconfig>
+  <alias>
+    <family>sans-serif</family>
+    <prefer><family>Noto Sans</family></prefer>
+  </alias>
+  <alias>
+    <family>serif</family>
+    <prefer><family>Noto Serif</family></prefer>
+  </alias>
+  <alias>
+    <family>monospace</family>
+    <prefer><family>Noto Sans Mono</family></prefer>
+  </alias>
+</fontconfig>
+XML
+note "written /etc/fonts/local.conf"
+fc-cache -fr >/dev/null 2>&1 || true
+
+# Named rather than assumed: a substitution here is silent, so it is checked.
+printf '\n  %s%-20s %s%s\n' "$bold" "asked for" "resolves to" "$reset"
+for f in "Inter Variable" "Symbols Nerd Font" "Noto Sans Mono" sans-serif serif monospace emoji; do
+    printf '  %-20s %s\n' "$f" "$(fc-match "$f" 2>/dev/null | sed 's/:.*//')"
+done
+printf '\n'
+
 note "done"
-printf '\n  %sthe Symbols Nerd Font is packaged nowhere; the repo fetches it:%s\n' "$dim" "$reset"
-printf '    bin/install-nerd-font.sh\n'
+# Unlike on Fedora, where the only Nerd Font in the repositories is a TeX one
+# and bin/install-nerd-font.sh has to fetch it, ::gentoo packages it - so it is
+# in FONTS above and there is nothing to download by hand here.
 printf '  %sthe config comes from the checkout, as on the other machines:%s\n' "$dim" "$reset"
 printf '    bin/link-dotfiles.sh\n'
 printf '  %sthen start it from the tty:%s  Hyprland\n\n' "$dim" "$reset"
