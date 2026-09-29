@@ -151,7 +151,19 @@ note "Steam, and what else is available beside it"
 # same command. The flags it writes land in /etc/portage where they can be
 # read afterwards; what it must never be allowed near is keywords or masks,
 # and it is not: those are set explicitly above.
-run emerge --getbinpkg --autounmask-continue "${present[@]}"
+# KEYWORDS RESOLVED BY PORTAGE, LICENCES BY HAND, and the split is
+# deliberate. Steam's dependency tree reaches into ~amd64 in places nobody
+# can predict from the outside - sys-libs/libudev-compat was the fifth such
+# discovery in a row, each costing a re-run - so --autounmask-keep-keywords=n
+# lets portage write those itself and carry on.
+#
+# Licences are NOT included in that: --autounmask-license stays off, and the
+# two non-free ones here (NVIDIA-2025, ValveSteamLicense) are named above.
+# Accepting a keyword is a statement about stability; accepting a licence is
+# a statement on the user's behalf, and a script should not make the second
+# one quietly.
+run emerge --getbinpkg --autounmask --autounmask-continue \
+    --autounmask-keep-keywords=n "${present[@]}"
 
 note "gamemode needs its daemon"
 run systemctl --global enable gamemoded 2>/dev/null || true
