@@ -73,6 +73,18 @@ gui-libs/egl-wayland abi_x86_32
 media-libs/libva abi_x86_32
 CONF
 
+    # STEAM'S LICENCE, ACCEPTED BY NAME. Gentoo will not install it silently,
+    # and the failure looks like any other mask:
+    #
+    #   games-util/steam-launcher-1.0.0.87 (masked by: ValveSteamLicense)
+    #
+    # The same rule as the NVIDIA licence: named per package, so agreeing to
+    # Valve's terms does not quietly agree to everything else non-free.
+    cat > /etc/portage/package.license/steam <<'CONF'
+games-util/steam-launcher ValveSteamLicense
+games-util/steam-meta ValveSteamLicense
+CONF
+
     cat > /etc/portage/package.accept_keywords/steam <<'CONF'
 # The overlay keeps Steam on ~amd64; this is the package itself rather than a
 # blanket ~amd64 for the system.
