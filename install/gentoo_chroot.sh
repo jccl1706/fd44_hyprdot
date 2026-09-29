@@ -143,6 +143,19 @@ UUID=$esp_uuid   /efi   vfat  umask=0077,shortname=winnt  0 2
 FSTAB
     [[ -n $swap_uuid ]] && printf 'UUID=%s  none   swap  sw  0 0\n' "$swap_uuid" >> "$MNT/etc/fstab"
 
+    # THE KERNEL COMMAND LINE, WRITTEN OUT because in a chroot there is none
+    # to inherit. kernel-install builds its boot entry from /proc/cmdline on
+    # a running system; inside a chroot that belongs to the HOST, so it
+    # refuses and says so:
+    #
+    #   Please specify a command line to use in /etc/kernel/cmdline.
+    #
+    # root= by UUID for the same reason fstab is: the two NVMe drives on this
+    # machine swap kernel names between boots. rw because systemd expects to
+    # remount it itself.
+    mkdir -p "$MNT/etc/kernel"
+    printf 'root=UUID=%s rw\n' "$root_uuid" > "$MNT/etc/kernel/cmdline"
+
     printf '%s\n' "$HOSTNAME_NEW" > "$MNT/etc/hostname"
     ln -sfn "/usr/share/zoneinfo/$TIMEZONE" "$MNT/etc/localtime"
     printf 'en_US.UTF-8 UTF-8\nC.UTF8 UTF-8\n' > "$MNT/etc/locale.gen"
@@ -179,18 +192,16 @@ set +u
 source /etc/profile
 set -u
 
-# KERNEL-INSTALL REFUSES TO RUN IN A CHROOT, and a chroot is how Gentoo is
-# installed. systemd ships a plugin whose whole job is to stop it:
+# systemd's chroot check, told that this chroot is the machine being
+# installed rather than somebody else's.
 #
-#   '/usr/lib/kernel/install.d/05-check-chroot.install' failed with exit
-#   status 1 ... The kernel was not deployed successfully
-#
-# The guard is right in general - a kernel deployed from inside somebody
-# else's chroot lands on the wrong machine's ESP - and wrong here, where the
-# chroot IS the machine being installed and its own ESP is mounted at /efi.
-# SYSTEMD_IGNORE_CHROOT is systemd's own way of saying so: it is what
-# systemd-detect-virt --chroot consults, so the plugin sees an ordinary
-# system.
+# ON ITS OWN THIS WAS NOT THE PROBLEM, and the first version of this comment
+# said it was. 05-check-chroot.install failed for a second reason it only
+# printed once the log was visible: "Please specify a command line to use in
+# /etc/kernel/cmdline" - a chroot has no /proc/cmdline of its own to copy.
+# That file is now written by the host half of this script. This stays
+# because the check is still a check, and this chroot still is not the
+# machine it is running on.
 export SYSTEMD_IGNORE_CHROOT=1
 
 note "fetching the portage tree"
