@@ -59,6 +59,18 @@ media-libs/libglvnd abi_x86_32
 # 32-bit game loads the 32-bit overlay or none at all.
 games-util/mangohud abi_x86_32
 games-util/gamemode abi_x86_32
+
+# THE DRIVER'S OWN DEPENDENCIES NEED IT TOO, which is the part that turns
+# this into whack-a-mole: nvidia-drivers[abi_x86_32] requires its EGL
+# libraries on the same ABI, and asking for one without the others produces
+#
+#   - gui-libs/egl-gbm (Change USE: +abi_x86_32)
+#   - x11-drivers/nvidia-drivers (Change USE: -abi_x86_32)
+#
+# which is portage offering to solve it by giving up.
+gui-libs/egl-gbm abi_x86_32
+gui-libs/egl-wayland abi_x86_32
+media-libs/libva abi_x86_32
 CONF
 
     cat > /etc/portage/package.accept_keywords/steam <<'CONF'
@@ -90,10 +102,18 @@ fi
 # 32-bit half; asking for Steam without rebuilding it produces a working
 # install of everything except the part that draws.
 note "rebuilding the driver with its 32-bit libraries"
-run emerge --getbinpkg --newuse --oneshot x11-drivers/nvidia-drivers
+run emerge --getbinpkg --newuse --oneshot --autounmask-continue x11-drivers/nvidia-drivers
 
 note "Steam, and the two things worth having beside it"
-run emerge --getbinpkg games-util/steam-launcher games-util/gamemode games-util/mangohud
+# --autounmask-continue, WHICH IS NOT THE DEFAULT AND SHOULD NOT BE. It lets
+# portage write the remaining USE changes itself and carry on, rather than
+# stopping to be told about each one - and the 32-bit dependency tree under
+# Steam is deep enough that doing it by hand is an evening of re-running the
+# same command. The flags it writes land in /etc/portage where they can be
+# read afterwards; what it must never be allowed near is keywords or masks,
+# and it is not: those are set explicitly above.
+run emerge --getbinpkg --autounmask-continue \
+    games-util/steam-launcher games-util/gamemode games-util/mangohud
 
 note "gamemode needs its daemon"
 run systemctl --global enable gamemoded 2>/dev/null || true
