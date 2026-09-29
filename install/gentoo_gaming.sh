@@ -22,9 +22,10 @@
 
 set -euo pipefail
 
-green=$'\033[1;32m'; red=$'\033[1;31m'; dim=$'\033[2m'; reset=$'\033[0m'
+green=$'\033[1;32m'; bold=$'\033[1m'; red=$'\033[1;31m'; dim=$'\033[2m'; reset=$'\033[0m'
 note() { printf '%s==>%s %s\n' "$green" "$reset" "$*"; }
 die()  { printf '%sgaming:%s %s\n' "$red" "$reset" "$*" >&2; exit 1; }
+warn() { printf '%s!!%s  %s\n' "$bold" "$reset" "$*" >&2; }
 
 DRY=0
 [[ ${1-} == --dry-run ]] && DRY=1
@@ -126,7 +127,23 @@ fi
 note "rebuilding the driver with its 32-bit libraries"
 run emerge --getbinpkg --newuse --oneshot --autounmask-continue x11-drivers/nvidia-drivers
 
-note "Steam, and the two things worth having beside it"
+# WHAT IS ACTUALLY IN THE ENABLED REPOSITORIES. mangohud is in neither
+# ::gentoo nor ::steam-overlay - it lives in GURU, which the desktop stage
+# enables - and because portage resolves a list as one graph, that single
+# absent package took Steam and GameMode down with it:
+#
+#   emerge: there are no ebuilds to satisfy "games-util/mangohud".
+#
+# So the list is filtered to what exists, and what does not is named rather
+# than silently dropped.
+wanted=(games-util/steam-launcher games-util/gamemode games-util/mangohud)
+present=(); absent=()
+for pkg in "${wanted[@]}"; do
+    if ls -d /var/db/repos/*/"$pkg" >/dev/null 2>&1; then present+=("$pkg"); else absent+=("$pkg"); fi
+done
+(( ${#absent[@]} )) && warn "not in the enabled repos, skipping: ${absent[*]}"
+
+note "Steam, and what else is available beside it"
 # --autounmask-continue, WHICH IS NOT THE DEFAULT AND SHOULD NOT BE. It lets
 # portage write the remaining USE changes itself and carry on, rather than
 # stopping to be told about each one - and the 32-bit dependency tree under
@@ -134,8 +151,7 @@ note "Steam, and the two things worth having beside it"
 # same command. The flags it writes land in /etc/portage where they can be
 # read afterwards; what it must never be allowed near is keywords or masks,
 # and it is not: those are set explicitly above.
-run emerge --getbinpkg --autounmask-continue \
-    games-util/steam-launcher games-util/gamemode games-util/mangohud
+run emerge --getbinpkg --autounmask-continue "${present[@]}"
 
 note "gamemode needs its daemon"
 run systemctl --global enable gamemoded 2>/dev/null || true
