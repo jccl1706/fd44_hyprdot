@@ -120,6 +120,19 @@ CONF
     # of /efi.
     cat > "$MNT/etc/portage/package.use/installkernel" <<'CONF'
 sys-kernel/installkernel dracut systemd-boot
+
+# AND systemd ITSELF NEEDS USE=boot, which is where the bootctl binary and
+# the kernel-install plugin come from. installkernel[systemd-boot] depends on
+# systemd[boot], the stage3's systemd is built without it, and portage stops
+# dead:
+#
+#   emerge: there are no ebuilds built with USE flags to satisfy
+#           "sys-apps/systemd[boot(-)]"
+#
+# It is written here rather than left to --autounmask so the reason is on
+# record. systemd then builds from source - a few minutes on 16 cores -
+# because the binary package is compiled without it.
+sys-apps/systemd boot
 CONF
 
     cat > "$MNT/etc/fstab" <<FSTAB
@@ -180,8 +193,15 @@ eselect profile list | grep -E '\*|desktop/systemd' | head -5
 # say Gentoo takes a weekend, and nothing about a gaming desktop needs a
 # hand-rolled config to start with.
 note "kernel, firmware and the pieces that put them on the ESP"
+# NOT sys-apps/systemd-utils, WHICH IS FOR NON-systemd SYSTEMS. On this
+# profile systemd itself provides udev, tmpfiles and the rest, so asking for
+# the standalone package produced a block against the systemd that was
+# already installed:
+#
+#   [blocks B ] sys-apps/systemd ("sys-apps/systemd" is soft blocking
+#               sys-apps/systemd-utils-260.1-r1)
 emerge --getbinpkg sys-kernel/installkernel sys-kernel/gentoo-kernel-bin \
-                   sys-kernel/linux-firmware sys-apps/systemd-utils
+                   sys-kernel/linux-firmware
 
 note "bootloader onto Gentoo's own ESP"
 bootctl install --esp-path=/efi
