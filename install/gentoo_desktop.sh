@@ -44,7 +44,6 @@ MAIN=(
     gui-apps/grim gui-apps/slurp    # screenshots, which bin/ scripts call
     gui-apps/wl-clipboard
     app-misc/jq
-    media-fonts/nerd-fonts          # Symbols Nerd Font: every glyph in the bar
     sys-apps/dbus
 )
 GURU=(
@@ -56,10 +55,18 @@ GURU=(
     gui-libs/xdg-desktop-portal-hyprland
 )
 
-note "enabling GURU"
+# TWO OVERLAYS, BECAUSE THEY CARRY DIFFERENT HALVES. GURU has quickshell and
+# nothing else on this list; Hyprland and its companions live in hyproverlay
+# (codeberg.org/hyproverlay/hyproverlay), which is likewise in Gentoo's
+# official repository listing. Checked rather than assumed: GURU alone
+# reported six of the eight packages missing.
+note "enabling the overlays"
 emerge --getbinpkg --noreplace app-eselect/eselect-repository >/dev/null
-eselect repository list -i 2>/dev/null | grep -q '\bguru\b' || eselect repository enable guru
-emaint sync --repo guru >/dev/null 2>&1 || emaint sync --repo guru
+for repo in guru hyproverlay; do
+    eselect repository list -i 2>/dev/null | grep -qE "\b$repo\b" || eselect repository enable "$repo"
+    note "syncing $repo"
+    emaint sync --repo "$repo" >/dev/null 2>&1 || emaint sync --repo "$repo"
+done
 
 # --- what is actually available -------------------------------------------
 
@@ -89,20 +96,34 @@ printf '\n'
 
 # --- keywords, per package ------------------------------------------------
 
-note "accepting ~amd64 for these packages only"
+# ~amd64 IS NOT ENOUGH FOR A LIVE EBUILD. Everything hyproverlay carries is
+# -9999 - built from git master rather than a release - and a live ebuild has
+# no KEYWORDS at all, so ~amd64 does not unmask it. `**` does, and means
+# exactly "I accept an ebuild with no keywords".
+#
+# WORTH KNOWING WHAT THAT SIGNS UP FOR: these packages follow Hyprland's git
+# master, so an update can bring today's upstream breakage, and the version
+# you have is whatever the tree looked like when you emerged. It is the only
+# form on offer for Hyprland on Gentoo.
+note "accepting these packages, live ones with ** and the rest with ~amd64"
 mkdir -p /etc/portage/package.accept_keywords
 {
     printf '# Written by install/gentoo_desktop.sh (fd44_hyprdot).\n'
-    printf '# GURU carries no stable keywords, and the fd44 desktop moves faster than\n'
-    printf '# stable would allow anyway. Named individually so that an unrelated\n'
-    printf '# `emerge -u` cannot pull unstable versions of the rest of the system.\n'
-    for p in "${available[@]}"; do printf '%s ~amd64\n' "$p"; done
+    printf '# Named individually rather than a blanket ACCEPT_KEYWORDS, so an\n'
+    printf '# unrelated `emerge -u` cannot pull unstable versions of the system.\n'
+    for p in "${available[@]}"; do
+        v="$(ls /var/db/repos/*/"$p"/*.ebuild 2>/dev/null | sed 's|.*/||; s|\.ebuild$||' | sort -V | tail -1 || true)"
+        if [[ $v == *-9999 ]]; then printf '%s **\n' "$p"; else printf '%s ~amd64\n' "$p"; fi
+    done
 } > /etc/portage/package.accept_keywords/fd44-desktop
+printf '\n'; cat /etc/portage/package.accept_keywords/fd44-desktop | grep -v '^#' | sed 's/^/    /'
 
 note "installing ${#available[@]} packages - quickshell is Qt6 and will compile"
 emerge --getbinpkg --autounmask-continue "${available[@]}"
 
 note "done"
-printf '\n  %sthe config comes from the checkout, as on the other machines:%s\n' "$dim" "$reset"
+printf '\n  %sthe Symbols Nerd Font is packaged nowhere; the repo fetches it:%s\n' "$dim" "$reset"
+printf '    bin/install-nerd-font.sh\n'
+printf '  %sthe config comes from the checkout, as on the other machines:%s\n' "$dim" "$reset"
 printf '    bin/link-dotfiles.sh\n'
 printf '  %sthen start it from the tty:%s  Hyprland\n\n' "$dim" "$reset"
