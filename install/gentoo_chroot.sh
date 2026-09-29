@@ -179,6 +179,20 @@ set +u
 source /etc/profile
 set -u
 
+# KERNEL-INSTALL REFUSES TO RUN IN A CHROOT, and a chroot is how Gentoo is
+# installed. systemd ships a plugin whose whole job is to stop it:
+#
+#   '/usr/lib/kernel/install.d/05-check-chroot.install' failed with exit
+#   status 1 ... The kernel was not deployed successfully
+#
+# The guard is right in general - a kernel deployed from inside somebody
+# else's chroot lands on the wrong machine's ESP - and wrong here, where the
+# chroot IS the machine being installed and its own ESP is mounted at /efi.
+# SYSTEMD_IGNORE_CHROOT is systemd's own way of saying so: it is what
+# systemd-detect-virt --chroot consults, so the plugin sees an ordinary
+# system.
+export SYSTEMD_IGNORE_CHROOT=1
+
 note "fetching the portage tree"
 emerge-webrsync
 
@@ -224,6 +238,16 @@ if ! emerge --getbinpkg sys-kernel/gentoo-kernel-bin sys-kernel/linux-firmware; 
     tail -40 $log 2>/dev/null || printf '(no build log found)\n'
     exit 1
 fi
+
+# Deploy the kernel onto the ESP. This is the command the postinst itself
+# names when it fails, and it is a no-op once the entry is there - which is
+# what makes this script safe to run again.
+note "putting the kernel on the ESP"
+emerge --config sys-kernel/gentoo-kernel-bin
+
+note "what actually landed there"
+bootctl list 2>/dev/null | sed -n '1,20p' || true
+find /efi -maxdepth 3 \( -name 'vmlinuz*' -o -name 'linux' -o -name '*.conf' \) 2>/dev/null | head -10
 
 note "network and remote access"
 emerge --getbinpkg net-misc/networkmanager net-misc/openssh app-admin/sudo
