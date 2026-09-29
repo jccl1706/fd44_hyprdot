@@ -88,8 +88,18 @@ CONF
     cat > /etc/portage/package.accept_keywords/steam <<'CONF'
 # The overlay keeps Steam on ~amd64; this is the package itself rather than a
 # blanket ~amd64 for the system.
+# ALL FOUR, not just Steam. gamemode and mangohud are ~amd64 too, and
+# discovering that one package at a time cost three re-runs:
+#
+#   !!! All ebuilds that could satisfy "games-util/gamemode" have been
+#   !!! masked ... (masked by: ~amd64 keyword)
+#
+# Still named individually rather than a blanket ACCEPT_KEYWORDS, so the rest
+# of the system stays on stable.
 games-util/steam-launcher ~amd64
 games-util/steam-meta ~amd64
+games-util/gamemode ~amd64
+games-util/mangohud ~amd64
 CONF
 fi
 
