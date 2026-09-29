@@ -67,7 +67,12 @@ available=()
 missing=()
 printf '\n  %s%-40s %s%s\n' "$bold" "package" "newest ebuild" "$reset"
 for p in "${MAIN[@]}" "${GURU[@]}"; do
-    v="$(ls /var/db/repos/*/"$p"/*.ebuild 2>/dev/null | sed 's|.*/||; s|\.ebuild$||' | sort -V | tail -1)"
+    # `|| true` BECAUSE OF pipefail. The script asks for `set -o pipefail`,
+    # and when a package is absent the leading `ls` fails, which fails the
+    # whole pipeline, which under `set -e` kills the script - in the middle
+    # of the very listing whose job is to report absences calmly. It stopped
+    # silently at the first package that was not there.
+    v="$(ls /var/db/repos/*/"$p"/*.ebuild 2>/dev/null | sed 's|.*/||; s|\.ebuild$||' | sort -V | tail -1 || true)"
     if [[ -n $v ]]; then
         printf '  %-40s %s\n' "$p" "$v"
         available+=("$p")
