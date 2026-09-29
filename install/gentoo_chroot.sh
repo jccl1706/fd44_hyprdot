@@ -158,7 +158,13 @@ set -euo pipefail
 green=$'\033[1;32m'; reset=$'\033[0m'
 note() { printf '%s==>%s %s\n' "$green" "$reset" "$*"; }
 
+# set +u AROUND THE PROFILE, because Gentoo's own profile scripts are not
+# written for it: /etc/profile.d/debuginfod.sh reads DEBUGINFOD_URLS before
+# setting it, and under `set -u` that aborts the script on its first line -
+# which is exactly how this failed the first time it ran.
+set +u
 source /etc/profile
+set -u
 
 note "fetching the portage tree"
 emerge-webrsync
