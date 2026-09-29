@@ -74,8 +74,15 @@ Item {
         path: "/etc/os-release"
         printErrors: false
         onLoaded: {
-            // ID may be bare or quoted: ID=fedora, ID="opensuse-tumbleweed".
-            const m = /^ID=\"?([^\"\n]+)\"?/m.exec(osRelease.text())
+            // ID MAY BE BARE, DOUBLE-QUOTED OR SINGLE-QUOTED. os-release permits
+            // shell quoting and distributions disagree: Fedora writes
+            // ID=fedora, NixOS ID="nixos", and Gentoo ID='gentoo'. Matching only
+            // double quotes left osId as "'gentoo'" - quotes included - which
+            // matches no key in the table, so the Gentoo desktop showed Tux.
+            // The failure is silent by design here: an unknown ID is SUPPOSED to
+            // fall back, so a parsing bug looks exactly like a distribution the
+            // table has not heard of.
+            const m = /^ID=['\"]?([^'\"\n]+)['\"]?/m.exec(osRelease.text())
             if (m) root.osId = m[1].trim().toLowerCase()
         }
     }
