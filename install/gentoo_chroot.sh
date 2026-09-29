@@ -192,24 +192,38 @@ eselect profile list | grep -E '\*|desktop/systemd' | head -5
 # with its config; building one from source is the thing that makes people
 # say Gentoo takes a weekend, and nothing about a gaming desktop needs a
 # hand-rolled config to start with.
-note "kernel, firmware and the pieces that put them on the ESP"
-# NOT sys-apps/systemd-utils, WHICH IS FOR NON-systemd SYSTEMS. On this
-# profile systemd itself provides udev, tmpfiles and the rest, so asking for
-# the standalone package produced a block against the systemd that was
-# already installed:
+# ORDER MATTERS HERE, AND THE FIRST ATTEMPT HAD IT BACKWARDS. The kernel's
+# postinst is what copies the kernel onto the ESP, via systemd's
+# kernel-install - so everything it depends on has to exist BEFORE the kernel
+# is merged, not after:
 #
-#   [blocks B ] sys-apps/systemd ("sys-apps/systemd" is soft blocking
-#               sys-apps/systemd-utils-260.1-r1)
-emerge --getbinpkg sys-kernel/installkernel sys-kernel/gentoo-kernel-bin \
-                   sys-kernel/linux-firmware
+#   1. installkernel, with dracut and systemd-boot support
+#   2. a machine-id, because the bls layout puts entries in
+#      /efi/<machine-id>/<version>/ and kernel-install refuses without one -
+#      a fresh stage3 has no machine-id at all
+#   3. bootctl install, which creates /efi/loader and the EFI binaries
+#   4. only then the kernel
+#
+# Merging the kernel first produced "FAILED postinst: 1 ... Kernel install
+# failed" with the ESP still empty.
+note "the tools that put a kernel on the ESP"
+emerge --getbinpkg sys-kernel/installkernel
+
+note "a machine-id for this install"
+[[ -s /etc/machine-id ]] || systemd-machine-id-setup
 
 note "bootloader onto Gentoo's own ESP"
 bootctl install --esp-path=/efi
 
-# If the kernel landed before bootctl did, its entry is missing; this is the
-# documented way to ask for it again and does nothing when it is already
-# there.
-emerge --config sys-kernel/gentoo-kernel-bin || true
+note "kernel and firmware"
+# On failure, say WHY here rather than leaving it in a log the caller has to
+# go and find with sudo.
+if ! emerge --getbinpkg sys-kernel/gentoo-kernel-bin sys-kernel/linux-firmware; then
+    log=/var/tmp/portage/sys-kernel/gentoo-kernel-bin-*/temp/build.log
+    printf '\n--- the last of %s ---\n' "$log"
+    tail -40 $log 2>/dev/null || printf '(no build log found)\n'
+    exit 1
+fi
 
 note "network and remote access"
 emerge --getbinpkg net-misc/networkmanager net-misc/openssh app-admin/sudo
