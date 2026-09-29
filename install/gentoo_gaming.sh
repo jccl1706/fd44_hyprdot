@@ -54,6 +54,19 @@ note "driver answers: $(nvidia-smi --query-gpu=name,driver_version --format=csv,
 # ABI_X86="64 32" says it once. Every multilib-capable package builds both,
 # no future dependency can surprise us, and the cost is one large rebuild
 # rather than an unbounded number of small ones.
+# A CIRCULAR DEPENDENCY, BROKEN WHERE PORTAGE POINTS. Going multilib makes
+# ncurses want a 32-bit build, and its optional gpm support - a mouse daemon
+# for the text console - depends on ncurses in turn:
+#
+#   * Error: circular dependencies:
+#   - sys-libs/ncurses (Change USE: -gpm)
+#
+# gpm is of no use on a machine whose console exists to launch a compositor,
+# so this is off rather than temporarily off.
+note "breaking the ncurses/gpm circle"
+mkdir -p /etc/portage/package.use
+printf 'sys-libs/ncurses -gpm\n' > /etc/portage/package.use/ncurses
+
 note "making the system multilib"
 if ! grep -q '^ABI_X86=' /etc/portage/make.conf; then
     printf '\n# Native Steam needs a 32-bit userland; see install/gentoo_gaming.sh.\nABI_X86="64 32"\n' \
