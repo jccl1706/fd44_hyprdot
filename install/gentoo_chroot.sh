@@ -94,7 +94,14 @@ ACCEPT_KEYWORDS="amd64"
 # The NVIDIA driver and several firmware blobs are not free software and are
 # named here rather than blanket-accepted, so a licence change is a question
 # rather than a surprise.
-ACCEPT_LICENSE="-* @FREE NVIDIA-r2 linux-fw-redistributable no-source-code"
+# NVIDIA-2025 IS THE CURRENT NAME. This said NVIDIA-r2, which is what the
+# licence used to be called, and the result was every single driver version
+# reporting as masked:
+#
+#   615.71.09 (masked by: NVIDIA-2025 license(s), ~amd64 keyword)
+#
+# A licence accepted by an old name is not accepted at all.
+ACCEPT_LICENSE="-* @FREE NVIDIA-2025 NVIDIA-r2 linux-fw-redistributable no-source-code"
 
 VIDEO_CARDS="nvidia"
 INPUT_DEVICES="libinput"
