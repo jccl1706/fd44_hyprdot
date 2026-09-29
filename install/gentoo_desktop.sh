@@ -119,7 +119,15 @@ mkdir -p /etc/portage/package.accept_keywords
 printf '\n'; cat /etc/portage/package.accept_keywords/fd44-desktop | grep -v '^#' | sed 's/^/    /'
 
 note "installing ${#available[@]} packages - quickshell is Qt6 and will compile"
-emerge --getbinpkg --autounmask-continue "${available[@]}"
+# KEYWORDS RESOLVED BY PORTAGE, the same as the gaming stage - and for the
+# same reason, which I had already learned there and failed to apply here:
+# these packages' DEPENDENCIES are keyworded too, and they cannot be
+# enumerated from outside. dev-cpp/sdbus-c++, pulled in by the Hyprland
+# portal, was the one that stopped this.
+#
+# Licences stay manual; nothing on this list is non-free.
+emerge --getbinpkg --autounmask --autounmask-continue \
+    --autounmask-keep-keywords=n "${available[@]}"
 
 note "done"
 printf '\n  %sthe Symbols Nerd Font is packaged nowhere; the repo fetches it:%s\n' "$dim" "$reset"
