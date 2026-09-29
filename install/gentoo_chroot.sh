@@ -261,8 +261,24 @@ bootctl list 2>/dev/null | sed -n '1,20p' || true
 find /efi -maxdepth 3 \( -name 'vmlinuz*' -o -name 'linux' -o -name '*.conf' \) 2>/dev/null | head -10
 
 note "network and remote access"
-emerge --getbinpkg net-misc/networkmanager net-misc/openssh app-admin/sudo
-systemctl enable NetworkManager sshd
+emerge --getbinpkg net-misc/networkmanager net-misc/openssh app-admin/sudo net-dns/avahi
+systemctl enable NetworkManager sshd avahi-daemon
+
+# AND CHECKED, because `systemctl enable` failing quietly is how this install
+# first booted with no network at all: the machine came up, the NIC was fine,
+# and nothing was there to configure it. An enable that did not take is worth
+# stopping for - it is the difference between a machine you can ssh into and
+# one you have to walk to.
+for unit in NetworkManager sshd; do
+    state="$(systemctl is-enabled "$unit" 2>&1 || true)"
+    case "$state" in
+        enabled|enabled-runtime|alias|static|indirect)
+            note "$unit: $state" ;;
+        *)
+            printf '\n  %s is %s, not enabled - the machine would boot without it\n' "$unit" "$state"
+            exit 1 ;;
+    esac
+done
 
 note "a wheel that can sudo"
 sed -i 's/^# *%wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
