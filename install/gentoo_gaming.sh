@@ -222,6 +222,67 @@ note "Steam, and what else is available beside it"
 run emerge --getbinpkg --autounmask --autounmask-continue \
     --autounmask-keep-keywords=n "${present[@]}"
 
+# --- the controller ---------------------------------------------------------
+#
+# A CONNECTED PAD THAT STEAM CANNOT USE. The kernel end needs nothing: xpad
+# binds an Xbox Series controller by itself and the evdev and js nodes get a
+# uaccess ACL for whoever is logged in at the seat. What Steam cannot do is
+# CREATE a device - Steam Input works by writing a virtual pad to /dev/uinput
+# and feeding games from that, so with no write access it detects a controller
+# and can do nothing with it.
+#
+# WHY THE EXISTING RULE IS NOT ENOUGH. games-util/game-device-udev-rules ships
+#
+#   KERNEL=="uinput", SUBSYSTEM=="misc", TAG+="uaccess", OPTIONS+="static_node=uinput"
+#
+# and static_node creates /dev/uinput early as root:root 0600. The uaccess tag
+# is only applied when udev processes an ADD event for the device, which never
+# happens until the uinput module loads - and nothing on a stock Gentoo loads
+# it. So the node sits there with no ACL indefinitely, which is how a pad that
+# works perfectly at kernel level is unusable in Steam.
+#
+# Both halves are written deliberately: the module load is what makes uaccess
+# fire, and the group is what covers the case where it does not - a session
+# logind does not treat as seat-active, or anything reading the node before the
+# module is up.
+note "uinput, which is how Steam Input publishes a controller"
+if (( DRY )); then
+    printf '%swould write:%s /etc/modules-load.d/uinput.conf, /etc/udev/rules.d/99-uinput-input-group.rules\n' "$dim" "$reset"
+else
+    cat > /etc/modules-load.d/uinput.conf <<'UINPUT'
+# Steam Input writes a virtual pad to /dev/uinput. The uaccess tag on that
+# node is only applied once udev sees the module add the device, so the module
+# has to load for the permissions to ever be right.
+uinput
+UINPUT
+    cat > /etc/udev/rules.d/99-uinput-input-group.rules <<'UINPUTRULE'
+# The backstop for /dev/uinput, beside the uaccess tag in 60-game-input.rules:
+# group input works even before the module loads, and from a session logind
+# does not consider seat-active.
+KERNEL=="uinput", SUBSYSTEM=="misc", MODE="0660", GROUP="input", OPTIONS+="static_node=uinput"
+UINPUTRULE
+fi
+
+# The rule is worth nothing if the person playing is not in the group.
+if [[ -n ${SUDO_USER-} ]] && ! id -nG "$SUDO_USER" 2>/dev/null | grep -qw input; then
+    note "adding $SUDO_USER to the input group"
+    run gpasswd -a "$SUDO_USER" input
+fi
+
+run modprobe uinput
+run udevadm control --reload
+run udevadm trigger --subsystem-match=misc --action=add
+if (( ! DRY )); then
+    perms=$(stat -c '%U:%G %a' /dev/uinput 2>/dev/null || echo "absent")
+    if [[ $perms == "absent" ]]; then
+        warn "/dev/uinput is not there at all - Steam Input will not work"
+    else
+        note "/dev/uinput is $perms"
+        [[ $perms == root:input* ]] \
+            || warn "expected root:input - Steam Input may still be locked out"
+    fi
+fi
+
 note "gamemode needs its daemon"
 run systemctl --global enable gamemoded 2>/dev/null || true
 
