@@ -44,6 +44,29 @@ note "driver answers: $(nvidia-smi --query-gpu=name,driver_version --format=csv,
 
 # --- 32-bit, which Steam cannot do without --------------------------------
 
+# THE WHOLE SYSTEM GOES MULTILIB, which is the documented way to run native
+# Steam on Gentoo and the end of a losing game. Asking for abi_x86_32 on one
+# package makes portage want it on everything that package links against, and
+# on a systemd machine that reaches the bottom of the stack: nvidia-drivers,
+# then egl-gbm, then pam, then systemd, then xwayland and
+# xdg-desktop-portal - six rounds of adding one name and re-running.
+#
+# ABI_X86="64 32" says it once. Every multilib-capable package builds both,
+# no future dependency can surprise us, and the cost is one large rebuild
+# rather than an unbounded number of small ones.
+note "making the system multilib"
+if ! grep -q '^ABI_X86=' /etc/portage/make.conf; then
+    printf '\n# Native Steam needs a 32-bit userland; see install/gentoo_gaming.sh.\nABI_X86="64 32"\n' \
+        >> /etc/portage/make.conf
+    note 'ABI_X86="64 32" added to make.conf'
+else
+    note "ABI_X86 already set: $(grep '^ABI_X86=' /etc/portage/make.conf)"
+fi
+
+note "rebuilding what that changes - this is the long part"
+run emerge --getbinpkg --update --deep --newuse --backtrack=100 --autounmask \
+    --autounmask-continue --autounmask-keep-keywords=n @world
+
 note "asking for the 32-bit halves that Steam and Proton need"
 if (( ! DRY )); then
     mkdir -p /etc/portage/package.use /etc/portage/package.accept_keywords
@@ -72,6 +95,27 @@ games-util/gamemode abi_x86_32
 gui-libs/egl-gbm abi_x86_32
 gui-libs/egl-wayland abi_x86_32
 media-libs/libva abi_x86_32
+
+# AND THE CASCADE BENEATH THEM. A 32-bit library wants 32-bit versions of
+# what IT links against, which on a systemd machine reaches the bottom of the
+# stack quickly:
+#
+#   sys-libs/pam (Change USE: +abi_x86_32)
+#     required by systemd[abi_x86_32], required by networkmanager
+#
+# These are the ones that Steam's tree reaches on this profile. They are
+# libraries rather than programs: building a second ABI of them costs disk
+# and build time, not behaviour.
+sys-libs/pam abi_x86_32
+sys-apps/systemd abi_x86_32
+sys-libs/libcap abi_x86_32
+sys-apps/util-linux abi_x86_32
+dev-libs/libgcrypt abi_x86_32
+dev-libs/libgpg-error abi_x86_32
+app-arch/zstd abi_x86_32
+sys-libs/libseccomp abi_x86_32
+dev-libs/openssl abi_x86_32
+sys-apps/dbus abi_x86_32
 CONF
 
     # STEAM'S LICENCE, ACCEPTED BY NAME. Gentoo will not install it silently,
