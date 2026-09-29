@@ -120,11 +120,34 @@ fi
 EOF
 log "wrote $SNIPPET"
 
-# Fedora's default ~/.bashrc reads ~/.bashrc.d/. One written by hand may not.
-if ! grep -qs 'bashrc\.d' "$HOME/.bashrc"; then
-    warn "$HOME/.bashrc does not read $HOME/.bashrc.d/, so the prompt will not start. Add:"
-    # shellcheck disable=SC2016  # the line to add, printed exactly as written
-    printf '    for rc in ~/.bashrc.d/*; do [ -f "$rc" ] && . "$rc"; done\n' >&2
+# FEDORA'S ~/.bashrc READS ~/.bashrc.d/. GENTOO'S SKEL DOES NOT, and this used
+# only to print the line to add - which on the Gentoo desktop meant a prompt that
+# installed cleanly, reported success, and never appeared. Two things were
+# missing there, and each on its own is enough to make it silently do nothing:
+# the drop-in was never sourced, and ~/.local/bin - where the binary above goes -
+# was not on PATH, so the snippet's `command -v starship` would have found
+# nothing even if it had run.
+#
+# So it is written rather than suggested. Guarded by the same greps, so a
+# ~/.bashrc that already does either keeps exactly what it has, and Fedora's is
+# left untouched.
+if [[ -f $HOME/.bashrc ]] && ! grep -qs 'bashrc\.d' "$HOME/.bashrc"; then
+    cp -a "$HOME/.bashrc" "$HOME/.bashrc.before-starship-setup"
+    log "kept the previous ~/.bashrc as ~/.bashrc.before-starship-setup"
+    {
+        printf '\n# --- added by fd44_hyprdot bin/starship-setup.sh ---------------------------\n'
+        # shellcheck disable=SC2016  # written for the shell to expand, not now
+        # The pattern looks for an ASSIGNMENT, not a mention: a ~/.bashrc whose
+        # comments happen to name ~/.local/bin would otherwise defeat the guard.
+        if ! grep -qsE 'PATH=[^#]*\.local/bin' "$HOME/.bashrc"; then
+            printf '# The pinned starship binary lives in ~/.local/bin, and the snippet below\n'
+            printf '# tests `command -v starship` - without this it finds nothing and is silent.\n'
+            printf 'case ":$PATH:" in\n    *":$HOME/.local/bin:"*) ;;\n    *) PATH="$HOME/.local/bin:$PATH" ;;\nesac\n\n'
+        fi
+        printf '# Read the drop-in directory this script writes into.\n'
+        printf 'for rc in "$HOME"/.bashrc.d/*; do\n    [ -f "$rc" ] && . "$rc"\ndone\nunset rc\n'
+    } >> "$HOME/.bashrc"
+    log "taught ~/.bashrc to read ~/.bashrc.d/"
 fi
 if [[ -n ${STARSHIP_CONFIG:-} && $STARSHIP_CONFIG != "$CONFIG" ]]; then
     warn "STARSHIP_CONFIG is set to $STARSHIP_CONFIG, which overrides $CONFIG"
