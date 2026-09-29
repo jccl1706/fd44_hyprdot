@@ -158,18 +158,34 @@ emerge --getbinpkg --autounmask --autounmask-continue \
 
 # --- fontconfig -----------------------------------------------------------
 #
-# THE RENDERING KNOBS ARE ALREADY RIGHT on a stock Gentoo - hinting-slight,
-# yes-antialias and lcdfilter-default are enabled by default, and freetype is
-# built with harfbuzz, cleartype-hinting and adobe-cff. Fedora does the same
-# and enables no subpixel config either; both are grayscale antialiased. There
-# was nothing to fix there, which is worth writing down because it is where
-# everyone looks first.
+# MOST OF THE RENDERING KNOBS ARE ALREADY RIGHT on a stock Gentoo -
+# hinting-slight, yes-antialias and lcdfilter-default are enabled by default and
+# freetype is built with harfbuzz, cleartype-hinting and adobe-cff, which is what
+# Fedora does too.
+#
+# SUBPIXEL IS THE EXCEPTION, and it is a trap rather than a missing setting. This
+# repo turns subpixel rendering on per user, in fontconfig/99-subpixel-rgb.conf,
+# with mode="append" - and append puts the value at the END of the rgba list
+# while the FIRST entry is the one that takes effect. Fedora enables no system
+# subpixel rule, so rgb is the only value there and wins. Gentoo enables
+# 10-sub-pixel-none.conf by default, so the list came out
+#
+#     rgba: 5(none) 1(rgb)        effective: none
+#
+# and the repo's rule was linked, correct, and inert. Disabling the system one
+# leaves rgb as the only source and the two machines match: rgba: 1.
 #
 # WHAT DIFFERS IS WHICH FONT ANSWERS A GENERIC NAME. Fedora ships a per-font
 # priority config for each family it packages, numbered so they sort - Noto at
 # 56, DejaVu at 57, Liberation at 59. Gentoo ships none of them, so the static
 # list in 60-latin.conf decides and Liberation wins every unstyled page.
 note "fontconfig: the generics, and the configs that need these fonts to exist"
+
+# OFF, so that this repo's own per-user rule is the only thing setting rgba -
+# see the note above about append and list order.
+eselect fontconfig disable 10-sub-pixel-none.conf >/dev/null 2>&1 \
+    && printf '    disabled %s\n' "10-sub-pixel-none.conf (subpixel is set per user)" \
+    || printf '    %s10-sub-pixel-none.conf was not enabled%s\n' "$dim" "$reset"
 
 # Small sizes and non-latin faces look better unhinted; these configs could not
 # be enabled before because the fonts they name were not installed.
@@ -224,6 +240,12 @@ printf '\n  %s%-20s %s%s\n' "$bold" "asked for" "resolves to" "$reset"
 for f in "Inter Variable" "Symbols Nerd Font" "Noto Sans Mono" sans-serif serif monospace emoji; do
     printf '  %-20s %s\n' "$f" "$(fc-match "$f" 2>/dev/null | sed 's/:.*//')"
 done
+# The effective rgba, which is the whole point of the paragraph above: it must
+# read a single "1", not "5 1". Asked as the player, since the rule is theirs.
+if [[ -n ${SUDO_USER-} ]]; then
+    printf '  %-20s %s\n' "rgba (as $SUDO_USER)" \
+        "$(su - "$SUDO_USER" -c 'fc-match -v "Inter Variable"' 2>/dev/null | sed -n 's/.*rgba: //p')"
+fi
 printf '\n'
 
 note "done"
