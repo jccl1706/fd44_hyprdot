@@ -283,6 +283,131 @@ if (( ! DRY )); then
     fi
 fi
 
+# --- GameMode's hooks -------------------------------------------------------
+#
+# The same arrangement bin/gaming-setup.sh makes on Fedora and modules/gaming.nix
+# makes on NixOS: the CPU governor while a game runs, the energy preference put
+# back afterwards, and notifications silenced in between.
+#
+# GENTOO SHIPS NO /usr/share/gamemode/gamemode.ini for gamemoded to merge over,
+# unlike Fedora, so the governor settings have to be named rather than inherited.
+# Measured before this existed: GameMode activated, reported itself active, and
+# left the governor at powersave for a whole ELDEN RING session - MangoHud's log
+# recorded cpuscheduler=powersave.
+#
+# defaultgov IS NAMED, and deliberately. Under amd-pstate-epp the only governors
+# that exist are performance and powersave; a defaultgov naming ondemand or
+# schedutil - as most examples do - would fail to restore on this machine.
+note "GameMode: the governor, the energy preference and do-not-disturb"
+
+if (( DRY )); then
+    printf '%swould write:%s /etc/gamemode.ini, /usr/local/bin/fd44-epp, fd44-game-end, /etc/tmpfiles.d/fd44-cpu-epp.conf\n' "$dim" "$reset"
+else
+    # THE GROUP OWNS BOTH PERMISSIONS: GameMode's own polkit rule trusts it with
+    # the governor, and the tmpfiles rule below trusts it with the energy
+    # preference. ::gentoo's gamemode also ships
+    # /etc/security/limits.d/10-gamemode.conf granting it nice -10.
+    if [[ -n ${SUDO_USER-} ]] && ! id -nG "$SUDO_USER" 2>/dev/null | grep -qw gamemode; then
+        note "adding $SUDO_USER to the gamemode group"
+        run gpasswd -a "$SUDO_USER" gamemode
+        # NOT effective in the running session, and no logout will help: pam_limits
+        # sets RLIMIT_NICE at login and the systemd user manager that runs
+        # gamemoded keeps the group list and limits it had at boot. Until a reboot,
+        # expect "Failed to renice client: Permission denied" in its log - the
+        # governor still switches, because that goes through polkit rather than
+        # the group.
+        warn "reboot before the renice takes effect - see the comment here for why"
+    fi
+
+    install -d /etc/tmpfiles.d /usr/local/bin
+    cat > /etc/tmpfiles.d/fd44-cpu-epp.conf <<'RULE'
+# Written by install/gentoo_gaming.sh (fd44_hyprdot). Lets the gamemode group set
+# the CPU energy preference, so GameMode's end hook can put it back after a game.
+z /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference 0664 root gamemode -
+RULE
+
+    # On amd-pstate-epp the performance governor FORCES the energy preference to
+    # "performance", and putting the governor back does NOT restore it - it stays
+    # until a reboot, so one game would leave the CPU in performance mode for the
+    # rest of the day. GameMode 1.8.2 has no setting for this.
+    cat > /usr/local/bin/fd44-epp <<'HOOK'
+#!/bin/sh
+# Written by install/gentoo_gaming.sh (fd44_hyprdot). GameMode end hook:
+#   fd44-epp <preference>
+# The value is FIXED rather than saved at game start: nothing documents whether
+# gamemoded runs start hooks before or after it switches the governor, and a hook
+# that saved afterwards would faithfully restore "performance".
+want="${1:-balance_performance}"
+cpu="${CPU_ROOT:-/sys/devices/system/cpu}"      # test prefix; the real tree by default
+
+# gamemoded's group list is older than this group membership - it is started by
+# the systemd user manager, which a logout does not restart - and sysfs checks the
+# writing process's groups. sg reads the group database instead, with no password
+# for a listed member.
+case " $(id -Gn) " in
+    *" gamemode "*) ;;
+    *) exec sg gamemode -c "'$0' '$want'" </dev/null ;;
+esac
+
+# Returns at once and restores from a background child that waits for the governor
+# to leave performance: the kernel refuses an EPP change while that governor holds
+# it, and gamemoded waits for end scripts - so a hook that waited inline could be
+# the very thing the governor reset was queued behind.
+(
+    n=0
+    while [ "$n" -lt 50 ] && [ "$(cat "$cpu/cpu0/cpufreq/scaling_governor" 2>/dev/null)" = performance ]; do
+        sleep 0.2
+        n=$((n + 1))
+    done
+    for f in "$cpu"/cpu*/cpufreq/energy_performance_preference; do
+        printf '%s' "$want" > "$f" 2>/dev/null
+    done
+) </dev/null >/dev/null 2>&1 &
+exit 0
+HOOK
+    chmod 0755 /usr/local/bin/fd44-epp
+
+    # GameMode allows ONE command per hook, so the end hook runs both things.
+    # Separate lines rather than `&&`: a failure in the first must not swallow the
+    # second - a desktop left permanently silent because a sysfs write failed
+    # would be a poor trade.
+    repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    cat > /usr/local/bin/fd44-game-end <<HOOK
+#!/bin/sh
+# Written by install/gentoo_gaming.sh (fd44_hyprdot). GameMode end hook.
+/usr/local/bin/fd44-epp balance_performance || true
+"$repo_dir/bin/game-dnd.sh" off || true
+exit 0
+HOOK
+    chmod 0755 /usr/local/bin/fd44-game-end
+
+    if [[ -f /etc/gamemode.ini ]] && ! grep -q fd44 /etc/gamemode.ini; then
+        cp -a /etc/gamemode.ini "/etc/gamemode.ini.before-fd44-$(date +%F)"
+        note "kept the previous gamemode.ini beside it"
+    fi
+    cat > /etc/gamemode.ini <<INI
+; Written by install/gentoo_gaming.sh (fd44_hyprdot). Gentoo ships no
+; /usr/share/gamemode/gamemode.ini to merge over, so [general] is spelled out.
+[general]
+desiredgov=performance
+; ONLY performance and powersave exist under amd-pstate-epp.
+defaultgov=powersave
+renice=10
+inhibit_screensaver=1
+
+[custom]
+; A toast over a fullscreen game is a surface the compositor has to put above it,
+; and with some titles that is a visible hitch. Critical messages from this
+; repository's own scripts still get through; see quickshell/NotificationService.qml.
+start=$repo_dir/bin/game-dnd.sh on
+; The energy preference back, and notifications with it.
+end=/usr/local/bin/fd44-game-end
+INI
+
+    systemd-tmpfiles --create /etc/tmpfiles.d/fd44-cpu-epp.conf
+    note "EPP is $(stat -c '%U:%G %a' /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference 2>/dev/null || echo 'not exposed by this driver')"
+fi
+
 note "gamemode needs its daemon"
 run systemctl --global enable gamemoded 2>/dev/null || true
 
