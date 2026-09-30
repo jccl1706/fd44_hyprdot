@@ -83,12 +83,27 @@ FFLAGS="\${COMMON_FLAGS}"
 
 # 16 threads on the 9800X3D, and --load-average so a parallel emerge does not
 # leave the desktop unusable while it runs.
+#
+# --jobs=2, NOT 4, AND THE REASON IS RAM RATHER THAN CPU. With MAKEOPTS="-j16",
+# --jobs=4 permits sixty-four compilers at once; heavy C++ runs about 2 GB each
+# and this machine has 30 GB. --load-average throttles SCHEDULING and bounds
+# nothing about memory, so the failure mode it does not prevent is an overnight
+# rebuild ending in an OOM kill rather than a finished system.
 MAKEOPTS="-j16 -l16"
-EMERGE_DEFAULT_OPTS="--jobs=4 --load-average=16 --keep-going --with-bdeps=y"
+EMERGE_DEFAULT_OPTS="--jobs=2 --load-average=16 --keep-going --with-bdeps=y"
 
 # getbinpkg: take Gentoo's binary packages when they match, build when they do
 # not. binpkg-request-signature makes portage refuse an unsigned one.
 FEATURES="getbinpkg binpkg-request-signature parallel-fetch candy"
+
+# CPU_FLAGS_X86 IS NOT -march, and -march cannot stand in for it. -march tells
+# the compiler what it MAY emit; CPU_FLAGS_X86 tells ebuilds which hand-written
+# SIMD paths to compile in AT ALL. Without it, ffmpeg, libaom, nss, libgcrypt
+# and friends build their generic paths on a CPU that has every extension they
+# could have used, and no compiler flag can put back code that was never
+# included. It is written after the chroot by cpuid2cpuflags rather than
+# hardcoded here, because it is a property of the CPU this is running on - on
+# the 9800X3D it comes out with the full AVX-512 set.
 
 ACCEPT_KEYWORDS="amd64"
 # The NVIDIA driver and several firmware blobs are not free software and are
@@ -106,7 +121,6 @@ ACCEPT_LICENSE="-* @FREE NVIDIA-2025 NVIDIA-r2 linux-fw-redistributable no-sourc
 VIDEO_CARDS="nvidia"
 INPUT_DEVICES="libinput"
 L10N="en en-US"
-LINGUAS="en en_US"
 
 USE="wayland -kde -gnome pipewire pulseaudio alsa vulkan X"
 
@@ -296,6 +310,16 @@ done
 # The desktop's update box picks this up for free, because bin/updates.py treats
 # a tree newer than its cache as stale and re-checks in the background. That rule
 # was dormant until something started moving the tree.
+note "what this CPU can actually do"
+emerge --getbinpkg --quiet --noreplace app-portage/cpuid2cpuflags
+if grep -q '^CPU_FLAGS_X86=' /etc/portage/make.conf; then
+    note "CPU_FLAGS_X86 already set"
+else
+    printf '\n# Written by install/gentoo_chroot.sh, from app-portage/cpuid2cpuflags.\n%s\n' \
+        "$(cpuid2cpuflags)" >> /etc/portage/make.conf
+    note "$(grep '^CPU_FLAGS_X86=' /etc/portage/make.conf | cut -c1-72)..."
+fi
+
 note "a daily portage sync"
 cat > /etc/systemd/system/fd44-portage-sync.service <<'UNIT'
 # Written by install/gentoo_chroot.sh (fd44_hyprdot).

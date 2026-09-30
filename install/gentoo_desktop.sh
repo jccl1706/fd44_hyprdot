@@ -45,6 +45,19 @@ MAIN=(
     gui-apps/wl-clipboard
     app-misc/jq
     sys-apps/dbus
+
+    # THE FILE MANAGER THE KEYBIND ALREADY NAMES. hypr/hyprland.lua sets
+    # file_manager = "nautilus --new-window", so Super+E on a machine without it
+    # does nothing at all and says nothing either - the compositor runs a command
+    # that is not there. The laptop and the NixOS desktop both have it because
+    # their distributions install one; Gentoo installs what it is told to.
+    #
+    # IT IS NOT SMALL: 71 packages and about 730 MB here, because nautilus[gstreamer]
+    # brings the whole codec set for media thumbnails, and behind it come a file
+    # indexer, a PDF viewer for thumbnails, and a second rust slot as a build
+    # dependency. Trimming gstreamer was measured and saves 6 MB of that, so it is
+    # not worth the divergence from the other two machines.
+    gnome-base/nautilus
 )
 GURU=(
     gui-wm/hyprland
