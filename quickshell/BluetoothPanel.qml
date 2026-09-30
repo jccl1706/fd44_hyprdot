@@ -7,13 +7,18 @@
 // goes inside. Everything comes from bin/bluetooth.sh - see Bluetooth.qml for
 // why that rather than Quickshell.Bluetooth.
 //
-// PAIRED DEVICES ONLY, AND NO SCANNING. A scan turns up every lock, doorbell,
-// television and LED strip in the building - twenty-six of them the first time
-// this was run here - and none of it belongs in a list whose every row is a
-// connect button. Pairing is also the one Bluetooth operation that is
-// occasionally interactive: a PIN, a confirmation, a device held in the right
-// mode. A panel that offered it would have to handle all of that or lie about
-// it, so it does not offer it and says where to do it instead.
+// SCANNING IS OFF UNTIL ASKED FOR, AND STOPS BY ITSELF. This panel first shipped
+// with no discovery at all, on the reasoning that a scan turns up every lock,
+// doorbell, television and LED strip in the building - twenty-six of them the
+// first time it ran here - and that none of that belongs in a list whose every
+// row is a "pair with this" button.
+//
+// What that missed is the case that then happened: a headset dropped out of
+// bluez entirely, and a panel listing only PAIRED devices showed an empty list
+// and offered nothing at all - at exactly the moment something was needed. So
+// discovery is here, but on a button rather than always: nothing scans while
+// you are only turning a headset on, the list shows named devices only, and the
+// scan stops after two minutes whatever anyone does with the panel.
 //
 // A ROW IS A SWITCH, not a menu: connected devices disconnect, disconnected
 // ones connect. That is the whole daily operation.
@@ -36,6 +41,10 @@ DropPanel {
         Bluetooth.check()
         Bluetooth.refreshDevices()
     }
+
+    // Nothing should be scanning because a panel was left open behind something
+    // else. The script's own timeout is the backstop; this is the manners.
+    onClosing: if (Bluetooth.scanning) Bluetooth.stopScan()
 
     // bluez names an icon for every device it knows - audio-headset, input-mouse,
     // phone - so the row draws what the thing IS rather than guessing from its
@@ -181,15 +190,120 @@ DropPanel {
             }
         }
 
-        // --- where pairing happens -----------------------------------------
+        // --- finding something new -----------------------------------------
 
-        Item { width: 1; height: 8 }
+        Item { width: 1; height: 6 }
 
+        Rectangle {
+            width: root.panelWidth - 20
+            x: 10
+            height: 40
+            radius: 8
+            visible: Bluetooth.powered
+            color: scanHover.hovered ? Theme.surfaceHigh : "transparent"
+            Behavior on color { ColorAnimation { duration: Theme.animFast } }
+
+            Text {
+                anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
+                text: Bluetooth.scanning ? "\u{F00B3}" : "\u{F0349}"   // bluetooth searching / magnify
+                font.family: Theme.glyphFont
+                font.pixelSize: 18
+                color: Bluetooth.scanning ? Theme.accent : Theme.dim
+            }
+
+            Text {
+                anchors { left: parent.left; leftMargin: 44; verticalCenter: parent.verticalCenter }
+                text: Bluetooth.scanning ? "Looking for devices..." : "Scan for devices"
+                color: Bluetooth.scanning ? Theme.fg : Theme.dim
+                font.family: Theme.font
+                font.pixelSize: Theme.fontSize
+            }
+
+            HoverHandler { id: scanHover; cursorShape: Qt.PointingHandCursor }
+            TapHandler {
+                onTapped: Bluetooth.scanning ? Bluetooth.stopScan() : Bluetooth.startScan()
+            }
+        }
+
+        // PUT THE THING IN PAIRING MODE. Every headset needs it and none of them
+        // says so, and a panel that finds nothing is indistinguishable from one
+        // that is broken - so the instruction is on screen while it looks.
+        Text {
+            x: 16
+            width: parent.width - 32
+            visible: Bluetooth.scanning && Bluetooth.discovered.length === 0
+            wrapMode: Text.WordWrap
+            text: "Hold the device's button until it flashes - it has to be in pairing mode to appear."
+            color: Theme.dim
+            font.family: Theme.font
+            font.pixelSize: Theme.fontSizeSmall
+            topPadding: 4
+            bottomPadding: 6
+        }
+
+        Repeater {
+            model: Bluetooth.scanning ? Bluetooth.discovered : []
+
+            delegate: Rectangle {
+                id: found
+
+                required property var modelData
+                readonly property bool busy: Bluetooth.busyMac === found.modelData.mac
+
+                width: root.panelWidth - 20
+                x: 10
+                height: 44
+                radius: 8
+                color: foundHover.hovered ? Theme.surfaceHigh : "transparent"
+                Behavior on color { ColorAnimation { duration: Theme.animFast } }
+
+                Text {
+                    anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
+                    text: root.glyphFor(found.modelData.icon || "")
+                    font.family: Theme.glyphFont
+                    font.pixelSize: 18
+                    color: Theme.dim
+                }
+
+                Column {
+                    anchors { left: parent.left; leftMargin: 44; right: parent.right; rightMargin: 12
+                              verticalCenter: parent.verticalCenter }
+                    spacing: 1
+
+                    Text {
+                        width: parent.width
+                        text: found.modelData.name || found.modelData.mac
+                        elide: Text.ElideRight
+                        color: Theme.fg
+                        font.family: Theme.font
+                        font.pixelSize: Theme.fontSize
+                    }
+                    Text {
+                        width: parent.width
+                        text: found.busy ? "pairing..." : "tap to pair"
+                        color: Theme.dim
+                        font.family: Theme.font
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.letterSpacing: Theme.trackingLoose
+                    }
+                }
+
+                HoverHandler { id: foundHover; cursorShape: Qt.PointingHandCursor }
+                TapHandler {
+                    onTapped: if (!found.busy) Bluetooth.pair(found.modelData.mac)
+                }
+            }
+        }
+
+        Item { width: 1; height: 6 }
+
+        // A device that wants a PIN is still a terminal job, and saying so is
+        // better than a row that fails without explaining itself.
         Text {
             x: 16
             width: parent.width - 32
             wrapMode: Text.WordWrap
-            text: "New devices are paired in a terminal:  bluetoothctl"
+            text: "A device that asks for a PIN needs bluetoothctl."
             color: Theme.dim
             font.family: Theme.font
             font.pixelSize: Theme.fontSizeSmall

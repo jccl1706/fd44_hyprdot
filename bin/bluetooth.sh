@@ -8,6 +8,9 @@
 #         bin/bluetooth.sh connect MAC
 #         bin/bluetooth.sh disconnect MAC
 #         bin/bluetooth.sh power on|off
+#         bin/bluetooth.sh scan on|off       look for devices nearby
+#         bin/bluetooth.sh discovered [all]  what is nearby and not paired
+#         bin/bluetooth.sh pair MAC          pair, trust and connect
 #
 # WHY A SCRIPT AND NOT Quickshell.Bluetooth. That module does exist in
 # quickshell 0.3.1 - the import resolves and the singleton carries
@@ -22,11 +25,23 @@
 # backend crashed should read "unknown" and disappear, not leave the bar showing
 # the last thing that happened to be true.
 #
-# NO PAIRING HERE, deliberately. Pairing is a one-time, occasionally
-# interactive act - a PIN, a confirmation, a device in the right mode - and a
-# panel that offers it has to handle all of that or lie about it. Connecting
-# and disconnecting something already paired is the daily operation, and that
-# is what the bar does; `bluetoothctl` pairs.
+# PAIRING IS HERE NOW, AND WAS NOT AT FIRST. The original reasoning was that
+# pairing is occasionally interactive - a PIN, a confirmation, a device held in
+# the right mode - and that a panel offering it has to handle all of that or lie.
+# What that reasoning missed is the case that actually happened: a headset
+# dropped out of bluez entirely, and a panel that only lists PAIRED devices then
+# shows an empty list and offers nothing at all. The daily operation stopped
+# being possible from the bar at exactly the moment it was needed.
+#
+# So: `scan on` discovers, `discovered` lists what is nearby and not already
+# known, and `pair` does the pair/trust/connect sequence in one. A device that
+# wants a PIN still needs `bluetoothctl` - that has not changed, and the panel
+# says so rather than pretending.
+#
+# SCANNING IS TIME-LIMITED AT THE SOURCE. `bluetoothctl --timeout` stops the
+# discovery itself, so a panel left open, a crash or a forgotten toggle cannot
+# leave the adapter scanning for the rest of the day - which costs battery on the
+# laptop and floods the list with every lock and lightbulb in the building.
 
 set -uo pipefail
 
@@ -105,6 +120,77 @@ cmd_devices() {
     printf ']\n'
 }
 
+# Discovery runs as a detached bluetoothctl, because bluez ties a scan to the
+# D-Bus client that asked for it: a one-shot `busctl call StartDiscovery` stops
+# the moment the caller exits, which is immediately.
+scan_pidfile() { printf '%s/fd44-bt-scan.pid' "${XDG_RUNTIME_DIR:-/tmp}"; }
+
+scan_running() {
+    local pid
+    pid="$(cat "$(scan_pidfile)" 2>/dev/null)" || return 1
+    [[ -n $pid ]] && kill -0 "$pid" 2>/dev/null
+}
+
+cmd_scan() {
+    case "${1:-}" in
+        on)
+            scan_running && return 0
+            # 120 seconds: long enough to catch a headset being put into pairing
+            # mode, short enough that forgetting about it costs nothing.
+            setsid bluetoothctl --timeout 120 scan on >/dev/null 2>&1 &
+            printf '%s' "$!" > "$(scan_pidfile)"
+            ;;
+        off)
+            local pid
+            pid="$(cat "$(scan_pidfile)" 2>/dev/null)" || true
+            [[ -n ${pid:-} ]] && kill "$pid" 2>/dev/null
+            rm -f "$(scan_pidfile)"
+            ;;
+        *) printf 'bluetooth: scan on|off\n' >&2; return 2 ;;
+    esac
+    cmd_status
+}
+
+# What is nearby and NOT already paired. Named devices only, by default: a scan
+# here turns up twenty-six locks, televisions and LED strips, and a list whose
+# every row is a "pair with this" button has no business offering them. Pass
+# `all` to see the unnamed ones too.
+cmd_discovered() {
+    have || { printf '[]\n'; return 0; }
+    local want_all="${1:-named}" first=1 mac name paired icon info
+    local -A is_paired=()
+    while read -r _ mac _; do [[ -n $mac ]] && is_paired["$mac"]=1; done \
+        < <(timeout 5 bluetoothctl devices Paired 2>/dev/null)
+    printf '['
+    while read -r _ mac name; do
+        [[ -n $mac ]] || continue
+        [[ -n ${is_paired[$mac]:-} ]] && continue
+        # bluez names an unknown device after its own address, with dashes. That
+        # is not a name, it is the absence of one.
+        if [[ $want_all != all && ( -z $name || $name == "${mac//:/-}" ) ]]; then
+            continue
+        fi
+        info="$(timeout 5 bluetoothctl info "$mac" 2>/dev/null)"
+        icon="$(sed -n 's/^[[:space:]]*Icon:[[:space:]]*//p' <<<"$info" | head -1)"
+        (( first )) || printf ','
+        first=0
+        printf '{"mac":"%s","name":"%s","icon":"%s"}' \
+            "$(esc "$mac")" "$(esc "$name")" "$(esc "$icon")"
+    done < <(timeout 5 bluetoothctl devices 2>/dev/null)
+    printf ']\n'
+}
+
+# Pair, trust, connect - the three that always go together for a headset. trust
+# is the one people skip and then wonder why it does not come back by itself
+# after a reboot.
+cmd_pair() {
+    local mac="${1:?mac}"
+    timeout 30 bluetoothctl pair "$mac"    >/dev/null 2>&1
+    timeout 10 bluetoothctl trust "$mac"   >/dev/null 2>&1
+    timeout 20 bluetoothctl connect "$mac" >/dev/null 2>&1
+    cmd_status
+}
+
 case "${1:-status}" in
     status)  cmd_status ;;
     devices) cmd_devices ;;
@@ -113,6 +199,9 @@ case "${1:-status}" in
     connect)    timeout 20 bluetoothctl connect "${2:?mac}"    >/dev/null 2>&1; cmd_status ;;
     disconnect) timeout 10 bluetoothctl disconnect "${2:?mac}" >/dev/null 2>&1; cmd_status ;;
     power)      timeout 10 bluetoothctl power "${2:?on|off}"   >/dev/null 2>&1; cmd_status ;;
+    scan)       cmd_scan "${2:-}" ;;
+    discovered) cmd_discovered "${2:-named}" ;;
+    pair)       cmd_pair "${2:?mac}" ;;
     -h|--help|help) sed -n '2,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;
     *) printf 'bluetooth: unknown command: %s\n' "$1" >&2; exit 2 ;;
 esac

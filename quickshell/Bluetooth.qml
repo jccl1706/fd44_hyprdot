@@ -46,6 +46,12 @@ Singleton {
     // The paired devices, for the panel. Empty until something asks.
     property var devices: []
 
+    // What is nearby and not paired, while a scan is running. Empty otherwise -
+    // a stale list of things that were in range ten minutes ago is worse than no
+    // list, because every row of it is a button that will fail.
+    property var discovered: []
+    property bool scanning: false
+
     readonly property string script:
         "\"$(dirname \"$(readlink -f '" + Quickshell.shellDir + "')\")/bin/bluetooth.sh\""
 
@@ -64,6 +70,26 @@ Singleton {
     // The actions the panel offers. Each one answers with a fresh status, so
     // the glyph is right the moment the command returns rather than up to ten
     // seconds later.
+    // Discovery. bin/bluetooth.sh stops the scan itself after 120 seconds, so
+    // this mirrors that rather than trusting a toggle to be turned off: a panel
+    // left open cannot leave the adapter scanning all afternoon.
+    function startScan(): void {
+        bt.scanning = true
+        bt.discovered = []
+        scanStop.restart()
+        discoverPoll.start()
+        act("scan", "on")
+    }
+
+    function stopScan(): void {
+        bt.scanning = false
+        scanStop.stop()
+        discoverPoll.stop()
+        bt.discovered = []
+        act("scan", "off")
+    }
+
+    function pair(mac: string): void     { act("pair", mac) }
     function connect(mac: string): void   { act("connect", mac) }
     function disconnect(mac: string): void { act("disconnect", mac) }
     function setPowered(on: bool): void    { act("power", on ? "on" : "off") }
@@ -116,8 +142,46 @@ Singleton {
                 bt.busyMac = ""
                 bt.apply(text)
                 bt.refreshDevices()      // the row's state changed too
+                // A device that just paired belongs in the list above, not the
+                // one below; asking again is cheaper than moving it by hand.
+                if (bt.scanning) discoverPoll.triggered()
             }
         }
+    }
+
+    Process {
+        id: discoverer
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    bt.discovered = JSON.parse((text || "[]").trim() || "[]")
+                } catch (e) {
+                    bt.discovered = []
+                }
+            }
+        }
+    }
+
+    // Four seconds: a scan turns devices up as they answer, so the list fills in
+    // rather than arriving at once, and a panel that only updated at the end
+    // would look broken for the first ten of them.
+    Timer {
+        id: discoverPoll
+        interval: 4000
+        repeat: true
+        onTriggered: {
+            if (discoverer.running) return
+            discoverer.command = ["sh", "-c", bt.script + " discovered"]
+            discoverer.running = true
+        }
+    }
+
+    // The same 120 seconds the script uses, so the UI and the adapter agree
+    // about when scanning stopped.
+    Timer {
+        id: scanStop
+        interval: 120 * 1000
+        onTriggered: bt.stopScan()
     }
 
     Process {
