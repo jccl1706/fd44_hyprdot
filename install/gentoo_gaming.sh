@@ -381,6 +381,42 @@ exit 0
 HOOK
     chmod 0755 /usr/local/bin/fd44-game-end
 
+    # GAMEMODE DOES NOT SURVIVE PROTON WITHOUT THIS. gamemoderun works by putting
+    # libgamemodeauto.so.0 in LD_PRELOAD; the library registers with gamemoded when
+    # it loads and deregisters when it unloads. That survives an ordinary fork - a
+    # launcher that spawns the game and exits keeps GameMode on, because the child
+    # inherited the preload. It does NOT survive pressure-vessel, which EMPTIES
+    # LD_PRELOAD and replaces LD_LIBRARY_PATH at the container boundary: the library
+    # unloads and deregisters there, and the process carries on as the game with
+    # GameMode already gone. Measured on the NixOS side with ARC Raiders - activated
+    # and released inside the same second, 45 s before the session started.
+    #
+    # MangoHud is unaffected because it enters as a Vulkan layer, which
+    # pressure-vessel imports on purpose. GameMode has no such route, so the
+    # registration is held by a process that never enters the container.
+    #
+    # This is what bin/steam-launch-options.sh puts on every game, and it is why
+    # that line says fd44-gamemode-hold rather than gamemoderun.
+    cat > /usr/local/bin/fd44-gamemode-hold <<'HOLD'
+#!/bin/sh
+# Written by install/gentoo_gaming.sh (fd44_hyprdot). GameMode that survives
+# pressure-vessel - see the comment in that script for why gamemoderun does not.
+#
+# The holder sits on the host with the preload intact for as long as this wrapper
+# lives, and this wrapper lives as long as the game: Steam's reaper waits for the
+# whole process tree, so "$@" does not return until the session ends.
+#
+# It watches THIS process rather than sleeping forever, so a wrapper killed
+# outright cannot leave GameMode latched on: it notices within two seconds and
+# exits, which releases it.
+gamemoderun sh -c "while kill -0 $$ 2>/dev/null; do sleep 2; done" &
+holder=$!
+trap 'kill "$holder" 2>/dev/null || true' EXIT HUP INT TERM
+
+"$@"
+HOLD
+    chmod 0755 /usr/local/bin/fd44-gamemode-hold
+
     if [[ -f /etc/gamemode.ini ]] && ! grep -q fd44 /etc/gamemode.ini; then
         cp -a /etc/gamemode.ini "/etc/gamemode.ini.before-fd44-$(date +%F)"
         note "kept the previous gamemode.ini beside it"
