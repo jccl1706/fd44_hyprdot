@@ -23,6 +23,11 @@
 #            is. One network call, no evaluation and no building: this runs on
 #            a timer and must not pull down store paths to answer.
 #
+#   Gentoo   `emerge -p @world` has a real list, but asking costs SECONDS -
+#            it resolves the whole dependency graph and talks to the binhost -
+#            so it cannot run on the bar's timer. The answer is cached and the
+#            check is done in the background; see check_gentoo.
+#
 # METADATA IS REFRESHED ON EVERY CHECK, which matters more than it sounds. A
 # `dnf upgrade` run against a cache from earlier in the day silently skips a
 # package built since - watched exactly that happen with quickshell, where
@@ -138,6 +143,160 @@ run_fedora() {
     # obsoletes that a list of updatable packages does not - and its y/N is
     # the last chance to stop once those are visible too.
     sudo dnf --refresh upgrade
+}
+
+# --- Gentoo ---------------------------------------------------------------
+
+# WHY THIS ONE IS CACHED AND THE OTHERS ARE NOT. `dnf check-update` answers in
+# under a second and the NixOS check is one HTTP request. `emerge -puDN @world`
+# resolves the entire dependency graph and asks the binhost about every package
+# in it: measured at tens of seconds on this machine. The bar asks every few
+# minutes, so asking directly would mean a portage process running most of the
+# time, and a click arriving mid-resolve would wait.
+#
+# So `check` answers from a file and refreshes behind itself. The first check
+# after a boot reports -1, which the bar reads as "unknown" and draws as
+# nothing - an icon that appears only once there is a real number is the same
+# behaviour as being offline on the other machines.
+gentoo_cache() { printf '%s' "${XDG_CACHE_HOME:-$HOME/.cache}/fd44-hyprdot/updates-gentoo.json"; }
+
+# An hour. Long enough that the check is not constantly running, short enough
+# that a tree synced while the machine was up is noticed the same morning.
+GENTOO_MAX_AGE=3600
+
+# WHEN THE TREE ITSELF LAST MOVED. emerge-sync.timer runs daily, and the moment
+# it finishes every cached answer is potentially wrong - so a tree newer than
+# the cache is stale regardless of age. This is the file portage itself writes.
+repo_synced() { stat -c %Y /var/db/repos/gentoo/metadata/timestamp.chk 2>/dev/null || echo 0; }
+
+# The pending list, one package per line:  name<TAB>old<TAB>new<TAB>binary|source
+#
+# FLAGS DECIDE WHAT COUNTS. U is an upgrade, D a downgrade and N a new
+# dependency; R is a rebuild - same version, changed USE flags or a revdep - and
+# is deliberately NOT counted. A bar that lit up for rebuilds would be lit
+# permanently on a source distribution, which is the same as being off.
+#
+# The version is split at the FIRST hyphen followed by a digit, which is where
+# Gentoo says a package name ends: a name may contain hyphens, but never one
+# followed by a digit.
+gentoo_pending() {
+    emerge -puDN --with-bdeps=y --getbinpkg --color=n --quiet --nospinner @world 2>/dev/null |
+    awk '
+        /^\[(binary|ebuild)/ {
+            close_i = index($0, "]")
+            hdr  = substr($0, 1, close_i)
+            rest = substr($0, close_i + 1)
+            if (hdr !~ /[UDN]/) next                    # R and friends are not news
+            kind = (hdr ~ /binary/) ? "binary" : "source"
+            split(rest, f, " ")
+            atom = f[1]
+            sub(/::.*$/, "", atom)
+            name = atom; ver = ""
+            if (match(atom, /-[0-9]/)) {
+                name = substr(atom, 1, RSTART - 1)
+                ver  = substr(atom, RSTART + 1)
+                sub(/:.*$/, "", ver)                    # a SLOT is not part of the version
+            }
+            old = ""
+            if (match(rest, /\[[^]]*\]/)) {             # [259.8::gentoo] - what is installed
+                old = substr(rest, RSTART + 1, RLENGTH - 2)
+                sub(/::.*$/, "", old)
+                sub(/ .*$/, "", old)
+            }
+            # "-" RATHER THAN EMPTY for a package with no installed version. TAB
+            # is IFS whitespace, so `read -r a b c d` collapses two tabs into one
+            # delimiter and every field after the gap shifts left - which printed
+            # new packages as "libfoo 1.2.3 -> source".
+            if (old == "") old = "-"
+            printf "%s\t%s\t%s\t%s\n", name, old, ver, kind
+        }
+    '
+}
+
+# Run the real check and write the cache. Called in the background by `check`,
+# and directly by `bin/updates.sh gentoo-refresh`.
+refresh_gentoo() {
+    local list count names cache dir
+    cache="$(gentoo_cache)"; dir="$(dirname "$cache")"
+    mkdir -p "$dir"
+    list="$(gentoo_pending)"
+    count="$(grep -c . <<<"$list")"
+    [[ -z $list ]] && count=0
+    # First three names, then "and N more" - the same sentence as Fedora's.
+    names="$(cut -f1 <<<"$list" | head -3 | paste -sd, - | sed 's/,/, /g')"
+    (( count > 3 )) && names="$names and $((count - 3)) more"
+    (( count == 0 )) && names=""
+    # Atomically, so a check reading the file never sees half of it.
+    emit emerge "$count" "$names" "" > "$cache.new" && mv -f "$cache.new" "$cache"
+    # The list beside it, for `preview` - regenerating it there would mean
+    # waiting through the whole resolve again at the moment of the click.
+    printf '%s\n' "$list" > "$dir/updates-gentoo.list"
+}
+
+check_gentoo() {
+    local cache age now stale=0
+    cache="$(gentoo_cache)"
+    now="$(date +%s)"
+    if [[ -r $cache ]]; then
+        age=$(( now - $(stat -c %Y "$cache" 2>/dev/null || echo 0) ))
+        (( age > GENTOO_MAX_AGE )) && stale=1
+        # A tree synced since the cache was written invalidates it whatever its age.
+        (( $(repo_synced) > $(stat -c %Y "$cache" 2>/dev/null || echo 0) )) && stale=1
+        cat "$cache"
+    else
+        stale=1
+        emit emerge -1 "" "first check has not finished yet"
+    fi
+    if (( stale )) && ! pgrep -f "updates\.sh gentoo-refresh" >/dev/null 2>&1; then
+        # setsid, so it survives the shell quickshell spawned this in.
+        setsid "$self/updates.sh" gentoo-refresh >/dev/null 2>&1 &
+    fi
+    return 0
+}
+
+preview_gentoo() {
+    local list n=0 name old new kind mark
+    list="$(dirname "$(gentoo_cache)")/updates-gentoo.list"
+    # The cached list if the check has run, otherwise ask now - a click should
+    # never show an empty screen just because the timer has not come round.
+    if [[ -r $list && -s $list ]]; then
+        printf '  %s\n\n' "$(printf '\033[2m%s\033[0m' "as of $(date -d "@$(stat -c %Y "$list")" '+%H:%M')")"
+    else
+        printf '  %s\n\n' "resolving - this takes a moment on Gentoo"
+        gentoo_pending > "$list"
+    fi
+    while IFS=$'\t' read -r name old new kind; do
+        [[ -n $name ]] || continue
+        # WHICH ONES WILL COMPILE is the question a source distribution raises
+        # and the others do not: ten binary packages are a minute, one source
+        # package can be an hour. So it is marked per package rather than left
+        # to be discovered while watching.
+        [[ $kind == binary ]] && mark="$(printf '\033[2mbin\033[0m')" || mark="$(printf '\033[1;33msrc\033[0m')"
+        [[ $old == - ]] && old="new"
+        printf '  %-40s %-18s \033[1;32m->\033[0m %-18s %s\n' "$name" "$old" "$new" "$mark"
+        n=$(( n + 1 ))
+    done < "$list"
+    printf '\n'
+    return "$(( n > 0 ? 0 : 1 ))"
+}
+
+run_gentoo() {
+    printf '\033[1;32m==>\033[0m %s\n\n' "Packages waiting"
+    if ! preview_gentoo; then
+        printf '  %s\n\n' "nothing to update"
+        return 0
+    fi
+    printf '\033[1;32m==>\033[0m %s\n\n' "Installing them"
+    # --ask, for the same reason Fedora's is not -y: portage's own table is the
+    # authoritative one - it knows about blockers, slot conflicts and USE changes
+    # that a list of upgradable packages does not - and its prompt is the last
+    # chance to stop with all of that visible.
+    #
+    # --keep-going, because one package failing to build on a source system
+    # should not abandon the other forty that would have succeeded.
+    sudo emerge -avuDN --with-bdeps=y --getbinpkg --keep-going @world
+    # The cache now describes a system that no longer exists.
+    refresh_gentoo
 }
 
 # --- NixOS ----------------------------------------------------------------
@@ -302,6 +461,7 @@ case "${1:-check}" in
         case "$(distro)" in
             fedora) check_fedora ;;
             nixos)  check_nixos ;;
+            gentoo) check_gentoo ;;
             *)      emit unknown -1 "" "unsupported distro: $(distro)" ;;
         esac
         ;;
@@ -309,10 +469,14 @@ case "${1:-check}" in
         case "$(distro)" in
             fedora) run_fedora ;;
             nixos)  run_nixos ;;
+            gentoo) run_gentoo ;;
             *)      die "unsupported distro: $(distro)" ;;
         esac
         ;;
     open) open_terminal ;;
+    # The background worker `check` spawns on Gentoo. Not documented in --help:
+    # it is an implementation detail of the cache, not something to run by hand.
+    gentoo-refresh) refresh_gentoo ;;
     -h|--help|help)
         sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
         ;;
