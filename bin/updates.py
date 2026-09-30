@@ -512,6 +512,12 @@ def open_terminal():
     # bin/in-terminal.sh owns the window: which terminal, and staying open
     # afterwards so the transcript can be read. bin/backup.sh opens its own the
     # same way.
+    #
+    # A LITTLE TRANSLUCENCY, because this window is a full screen of its own text
+    # rather than a few lines of output - there is not much desktop left showing
+    # through, and Hyprland blurs what there is. The other bar windows stay opaque;
+    # see the note in in-terminal.sh.
+    os.environ["FD44_TERM_OPACITY"] = os.environ.get("FD44_TERM_OPACITY", "0.88")
     os.execv(os.path.join(HERE, "in-terminal.sh"),
              [os.path.join(HERE, "in-terminal.sh"), "System update",
               os.path.abspath(__file__), "show"])

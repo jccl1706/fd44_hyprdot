@@ -34,14 +34,22 @@ done
 
 # The command is passed to bash as "$@" rather than pasted into a string, so
 # an argument with a space in it stays one argument.
-# OPAQUE, for kitty. These windows appear over whatever was already on
+# OPAQUE BY DEFAULT, for kitty. These windows appear over whatever was already on
 # screen - a terminal full of text, a game - and the translucency that suits a
 # terminal you work in over a wallpaper makes two lines of output compete with
 # everything behind them. Hyprland cannot fix this from a window rule: kitty
 # renders its own alpha and a compositor opacity rule only scales what the
 # client drew.
+#
+# $FD44_TERM_OPACITY IS THE EXCEPTION, set by the caller. A window that is mostly
+# a FULL SCREEN of its own text - the pending-upgrades list - can afford some,
+# because there is little of the desktop left showing through and Hyprland's blur
+# (look.lua: size 3, passes 1) keeps what does show from competing with it. A
+# window that prints four lines cannot, which is why this is per caller rather
+# than a new default.
+opacity="${FD44_TERM_OPACITY:-1}"
 opaque=()
-[[ $term == kitty ]] && opaque=(-o background_opacity=1)
+[[ $term == kitty ]] && opaque=(-o background_opacity="$opacity")
 
 exec "$term" "${opaque[@]}" --title "$title" -e bash -c '
     "$@"

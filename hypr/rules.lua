@@ -209,11 +209,13 @@ hl.window_rule({
     size   = "monitor_w*0.6 monitor_h*0.7",
     center = true,
 
-    -- NOT opacity = 1.0 HERE, which was tried and does nothing: kitty draws
-    -- its own translucent background, and a compositor opacity rule only
-    -- SCALES what a client renders - it cannot fill in alpha the client left
-    -- out. bin/in-terminal.sh passes kitty -o background_opacity=1 instead,
-    -- which is the only place that can decide it.
+    -- NOT opacity HERE, which was tried and does nothing: kitty draws its own
+    -- translucent background, and a compositor opacity rule only SCALES what a
+    -- client renders - it cannot fill in alpha the client left out.
+    -- bin/in-terminal.sh passes kitty -o background_opacity instead, which is the
+    -- only place that can decide it: opaque by default, and $FD44_TERM_OPACITY
+    -- where a caller wants otherwise - bin/updates.py asks for 0.88, since its
+    -- screen fills the window and Hyprland's blur does the rest.
 })
 
 -- Hyprland's own run dialog (hyprland-guiutils): float it near the bottom
