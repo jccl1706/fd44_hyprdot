@@ -120,6 +120,18 @@ sudo ./install_fedora.sh --dry-run  # print every command, change nothing
 sudo ./install_fedora.sh            # the real thing
 ```
 
+### The three machines
+
+One checkout drives all of them, which is the point: a fix to the bar or to
+`bin/` reaches every machine at once. What differs per machine is written down
+per machine:
+
+| | |
+|---|---|
+| [Framework 13 (AMD) — Fedora](docs/machines/framework-fedora.md) | the laptop, and the machine everything is compared against |
+| [Gaming desktop — Gentoo](docs/machines/desktop-gentoo.md) | `gentoo-gaming00`, and the traps it taught |
+| [Gaming desktop — NixOS](docs/machines/desktop-nixos.md) | `nixos-gaming00`, whose system config lives in `fd44_nixos` |
+
 ### Gentoo, on the gaming desktop
 
 The same desktop, built a second way. The gaming desktop dual-boots NixOS and
@@ -431,9 +443,10 @@ bin/             link-dotfiles.sh — point ~/.config at this checkout; run it a
 install/         install_fedora.sh - the installer - and vm-test.sh, plus the
                  Gentoo chain: install_gentoo.sh, gentoo_chroot.sh,
                  gentoo_enter.sh, gentoo_gaming.sh, gentoo_desktop.sh
-docs/            keybindings.md and its printable twin, and backup.md - how to
+docs/            keybindings.md and its printable twin; backup.md - how to
                  restore, and what has to be kept off the machine for that to
-                 be possible
+                 be possible; machines/ - one page per machine, for what is
+                 true of that one and not of the others
 starship/        starship.toml — the prompt; ANSI colour names, so it follows the theme
 tmux/            tmux.conf — opt-in, for a session kept on one machine and attached from the other
 cooling/         CoolerControl backup of the desktop's fan curves (reviewed, no credentials)
