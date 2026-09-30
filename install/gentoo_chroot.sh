@@ -368,7 +368,17 @@ sed -i 's/^# *%wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 note "done inside the chroot"
 printf '\n  Two passwords are still needed, and you type them:\n'
 printf '    passwd                       # root\n'
-printf '    useradd -m -G wheel,video,audio,input -s /bin/bash USERNAME\n'
+# THE GROUPS ARE NOT A GUESS, each one buys something specific:
+#   wheel   sudo
+#   video   the GPU
+#   audio   ALSA devices directly, for the cases PipeWire is not in
+#   input   /dev/input, which the compositor needs
+#   portage read the build logs (qlop, genlop) and mark news read without sudo.
+#           It grants NO ability to install anything - emerge still needs root -
+#           and without it `eselect news read` fails with a permission error on
+#           /var/lib/gentoo/news, which looks like a broken news system rather
+#           than a missing group.
+printf '    useradd -m -G wheel,video,audio,input,portage -s /bin/bash USERNAME\n'
 printf '    passwd USERNAME\n\n'
 INSIDE
     sed -i "s/USERNAME/$USERNAME/g" "$inside"
