@@ -287,6 +287,57 @@ for unit in NetworkManager sshd; do
     esac
 done
 
+# NOTHING SYNCS THE TREE ON GENTOO BY ITSELF. There is no emerge-sync.timer -
+# it simply does not exist in the tree - so on a stock install the package list
+# only moves when someone remembers to ask. That was true here for two days, and
+# the visible symptom is worse than staleness: the bar's update box reports
+# "nothing pending" perfectly accurately about a tree nobody has refreshed.
+#
+# The desktop's update box picks this up for free, because bin/updates.py treats
+# a tree newer than its cache as stale and re-checks in the background. That rule
+# was dormant until something started moving the tree.
+note "a daily portage sync"
+cat > /etc/systemd/system/fd44-portage-sync.service <<'UNIT'
+# Written by install/gentoo_chroot.sh (fd44_hyprdot).
+[Unit]
+Description=Sync the portage tree and the enabled overlays
+Documentation=man:emaint(1)
+# Pointless without a network, and a timer firing during early boot would fail
+# once and then wait a day to try again.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# -a, not -A: it syncs the repositories with auto-sync enabled, which is the
+# setting a repository uses to say "do not sync me automatically".
+ExecStart=/usr/bin/emaint sync -a
+# Background maintenance must never make the desktop stutter.
+Nice=10
+IOSchedulingClass=idle
+UNIT
+
+cat > /etc/systemd/system/fd44-portage-sync.timer <<'UNIT'
+# Written by install/gentoo_chroot.sh (fd44_hyprdot).
+[Unit]
+Description=Sync the portage tree daily
+
+[Timer]
+OnCalendar=daily
+# RANDOMISED ON PURPOSE: Gentoo's infrastructure asks that syncs not all land on
+# the same minute, and nothing here is waiting on it.
+RandomizedDelaySec=2h
+AccuracySec=1h
+# A machine switched off at the appointed time syncs once it is back, rather
+# than skipping the day in silence.
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+
+systemctl enable fd44-portage-sync.timer
+
 note "a wheel that can sudo"
 sed -i 's/^# *%wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 
