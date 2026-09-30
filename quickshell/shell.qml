@@ -74,6 +74,11 @@ ShellRoot {
                 if (!n.revealed) shell.closeBarPanels(bar.modelData, n)
                 n.toggle(x)
             })
+            onBluetoothRequested: x => shell.eachBluetooth(n => {
+                if (n.modelData !== bar.modelData) return
+                if (!n.revealed) shell.closeBarPanels(bar.modelData, n)
+                n.toggle(x)
+            })
             onNotificationsRequested: x => shell.eachNotifyPanel(p => {
                 if (p.modelData !== bar.modelData) return
                 if (!p.revealed) shell.closeBarPanels(bar.modelData, p)
@@ -182,6 +187,18 @@ ShellRoot {
         id: networkVariants
         model: Quickshell.screens
         NetworkPanel {
+            barWindow: shell.barFor(modelData)
+        }
+    }
+
+    // The adapter and the devices it already knows. Opened from the Bluetooth
+    // glyph, and deliberately a sibling of the network panel rather than a tab
+    // inside it: they answer different questions and one of them is usually
+    // about a headset that is already in your ears.
+    Variants {
+        id: bluetoothVariants
+        model: Quickshell.screens
+        BluetoothPanel {
             barWindow: shell.barFor(modelData)
         }
     }
@@ -482,6 +499,20 @@ ShellRoot {
     }
 
     IpcHandler {
+        target: "bluetooth"
+
+        function toggle(): void { shell.toggleFocused(bluetoothVariants.instances) }
+        function open(): void   { shell.openFocused(bluetoothVariants.instances)   }
+        function close(): void  { shell.closeAll(bluetoothVariants.instances)      }
+        function status(): string {
+            if (!Bluetooth.present) return "no adapter"
+            if (!Bluetooth.powered) return "off"
+            if (!Bluetooth.connected) return "on, nothing connected"
+            return Bluetooth.name + (Bluetooth.battery >= 0 ? " " + Bluetooth.battery + "%" : "")
+        }
+    }
+
+    IpcHandler {
         target: "network"
 
         function toggle(): void { shell.toggleFocused(networkVariants.instances) }
@@ -649,7 +680,7 @@ ShellRoot {
     // opened from the logo or from inside settings, and closing one because a
     // volume panel opened would lose what you were doing.
     readonly property var barPanelGroups: [
-        audioVariants, networkVariants, notifyPanelVariants,
+        audioVariants, networkVariants, bluetoothVariants, notifyPanelVariants,
         batteryPanelVariants, calendarVariants, notesVariants,
         trayMenuVariants, powerVariants, launcherVariants
     ]
@@ -727,6 +758,13 @@ ShellRoot {
 
     function eachNetwork(fn): void {
         const instances = networkVariants.instances
+        for (let i = 0; i < instances.length; i++) {
+            if (instances[i]) fn(instances[i])
+        }
+    }
+
+    function eachBluetooth(fn): void {
+        const instances = bluetoothVariants.instances
         for (let i = 0; i < instances.length; i++) {
             if (instances[i]) fn(instances[i])
         }

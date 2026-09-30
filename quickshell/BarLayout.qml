@@ -58,7 +58,7 @@ Singleton {
         left: [],
         centerLeft: [],
         centerRight: ["theme", "caffeine", "updates", "backup", "units", "thermal"],
-        right: ["tray", "notes", "notify", "network", "audio", "battery", "couch", "power"]
+        right: ["tray", "notes", "notify", "bluetooth", "network", "audio", "battery", "couch", "power"]
     })
 
     // THE HUMAN NAME AND THE COST OF HIDING, per plugin. Here rather than in
@@ -88,6 +88,8 @@ Singleton {
                     help: "the history panel and the unread count. Toasts still appear either way" },
         network:  { label: "Network",
                     help: "signal strength, and the panel that joins a network. Hidden, there is no other way to change network" },
+        bluetooth:{ label: "Bluetooth",
+                    help: "whether anything is connected, and the panel that connects or disconnects a paired device - with its battery where the device reports one. Only ever drawn on a machine with an adapter. Hidden, bluetoothctl is the way, and pairing a NEW device is a terminal job either way" },
         audio:    { label: "Audio",
                     help: "the panel that picks an output device. The volume keys and the OSD work either way" },
         battery:  { label: "Battery",

@@ -27,6 +27,7 @@ PanelWindow {
     // bar does not reach for windows itself.
     signal audioRequested(real x)
     signal networkRequested(real x)
+    signal bluetoothRequested(real x)
     signal notificationsRequested(real x)
     signal batteryRequested(real x)
     signal clockRequested(real x)
@@ -79,6 +80,7 @@ PanelWindow {
 
     Component { id: audioPlugin;   AudioButton {} }
     Component { id: networkPlugin; NetworkButton {} }
+    Component { id: bluetoothPlugin; BluetoothButton {} }
     Component { id: themePlugin;   ThemeToggle {} }
     Component { id: caffeinePlugin; CaffeineButton {} }
     Component { id: couchPlugin;   CouchButton {} }
@@ -121,6 +123,7 @@ PanelWindow {
         switch (id) {
         case "audio":       return audioPlugin
         case "network":     return networkPlugin
+        case "bluetooth":   return bluetoothPlugin
         case "theme":       return themePlugin
         case "caffeine":    return caffeinePlugin
         case "couch":       return couchPlugin
@@ -146,6 +149,7 @@ PanelWindow {
         const x = slot.mapToItem(null, slot.width / 2, 0).x
         if (id === "audio")                    root.audioRequested(x)
         else if (id === "network")             root.networkRequested(x)
+        else if (id === "bluetooth")           root.bluetoothRequested(x)
         else if (id === "notify")              root.notificationsRequested(x)
         else if (id === "battery")             root.batteryRequested(x)
         else if (id === "notes")               root.notesRequested(x)
