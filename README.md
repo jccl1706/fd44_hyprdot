@@ -120,6 +120,29 @@ sudo ./install_fedora.sh --dry-run  # print every command, change nothing
 sudo ./install_fedora.sh            # the real thing
 ```
 
+### Gentoo, on the gaming desktop
+
+The same desktop, built a second way. The gaming desktop dual-boots NixOS and
+Gentoo from separate NVMes with separate ESPs, chosen from the firmware menu, and
+the Gentoo side is built by a chain rather than one script - each stage is
+re-runnable, because a Gentoo install is not a thing that succeeds on the first
+attempt:
+
+| | |
+|---|---|
+| `install_gentoo.sh` | partitions, unpacks a verified stage3, and chroots |
+| `gentoo_chroot.sh` | the system: profile, kernel, systemd-boot, network, `CPU_FLAGS_X86` from the real CPU, a daily sync timer |
+| `gentoo_enter.sh` | re-enter the chroot later, to repair rather than reinstall |
+| `gentoo_gaming.sh` | multilib, the 32-bit NVIDIA stack, Steam, GameMode and the `/dev/uinput` rule Steam Input needs |
+| `gentoo_desktop.sh` | Hyprland and quickshell from GURU and hyproverlay, the fonts, `nvidia_drm modeset`, a quiet boot and autologin |
+
+**The same `quickshell/` and `hypr/` drive it**, linked by `bin/link-dotfiles.sh`
+exactly as on Fedora - which is the point of the exercise, and what turns up the
+assumptions. A bar plugin that reads `/sys` the Fedora way, a keybind naming a
+file manager the distribution does not install, an `/etc/os-release` parsed for
+one quoting style: all of those were found by running this configuration on a
+distribution it was not written on.
+
 ### Plasma instead
 
 The installer asks which desktop to build, and the two are alternatives — it
@@ -347,14 +370,25 @@ quickshell/      the shell itself, QML
                                  are, this says what is there
   AudioButton · AudioPanel       volume and output/input selection
   NetworkButton · NetworkPanel   Wi-Fi and Ethernet
+  BluetoothButton · BluetoothPanel   whether anything is connected, and the
+                                 paired devices with their battery where they
+                                 report one. A scan button finds new ones and a
+                                 tap pairs, trusts and connects together. Absent
+                                 entirely on a machine with no adapter
   CaffeineButton · Caffeine      coffee cup: stay awake - no idle lock, screen-off
                                  or suspend while on, and the lid stops
                                  suspending too (the screen still goes off)
   UpdatesButton · Updates        a box and a count, in the centre pill, ONLY
                                  while packages are waiting; one click opens a
                                  terminal that installs them. bin/updates.py
-                                 answers what is pending - dnf on Fedora, how
-                                 far flake.lock trails nixpkgs on NixOS
+                                 answers what is pending - dnf on Fedora, emerge
+                                 on Gentoo, and on NixOS how far flake.lock
+                                 trails nixpkgs, counted in DAYS rather than
+                                 packages because nothing is "pending" on a
+                                 system that is whatever its flake evaluates to.
+                                 The terminal it opens is a screen, not a
+                                 print-and-hand-over: u upgrades, l lists, r
+                                 re-checks, q closes
   BackupButton · Backups         a disk and a number of days, ONLY once the
                                  last backup is getting old - a week on
                                  bin/backup.sh's fortnight, red past it or if
@@ -394,7 +428,12 @@ bin/             link-dotfiles.sh — point ~/.config at this checkout; run it a
                  chrome-theme.sh · chromium-policy-setup.sh — browser colours, root-written
                  gaming-setup.sh — opt-in, not run by the installer
                  starship-setup.sh — opt-in two-line prompt, per user, no sudo
-install/         the installer, and vm-test.sh
+install/         install_fedora.sh - the installer - and vm-test.sh, plus the
+                 Gentoo chain: install_gentoo.sh, gentoo_chroot.sh,
+                 gentoo_enter.sh, gentoo_gaming.sh, gentoo_desktop.sh
+docs/            keybindings.md and its printable twin, and backup.md - how to
+                 restore, and what has to be kept off the machine for that to
+                 be possible
 starship/        starship.toml — the prompt; ANSI colour names, so it follows the theme
 tmux/            tmux.conf — opt-in, for a session kept on one machine and attached from the other
 cooling/         CoolerControl backup of the desktop's fan curves (reviewed, no credentials)
@@ -1261,6 +1300,13 @@ Each of these cost real time, and none produced an error message.
 
 ## Not yet done
 
-- No battery indicator or system tray in the bar yet.
-- No notification daemon, so apps that send notifications get silence.
-- Nothing indicates when the `passthrough` submap is active.
+- Nothing indicates when the `passthrough` submap is active. `SUPER` `Escape`
+  turns every binding off so a VM or a remote desktop can have the keyboard, and
+  the only way to know you are in it is that nothing works.
+- **No off-site copy of anything.** Both backup disks live in the same rooms as
+  the machines they protect, which answers a dead disk and not a burgled flat.
+  See [`docs/backup.md`](docs/backup.md).
+- The NixOS desktop has no backup configured - the laptop and the Gentoo install
+  do.
+- `bin/updates.py`'s NixOS paths are carried over from the shell version it
+  replaced but have not been run on that machine yet.
