@@ -79,7 +79,7 @@ Singleton {
         backup:   { label: "Backup reminder",
                     help: "appears only when the last backup is getting old, and opens a terminal that runs one. Hidden, nothing on screen says the machine has stopped backing up - bin/backup.sh status still answers from a terminal" },
         updates:  { label: "Updates",
-                    help: "appears only when packages are waiting, and opens a terminal to install them. Hidden, nothing tells you the machine is behind - bin/updates.sh check still answers from a terminal" },
+                    help: "appears only when packages are waiting, and opens a terminal to install them. Hidden, nothing tells you the machine is behind - bin/updates.py status still answers from a terminal" },
         tray:     { label: "System tray",
                     help: "icons from applications that publish one - Steam, Discord, Nextcloud. Empty until such a program runs, and hidden it takes away the only way to reach their menus" },
         notes:    { label: "Notes",

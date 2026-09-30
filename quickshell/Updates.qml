@@ -5,11 +5,11 @@
 // A singleton, so every bar on every monitor shows the same count and one
 // timer answers for all of them.
 //
-// IT KNOWS NOTHING ABOUT DNF OR NIX. bin/updates.sh answers "what is
+// IT KNOWS NOTHING ABOUT DNF, EMERGE OR NIX. bin/updates.py answers "what is
 // pending" on whichever distro this is and prints one line of JSON; this
 // reads the number. That is the whole division: the bar would otherwise need
 // a branch per machine in QML, where it could not be run or tested from a
-// terminal. `bin/updates.sh check` prints exactly what this parses.
+// terminal. `bin/updates.py status` prints exactly what this parses.
 //
 // -1 IS "I DO NOT KNOW", and it is not the same as zero. A failed check - no
 // network, a repo timing out, a machine that is neither Fedora nor NixOS -
@@ -57,11 +57,16 @@ Singleton {
     readonly property bool pending: updates.count > 0
 
     readonly property string script:
-        "\"$(dirname \"$(readlink -f '" + Quickshell.shellDir + "')\")/bin/updates.sh\""
+        "\"$(dirname \"$(readlink -f '" + Quickshell.shellDir + "')\")/bin/updates.py\""
 
-    function check(): void {
+    // `status` READS A CACHE AND REFRESHES BEHIND ITSELF, which is why the timer
+    // calls it rather than `check`: asking emerge directly costs eleven seconds
+    // on the Gentoo machine and would have a portage process running most of the
+    // time. `check` is the forced version, for the IPC handler - "ask again now"
+    // should mean now.
+    function check(force = false): void {
         if (checker.running) return
-        checker.command = ["sh", "-c", updates.script + " check"]
+        checker.command = ["sh", "-c", updates.script + (force ? " check" : " status")]
         checker.running = true
     }
 
@@ -81,7 +86,7 @@ Singleton {
         stdout: StdioCollector {
             onStreamFinished: {
                 const line = (text || "").trim()
-                if (!line) { updates.error = "no output from updates.sh"; updates.count = -1; return }
+                if (!line) { updates.error = "no output from updates.py"; updates.count = -1; return }
                 try {
                     const j = JSON.parse(line)
                     updates.kind = j.kind || ""

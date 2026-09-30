@@ -6,7 +6,7 @@
 # Usage:  bin/in-terminal.sh "<window title>" command [args...]
 #
 # For the bar's icons: clicking one that starts a long, talkative job opens a
-# window rather than doing it silently. bin/updates.sh and bin/backup.sh both
+# window rather than doing it silently. bin/updates.py and bin/backup.sh both
 # want this, and neither should own it.
 #
 # THE WINDOW STAYS OPEN AFTER THE COMMAND ENDS. A terminal that vanishes on

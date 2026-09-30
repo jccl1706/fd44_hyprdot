@@ -374,7 +374,7 @@ ShellRoot {
         function close(): void  { shell.closeAll(audioVariants.instances)      }
     }
 
-    // Pending packages (Updates.qml, bin/updates.sh).
+    // Pending packages (Updates.qml, bin/updates.py).
     //
     //   qs ipc call updates status    what the last check found
     //   qs ipc call updates check     ask again now, rather than on the hour
@@ -388,7 +388,7 @@ ShellRoot {
             return Updates.kind + " " + Updates.count
                  + (Updates.summary ? " (" + Updates.summary + ")" : "")
         }
-        function check(): void { Updates.check() }
+        function check(): void { Updates.check(true) }   // forced: "again" means now
         function open(): void  { Updates.open() }
     }
 

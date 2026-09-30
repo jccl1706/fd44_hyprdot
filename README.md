@@ -352,7 +352,7 @@ quickshell/      the shell itself, QML
                                  suspending too (the screen still goes off)
   UpdatesButton · Updates        a box and a count, in the centre pill, ONLY
                                  while packages are waiting; one click opens a
-                                 terminal that installs them. bin/updates.sh
+                                 terminal that installs them. bin/updates.py
                                  answers what is pending - dnf on Fedora, how
                                  far flake.lock trails nixpkgs on NixOS
   BackupButton · Backups         a disk and a number of days, ONLY once the
