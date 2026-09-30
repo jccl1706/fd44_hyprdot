@@ -631,7 +631,10 @@ It exits non-zero when it finds anything, so a bad month shows up in
 
 **Backups** are the third job, and the only one that survives the disk being
 gone. `bin/backup.sh` copies to an external USB disk with
-[restic](https://restic.net):
+[restic](https://restic.net). **[`docs/backup.md`](docs/backup.md) is the page
+to read when something has already gone wrong** — restoring one file, restoring
+a machine that no longer exists, what has to be kept off the machine for either
+to be possible, and the traps this arrangement has already hit.
 
 ```sh
 sudo dnf install restic
