@@ -299,6 +299,75 @@ if [[ -n ${SUDO_USER-} ]]; then
 fi
 printf '\n'
 
+# --- a quiet boot, and a tty that logs itself in -----------------------------
+#
+# WHAT THE MACHINE IS FOR decides this. It boots to one user's Hyprland session
+# and nothing else, so the kernel's boot commentary and a login prompt are both
+# furniture. On a server they would be the opposite.
+#
+# NOTHING IS SILENCED, ONLY UNPRINTED: every message still reaches the ring buffer
+# and the journal, so `dmesg` and `journalctl -b` read exactly as before. This
+# stops them being painted over the screen the compositor is about to take.
+note "quiet boot"
+if [[ -f /etc/kernel/cmdline ]]; then
+    if grep -q '\bquiet\b' /etc/kernel/cmdline; then
+        note "cmdline already quiet"
+    else
+        cp -a /etc/kernel/cmdline "/etc/kernel/cmdline.before-quiet-$(date +%F)"
+        # loglevel=3 for whatever prints despite quiet, udev because it is the
+        # loudest thing after the kernel, show_status=false for the [ OK ] lines.
+        sed -i 's/$/ quiet loglevel=3 udev.log_level=3 systemd.show_status=false/' /etc/kernel/cmdline
+        note "added: quiet loglevel=3 udev.log_level=3 systemd.show_status=false"
+    fi
+
+    # THE FILE IS ONLY A SOURCE. With layout=bls the cmdline is copied into the
+    # boot entry when the kernel is installed, so editing it changes nothing until
+    # the entry is rewritten - and the next boot would be exactly as noisy, with
+    # /etc/kernel/cmdline sitting there looking correct.
+    if command -v kernel-install >/dev/null 2>&1; then
+        run kernel-install add-all || warn "kernel-install add-all failed - the entry still has the old cmdline"
+        if (( ! DRY )); then
+            opts="$(grep -h '^options' "$(bootctl -p 2>/dev/null || echo /efi)"/loader/entries/*.conf 2>/dev/null | head -1)"
+            [[ $opts == *quiet* ]] \
+                && note "the boot entry carries it" \
+                || warn "the boot entry does NOT carry quiet - check kernel-install's layout"
+        fi
+    else
+        warn "no kernel-install - rewrite the boot entry by hand or the cmdline change does nothing"
+    fi
+else
+    warn "no /etc/kernel/cmdline - skipping the quiet boot"
+fi
+
+# AUTOLOGIN, WHICH IS HALF OF STARTING THE DESKTOP. The other half is the uwsm
+# block in ~/.bash_profile: agetty logs the user in, bash reads .bash_profile, and
+# that execs the compositor. Neither half is any use alone.
+#
+# ANYONE WITH THE KEYBOARD GETS THE SESSION. Deliberate, and worth stating: the
+# disk is still encrypted, so this changes nothing about a stolen machine, only
+# about someone standing at a booted one.
+note "autologin on tty1"
+if [[ -z ${SUDO_USER-} ]]; then
+    warn "no SUDO_USER, so there is no name to log in - skipping autologin"
+else
+    install -d /etc/systemd/system/getty@tty1.service.d
+    # ExecStart IS CLEARED FIRST because systemd APPENDS to a list-valued setting
+    # in a drop-in; without the empty assignment there would be two agettys on one
+    # tty, fighting over it.
+    #
+    # --noissue: /etc/issue holds a blank line, "This is \n (\s \m \r) \t" and
+    # another blank, which agetty paints above the login line - three lines that
+    # read as a repeated prompt on a machine that is about to log itself in anyway.
+    cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf <<UNIT
+# Written by install/gentoo_desktop.sh (fd44_hyprdot).
+[Service]
+ExecStart=
+ExecStart=-/usr/bin/agetty --noreset --noclear --noissue --autologin $SUDO_USER - \${TERM}
+UNIT
+    run systemctl daemon-reload
+    note "tty1 will log in as $SUDO_USER"
+fi
+
 note "done"
 # Unlike on Fedora, where the only Nerd Font in the repositories is a TeX one
 # and bin/install-nerd-font.sh has to fetch it, ::gentoo packages it - so it is
