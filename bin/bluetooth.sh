@@ -185,6 +185,20 @@ cmd_discovered() {
 # after a reboot.
 cmd_pair() {
     local mac="${1:?mac}"
+    # PAIRABLE FIRST, AND THIS IS NOT A FORMALITY. An adapter that is not in
+    # bondable mode makes bluez answer "No Bonding" in the IO capability
+    # exchange, so the link key the headset offers is generated, delivered and
+    # then discarded - pairing succeeds, audio works, and nothing is stored, so
+    # the device can never reconnect by itself. Caught with btmon:
+    #
+    #   < IO Capability Request Reply   Authentication: No Bonding      (us)
+    #   > IO Capability Response        Authentication: General Bonding (the buds)
+    #   > Link Key Notification         ...and then no [LinkKey] on disk
+    #
+    # It cost an afternoon because every symptom pointed elsewhere: the pairing
+    # "disappearing", a device that was Paired but not Bonded, a Trusted flag on
+    # a device with no key.
+    timeout 5 bluetoothctl pairable on >/dev/null 2>&1
     timeout 30 bluetoothctl pair "$mac"    >/dev/null 2>&1
     timeout 10 bluetoothctl trust "$mac"   >/dev/null 2>&1
     timeout 20 bluetoothctl connect "$mac" >/dev/null 2>&1

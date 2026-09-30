@@ -2335,6 +2335,24 @@ services=(NetworkManager bluetooth fstrim.timer systemd-timesyncd)
 # oversight.
 [[ "$desktop" == plasma ]] && services+=(sddm)
 run fchroot systemctl enable "${services[@]}"
+
+# ALWAYSPAIRABLE, AND IT IS NOT A CONVENIENCE. An adapter that is not in
+# bondable mode makes bluez answer "No Bonding" in the pairing exchange, so the
+# link key a headset offers is generated, delivered, and then discarded. What
+# that looks like from outside is maddening and points everywhere except here:
+# pairing succeeds, audio works, `Paired: yes` but `Bonded: no`, no [LinkKey] on
+# disk, and the device can never reconnect by itself - so the pairing appears to
+# "disappear" every time the headset sleeps. Caught on the laptop with btmon:
+#
+#   < IO Capability Request Reply   Authentication: No Bonding      (us)
+#   > IO Capability Response        Authentication: General Bonding (the headset)
+#
+# `bluetoothctl pairable on` fixes it until the next boot; this is the form that
+# survives one.
+if [[ -f "$ROOT/etc/bluetooth/main.conf" ]]; then
+    run fchroot sh -c 'grep -q "^AlwaysPairable" /etc/bluetooth/main.conf \
+        || sed -i "/^\[General\]/a AlwaysPairable = true" /etc/bluetooth/main.conf'
+fi
 if [[ "$desktop" == hyprland ]]; then
     run fchroot systemctl --global enable hyprpolkitagent.service hypridle.service \
         || warn "could not enable one of the Hyprland user units"

@@ -312,6 +312,30 @@ if [[ -n ${SUDO_USER-} ]]; then
 fi
 printf '\n'
 
+# --- bluetooth, if this machine has any -------------------------------------
+#
+# CONDITIONAL ON BLUEZ ALREADY BEING HERE: the gaming desktop has no adapter at
+# all, and installing a Bluetooth stack on a machine with no Bluetooth is how a
+# package list grows without anyone deciding to.
+#
+# ALWAYSPAIRABLE IS NOT A CONVENIENCE. An adapter that is not in bondable mode
+# makes bluez answer "No Bonding" during pairing, so the link key a headset
+# offers is generated, delivered and then thrown away. Pairing succeeds, audio
+# works, `Paired: yes` and `Bonded: no`, nothing on disk - and the headset can
+# never reconnect by itself, so the pairing appears to vanish every time it
+# sleeps. Diagnosed on the laptop with btmon, after three wrong theories.
+if [[ -f /etc/bluetooth/main.conf ]]; then
+    note "bluetooth: AlwaysPairable"
+    if grep -q '^AlwaysPairable' /etc/bluetooth/main.conf; then
+        note "already set"
+    else
+        sed -i '/^\[General\]/a AlwaysPairable = true' /etc/bluetooth/main.conf
+        note "added to /etc/bluetooth/main.conf"
+    fi
+else
+    note "no bluez here - nothing to configure"
+fi
+
 # --- a quiet boot, and a tty that logs itself in -----------------------------
 #
 # WHAT THE MACHINE IS FOR decides this. It boots to one user's Hyprland session
