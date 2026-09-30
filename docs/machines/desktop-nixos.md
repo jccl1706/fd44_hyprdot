@@ -17,6 +17,24 @@ knows about both: on this machine "pending" means how far `flake.lock` trails
 nixpkgs, counted in **days**, because nothing is pending on a system that is
 whatever its flake evaluates to.
 
+## Installing it from nothing
+
+The authoritative steps are in **[`fd44_nixos`](https://github.com/jccl1706/fd44_nixos)**'s
+README, under *Installing from scratch*. In outline:
+
+1. Boot the **NixOS installer ISO**.
+2. `disko` partitions the disk from `disko.nix` — **pinned to the revision
+   `flake.lock` names**, so the CLI and the module cannot disagree about the
+   layout.
+3. `nixos-install --flake /path/to/fd44_nixos#nixos-gaming00 --no-root-passwd`
+4. **Set a password before rebooting.** `nixos-install` leaves both accounts
+   without one.
+5. Clone this repository into `~/Work`, then `bin/link-dotfiles.sh` and
+   `bin/starship-setup.sh`.
+
+Unlike Gentoo beside it, this needs no other running system — the installer ISO
+is enough, which is why it is the sensible one to put on a blank desktop first.
+
 ## What lives in the NixOS repo, not this one
 
 | module | what it does |

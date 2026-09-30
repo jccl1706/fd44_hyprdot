@@ -16,6 +16,40 @@ hardware with the NixOS install on the other drive and shares nothing else.
 `gentoo_enter.sh` re-enters the chroot from another Linux, which is how this
 machine was repaired twice without reinstalling.
 
+## Installing it from nothing
+
+**This one installs from a RUNNING LINUX, not from its own installer** — the
+prerequisite the other two do not have. On a blank desktop that means either
+booting any live ISO (Fedora's will do), or installing NixOS on the other drive
+first and running it from there, which is how this machine was built. The script
+refuses to install over the system it is running from, so the two can never be
+the same disk.
+
+```sh
+# from that running Linux, with this repository cloned
+sudo install/install_gentoo.sh --disk /dev/disk/by-id/<target> --dry-run
+sudo install/install_gentoo.sh --disk /dev/disk/by-id/<target>
+```
+
+**By id, never `/dev/nvme0n1`.** The two NVMes in this machine swapped names
+between two boots on the same day.
+
+Stage one partitions, fetches and verifies a stage3, and leaves you inside a
+chroot. Then, in there, in this order:
+
+| | |
+|---|---|
+| `gentoo_chroot.sh` | profile, kernel, systemd-boot, network, `CPU_FLAGS_X86` from the real CPU, the daily sync timer |
+| `gentoo_gaming.sh` | multilib, the 32-bit NVIDIA stack, Steam, GameMode, the `/dev/uinput` rule |
+| `gentoo_desktop.sh` | Hyprland and quickshell from the overlays, fonts, `nvidia_drm modeset`, quiet boot, autologin |
+
+Then `bin/link-dotfiles.sh`, `bin/starship-setup.sh`, and `bin/backup.sh setup`.
+
+`gentoo_enter.sh` re-enters the chroot from another Linux afterwards. It is the
+first thing to reach for if this machine ever boots to a prompt it will not
+leave — which it has, twice, and both times were repaired that way rather than
+reinstalled.
+
 ## Portage
 
 ```

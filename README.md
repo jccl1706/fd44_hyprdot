@@ -132,6 +132,11 @@ per machine:
 | [Gaming desktop — Gentoo](docs/machines/desktop-gentoo.md) | `gentoo-gaming00`, and the traps it taught |
 | [Gaming desktop — NixOS](docs/machines/desktop-nixos.md) | `nixos-gaming00`, whose system config lives in `fd44_nixos` |
 
+**If a machine is gone entirely**, start at
+[`docs/from-scratch.md`](docs/from-scratch.md) — what has to exist outside the
+machine before a restore is possible, which system to install first when more
+than one is missing, and a link to each system's own steps.
+
 ### Gentoo, on the gaming desktop
 
 The same desktop, built a second way. The gaming desktop dual-boots NixOS and

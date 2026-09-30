@@ -39,7 +39,7 @@ bin/backup.sh status       # T5 and LaCie, whichever is plugged in
 bin/theme.sh               # dark / cream
 ```
 
-## Rebuilding it from nothing
+## Installing it from nothing
 
 1. Fedora Workstation live ISO, then `install/install_fedora.sh` — it asks for a
    dotfiles git URL; give it this repository.
