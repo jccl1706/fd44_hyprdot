@@ -188,6 +188,19 @@ fi
 if have mangohud || $force_all; then
     link mangohud/MangoHud.conf "$CONFIG/MangoHud/MangoHud.conf"
     link mangohud/presets.conf  "$CONFIG/MangoHud/presets.conf"
+
+    # THE LOG FOLDER, WHICH NOTHING ELSE CREATES. MangoHud.conf sets
+    # output_folder=~/mangohud-logs, and MangoHud does not create it: logging
+    # starts, the overlay says "Logging Finished" when it stops, and the CSV is
+    # silently dropped. Found on the Gentoo desktop after a 30-second benchmark
+    # produced no file, and it was missing on the laptop too - so this has been
+    # true everywhere except the one machine where the directory was made by hand.
+    logdir="$(sed -n 's/^output_folder=//p' mangohud/MangoHud.conf | head -1)"
+    logdir="${logdir/#\~/$HOME}"          # the conf may write ~ or a full path
+    if [[ -n $logdir ]]; then
+        mkdir -p "$logdir"
+        note "ensured   $logdir (MangoHud's output_folder)"
+    fi
 else
     note "skipped   MangoHud - not installed here (--all to link anyway)"
     skipped=$((skipped + 2))
