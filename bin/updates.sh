@@ -111,39 +111,48 @@ check_fedora() {
 # password - so the first thing on screen is a password prompt for a list you
 # have not seen yet. This runs first, needs no privileges, and shows the
 # version you have beside the version you would get.
-preview_fedora() {
-    local out pkg ver repo name cur n=0
+# The pending list, normalised for the screen below:
+#   name <TAB> installed <TAB> available <TAB> tag
+#
+# ONE rpm CALL, NOT ONE PER PACKAGE. The installed version has to come from rpm
+# because dnf's check-update prints only what is AVAILABLE, and "1.2 -> 1.3" is
+# the sentence anyone actually wants to read. Asking rpm per package was fine
+# for a preview of four and is 193 forks on a morning like this one, so the whole
+# database is read once into an awk map instead.
+#
+# %{EVR}, not version-release: it carries the epoch when there is one, which is
+# how dnf prints it - without it vim read as "9.2.1129-1.fc44 -> 2:9.2.1129-1.fc44",
+# an upgrade to itself.
+#
+# Counting stops at "Obsoleting Packages", because what follows is the same
+# transaction described a second way - the obsoleting package is already in the
+# list above, and counting both made four updates read as five.
+list_fedora() {
+    local out installed
     out="$(dnf -q --refresh check-update 2>/dev/null)"
-    while read -r pkg ver repo; do
-        [[ -n $pkg ]] || continue
-        name="${pkg%.*}"
-        # The installed version, asked of rpm rather than of dnf: dnf's
-        # check-update prints only what is available, and "1.2 -> 1.3" is the
-        # sentence anyone actually wants to read.
-        # %{EVR}, not version-release: it carries the epoch when there is
-        # one, which is how dnf prints it - without it vim read as
-        # "9.2.1129-1.fc44 -> 2:9.2.1129-1.fc44", an upgrade to itself.
-        cur="$(rpm -q --qf '%{EVR}' "$name" 2>/dev/null)"
-        printf '  %-32s %-24s \033[1;32m->\033[0m %s\n' "$name" "${cur:-not installed}" "$ver"
-        n=$(( n + 1 ))
-    done < <(awk '/^Obsoleting/ {exit} NF==3 && $1 ~ /\./ {print $1, $2, $3}' <<<"$out")
-    printf '\n'
-    return "$(( n > 0 ? 0 : 1 ))"
+    installed="$(rpm -qa --qf '%{NAME}=%{EVR}\n' 2>/dev/null)"
+    awk -v inst="$installed" '
+        BEGIN {
+            n = split(inst, rows, "\n")
+            for (i = 1; i <= n; i++) {
+                p = index(rows[i], "=")
+                if (p) cur[substr(rows[i], 1, p - 1)] = substr(rows[i], p + 1)
+            }
+        }
+        /^Obsoleting/ { exit }
+        NF == 3 && $1 ~ /\./ {
+            name = $1; sub(/\.[^.]*$/, "", name)
+            printf "%s\t%s\t%s\t-\n", name, (name in cur ? cur[name] : "-"), $2
+        }
+    ' <<<"$out"
 }
 
-run_fedora() {
-    printf '\033[1;32m==>\033[0m %s\n\n' "Packages waiting"
-    if ! preview_fedora; then
-        printf '  %s\n\n' "nothing to update"
-        return 0
-    fi
-    printf '\033[1;32m==>\033[0m %s\n\n' "Installing them"
-    # NOT -y, even though the list above has already been read: dnf's own
-    # table is the authoritative one - it knows about dependencies and
-    # obsoletes that a list of updatable packages does not - and its y/N is
-    # the last chance to stop once those are visible too.
-    sudo dnf --refresh upgrade
-}
+# NOT -y, even though the list has already been read on screen: dnf's own table
+# is the authoritative one - it knows about dependencies and obsoletes that a
+# list of upgradable packages does not - and its y/N is the last chance to stop
+# once those are visible too.
+upgrade_fedora() { sudo dnf --refresh upgrade; }
+upgrade_cmd_fedora() { printf 'sudo dnf upgrade --refresh'; }
 
 # --- Gentoo ---------------------------------------------------------------
 
@@ -254,50 +263,28 @@ check_gentoo() {
     return 0
 }
 
-preview_gentoo() {
-    local list n=0 name old new kind mark
+# The pending list for the screen below, from the cache the check already wrote.
+# Resolving again at the moment of a click would mean staring at nothing for the
+# eleven seconds portage takes.
+list_gentoo() {
+    local list
     list="$(dirname "$(gentoo_cache)")/updates-gentoo.list"
-    # The cached list if the check has run, otherwise ask now - a click should
-    # never show an empty screen just because the timer has not come round.
     if [[ -r $list && -s $list ]]; then
-        printf '  %s\n\n' "$(printf '\033[2m%s\033[0m' "as of $(date -d "@$(stat -c %Y "$list")" '+%H:%M')")"
+        cat "$list"
     else
-        printf '  %s\n\n' "resolving - this takes a moment on Gentoo"
-        gentoo_pending > "$list"
+        gentoo_pending
     fi
-    while IFS=$'\t' read -r name old new kind; do
-        [[ -n $name ]] || continue
-        # WHICH ONES WILL COMPILE is the question a source distribution raises
-        # and the others do not: ten binary packages are a minute, one source
-        # package can be an hour. So it is marked per package rather than left
-        # to be discovered while watching.
-        [[ $kind == binary ]] && mark="$(printf '\033[2mbin\033[0m')" || mark="$(printf '\033[1;33msrc\033[0m')"
-        [[ $old == - ]] && old="new"
-        printf '  %-40s %-18s \033[1;32m->\033[0m %-18s %s\n' "$name" "$old" "$new" "$mark"
-        n=$(( n + 1 ))
-    done < "$list"
-    printf '\n'
-    return "$(( n > 0 ? 0 : 1 ))"
 }
 
-run_gentoo() {
-    printf '\033[1;32m==>\033[0m %s\n\n' "Packages waiting"
-    if ! preview_gentoo; then
-        printf '  %s\n\n' "nothing to update"
-        return 0
-    fi
-    printf '\033[1;32m==>\033[0m %s\n\n' "Installing them"
-    # --ask, for the same reason Fedora's is not -y: portage's own table is the
-    # authoritative one - it knows about blockers, slot conflicts and USE changes
-    # that a list of upgradable packages does not - and its prompt is the last
-    # chance to stop with all of that visible.
-    #
-    # --keep-going, because one package failing to build on a source system
-    # should not abandon the other forty that would have succeeded.
+# --ask for the same reason Fedora's is not -y: portage's own table knows about
+# blockers, slot conflicts and USE changes that a list of upgradable packages
+# does not. --keep-going because one package failing to build on a source system
+# should not abandon the other forty that would have succeeded.
+upgrade_gentoo() {
     sudo emerge -avuDN --with-bdeps=y --getbinpkg --keep-going @world
-    # The cache now describes a system that no longer exists.
-    refresh_gentoo
+    refresh_gentoo            # the cache now describes a system that is gone
 }
+upgrade_cmd_gentoo() { printf 'sudo emerge -avuDN --getbinpkg @world'; }
 
 # --- NixOS ----------------------------------------------------------------
 
@@ -447,6 +434,189 @@ run_nixos() {
 
 # --- the terminal ---------------------------------------------------------
 
+# --- the pending-upgrades screen ------------------------------------------
+#
+# WHAT THIS REPLACED, AND WHY. The first version printed the list and handed
+# straight over to the package manager. That is fine for four packages and wrong
+# for 193: the list scrolls off, the only choice offered is "now or never", and
+# re-checking meant closing the window and clicking the bar again. This is the
+# same information as a SCREEN - it stays up, it says how old it is, and the
+# three things anyone actually does next are one key each.
+#
+# ONE SCREEN, BOTH DISTRIBUTIONS. Everything above reduces a distribution to the
+# same four columns, so this draws Fedora and Gentoo identically and the only
+# visible difference is Gentoo's bin/src mark, which exists because on a source
+# distribution it is the difference between a minute and an hour.
+#
+# COLOURS ARE ANSI INDICES ONLY, never hex: the terminal's own palette draws it,
+# so it follows bin/theme.sh between dark and cream with nothing to regenerate -
+# the same rule as starship/starship.toml.
+
+# nf-md-package_variant_closed, the glyph on the bar's own button - so the window
+# a click opens is recognisably the thing that was clicked.
+UPD_GLYPH="$(printf '\U000F03D7')"
+UPD_ARROW="$(printf '\u2192')"
+
+rel_time() { # epoch -> "just now" / "7 min ago" / "3 h ago"
+    local d=$(( $(date +%s) - ${1:-0} ))
+    if   (( d < 90   )); then printf 'just now'
+    elif (( d < 5400 )); then printf '%d min ago' $(( (d + 30) / 60 ))
+    else                      printf '%d h ago'   $(( (d + 1800) / 3600 ))
+    fi
+}
+
+list_for()        { case "$(distro)" in fedora) list_fedora ;; gentoo) list_gentoo ;; esac; }
+upgrade_for()     { case "$(distro)" in fedora) upgrade_fedora ;; gentoo) upgrade_gentoo ;; esac; }
+upgrade_cmd_for() { case "$(distro)" in fedora) upgrade_cmd_fedora ;; gentoo) upgrade_cmd_gentoo ;; esac; }
+
+# The list, and when it was taken. Gentoo answers from a cache, so "checked N min
+# ago" is the cache's age there and the moment of asking on Fedora - saying "just
+# now" over an hour-old answer would be the one lie this screen could tell.
+upd_when=0
+upd_fill() { # file
+    list_for > "$1.new" 2>/dev/null && mv -f "$1.new" "$1"
+    if [[ $(distro) == gentoo ]]; then
+        local cached; cached="$(dirname "$(gentoo_cache)")/updates-gentoo.list"
+        upd_when="$(stat -c %Y "$cached" 2>/dev/null || date +%s)"
+    else
+        upd_when="$(date +%s)"
+    fi
+}
+
+# COLUMN WIDTHS COME FROM THE DATA, not from a number picked here. Versions vary
+# wildly - "7.1-1.fc44" beside "2025.2.80_v9.0.304-6.fc44" - and a fixed width
+# either wastes half the screen or silently cuts the end off a version, which on
+# a screen whose whole job is "what am I about to install" is the worst of the
+# two. The new version is never padded or cut at all; it is the last thing on the
+# line and has nowhere to overflow into.
+upd_row() { # name old new tag namew oldw
+    local tag=""
+    # Only Gentoo sets one; on Fedora every package arrives built.
+    case "$4" in
+        binary) tag="$(printf ' \033[2mbin\033[0m')" ;;
+        source) tag="$(printf ' \033[1;33msrc\033[0m')" ;;
+    esac
+    printf '  \033[1m%-*s\033[0m \033[2m%*s\033[0m \033[1;32m%s\033[0m \033[32m%s\033[0m%s\n' \
+        "$5" "$1" "$6" "$2" "$UPD_ARROW" "$3" "$tag"
+}
+
+upd_draw() { # file
+    local total rows cols shown=0 name old new tag
+    # grep -c PRINTS 0 and EXITS 1 when nothing matches, so `|| echo 0` appended
+    # a second zero and every (( )) below saw "0\n0" - an arithmetic syntax error
+    # on an empty list, which is the one case that has to be calm.
+    total="$(grep -c . "$1" 2>/dev/null)" || true
+    total="${total:-0}"
+    cols="$(tput cols 2>/dev/null || echo 80)"
+    # Everything that is not the list: three header lines, the rule, two key
+    # lines and the breathing room around them.
+    rows=$(( $(tput lines 2>/dev/null || echo 24) - 9 ))
+    (( rows < 3 )) && rows=3
+
+    printf '\033[2J\033[H\n'
+    if (( total == 0 )); then
+        printf '  \033[1;34m%s  %s\033[0m  \033[2mchecked %s\033[0m\n\n' \
+            "$UPD_GLYPH" "Nothing pending" "$(rel_time "$upd_when")"
+        printf '  \033[2m%s\033[0m\n\n' "everything installed is the newest this machine knows about"
+    else
+        printf '  \033[1;34m%s  %s\033[0m  \033[2m%s package(s) · checked %s\033[0m\n\n' \
+            "$UPD_GLYPH" "Pending upgrades" "$total" "$(rel_time "$upd_when")"
+        # Measured over the rows that will actually be drawn, so one enormous
+        # version further down the list cannot stretch the visible ones.
+        local namew=0 oldw=0 i=0
+        while IFS=$'\t' read -r name old new tag; do
+            [[ -n $name ]] || continue
+            (( i >= rows )) && break
+            [[ $old == - ]] && old="new"
+            (( ${#name} > namew )) && namew=${#name}
+            (( ${#old}  > oldw  )) && oldw=${#old}
+            i=$(( i + 1 ))
+        done < "$1"
+        while IFS=$'\t' read -r name old new tag; do
+            [[ -n $name ]] || continue
+            (( shown >= rows )) && break
+            [[ $old == - ]] && old="new"
+            upd_row "$name" "$old" "$new" "$tag" "$namew" "$oldw"
+            shown=$(( shown + 1 ))
+        done < "$1"
+        (( total > shown )) && printf '  \033[2m%s and %d more - press l for the full list\033[0m\n' \
+            "$(printf '\u2026')" "$(( total - shown ))"
+    fi
+
+    printf '\n  \033[2m'; printf '%.0s\u2500' $(seq 1 $(( cols > 76 ? 72 : cols - 6 ))); printf '\033[0m\n\n'
+    if (( total > 0 )); then
+        printf '  \033[1;32mu\033[0m upgrade now  \033[2m(%s)\033[0m\n' "$(upgrade_cmd_for)"
+        printf '  \033[1;32ml\033[0m full list    \033[1;32mr\033[0m check again    \033[1;32mq\033[0m / \033[1;32mEsc\033[0m close\n'
+    else
+        printf '  \033[1;32mr\033[0m check again    \033[1;32mq\033[0m / \033[1;32mEsc\033[0m close\n'
+    fi
+}
+
+upd_full() { # file - every row, through a pager so it can be scrolled back
+    local name old new tag pager
+    pager="${PAGER:-less}"
+    command -v "${pager%% *}" >/dev/null 2>&1 || pager=cat
+    {
+        printf '\n  \033[1;34m%s  %s\033[0m\n\n' "$UPD_GLYPH" "Pending upgrades, all of them"
+        local namew=0 oldw=0
+        while IFS=$'\t' read -r name old new tag; do
+            [[ -n $name ]] || continue
+            [[ $old == - ]] && old="new"
+            (( ${#name} > namew )) && namew=${#name}
+            (( ${#old}  > oldw  )) && oldw=${#old}
+        done < "$1"
+        while IFS=$'\t' read -r name old new tag; do
+            [[ -n $name ]] || continue
+            [[ $old == - ]] && old="new"
+            upd_row "$name" "$old" "$new" "$tag" "$namew" "$oldw"
+        done < "$1"
+        printf '\n'
+    # -R and -X BELONG TO less, so they cannot be handed to whatever $PAGER
+    # happens to be: `cat -R -X` is an invalid option and the list vanished
+    # silently, which is how this was found. They go in $LESS instead, which any
+    # other pager ignores, and a $PAGER that is not installed falls back to cat
+    # rather than dropping the output on the floor.
+    #   -R  keep the colours   -X  leave the list on screen after quitting
+    } | LESS="-R -X" $pager
+}
+
+# upd_file is NOT local: the EXIT trap runs after this function has returned, by
+# which time a local would be out of scope - and with `set -u` that is an
+# "unbound variable" error as the screen closes.
+upd_file=""
+run_tui() {
+    local key
+    upd_file="$(mktemp -t fd44-updates.XXXXXX)"
+    # The file is this process's; remove it however the screen is left.
+    trap 'rm -f "$upd_file" "$upd_file.new"; printf "\033[?25h"' EXIT INT TERM
+
+    printf '\033[2J\033[H\n  \033[2m%s\033[0m\n' "asking $(distro) what is pending..."
+    upd_fill "$upd_file"
+
+    while :; do
+        printf '\033[?25l'                       # the cursor is noise on a screen of text
+        upd_draw "$upd_file"
+        printf '\033[?25h'
+        IFS= read -rsn1 key || break
+        case "$key" in
+            u|U)
+                printf '\033[2J\033[H\n'
+                upgrade_for
+                printf '\n  \033[2m%s\033[0m ' "done - any key for the list again"
+                IFS= read -rsn1
+                upd_fill "$upd_file"
+                ;;
+            l|L) upd_full "$upd_file" ;;
+            r|R)
+                printf '\n  \033[2m%s\033[0m\n' "checking..."
+                upd_fill "$upd_file"
+                ;;
+            q|Q|$'\e') break ;;
+        esac
+    done
+    printf '\033[?25h\n'
+}
+
 open_terminal() {
     # bin/in-terminal.sh owns the window: which terminal, and staying open
     # afterwards so the transcript can be read. bin/backup.sh opens its own
@@ -467,9 +637,9 @@ case "${1:-check}" in
         ;;
     run)
         case "$(distro)" in
-            fedora) run_fedora ;;
+            fedora) run_tui ;;
             nixos)  run_nixos ;;
-            gentoo) run_gentoo ;;
+            gentoo) run_tui ;;
             *)      die "unsupported distro: $(distro)" ;;
         esac
         ;;
