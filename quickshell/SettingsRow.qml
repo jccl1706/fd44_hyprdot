@@ -33,6 +33,7 @@ Item {
     // nothing to gain from being squeezed into the right-hand column next to
     // its own help text.
     readonly property bool wide: settingRow.row.type === "wallpapers"
+                              || settingRow.row.type === "themes"
                               || settingRow.row.type === "networks"
 
     // A MENU is a select with too many options to sit in a row. Twelve
@@ -159,6 +160,7 @@ Item {
             active: settingRow.wide || (settingRow.isMenu && settingRow.expanded)
             visible: active
             sourceComponent: settingRow.row.type === "wallpapers" ? wallpaperStrip
+                           : settingRow.row.type === "themes"     ? themeStrip
                            : settingRow.row.type === "networks"   ? networkList
                            : menuList
         }
@@ -242,6 +244,124 @@ Item {
             // Asking again when the page is opened costs one process and fixes
             // the rest of the session.
             Component.onCompleted: WallpaperLibrary.rescan()
+        }
+    }
+
+    // THE SAME SHAPE AS wallpaperStrip ABOVE, deliberately: a row of tiles, the
+    // current one ringed in the accent colour, the one under the pointer ringed
+    // in the foreground. A theme has no picture, so each tile DRAWS the palette
+    // instead - the bar's own arrangement in miniature, which is a truer preview
+    // than four colour bands would be because it shows the colours doing the
+    // job they will actually do.
+    //
+    // ALL OF THEM, NOT A WINDOW OF FOUR. WallpaperLibrary.nearby() exists
+    // because there can be hundreds of wallpapers; there are four palettes, and
+    // a picker that scrolled would be stranger than one that does not.
+    Component {
+        id: themeStrip
+        Item {
+            readonly property var shown: ThemeLibrary.themes
+            readonly property int gap: 6
+            readonly property real tileWidth:
+                shown.length ? (width - gap * (shown.length - 1)) / shown.length : 0
+
+            implicitHeight: Math.round(tileWidth * 9 / 16) + 18
+
+            Row {
+                spacing: parent.gap
+                Repeater {
+                    model: parent.parent.shown
+
+                    Column {
+                        required property var modelData
+                        readonly property bool current: ThemeLibrary.isCurrent(modelData.name)
+                        spacing: 4
+
+                        Rectangle {
+                            id: swatch
+                            width: Math.floor(parent.parent.parent.tileWidth)
+                            height: Math.round(width * 9 / 16)
+                            radius: 6
+                            color: modelData.bg || Theme.bg
+                            clip: true
+
+                            // The bar, in miniature: a pill of the theme's own
+                            // surface with its accent on it. Proportions are the
+                            // real ones scaled down - a pill about two thirds of
+                            // the width, sitting a little below the top edge.
+                            Rectangle {
+                                width: parent.width * 0.66
+                                height: Math.max(6, parent.height * 0.26)
+                                radius: height / 2
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                y: Math.round(parent.height * 0.17)
+                                color: modelData.surfaceTop || modelData.surface || Theme.surface
+                                border.width: 1
+                                border.color: modelData.outline || Theme.outline
+
+                                Rectangle {
+                                    width: parent.height * 0.5
+                                    height: width
+                                    radius: width / 2
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: parent.height * 0.25
+                                    color: modelData.accent || Theme.accent
+                                }
+                            }
+
+                            // A line of "text" in the theme's foreground, so a
+                            // palette whose fg barely differs from its bg - the
+                            // one failure that matters - is visible here.
+                            Rectangle {
+                                width: parent.width * 0.4
+                                height: Math.max(2, parent.height * 0.07)
+                                radius: height / 2
+                                x: Math.round(parent.width * 0.17)
+                                y: Math.round(parent.height * 0.62)
+                                color: modelData.fg || Theme.fg
+                                opacity: 0.7
+                            }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: parent.radius
+                                color: "transparent"
+                                border.width: parent.parent.current ? 3
+                                            : themeHover.containsMouse ? 2 : 0
+                                border.color: parent.parent.current ? Theme.accent : Theme.fg
+                                Behavior on border.width { NumberAnimation { duration: Theme.animFast } }
+                            }
+
+                            MouseArea {
+                                id: themeHover
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: ThemeLibrary.choose(parent.parent.modelData.name)
+                            }
+                        }
+
+                        // The name under the tile. A swatch alone cannot say
+                        // "Latte" rather than "Cream", and those two are a pale
+                        // surface with a dark foreground either way.
+                        Text {
+                            width: swatch.width
+                            horizontalAlignment: Text.AlignHCenter
+                            elide: Text.ElideRight
+                            text: modelData.name
+                            color: parent.current ? Theme.accent : Theme.dim
+                            font.family: Theme.font
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.weight: parent.current ? Theme.weightSemi : Theme.weightNormal
+                        }
+                    }
+                }
+            }
+
+            // A palette added since the shell started should appear without a
+            // restart, and opening this page is the moment to notice.
+            Component.onCompleted: ThemeLibrary.rescan()
         }
     }
 

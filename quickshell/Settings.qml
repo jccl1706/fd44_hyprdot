@@ -124,14 +124,13 @@ Singleton {
                              { value: "full",  label: "Full width" },
                              { value: "pill",  label: "Floating pill" },
                              { value: "focus", label: "Focus" } ] },
-                { label: "Theme", type: "select",
-                  help: "runs bin/theme.sh, which restyles the bar, kitty, GTK and Chromium together",
-                  get: function() { return Theme.name },
-                  set: function(v) { Settings.applyTheme(v) },
-                  options: [ { value: "dark", label: "Dark" },
-                             { value: "cream", label: "Cream" },
-                             { value: "catppuccin", label: "Catppuccin Mocha" },
-                             { value: "catppuccin-latte", label: "Catppuccin Latte" } ] },
+                // A PICKER, NOT A DROPDOWN, and not a hardcoded list either.
+                // ThemeLibrary asks bin/theme.sh what exists, so a palette
+                // dropped into themes/ is offered here without touching QML -
+                // which is how it should always have been: the four values that
+                // used to live below were a second place to forget.
+                { label: "Theme", type: "themes",
+                  help: "runs bin/theme.sh, which restyles the bar, kitty, GTK and Chromium together" },
                 { label: "Wallpaper", type: "wallpapers",
                   help: WallpaperLibrary.files.count === 0
                       ? "nothing in wallpapers/"

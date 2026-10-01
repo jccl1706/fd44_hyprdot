@@ -676,6 +676,31 @@ case "${1:-}" in
         ;;
     current) current ;;
     list)    themes ;;
+    # The palettes as JSON, for the settings panel's swatch picker. Here rather
+    # than in QML because this script already parses these files, and a second
+    # parser in a second language is a second thing to keep in step - the
+    # key=value format exists precisely so that both can read it, but only one
+    # of them needs to know where the files are and which keys matter.
+    json)
+        printf '['
+        local_first=1
+        for t in $(themes); do
+            f="$theme_dir/$t.conf"
+            [[ -f $f ]] || continue
+            (( local_first )) || printf ','
+            local_first=0
+            # One pass per file, pulling only what a swatch needs to draw.
+            awk -F= -v name="$t" '
+                /^(bg|fg|surface|surfaceTop|accent|outline|appearance)=/ { v[$1] = $2 }
+                END {
+                    printf "{\"name\":\"%s\",\"appearance\":\"%s\",", name, v["appearance"]
+                    printf "\"bg\":\"%s\",\"fg\":\"%s\",", v["bg"], v["fg"]
+                    printf "\"surface\":\"%s\",\"surfaceTop\":\"%s\",", v["surface"], v["surfaceTop"]
+                    printf "\"accent\":\"%s\",\"outline\":\"%s\"}", v["accent"], v["outline"]
+                }' "$f"
+        done
+        printf ']\n'
+        ;;
     # No argument re-applies the remembered theme. This is what runs at login:
     # gsettings and kitty's theme.conf survive a reboot, but re-applying is
     # cheap and makes a half-configured machine self-correct.
