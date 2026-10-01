@@ -22,6 +22,14 @@ After=graphical-session.target
 
 [Service]
 Type=simple
+# ExecSearchPath, BECAUSE A BARE COMMAND NAME IS NOT PORTABLE HERE. systemd
+# resolves an unqualified ExecStart against its OWN search path
+# (/usr/local/bin:/usr/bin:/bin), not the shell's PATH. On Fedora that finds
+# /usr/bin/udiskie; on NixOS the binary lives in /run/current-system/sw/bin and
+# the unit failed with status=203/EXEC while `command -v udiskie` answered
+# perfectly well from a shell. An absolute path would work on one machine and
+# break on the others, so the search path is widened instead.
+ExecSearchPath=/run/current-system/sw/bin:/usr/bin:/usr/local/bin:/bin
 ExecStart=udiskie --automount --no-notify --no-tray --no-file-manager
 Restart=on-failure
 RestartSec=5
