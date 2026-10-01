@@ -129,7 +129,8 @@ Singleton {
                   get: function() { return Theme.name },
                   set: function(v) { Settings.applyTheme(v) },
                   options: [ { value: "dark", label: "Dark" },
-                             { value: "cream", label: "Cream" } ] },
+                             { value: "cream", label: "Cream" },
+                             { value: "catppuccin", label: "Catppuccin" } ] },
                 { label: "Wallpaper", type: "wallpapers",
                   help: WallpaperLibrary.files.count === 0
                       ? "nothing in wallpapers/"
