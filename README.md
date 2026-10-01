@@ -94,6 +94,9 @@ sudo bin/chromium-policy-setup.sh            # --remove takes it out again
   crossfades when the choice changes, and `bin/wallpaper.sh set <file>` from a
   terminal fades in live too
 - **Wallpaper picker** (`SUPER+,`) — a coverflow strip of sheared tiles
+- **Theme picker** (`SUPER+.`) — the same coverflow strip for palettes. Each
+  tile is a mock of this desktop in that theme rather than a row of colour
+  chips, so you see the bar, a window and text in it before you commit
 - **Settings** (`SUPER+SHIFT+,`, or click the logo) — a sidebar window over the
   desktop: theme, notification timeouts, launcher ranking, and a switch per bar
   plugin. Search finds a setting across every page
@@ -286,6 +289,7 @@ machine and for printing, is [`docs/keybindings.html`](docs/keybindings.html)
 | `SUPER+B` / `+E` / `+Y` | browser / file manager / YouTube in its own window |
 | `SUPER+Space` | app launcher |
 | `SUPER+,` | wallpaper picker |
+| `SUPER+.` | theme picker |
 | `SUPER+SHIFT+,` | settings |
 | `SUPER+T` | toggle theme |
 | `SUPER+Z` | focus mode — hide the bar to a single button |
@@ -929,7 +933,8 @@ hyprctl version
 ```
 
 Then look at the screen: the bar with its plugins, `SUPER+Space` for the
-launcher, `SUPER+,` for the wallpaper picker, `SUPER+SHIFT+,` for settings.
+launcher, `SUPER+,` for the wallpaper picker, `SUPER+.` for the theme picker,
+`SUPER+SHIFT+,` for settings.
 
 ### What will not come back on its own
 

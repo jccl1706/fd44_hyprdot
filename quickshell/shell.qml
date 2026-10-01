@@ -165,6 +165,16 @@ ShellRoot {
         }
     }
 
+    // The same picker for palettes. A separate window rather than a mode of the
+    // wallpaper one: they answer different questions and either can be open
+    // without the other.
+    Variants {
+        id: themePickerVariants
+        model: Quickshell.screens
+        ThemePicker {
+        }
+    }
+
     // Session actions, sliding out of the right frame.
     Variants {
         id: powerVariants
@@ -325,6 +335,12 @@ ShellRoot {
         appid: "quickshell"
         name: "wallpaper"
         onPressed: shell.toggleFocused(wallpaperVariants.instances)
+    }
+
+    GlobalShortcut {
+        appid: "quickshell"
+        name: "theme"
+        onPressed: shell.toggleFocused(themePickerVariants.instances)
     }
 
     GlobalShortcut {
@@ -541,6 +557,15 @@ ShellRoot {
             const one = shell.focusedOne(settingsVariants.instances)
             if (one) one.openAt(section)
         }
+    }
+
+    IpcHandler {
+        target: "theme"
+
+        function toggle(): void { shell.toggleFocused(themePickerVariants.instances) }
+        function open(): void   { shell.openFocused(themePickerVariants.instances)   }
+        function close(): void  { shell.closeAll(themePickerVariants.instances)      }
+        function status(): string { return ThemeLibrary.current }
     }
 
     IpcHandler {

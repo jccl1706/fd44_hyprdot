@@ -37,13 +37,14 @@ two sheets. GitHub serves HTML as source, so this is the page to read here.
 | `SUPER` `Y` | YouTube, in its own window rather than a browser tab |
 | `SUPER` `Space` | App launcher |
 | `SUPER` `,` | Wallpaper picker |
+| `SUPER` `.` | Theme picker — the same strip, each tile a mock desktop in that palette |
 | `SUPER` `SHIFT` `,` | Settings — also one click on the bar's logo |
 | `SUPER` `T` | Toggle theme, dark ⇄ cream: bar, terminal, GTK apps and compositor together |
 | `SUPER` `Z` | Focus mode — hide the bar down to a single button to come back |
 | `SUPER` `M` | Power menu |
 | power button | The same power menu. Hold it to power off regardless |
 
-The launcher, wallpaper picker, settings, focus mode and power menu are panels
+The launcher, the two pickers, settings, focus mode and power menu are panels
 inside the already-running Quickshell, reached through Hyprland's
 global-shortcuts protocol rather than by running a command — a keypress starts
 no process. If Quickshell is not running these keys do nothing at all, which is

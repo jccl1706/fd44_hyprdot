@@ -502,8 +502,13 @@ hl.layer_rule({
 --
 -- This is the same rule that was wrong for the launcher, made right by
 -- changing the surface rather than the rule.
+--
+-- The THEME PICKER is the same window in every respect that matters here, so
+-- it is matched by the same rule rather than a copy of it: it is shrunk by the
+-- same exclusive zones and wants the same blurred backdrop. Its scrim is set
+-- light on the assumption that this rule exists.
 hl.layer_rule({
-    name  = "wallpaper-picker-blur",
-    match = { namespace = "^quickshell-wallpapers$" },
+    name  = "picker-blur",
+    match = { namespace = "^quickshell-(wallpapers|themes)$" },
     blur  = true,
 })

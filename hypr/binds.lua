@@ -55,6 +55,10 @@ hl.bind(Mod .. " + space", hl.dsp.global("quickshell:launcher"))
 -- a while this pair raced two full-screen layers that each want exclusive
 -- keyboard focus. `hyprctl binds` lists every registration.
 hl.bind(Mod .. " + comma", hl.dsp.global("quickshell:wallpaper"))
+-- The theme picker takes the next key along, because it is the same gesture for
+-- the other half of how the desktop looks: comma picks the picture, period picks
+-- the palette.
+hl.bind(Mod .. " + period", hl.dsp.global("quickshell:theme"))
 hl.bind(Mod .. " + SHIFT + comma", hl.dsp.global("quickshell:settings"))
 
 -- Focus mode: hides the bar down to a single button to come back, or brings
