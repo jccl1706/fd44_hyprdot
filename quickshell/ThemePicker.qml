@@ -333,17 +333,30 @@ PanelWindow {
     Column {
         anchors { horizontalCenter: parent.horizontalCenter
                   top: bandWrap.bottom; topMargin: 18 }
-        spacing: 4
+        spacing: 6
         opacity: root.revealed ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Theme.animNormal } }
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
             text: root.themes[root.selected] ? root.themes[root.selected].name : ""
-            color: Theme.fg
             font.family: Theme.font
-            font.pixelSize: Theme.fontSizeTitle
-            font.weight: Theme.weightSemi
+            // The wallpaper picker's caption exactly: light, at display size,
+            // loosely tracked. Two windows that are the same shape should not
+            // label themselves in two different voices, and the name was being
+            // set in list-row type - 13px semibold under a 340px tile.
+            font.weight: Theme.weightLight
+            font.pixelSize: Theme.fontSizeDisplay
+            font.letterSpacing: 1.6
+            // Inter's optical-size axis is not applied by Qt on its own, so
+            // without this the name is drawn with letterforms meant for 14px
+            // body text.
+            font.variableAxes: ({ "opsz": Theme.fontSizeDisplay })
+            // Theme.fg, not the wallpaper caption's hard white: that one sits
+            // directly on a photograph and needs a shadow to survive it, while
+            // this sits on a scrim of known colour and simply follows it. On
+            // the cream theme white here would be invisible.
+            color: Theme.fg
         }
 
         Text {
