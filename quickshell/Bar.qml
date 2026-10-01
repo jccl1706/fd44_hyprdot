@@ -456,7 +456,14 @@ PanelWindow {
 
             // Nothing focused, or a window whose class matches no desktop
             // entry: no circle at all rather than an empty one.
-            visible: focusIcon.iconSource !== ""
+            //
+            // AND NOT IN FOCUS MODE, which it used to ignore. This circle is a
+            // SIBLING of leftRegion rather than a child of it - it is anchored
+            // to leftRegion.right but lives outside it - so `visible:
+            // !BarStyle.focus` on the region hid the workspaces pill and left
+            // this floating beside nothing. Focus mode is meant to leave the
+            // centre pill alone on the bar, so the test belongs here too.
+            visible: focusIcon.iconSource !== "" && !BarStyle.focus
 
             // Lit from above, like every other pill on this bar.
             gradient: Gradient {
