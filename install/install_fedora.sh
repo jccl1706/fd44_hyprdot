@@ -1000,6 +1000,10 @@ depacs=(
     hyprland-guiutils
     wl-clipboard cliphist grim slurp
     nautilus gvfs file-roller xdg-user-dirs
+    # Automounting removable disks: gvfs only puts them in the sidebar, and the
+    # gsettings key that would automount is gnome-shell's, which is not running
+    # here. systemd/udiskie.service is the unit; it is linked, not enabled.
+    udiskie
     xdg-desktop-portal xdg-desktop-portal-gtk
     google-noto-sans-mono-fonts
 

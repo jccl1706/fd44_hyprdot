@@ -45,6 +45,7 @@ MAIN=(
     gui-apps/wl-clipboard
     app-misc/jq
     sys-apps/dbus
+    sys-fs/udiskie                  # automounts removable disks; the unit is in systemd/
 
     # THE FILE MANAGER THE KEYBIND ALREADY NAMES. hypr/hyprland.lua sets
     # file_manager = "nautilus --new-window", so Super+E on a machine without it

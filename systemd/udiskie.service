@@ -1,0 +1,30 @@
+# Mount a removable disk the moment it is plugged in.
+#
+# WHAT IT REPLACES: nothing was doing this. gvfs puts the drive in the file
+# manager's sidebar and waits for a click, which is what all three machines did -
+# the gsettings key org.gnome.desktop.media-handling automount is honoured by
+# gnome-shell, and none of these sessions run it.
+#
+# --no-notify, BECAUSE THIS REPOSITORY ALREADY NOTIFIES. bin/usb-notify.sh
+# watches udev and says what was plugged in; udiskie would say it a second time,
+# in a different voice, for the subset that happens to be a mountable disk.
+#
+# --no-file-manager, because a window opening by itself every time a disk is
+# touched is a different decision from mounting it, and a louder one.
+#
+# --no-tray, because this bar has no tray policy for daemons: the icons in it
+# come from applications the user started.
+[Unit]
+Description=Automount removable media (udiskie)
+Documentation=man:udiskie(8)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=udiskie --automount --no-notify --no-tray --no-file-manager
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -247,6 +247,12 @@ link applications/youtube.desktop "$DATA/applications/youtube.desktop"
 
 link systemd/usb-notify.service "$CONFIG/systemd/user/usb-notify.service"
 
+# Automounting removable disks. Linked but NOT enabled here, like the daylight
+# timer: mounting a disk the instant it appears changes what the machine does
+# when you plug something in, which is a thing to ask for rather than inherit.
+#   systemctl --user enable --now udiskie.service
+link systemd/udiskie.service "$CONFIG/systemd/user/udiskie.service"
+
 # The display notifier, for the other half of the same question - a monitor
 # is a drm event and never touches the usb subsystem.
 link systemd/display-notify.service "$CONFIG/systemd/user/display-notify.service"
