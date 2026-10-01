@@ -193,7 +193,18 @@ Singleton {
     // as cramped rather than deliberate. Everything that positions itself
     // against the bar derives from this, so raising it moves the frame, the
     // launcher's scrim inset and the reserved zone together.
-    readonly property int barHeight:   38
+    // 40, NOT 38, AND THE REASON IS FRACTIONAL SCALING. The pills are centred
+    // in this height, so the slack above and below is (barHeight - pillHeight)/2.
+    // At 38 that is 6 logical pixels, and the Framework runs at scale 1.5667:
+    // 6 x 1.5667 = 9.4 physical pixels, which cannot be drawn. The pill snaps to
+    // a whole device pixel and one gap renders at 9 while the other renders at
+    // 10 - a one-pixel asymmetry that is visible on a sharp panel and almost
+    // impossible to point at.
+    //
+    // At 40 the slack is 7 each side: 7 x 1.5667 = 10.97, which rounds to 11
+    // both times. Exact at scale 1 as well, so the desktop is unchanged at 7
+    // and 7. The cost is two pixels of screen.
+    readonly property int barHeight:   40
 
     // Module containers. Fully rounded: radius is half the height, so these
     // are pills rather than rounded rectangles.

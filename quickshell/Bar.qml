@@ -292,10 +292,6 @@ PanelWindow {
         // NOTHING TO PAINT WHEN FLOATING. The pills carry their own surface
         // and rim, so with this transparent they read as three objects lying
         // on the wallpaper; Frame.qml is not instantiated in that mode either,
-        // so there is no border for them to be welded to.
-        // NOTHING TO PAINT WHEN FLOATING. The pills carry their own surface
-        // and rim, so with this transparent they read as three objects lying
-        // on the wallpaper; Frame.qml is not instantiated in that mode either,
         // so there is no border for them to be welded to. Focus is floating
         // too, and there the only thing left to draw is the exit button.
         //
