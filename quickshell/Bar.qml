@@ -306,11 +306,21 @@ PanelWindow {
         // what a style name means.
         color: BarStyle.floating ? "transparent" : Theme.bg
 
-        // Square on every corner. The bar is the TOP EDGE of the frame that
-        // Frame.qml draws down the sides and across the bottom, so rounding
-        // where they meet would leave a visible notch at the junction instead
-        // of one continuous border. The rounding lives on the frame's outer
-        // bottom corners instead.
+        // SQUARE IN FRAME MODE, ROUNDED UNDERNEATH IN FULL. In frame mode the
+        // bar is the TOP EDGE of the border Frame.qml draws down the sides and
+        // across the bottom, so rounding where they meet would leave a visible
+        // notch at the junction instead of one continuous border - the rounding
+        // lives on the frame's outer bottom corners instead.
+        //
+        // "full" has no border beside it, so its bottom edge is free and the two
+        // bottom corners are its only ones that meet nothing. Rounding them is
+        // what stops a full-width strip reading as a black band sliced off the
+        // top of the screen.
+        //
+        // The TOP corners stay square in both: they sit on the screen edge, and
+        // a radius there would show wallpaper in two notches above the bar.
+        bottomLeftRadius:  BarStyle.framed ? 0 : Theme.cornerRadius
+        bottomRightRadius: BarStyle.framed ? 0 : Theme.cornerRadius
 
         // Three regions: left, centre, right. Laid out independently so a
         // wide centre widget cannot push the side ones around, which is what
