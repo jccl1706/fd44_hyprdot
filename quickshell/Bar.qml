@@ -306,21 +306,19 @@ PanelWindow {
         // what a style name means.
         color: BarStyle.floating ? "transparent" : Theme.bg
 
-        // SQUARE IN FRAME MODE, ROUNDED UNDERNEATH IN FULL. In frame mode the
-        // bar is the TOP EDGE of the border Frame.qml draws down the sides and
-        // across the bottom, so rounding where they meet would leave a visible
-        // notch at the junction instead of one continuous border - the rounding
-        // lives on the frame's outer bottom corners instead.
+        // SQUARE ON EVERY CORNER, IN BOTH STYLES, AND BOTH TIMES FOR A REASON.
         //
-        // "full" has no border beside it, so its bottom edge is free and the two
-        // bottom corners are its only ones that meet nothing. Rounding them is
-        // what stops a full-width strip reading as a black band sliced off the
-        // top of the screen.
+        // In frame mode the bar is the TOP EDGE of the border Frame.qml draws
+        // down the sides and across the bottom, so rounding where they meet
+        // would leave a visible notch at the junction instead of one continuous
+        // border. The rounding lives on the frame's outer bottom corners.
         //
-        // The TOP corners stay square in both: they sit on the screen edge, and
-        // a radius there would show wallpaper in two notches above the bar.
-        bottomLeftRadius:  BarStyle.framed ? 0 : Theme.cornerRadius
-        bottomRightRadius: BarStyle.framed ? 0 : Theme.cornerRadius
+        // In "full" it was tried and rejected - bottom corners alone, then all
+        // four. The exclusive zone stays rectangular whatever this says, so a
+        // rounded corner does not reveal the window underneath; it reveals
+        // WALLPAPER, in notches, and a strip that is square against three
+        // screen edges and curved at two arbitrary points reads as a mistake
+        // rather than as a shape. Full width means full width.
 
         // Three regions: left, centre, right. Laid out independently so a
         // wide centre widget cannot push the side ones around, which is what
