@@ -38,7 +38,19 @@ Singleton {
     // and every derived number below - the margin, the fillets, the scrim -
     // wants the same answer for both. Only the CONTENTS and the height
     // differ, which is what `focus` above is for.
-    readonly property bool floating: Settings.barStyle !== "frame"
+    // NAMED STYLES RATHER THAN "not frame", which is what this was. Adding a
+    // fourth style to a test spelt as a negation makes every derived number
+    // below answer for it by accident - "full" would have become a floating
+    // pill because it is not "frame".
+    readonly property bool floating: Settings.barStyle === "pill"
+                                  || Settings.barStyle === "focus"
+
+    // WHETHER THERE IS A BORDER ROUND THE SCREEN, which is not the same
+    // question as whether the bar is welded to the top edge. "frame" answers
+    // yes to both; "full" is an opaque bar across the whole width with nothing
+    // down the sides or along the bottom. Before this style existed the two
+    // were one flag and nobody could tell them apart.
+    readonly property bool framed: Settings.barStyle === "frame"
 
     // The gap the bar keeps from the top and sides when floating.
     readonly property int margin: floating ? Theme.barFloatMargin : 0
@@ -80,11 +92,17 @@ Singleton {
 
     // The width of that overlap. A floating card has nothing to meet, so it
     // is drawn at its visible size and no wider.
-    readonly property int frameRun: floating ? 0 : Theme.frameThickness
+    // Only a frame can be run under. "full" has no border for a card to tuck
+    // beneath, so its cards are drawn at their visible size like a floating
+    // one's - the shape is different, the overlap question is the same.
+    readonly property int frameRun: framed ? Theme.frameThickness : 0
 
     // Whether a card is welded to something - the bar above it, the frame
     // beside it - and therefore wants concave fillets at the junction and a
     // square edge where it meets. Floating, every corner is out in the open.
+    // Both "frame" and "full" weld the bar to the top edge, so both want square
+    // corners where it meets the screen and concave fillets where a card hangs
+    // from it. Only the border beside them differs, which is `framed`.
     readonly property bool joined: !floating
 
     // How far in from a screen edge the usable area starts: past the frame
@@ -92,7 +110,9 @@ Singleton {
     // for things that sit NEXT TO the chrome rather than joining it - the
     // notification toasts - as opposed to cards that run underneath it, which
     // want edgeInset and frameRun instead.
-    readonly property int contentInset: floating ? edgeInset : Theme.frameThickness
+    readonly property int contentInset: floating ? edgeInset
+                                       : framed   ? Theme.frameThickness
+                                                  : 0
 
     // The scrim covers everything below the bar. In frame mode it stops short
     // of the frame and is rounded to match, because a square scrim painted

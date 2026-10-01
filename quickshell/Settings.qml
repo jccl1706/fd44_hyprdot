@@ -57,8 +57,10 @@ Singleton {
     // bar paints a background and whether Frame.qml draws the other three
     // edges. Everything inside is the same three rounded regions either way -
     // "frame" puts them on an opaque strip welded to a border round the
-    // screen, "pill" lets them float on the wallpaper with a gap all round.
-    property string barStyle: "frame"   // "frame" | "pill" | "focus"
+    // screen, "full" is that same strip with no border beside it - a plain
+    // full-width bar - and "pill" lets them float on the wallpaper with a gap
+    // all round.
+    property string barStyle: "frame"   // "frame" | "full" | "pill" | "focus"
 
     // WHAT FOCUS GOES BACK TO. Focus mode hides everything on the bar except
     // a button to leave it, so the shell has to remember what it was showing
@@ -115,10 +117,11 @@ Singleton {
             icon: "\u{F03D8}",                       // palette
             rows: [
                 { label: "Bar style", type: "select",
-                  help: "frame welds the bar to a border round the whole screen; pill floats it on the wallpaper; focus hides it but for a button to come back",
+                  help: "frame welds the bar to a border round the whole screen; full is the same bar with no border beside it; pill floats it on the wallpaper; focus hides it but for a button to come back",
                   get: function() { return Settings.barStyle },
                   set: function(v) { Settings.setBarStyle(v) },
                   options: [ { value: "frame", label: "Frame" },
+                             { value: "full",  label: "Full width" },
                              { value: "pill",  label: "Floating pill" },
                              { value: "focus", label: "Focus" } ] },
                 { label: "Theme", type: "select",

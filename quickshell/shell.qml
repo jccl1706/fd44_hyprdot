@@ -120,8 +120,11 @@ ShellRoot {
     // reserving their exclusiveZone, so the border would vanish but the gap it
     // held open would not. Emptying the model destroys them outright, and
     // switching back rebuilds them - they hold no state worth keeping.
+    // BarStyle.framed, NOT .joined. "full" is welded to the top edge like the
+    // frame style and therefore joined, but it has no border down the sides -
+    // that is the whole difference between the two.
     readonly property var frameScreens:
-        BarStyle.joined ? Quickshell.screens : []
+        BarStyle.framed ? Quickshell.screens : []
 
     Variants {
         model: shell.frameScreens
