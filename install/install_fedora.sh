@@ -1000,6 +1000,22 @@ depacs=(
     hyprland-guiutils
     wl-clipboard cliphist grim slurp
     nautilus gvfs file-roller xdg-user-dirs
+    # RAR, which nothing else here can open. file-roller drives `unar`/`lsar`
+    # when they are present, so this is also what makes "Extract Here" work on
+    # a .rar in Nautilus - and `unar file.rar` from a terminal.
+    #
+    # unar AND NOT unrar. Fedora's `unrar` is a wrapper package around
+    # unrar-free (checked: Source: unrar-free-0.3.3-2.fc44.src.rpm), which does
+    # not read RAR5 - the format everything has shipped for a decade. RARLAB's
+    # real unrar is not in Fedora at all, only in RPM Fusion, and this installer
+    # deliberately stays on repositories the machine already has.
+    #
+    # 7-Zip is not the answer either, though it is installed: Fedora builds it
+    # without the RAR codec for licensing reasons, and `7z i` lists no rar
+    # format at all on this machine.
+    #
+    # EXTRACTION ONLY. unar cannot create a .rar; nothing free can.
+    unar
     # Automounting removable disks: gvfs only puts them in the sidebar, and the
     # gsettings key that would automount is gnome-shell's, which is not running
     # here. systemd/udiskie.service is the unit; it is linked, not enabled.

@@ -59,6 +59,17 @@ MAIN=(
     # dependency. Trimming gstreamer was measured and saves 6 MB of that, so it is
     # not worth the divergence from the other two machines.
     gnome-base/nautilus
+
+    # RAR. Same choice as the other two machines: app-arch/unar, stable on
+    # amd64 in the main tree, LGPL, and the one free unpacker that reads RAR5.
+    # app-arch/unrar is RARLAB's and needs its licence accepting; unrar-free
+    # stops at RAR3.
+    #
+    # NOTE that this gives you `unar` on the command line and nothing in
+    # Nautilus: Gentoo has no file-roller here, unlike Fedora and NixOS, so
+    # there is no "Extract Here" to hang it off. Add gnome-extra/file-roller if
+    # that is wanted - it is not pulled in by nautilus.
+    app-arch/unar
 )
 GURU=(
     gui-wm/hyprland
