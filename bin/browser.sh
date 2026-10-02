@@ -26,7 +26,12 @@
 
 set -eu
 
-for c in chromium-browser chromium google-chrome-stable brave-browser firefox; do
+# BRAVE IS SPELLED BOTH WAYS, for the same reason chromium is. Fedora's and
+# Debian's packages install "brave-browser"; the nixpkgs one installs a single
+# binary called "brave" and names only its DESKTOP ENTRY brave-browser.desktop,
+# which is why the shorter name is easy to miss. Measured on nixos-gaming00
+# against brave-1.96.59: bin/ contains "brave" and nothing else.
+for c in chromium-browser chromium google-chrome-stable brave-browser brave firefox; do
     if command -v "$c" >/dev/null 2>&1; then
         [ "${1-}" = "--which" ] && { command -v "$c"; exit 0; }
         exec "$c" "$@"
@@ -36,7 +41,7 @@ done
 # NOTIFY RATHER THAN FAIL SILENTLY. This is reached from a keybind and from a
 # launcher entry, neither of which has anywhere to print: without this the key
 # simply does nothing and looks broken rather than unconfigured.
-echo "browser.sh: none of chromium-browser, chromium, google-chrome-stable, brave-browser or firefox is installed" >&2
+echo "browser.sh: none of chromium-browser, chromium, google-chrome-stable, brave-browser, brave or firefox is installed" >&2
 command -v notify-send >/dev/null 2>&1 &&
     notify-send -a "Browser" "No browser found" "Install one of chromium, google-chrome or firefox"
 exit 1

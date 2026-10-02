@@ -61,7 +61,10 @@ refresh() {
     # Tells an already-running browser to re-read policy. --no-startup-window
     # stops it opening a window when none is running.
     local c comm
-    for c in chromium-browser chromium google-chrome-stable brave-browser; do
+    # "brave" as well as "brave-browser": nixpkgs installs only the short
+    # name. Kept in step with bin/browser.sh, which searches the same list so
+    # that the browser being themed is the browser the keybind opens.
+    for c in chromium-browser chromium google-chrome-stable brave-browser brave; do
         command -v "$c" >/dev/null 2>&1 || continue
 
         # TRUNCATE TO 15 CHARACTERS. The kernel stores a process's comm in a
