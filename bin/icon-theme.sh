@@ -216,6 +216,89 @@ remove() {
     log "GTK icon theme is now $(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null)"
 }
 
+# UPSTREAM LEAVES INVISIBLE CIRCLES BEHIND, and some of them point at gradients
+# that do not exist. Qt's SVG renderer says so on every load:
+#
+#   qt.svg: .../apps/scalable/brave-browser.svg:38:6: Could not resolve property: a
+#
+# which arrives in the Quickshell log whenever the bar or the launcher draws
+# such an icon, and looks like the application is misconfigured rather than the
+# icon being malformed. Brave is the one that prompted this; it is not special.
+# Measured across both installed sets: 416 files carry a reference to an id the
+# file never defines, and in EVERY ONE of them the element holding it is a
+# <circle> with r="0" - 424 circles in all, no other element type at all. After
+# this runs, re-measuring finds no invisible element anywhere still referencing
+# a missing id.
+#
+# r="0" DISABLES RENDERING OF THE ELEMENT, by the SVG specification. So these
+# circles cannot be contributing a pixel to any icon, whatever they claim to be
+# filled with, and deleting them is the rare fix that is provably invisible.
+# They are Inkscape droppings: most sit at coordinates like (-1266, -1269),
+# far outside a 64x64 viewBox.
+#
+# WHAT THIS DELIBERATELY DOES NOT TOUCH: the roughly 490 icons where something
+# with a real size references a missing gradient. Those genuinely render wrong,
+# upstream would have to supply the gradient, and silencing the warning by
+# stripping the fill would turn a visible bug into an invisible one.
+#
+# Runs on every install because upstream is refetched each time, so there is
+# nothing to be idempotent about - the files are new.
+strip_dead_circles() {
+    local -a dirs=("$@")
+    (( ${#dirs[@]} )) || return 0
+    command -v python3 >/dev/null || {
+        log "python3 not found - leaving the malformed circles in place"
+        return 0
+    }
+    log "stripping invisible r=\"0\" circles"
+    python3 - "${dirs[@]}" <<'PYEOF'
+import re, sys, glob, os
+
+# ONLY THE CIRCLES THAT ACTUALLY WARN, not every r="0" circle in the theme.
+# Stripping all of them was tried first and removed 46316 circles from 4372
+# files to silence about 420 - provably invisible, but far too large a change
+# to review or trust. A circle qualifies here only if it is zero-radius AND
+# references an id this file never defines.
+#
+# Self-closing circles only. Upstream writes no <circle>...</circle> pairs, and
+# matching a container would swallow its children.
+CIRCLE = re.compile(r'[ \t]*<circle\b[^>]*/>[ \t]*\n?')
+IDS    = re.compile(r'id="([^"]+)"')
+REF    = re.compile(r'url\(#([^)]+)\)')
+
+files = circles = 0
+for d in sys.argv[1:]:
+    for f in glob.glob(os.path.join(d, "**", "*.svg"), recursive=True):
+        # Broken symlinks exist in the upstream tree (apps@2x points at files
+        # that are not always installed); skip rather than fail the install.
+        if not os.path.isfile(f):
+            continue
+        try:
+            s = open(f, encoding="utf-8", errors="replace").read()
+        except OSError:
+            continue
+        if "url(#" not in s:
+            continue
+        defined = set(IDS.findall(s))
+        n = 0
+        def drop(m):
+            global n
+            el = m.group(0)
+            if 'r="0"' not in el:
+                return el
+            if not any(r not in defined for r in REF.findall(el)):
+                return el
+            n += 1
+            return ""
+        out = CIRCLE.sub(drop, s)
+        if n:
+            open(f, "w", encoding="utf-8").write(out)
+            files += 1
+            circles += n
+print(f"    {circles} removed from {files} files")
+PYEOF
+}
+
 install_themes() {
     command -v git >/dev/null || die "git is needed - sudo dnf install git"
     command -v gtk-update-icon-cache >/dev/null \
@@ -282,6 +365,13 @@ install_themes() {
     for name in "${names[@]}"; do
         [[ -f "$DEST/$name/index.theme" ]] || die "install finished but $DEST/$name is missing"
     done
+
+    # Every Reversal set that survived the cleanup above, not just the ones
+    # this run installed: a set left over from an earlier run is still drawn by
+    # GTK and still warns.
+    local -a installed=()
+    for name in "${names[@]}"; do installed+=("$DEST/$name"); done
+    strip_dead_circles "${installed[@]}"
 
     apply_aliases
     reapply
