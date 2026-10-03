@@ -436,128 +436,150 @@ apply() {
     # --- GTK -----------------------------------------------------------
     local appearance; appearance="${_vals[appearance]-}"
 
-    # Icon theme: the palette's icon_theme if it is actually installed,
-    # Adwaita otherwise. CHECKED, not trusted - gsettings accepts any string,
-    # and naming a theme that is not there leaves GTK apps drawing
-    # missing-image icons. Reversal is opt-in (bin/icon-theme.sh), so a
-    # machine without it must still come out looking right.
-    local icons; icons="${_vals[icon_theme]-}"
-    if [[ -z $icons ]] || ! icon_theme_installed "$icons"; then
-        icons=Adwaita
-    fi
-
-    # The theme name and scheme are decided OUTSIDE the gsettings check, because
-    # the settings.ini files further down use $gtk whether or not gsettings is
-    # here. They used to be declared inside it, and on a machine without
-    # gsettings `set -u` then killed the whole function at the first use of
-    # $gtk - taking settings.ini, Chromium and hyprlock with it, silently,
-    # because the theme had already been written for quickshell and kitty by
-    # then so the switch looked half-applied rather than failed. Found on
-    # NixOS, where glib's command-line tools are a package you have to ask for
-    # rather than something every desktop drags in.
-    # THE PALETTE'S OWN GTK THEME, and this is what makes GTK3 apps follow a
-    # live switch. GTK never re-reads a user stylesheet - measured on both GTK3
-    # and GTK4 with a probe whose CSS was rewritten underneath it - but GTK3
-    # reloads when gtk-theme-name changes, because that is a different theme
-    # rather than the same file again. So the colours have to arrive as a
-    # named theme, which bin/gtk-theme.sh installs.
+    # NOT UNDER PLASMA. KDE has its own GTK bridge, kde-gtk-config, which keeps
+    # ~/.config/gtk-{3,4}.0/settings.ini, ~/.gtkrc-2.0, xsettingsd.conf and the
+    # gsettings keys in step with the Plasma colour scheme and rewrites all of
+    # them at every login. Two programs owning the same five files means the
+    # GTK theme flips back and forth depending on which ran last, which is
+    # exactly what happened on nixos-gaming00: Plasma sat on BreezeLight while
+    # every GTK app drew in Adwaita-dark, because this function had set it and
+    # kde-gtk-config faithfully preserved the value it found.
     #
-    # CHECKED, not trusted, exactly as the icon theme above: gsettings accepts
-    # any string, and a theme that is not there leaves GTK apps on their
-    # default. Rosé Pine is opt-in, so a machine without it must still come out
-    # looking right - Adwaita ships light and dark and is always present.
-    local gtk gtk_scheme=prefer-dark
-    [[ $appearance == light ]] && gtk_scheme="prefer-light"
-    gtk="${_vals[gtk_theme]-}"
-    if [[ -z $gtk ]] || ! gtk_theme_installed "$gtk"; then
-        gtk=Adwaita-dark
-        [[ $appearance == light ]] && gtk="Adwaita"
-    fi
-
-    # GTK3 has no theme called "Adwaita-dark" - its dark Adwaita is built in and
-    # only reachable as "Adwaita" plus prefer-dark, and a name it cannot find
-    # falls back to LIGHT Adwaita. So when the palette's own theme is missing
-    # and the fallback above picked that name, give the name something to find:
-    # a user theme that imports GTK3's own built-in dark stylesheet. No package.
-    # Skipped if a real Adwaita-dark is installed system-wide, and not written
-    # at all when a proper theme is in use.
-    # gtk_theme_installed rather than a bare /usr/share test: that directory
-    # does not exist on NixOS, so the hardcoded check could only ever answer
-    # "not installed" there. It happens to give the right answer on this
-    # machine, but by luck - the helper above searches everywhere GTK does.
-    if [[ $gtk == Adwaita-dark ]] && ! gtk_theme_installed Adwaita-dark; then
-        local dark_css="$HOME/.local/share/themes/Adwaita-dark/gtk-3.0/gtk.css"
-        mkdir -p "${dark_css%/*}"
-        printf '%s\n' '@import url("resource:///org/gtk/libgtk/theme/Adwaita/gtk-contained-dark.css");' \
-            > "$dark_css"
-    fi
-
-    if command -v gsettings >/dev/null 2>&1; then
-        local iface=org.gnome.desktop.interface
-        gsettings set "$iface" color-scheme "$gtk_scheme" 2>/dev/null || true
-        gsettings set "$iface" gtk-theme    "$gtk"        2>/dev/null || true
-        # Live: running GTK apps watch this over dbus and swap icons in place.
-        gsettings set "$iface" icon-theme   "$icons"      2>/dev/null || true
+    # So on Plasma this stays out of the way entirely and KDE owns GTK. Nothing
+    # is lost: kde-gtk-config already does the same job for the desktop that is
+    # actually running, including the colours, cursors and icons.
+    #
+    # XDG_CURRENT_DESKTOP IS THE TEST, because it is what the session sets and
+    # what every other desktop-aware tool keys on. It is absent over ssh and in
+    # a bare tty, where the right answer is to carry on as before - a theme
+    # switch run from a cron job or a remote shell is still meant to work.
+    if [[ ${XDG_CURRENT_DESKTOP-} == *KDE* ]]; then
+        printf 'theme: Plasma session - leaving GTK to kde-gtk-config\n'
     else
-        # Not fatal - settings.ini below still styles GTK apps at startup - but
-        # it is the difference between apps restyling live and only after a
-        # restart, and xdg-desktop-portal republishes this same setting as
-        # org.freedesktop.appearance color-scheme, so without it Chromium and
-        # every Electron app stop following the toggle too.
-        printf 'theme: gsettings not found - GTK apps will only pick this up when restarted\n' >&2
-    fi
+
+        # Icon theme: the palette's icon_theme if it is actually installed,
+        # Adwaita otherwise. CHECKED, not trusted - gsettings accepts any string,
+        # and naming a theme that is not there leaves GTK apps drawing
+        # missing-image icons. Reversal is opt-in (bin/icon-theme.sh), so a
+        # machine without it must still come out looking right.
+        local icons; icons="${_vals[icon_theme]-}"
+        if [[ -z $icons ]] || ! icon_theme_installed "$icons"; then
+            icons=Adwaita
+        fi
+
+        # The theme name and scheme are decided OUTSIDE the gsettings check, because
+        # the settings.ini files further down use $gtk whether or not gsettings is
+        # here. They used to be declared inside it, and on a machine without
+        # gsettings `set -u` then killed the whole function at the first use of
+        # $gtk - taking settings.ini, Chromium and hyprlock with it, silently,
+        # because the theme had already been written for quickshell and kitty by
+        # then so the switch looked half-applied rather than failed. Found on
+        # NixOS, where glib's command-line tools are a package you have to ask for
+        # rather than something every desktop drags in.
+        # THE PALETTE'S OWN GTK THEME, and this is what makes GTK3 apps follow a
+        # live switch. GTK never re-reads a user stylesheet - measured on both GTK3
+        # and GTK4 with a probe whose CSS was rewritten underneath it - but GTK3
+        # reloads when gtk-theme-name changes, because that is a different theme
+        # rather than the same file again. So the colours have to arrive as a
+        # named theme, which bin/gtk-theme.sh installs.
+        #
+        # CHECKED, not trusted, exactly as the icon theme above: gsettings accepts
+        # any string, and a theme that is not there leaves GTK apps on their
+        # default. Rosé Pine is opt-in, so a machine without it must still come out
+        # looking right - Adwaita ships light and dark and is always present.
+        local gtk gtk_scheme=prefer-dark
+        [[ $appearance == light ]] && gtk_scheme="prefer-light"
+        gtk="${_vals[gtk_theme]-}"
+        if [[ -z $gtk ]] || ! gtk_theme_installed "$gtk"; then
+            gtk=Adwaita-dark
+            [[ $appearance == light ]] && gtk="Adwaita"
+        fi
+
+        # GTK3 has no theme called "Adwaita-dark" - its dark Adwaita is built in and
+        # only reachable as "Adwaita" plus prefer-dark, and a name it cannot find
+        # falls back to LIGHT Adwaita. So when the palette's own theme is missing
+        # and the fallback above picked that name, give the name something to find:
+        # a user theme that imports GTK3's own built-in dark stylesheet. No package.
+        # Skipped if a real Adwaita-dark is installed system-wide, and not written
+        # at all when a proper theme is in use.
+        # gtk_theme_installed rather than a bare /usr/share test: that directory
+        # does not exist on NixOS, so the hardcoded check could only ever answer
+        # "not installed" there. It happens to give the right answer on this
+        # machine, but by luck - the helper above searches everywhere GTK does.
+        if [[ $gtk == Adwaita-dark ]] && ! gtk_theme_installed Adwaita-dark; then
+            local dark_css="$HOME/.local/share/themes/Adwaita-dark/gtk-3.0/gtk.css"
+            mkdir -p "${dark_css%/*}"
+            printf '%s\n' '@import url("resource:///org/gtk/libgtk/theme/Adwaita/gtk-contained-dark.css");' \
+                > "$dark_css"
+        fi
+
+        if command -v gsettings >/dev/null 2>&1; then
+            local iface=org.gnome.desktop.interface
+            gsettings set "$iface" color-scheme "$gtk_scheme" 2>/dev/null || true
+            gsettings set "$iface" gtk-theme    "$gtk"        2>/dev/null || true
+            # Live: running GTK apps watch this over dbus and swap icons in place.
+            gsettings set "$iface" icon-theme   "$icons"      2>/dev/null || true
+        else
+            # Not fatal - settings.ini below still styles GTK apps at startup - but
+            # it is the difference between apps restyling live and only after a
+            # restart, and xdg-desktop-portal republishes this same setting as
+            # org.freedesktop.appearance color-scheme, so without it Chromium and
+            # every Electron app stop following the toggle too.
+            printf 'theme: gsettings not found - GTK apps will only pick this up when restarted\n' >&2
+        fi
 
 
-    # GTK3 apps that predate the dbus setting read these files at startup,
-    # and X11 GTK3 apps get nothing else. They do not restyle anything already
-    # running - gsettings above does that.
-    #
-    # GTK3's file NEVER sets prefer-dark: the theme name alone picks light or
-    # dark. prefer-dark read at startup sticks for the life of the process, and
-    # it turns plain "Adwaita" dark too - so a GTK3 app started under the dark
-    # theme stayed dark after a switch to cream, however gsettings changed.
-    # Seen on the GTK portal's Open File dialog, which starts once per login.
-    # GTK4 has no Adwaita-dark user theme to find, so its file keeps
-    # prefer-dark (libadwaita apps follow color-scheme live regardless).
-    local g3="$HOME/.config/gtk-3.0" g4="$HOME/.config/gtk-4.0"
-    local prefer=0; [[ $appearance == dark ]] && prefer=1
-    mkdir -p "$g3" "$g4"
-    printf '[Settings]\ngtk-theme-name=%s\ngtk-application-prefer-dark-theme=0\ngtk-icon-theme-name=%s\n' \
-        "$gtk" "$icons" > "$g3/settings.ini"
-    printf '[Settings]\ngtk-application-prefer-dark-theme=%d\ngtk-icon-theme-name=%s\n' \
-        "$prefer" "$icons" > "$g4/settings.ini"
+        # GTK3 apps that predate the dbus setting read these files at startup,
+        # and X11 GTK3 apps get nothing else. They do not restyle anything already
+        # running - gsettings above does that.
+        #
+        # GTK3's file NEVER sets prefer-dark: the theme name alone picks light or
+        # dark. prefer-dark read at startup sticks for the life of the process, and
+        # it turns plain "Adwaita" dark too - so a GTK3 app started under the dark
+        # theme stayed dark after a switch to cream, however gsettings changed.
+        # Seen on the GTK portal's Open File dialog, which starts once per login.
+        # GTK4 has no Adwaita-dark user theme to find, so its file keeps
+        # prefer-dark (libadwaita apps follow color-scheme live regardless).
+        local g3="$HOME/.config/gtk-3.0" g4="$HOME/.config/gtk-4.0"
+        local prefer=0; [[ $appearance == dark ]] && prefer=1
+        mkdir -p "$g3" "$g4"
+        printf '[Settings]\ngtk-theme-name=%s\ngtk-application-prefer-dark-theme=0\ngtk-icon-theme-name=%s\n' \
+            "$gtk" "$icons" > "$g3/settings.ini"
+        printf '[Settings]\ngtk-application-prefer-dark-theme=%d\ngtk-icon-theme-name=%s\n' \
+            "$prefer" "$icons" > "$g4/settings.ini"
 
-    # AND QUICKSHELL, WHICH CANNOT READ ANY OF THE ABOVE. Its icon lookup goes
-    # through Qt, and Qt has no icon theme in a bare Hyprland session - it can
-    # only see "hicolor". bin/icon-bridge.sh puts the selected theme's
-    # categories where hicolor will find them; without this line it would go
-    # on pointing at whichever theme was selected when it was last built, and
-    # the notifications would keep the old palette's icons.
-    #
-    # Quiet, and never fatal: an icon that does not change is not a reason for
-    # a theme switch to report failure.
-    if [[ -x $repo/bin/icon-bridge.sh ]]; then
-        "$repo/bin/icon-bridge.sh" >/dev/null 2>&1 || true
-    fi
+        # AND QUICKSHELL, WHICH CANNOT READ ANY OF THE ABOVE. Its icon lookup goes
+        # through Qt, and Qt has no icon theme in a bare Hyprland session - it can
+        # only see "hicolor". bin/icon-bridge.sh puts the selected theme's
+        # categories where hicolor will find them; without this line it would go
+        # on pointing at whichever theme was selected when it was last built, and
+        # the notifications would keep the old palette's icons.
+        #
+        # Quiet, and never fatal: an icon that does not change is not a reason for
+        # a theme switch to report failure.
+        if [[ -x $repo/bin/icon-bridge.sh ]]; then
+            "$repo/bin/icon-bridge.sh" >/dev/null 2>&1 || true
+        fi
 
-    # GTK4 / libadwaita, which needs its own copy and gets no live switch.
-    #
-    # libadwaita ignores gtk-theme-name entirely - measured: nudging that
-    # setting did nothing to a running Nautilus - so the theme directory above
-    # cannot reach it. What it does read is ~/.config/gtk-4.0/gtk.css, once, at
-    # startup. bin/gtk-theme.sh puts the matching stylesheet inside the theme,
-    # so this is a copy rather than anything generated here.
-    #
-    # The consequence is honest and unavoidable: GTK4 apps pick up a palette
-    # change when they are next started, while GTK3 apps follow immediately.
-    # Removing the file when no theme provides one matters as much as writing
-    # it - a stale stylesheet from a previous theme would outrank whatever
-    # Adwaita would otherwise do, and pin those apps to the old palette.
-    local g4_css="$HOME/.local/share/themes/$gtk/gtk-4.0/gtk.css"
-    if [[ -f $g4_css ]]; then
-        cp -f "$g4_css" "$g4/gtk.css"
-    else
-        rm -f "$g4/gtk.css"
+        # GTK4 / libadwaita, which needs its own copy and gets no live switch.
+        #
+        # libadwaita ignores gtk-theme-name entirely - measured: nudging that
+        # setting did nothing to a running Nautilus - so the theme directory above
+        # cannot reach it. What it does read is ~/.config/gtk-4.0/gtk.css, once, at
+        # startup. bin/gtk-theme.sh puts the matching stylesheet inside the theme,
+        # so this is a copy rather than anything generated here.
+        #
+        # The consequence is honest and unavoidable: GTK4 apps pick up a palette
+        # change when they are next started, while GTK3 apps follow immediately.
+        # Removing the file when no theme provides one matters as much as writing
+        # it - a stale stylesheet from a previous theme would outrank whatever
+        # Adwaita would otherwise do, and pin those apps to the old palette.
+        local g4_css="$HOME/.local/share/themes/$gtk/gtk-4.0/gtk.css"
+        if [[ -f $g4_css ]]; then
+            cp -f "$g4_css" "$g4/gtk.css"
+        else
+            rm -f "$g4/gtk.css"
+        fi
     fi
 
     # --- Chromium ------------------------------------------------------
