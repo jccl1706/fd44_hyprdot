@@ -1,0 +1,16 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [ { "Name": "fd44" } ],
+        "Category": "System Information",
+        "Description": "Shows a tray icon when packages are waiting to be installed",
+        "EnabledByDefault": true,
+        "Icon": "system-software-update",
+        "Id": "com.fd44.updates",
+        "License": "MIT",
+        "Name": "fd44 Updates"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "X-Plasma-NotificationArea": "true",
+    "X-Plasma-NotificationAreaCategory": "SystemServices"
+}
