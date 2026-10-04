@@ -99,15 +99,34 @@ inch() {
 }
 
 # --- the chroot needs a kernel's view of the world ---------------------------
+# --rbind THEN --make-rslave, AND THE SECOND HALF IS NOT OPTIONAL.
+#
+# A plain --rbind inherits SHARED propagation, so a later `umount -R` on the
+# copy travels back along the peer group and unmounts the ORIGINALS. The first
+# run of this script did exactly that to the machine it was running on:
+#
+#   /sys/firmware/efi/efivars  gone  (efibootmgr: "EFI variables are not
+#                                     supported on this system")
+#   /sys/fs/bpf, /sys/kernel/debug, /sys/kernel/tracing, /sys/fs/pstore  gone
+#
+# The host survived, but a script that quietly dismantles the running system's
+# /sys while installing another one is not acceptable. --make-rslave keeps
+# mounts propagating INTO the chroot and nothing propagating back out.
 note "binding /dev /proc /sys /run"
 for d in dev dev/pts proc sys run; do
     mkdir -p "$MNT/$d"
-    findmnt -n "$MNT/$d" >/dev/null 2>&1 || mount --rbind "/$d" "$MNT/$d"
+    if ! findmnt -n "$MNT/$d" >/dev/null 2>&1; then
+        mount --rbind "/$d" "$MNT/$d"
+        mount --make-rslave "$MNT/$d"
+    fi
 done
 cleanup() {
     note "unbinding"
+    # Reverse order, and lazy: anything still open inside the chroot detaches
+    # rather than wedging the unmount. With --make-rslave above, none of this
+    # reaches the host's own mounts.
     for d in run sys proc dev/pts dev; do
-        mountpoint -q "$MNT/$d" && umount -R "$MNT/$d" 2>/dev/null || true
+        mountpoint -q "$MNT/$d" && umount -R -l "$MNT/$d" 2>/dev/null || true
     done
 }
 trap cleanup EXIT
