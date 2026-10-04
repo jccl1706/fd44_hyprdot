@@ -75,14 +75,28 @@ done
 TARGET="$(readlink -f "$DISK")"
 [[ -b $TARGET ]] || die "$DISK does not resolve to a block device"
 
-# The running system's disks, by kernel name, from what is actually mounted.
-# Not from fstab, not from a guess: from /proc, now.
-mapfile -t IN_USE < <(findmnt -no SOURCE --real 2>/dev/null \
-    | sed 's/\[.*\]//' | xargs -r -n1 lsblk -nso PKNAME 2>/dev/null | sort -u)
-for d in "${IN_USE[@]}"; do
-    [[ -n $d ]] || continue
-    [[ "/dev/$d" == "$TARGET" ]] && die "$TARGET carries a mounted filesystem of the RUNNING system. Refusing."
-done
+# ANY mounted filesystem on the target disk, by kernel name, read from /proc
+# now - not from fstab, not from a guess.
+#
+# AND IT NAMES THE MOUNTPOINT, because the refusal is otherwise unactionable.
+# Two quite different things land here: the running system's own root, which
+# means you have picked the wrong disk and must stop; and a read-only
+# inspection mount of the disk you really do mean to wipe, which just needs
+# unmounting. Both must refuse - but you need to know which one you are
+# looking at. Found immediately: /mnt/g, a read-only look at the old Gentoo
+# root, was still mounted when this was first run.
+busy=""
+while read -r src tgt; do
+    [[ -n $src ]] || continue
+    parent="$(lsblk -nso PKNAME "${src%%[*}" 2>/dev/null | tail -1)"
+    [[ -n $parent && "/dev/$parent" == "$TARGET" ]] && busy+="    $tgt  <- $src"$'\n'
+done < <(findmnt -no SOURCE,TARGET --real 2>/dev/null)
+
+if [[ -n $busy ]]; then
+    warn "$TARGET has mounted filesystems:"
+    printf '%s' "$busy" >&2
+    die "unmount them first, or you have picked the wrong disk. Refusing."
+fi
 
 MODEL="$(lsblk -dno MODEL "$TARGET" | xargs)"
 SERIAL="$(lsblk -dno SERIAL "$TARGET" | xargs)"
