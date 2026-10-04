@@ -23,9 +23,30 @@
 #
 # 1 GiB is ample: a Fedora kernel plus its initramfs is about 70 MiB.
 #
-# NO WEAK DEPENDENCIES, which is most of what "no bloat" means in practice.
-# install_weak_deps=False turns a @core install from several hundred packages
-# into the mandatory set. Anything genuinely wanted gets named.
+# WEAK DEPENDENCIES ARE LEFT ON, and that is a reversal worth explaining.
+#
+# This started with install_weak_deps=False, on the reasoning that "no bloat"
+# means the mandatory set and nothing else. It worked - 273 packages, 822 MB -
+# and it cost three separate failures, each of which presented a long way from
+# its cause:
+#
+#   selinux-policy-targeted   systemd could not start at all. "Failed to
+#                             allocate manager object", several hundred lines
+#                             of SELinux denials, an unbootable machine.
+#   cracklib-dicts            passwd silently stopped checking passwords.
+#   systemd-pam               a black screen and a crash inside NVIDIA's EGL
+#                             library. The driver was fine; kwin had died for
+#                             want of XDG_RUNTIME_DIR.
+#
+# Fedora expresses a great deal through Recommends, and the packages it puts
+# there are not decoration - they are the difference between a system that
+# boots and one that does not. Diagnosing each from its symptom took longer
+# than the disk space was ever worth.
+#
+# WHAT STILL KEEPS IT SMALL is the PACKAGE LIST: @core plus the dozen things
+# named below, rather than a desktop group. That is where the real saving is.
+# Expect roughly 400-500 packages instead of 273, against about 1800 for a
+# Fedora KDE spin.
 
 set -euo pipefail
 
@@ -150,6 +171,12 @@ PKGS=(
     zram-generator-defaults
     vim-minimal
 
+    # THE THREE BELOW ARE NOW REDUNDANT - weak dependencies are on, so Fedora
+    # pulls them in by itself. They stay named because naming them is free and
+    # because each one cost an unbootable or unusable machine to find; a future
+    # edit that turns install_weak_deps off again should not have to rediscover
+    # them.
+    #
     # SELINUX, WHICH IS NOT OPTIONAL ON FEDORA AND IS A WEAK DEPENDENCY.
     #
     # install_weak_deps=False is doing what it was asked to, but Fedora boots
@@ -188,9 +215,8 @@ PKGS=(
     cracklib-dicts
 )
 
-note "installing the base system (no weak dependencies)"
+note "installing the base system"
 dnf5 -y --installroot="$MNT" --releasever="$RELEASEVER" --forcearch=x86_64 \
-    --setopt=install_weak_deps=False \
     "${REPOARGS[@]}" \
     install "${PKGS[@]}"
 
