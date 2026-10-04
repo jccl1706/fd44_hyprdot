@@ -69,6 +69,19 @@ KDE=(
     plasma-nm plasma-pa
     kscreen
     breeze-gtk
+
+    # DISCOVER, and only the backend this machine actually uses. Fedora splits
+    # it into nine packages: plasma-discover is the shell, and each backend is
+    # separate. packagekit is the one that talks to dnf.
+    #
+    # Deliberately NOT installed: -rpm-ostree (that is Silverblue, not this),
+    # -snap (no snapd here), -kns (store content, wallpapers and widgets),
+    # -flatpak (nothing uses flatpak on this machine - add it with flatpak
+    # itself if that changes).
+    #
+    # -notifier is what tells you updates exist without opening anything, which
+    # is the same job the fd44 bar's update box does on the Hyprland machines.
+    plasma-discover plasma-discover-packagekit plasma-discover-notifier
     pipewire wireplumber pipewire-pulseaudio
 )
 
