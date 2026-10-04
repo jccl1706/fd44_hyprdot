@@ -97,11 +97,25 @@ TOOLS=(
     rsync                 # moving things between the two systems on this box
 )
 
+# THE BROWSERS. Chromium is in Fedora's own repositories; Brave is not and
+# never will be, so it comes from its own.
+#
+# chromium-qt6-ui IS THE POINT OF SPLITTING THIS OUT. Fedora builds Chromium's
+# toolkit layer as separate subpackages, and the default pulls the GTK one. On
+# a Plasma desktop that means GTK file dialogs, GTK scrollbars and a browser
+# that does not follow the system theme. The Qt6 build uses Plasma's own file
+# picker and colours.
+CHROMIUM=(
+    chromium
+    chromium-qt6-ui
+)
+
 if (( ! GO )); then
     note "would enable RPM Fusion free + nonfree for Fedora $RELEASEVER"
     note "would install akmod-nvidia xorg-x11-drv-nvidia-cuda"
     note "would install, with weak deps:"
-    printf '    %s\n' "${KDE[@]}" "${TOOLS[@]}"
+    printf '    %s\n' "${KDE[@]}" "${TOOLS[@]}" "${CHROMIUM[@]}"
+    note "would add Brave's repository and install brave-browser"
     warn "DRY RUN. Re-run with --go."
     exit 0
 fi
@@ -161,6 +175,26 @@ dnf -y install "${KDE[@]}"
 
 note "and the tools for when something goes wrong"
 dnf -y install "${TOOLS[@]}"
+
+note "Chromium, with the Qt6 UI so it matches Plasma"
+dnf -y install "${CHROMIUM[@]}"
+
+# --- Brave -------------------------------------------------------------------
+#
+# ITS OWN REPOSITORY, SIGNED WITH ITS OWN KEY. Brave publishes a .repo file that
+# sets gpgcheck=1 and points at its key; importing the key first means the very
+# first package is verified rather than trusted.
+#
+# NOT a flatpak, and not a tarball in $HOME: a browser gets security updates
+# more often than anything else on the machine, and it should come through the
+# same dnf that updates everything else.
+note "adding Brave's repository"
+rpm --import https://brave-browser-rpm-release.s3.brave.com/brave-browser.asc
+dnf -y config-manager addrepo --from-repofile=https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo \
+    || dnf -y config-manager --add-repo https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo
+
+note "installing Brave"
+dnf -y install brave-browser
 
 note "enabling the display manager"
 systemctl set-default graphical.target
