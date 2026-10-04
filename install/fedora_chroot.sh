@@ -289,8 +289,37 @@ ls "$MNT/boot/loader/entries" 2>/dev/null | sed 's/^/  entry: /' || warn "no loa
 note "enabling NetworkManager and sshd"
 inch systemctl enable NetworkManager sshd
 
-note "scheduling the SELinux relabel for first boot"
-: > "$MNT/.autorelabel"
+# --- SELinux, labelled HERE rather than on first boot -------------------------
+#
+# .autorelabel IS NOT ENOUGH AND CANNOT BE. Packages installed through an
+# installroot are never labelled - the policy was not loaded, so nothing applied
+# a context to anything. On the first boot systemd loads the policy, finds an
+# entirely unlabelled filesystem, and cannot start:
+#
+#   systemd[1]: Unable to fix SELinux security context of /dev/...:
+#               Permission denied        (several hundred times)
+#   systemd[1]: Too many messages being logged to kmsg, ignoring
+#   [!!!!!!] Failed to allocate manager object.
+#
+# "Failed to allocate manager object" is PID 1 giving up. /.autorelabel is run
+# BY systemd, so it can do nothing about a system where systemd cannot start -
+# the mechanism needs the very thing it is supposed to repair.
+#
+# setfiles works offline from the file_contexts database and needs no loaded
+# policy, which is exactly why Anaconda runs it at the end of an install rather
+# than deferring. It takes a couple of minutes on a fresh root.
+note "labelling the filesystem for SELinux (this takes a minute)"
+if [[ -f $MNT/etc/selinux/targeted/contexts/files/file_contexts ]]; then
+    inch setfiles -F /etc/selinux/targeted/contexts/files/file_contexts / \
+        || warn "setfiles reported errors - check before booting"
+    # No .autorelabel afterwards: the work is done, and leaving it would make
+    # the first boot repeat it for no reason.
+    rm -f "$MNT/.autorelabel"
+    note "labelled"
+else
+    warn "no file_contexts - selinux-policy-targeted is not installed"
+    die "run stage two again; booting now would fail to start systemd"
+fi
 
 # ASKED ONLY ONCE. This script has had to be re-run a dozen times, and
 # prompting for two passwords on every pass is how a careful operator ends up
