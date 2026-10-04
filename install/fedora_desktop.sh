@@ -94,8 +94,7 @@ TOOLS=(
     lsof strace           # what is holding this file, what is this process doing
     wget                  # curl is in @core; wget is what half of every README uses
     git                   # this repository has to be clonable on the machine
-    htop
-    rsync
+    rsync                 # moving things between the two systems on this box
 )
 
 if (( ! GO )); then
