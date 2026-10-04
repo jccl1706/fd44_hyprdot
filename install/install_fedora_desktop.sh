@@ -95,7 +95,16 @@ done < <(findmnt -no SOURCE,TARGET --real 2>/dev/null)
 if [[ -n $busy ]]; then
     warn "$TARGET has mounted filesystems:"
     printf '%s' "$busy" >&2
-    die "unmount them first, or you have picked the wrong disk. Refusing."
+
+    # TELLING SOMEONE TO UNMOUNT / IS NOT ADVICE. The first version of this
+    # ended with "unmount them first, or you have picked the wrong disk", which
+    # is sound for a stray inspection mount and dangerous nonsense for the
+    # running root. The two cases get different endings, because the right next
+    # move is opposite in each.
+    if [[ $busy == *" / "* || $busy == *$'\n    /  <-'* || $busy == "    /  <-"* ]]; then
+        die "that is the RUNNING SYSTEM's root. You have picked the wrong disk - stop."
+    fi
+    die "unmount those first if this really is the disk you mean to destroy."
 fi
 
 MODEL="$(lsblk -dno MODEL "$TARGET" | xargs)"
