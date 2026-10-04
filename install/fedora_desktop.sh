@@ -82,6 +82,21 @@ KDE=(
     # kde-gtk-config has written those files.
     breeze-gtk kde-gtk-config
 
+    # THE KEYRING, AND WHY A PAM MODULE IS A DESKTOP PACKAGE. Chromium and Brave
+    # ask the system keyring to hold the key their saved passwords are encrypted
+    # with, and on Plasma that keyring is KWallet. On an account with no wallet
+    # yet, the first browser launch runs KWallet's first-use wizard - which on
+    # this machine offered the GPG-backed wallet, found no GPG secret key, and
+    # failed with two stacked dialogs over the browser.
+    #
+    # INSTALLING THIS IS THE WHOLE FIX, and it looks like nothing because the
+    # wiring already ships: /etc/pam.d/sddm carries `-auth optional
+    # pam_kwallet5.so` and `-session optional pam_kwallet5.so auto_start`, where
+    # the leading `-` means "skip silently if the module is missing". So the
+    # lines sit inert on a stock install until the package is there, and then
+    # SDDM creates and unlocks the wallet with the login password.
+    pam-kwallet
+
     # DISCOVER, and only the backend this machine actually uses. Fedora splits
     # it into nine packages: plasma-discover is the shell, and each backend is
     # separate. packagekit is the one that talks to dnf.
@@ -128,6 +143,7 @@ if (( ! GO )); then
     note "would install, with weak deps:"
     printf '    %s\n' "${KDE[@]}" "${TOOLS[@]}" "${CHROMIUM[@]}"
     note "would add Brave's repository and install brave-browser"
+    note "would pre-answer KWallet for ${SUDO_USER:-the invoking user}"
     warn "DRY RUN. Re-run with --go."
     exit 0
 fi
@@ -211,6 +227,32 @@ dnf -y install brave-browser
 note "enabling the display manager"
 systemctl set-default graphical.target
 systemctl enable sddm
+
+
+# --- KWallet ----------------------------------------------------------------
+#
+# WHAT THIS FILE DOES AND DOES NOT DO. `First Use=false` skips the wizard's
+# introductory page, and that is all - the wizard fires on the ABSENCE OF A
+# WALLET, so this file alone does not suppress it. pam-kwallet above is what
+# prevents it, by creating the wallet at login; this only settles how the wallet
+# behaves once it exists, so it never asks to be unlocked again.
+if [[ -n ${SUDO_USER-} && $SUDO_USER != root ]]; then
+    user_home="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+    if [[ -d $user_home ]]; then
+        note "pre-answering KWallet for $SUDO_USER"
+        [[ -d $user_home/.config ]] || install -d -o "$SUDO_USER" -g "$SUDO_USER" -m 0700 "$user_home/.config"
+        cat > "$user_home/.config/kwalletrc" <<'WALLET'
+[Wallet]
+Enabled=true
+First Use=false
+Use One Wallet=true
+Prompt on Open=false
+Close When Idle=false
+Leave Open=true
+WALLET
+        chown "$SUDO_USER:$SUDO_USER" "$user_home/.config/kwalletrc"
+    fi
+fi
 
 printf '\n'
 note "done"
