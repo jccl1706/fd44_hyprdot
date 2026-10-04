@@ -152,10 +152,20 @@ if (( ! GO )); then
 fi
 
 # --- confirmation ------------------------------------------------------------
+# THE SERIAL, NOT THE MODEL, AND THE PROMPT HAS TO SAY SO. The target block
+# above prints both, they are both opaque strings of letters and digits, and
+# the first real run typed the model - which is the ONE string that does not
+# identify a single disk, since two drives of the same part number share it.
+# That is exactly why the serial is the confirmation. The prompt now names the
+# field and says which is wrong, and a mistyped answer says what it got.
 warn "EVERYTHING ON $TARGET ($MODEL) WILL BE DESTROYED."
-printf '  Type the disk serial to confirm: '
+printf '  To confirm, type its SERIAL - the %sserial%s line above, not the model.\n' "$bold" "$reset"
+printf '  serial> '
 read -r typed
-[[ $typed == "$SERIAL" ]] || die "that is not the serial. Nothing was changed."
+if [[ $typed != "$SERIAL" ]]; then
+    [[ $typed == "$MODEL" ]] && warn "that is the model. Two disks can share a model; the serial is what picks one."
+    die "'$typed' is not the serial of $TARGET. Nothing was changed."
+fi
 
 # --- partition ---------------------------------------------------------------
 note "wiping the old table"
