@@ -110,6 +110,14 @@ REPOARGS=(
     --repofrompath="updates,$BASE/updates/$RELEASEVER/Everything/x86_64/"
     --setopt=fedora.gpgkey=file://"$KEYDIR/fedora.gpg"
     --setopt=updates.gpgkey=file://"$KEYDIR/fedora.gpg"
+    # AND gpgcheck ON, EXPLICITLY. A repo created with --repofrompath defaults
+    # to gpgcheck=0, so pointing gpgkey at a real key does nothing by itself -
+    # the first run of this script fetched the key, set gpgkey, and still
+    # finished with "skipped OpenPGP checks for 273 packages". Setting the key
+    # without setting this is worse than not bothering, because it reads as
+    # though verification is happening.
+    --setopt=fedora.gpgcheck=True
+    --setopt=updates.gpgcheck=True
     --repo=fedora --repo=updates
 )
 
@@ -149,7 +157,13 @@ dnf5 -y --installroot="$MNT" --releasever="$RELEASEVER" --forcearch=x86_64 \
     "${REPOARGS[@]}" \
     install "${PKGS[@]}"
 
+# COUNTED BY FILES, NOT BY rpm. `rpm --root` from the host reported 0 packages
+# for a 773 MB tree: Fedora keeps its database at /usr/lib/sysimage/rpm, and a
+# host rpm of a different version cannot necessarily read it anyway. A number
+# that is confidently wrong is worse than no number.
 note "base system installed"
-printf '  %s packages\n' "$(rpm --root "$MNT" -qa 2>/dev/null | wc -l)"
+printf '  %s in %s, %s binaries in /usr/bin\n' \
+    "$(du -sh "$MNT" 2>/dev/null | cut -f1)" "$MNT" \
+    "$(find "$MNT/usr/bin" -maxdepth 1 -type f 2>/dev/null | wc -l)"
 printf '\n'
 note "next: stage three configures and installs the bootloader in the chroot"
