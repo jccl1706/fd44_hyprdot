@@ -297,8 +297,23 @@ inch bootctl install --esp-path=/boot --no-variables
 # way in when the single entry will not boot: the rescue entry, an older kernel
 # after an update, and "Reboot Into Firmware Interface" without timing a key
 # press against a one-second window.
+# console-mode max, NOT keep, AND THAT IS NOT A COSMETIC CHOICE. `keep` leaves
+# the firmware's handover mode alone, and this board hands over 1024x768. The
+# kernel's simpledrm inherits exactly that, and plymouth's DRM plugin then
+# REFUSES THE DEVICE - it treats a 1024x768 simpledrm as the sign of a fallback
+# mode and skips it rather than draw a splash that would snap to native a few
+# seconds later:
+#
+#   Found preferred mode 1024x768 at index 0
+#   Skipping simpledrm device with mode 1024x768
+#   could not find suitable rendering plugin
+#
+# The result is a boot with no splash at all and nothing in the journal to say
+# why; it took plymouth.debug to find it. With `max` the same board hands over
+# 2560x1440, plymouth accepts the device, and the splash survives the handover
+# to nvidia-drm. The NixOS side has set consoleMode = "max" all along.
 note "switching the systemd-boot menu on"
-printf 'timeout 5\nconsole-mode keep\n' > "$MNT/boot/loader/loader.conf"
+printf 'timeout 5\nconsole-mode max\n' > "$MNT/boot/loader/loader.conf"
 printf '  %s\n' "$(tr '\n' ' ' < "$MNT/boot/loader/loader.conf")"
 
 note "placing the kernel and building its initramfs"
