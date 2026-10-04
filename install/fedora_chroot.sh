@@ -292,11 +292,23 @@ inch systemctl enable NetworkManager sshd
 note "scheduling the SELinux relabel for first boot"
 : > "$MNT/.autorelabel"
 
+# ASKED ONLY ONCE. This script has had to be re-run a dozen times, and
+# prompting for two passwords on every pass is how a careful operator ends up
+# typing one wrong. A locked or empty entry in /etc/shadow begins with ! or *,
+# or is blank; anything else is a real hash and gets left alone.
 printf '\n'
-note "set a root password (you will need it if the network does not come up)"
-inch passwd root
-note "and a password for $USERNAME"
-inch passwd "$USERNAME"
+has_password() {
+    local h; h="$(awk -F: -v u="$1" '$1==u {print $2}' "$MNT/etc/shadow" 2>/dev/null)"
+    [[ -n $h && $h != "!"* && $h != "*"* && $h != "!!" ]]
+}
+for u in root "$USERNAME"; do
+    if has_password "$u"; then
+        note "$u already has a password - leaving it"
+    else
+        note "set a password for $u"
+        inch passwd "$u"
+    fi
+done
 
 printf '\n'
 note "done - this should now boot"

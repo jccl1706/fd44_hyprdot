@@ -149,6 +149,28 @@ PKGS=(
     glibc-langpack-en
     zram-generator-defaults
     vim-minimal
+
+    # SELINUX, WHICH IS NOT OPTIONAL ON FEDORA AND IS A WEAK DEPENDENCY.
+    #
+    # install_weak_deps=False is doing what it was asked to, but Fedora boots
+    # enforcing by default and pulls the policy in weakly - so a minimal install
+    # gets a kernel with SELinux on and no policy to load. The first boot ran
+    # /.autorelabel, found nothing to relabel against, and wedged.
+    #
+    # Measured in the chroot afterwards: no /etc/selinux/targeted/policy, and
+    # none of restorecon, setfiles, load_policy or semodule present.
+    #
+    # Turning SELinux off instead would be the other way out and is worse here:
+    # a great deal of Fedora packaging assumes it is on, and this machine is
+    # meant to be an ordinary Fedora.
+    selinux-policy-targeted
+    policycoreutils
+
+    # cracklib's dictionary, also weak. Without it passwd works but cannot check
+    # anything: "pw_dict.pwd.gz: No such file or directory - error loading
+    # dictionary". A password tool that silently stops checking passwords is
+    # worth 8 MB.
+    cracklib-dicts
 )
 
 note "installing the base system (no weak dependencies)"
