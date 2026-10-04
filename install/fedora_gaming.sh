@@ -60,6 +60,7 @@ PKGS=(
 if (( ! GO )); then
     note "would install:"; printf '    %s\n' "${PKGS[@]}"
     note "would add the CoolerControl COPR and install coolercontrol"
+    note "would set liquidctl_integration = false, so the saved fan curves fit"
     note "would add $TARGET_USER to the gamemode group"
     note "would write the /dev/uinput rule Steam Input needs"
     warn "DRY RUN. Re-run with --go."
@@ -117,11 +118,49 @@ dnf -y install coolercontrol
 note "enabling coolercontrold"
 systemctl enable --now coolercontrold
 
+# LIQUIDCTL OFF, BEFORE ANY CURVE IS IMPORTED. The Quadro is supported by both
+# liquidctl and the kernel's aquacomputer_d5next, and CoolerControl prefers
+# liquidctl - which is wrong for this machine twice over. It gives different
+# sensor names, so a profile reading temp1 finds nothing and falls back to an
+# emergency 100 C; and its write path fails outright ("Liqctld Request failed
+# with status:502 Bad Gateway" when setting a fan).
+#
+# IT ALSO DECIDES THE DEVICE ID. The uid is a sha256 that includes the device
+# NAME, and the same Quadro is "Aquacomputer Quadro" through liquidctl and
+# "quadro" through hwmon - two different uids. Every [device-settings.<uid>]
+# and temp_source in the saved curves names the hwmon one, because that is what
+# NixOS produces with this setting off, so the two installs on this box can
+# share a config file only while both have it off.
+#
+# The cost is that the ASUS Aura LED controller disappears from CoolerControl,
+# since RGB is the one thing only liquidctl offers. NixOS makes the same trade.
+#
+# ORDER MATTERS: the daemon writes its in-memory settings on shutdown, so the
+# edit comes AFTER the stop or it is overwritten. If the result does not
+# validate, the original goes back - a failed edit must not leave fans
+# unmanaged. bin/cooling-setup.sh does this the same way, at more length.
+if grep -q '^liquidctl_integration = true$' /etc/coolercontrol/config.toml; then
+    note "turning liquidctl integration off"
+    systemctl stop coolercontrold
+    cp -p /etc/coolercontrol/config.toml /etc/coolercontrol/config.toml.bak
+    sed -i 's/^liquidctl_integration = true$/liquidctl_integration = false/' \
+        /etc/coolercontrol/config.toml
+    if out="$(coolercontrold check 2>&1)"; then
+        rm -f /etc/coolercontrol/config.toml.bak
+    else
+        warn "coolercontrold check REJECTED the edit - original restored:"
+        printf '%s\n' "$out" | tail -5 | sed 's/^/    /' >&2
+        mv /etc/coolercontrol/config.toml.bak /etc/coolercontrol/config.toml
+    fi
+    systemctl start coolercontrold
+fi
+
 printf '\n'
 note "done"
 printf '  %-14s %s\n' "steam"          "$(rpm -q --qf '%{VERSION}' steam 2>/dev/null)"
 printf '  %-14s %s / %s\n' "gamemode"  "$(rpm -q --qf '%{ARCH}' gamemode.x86_64 2>/dev/null)" "$(rpm -q --qf '%{ARCH}' gamemode.i686 2>/dev/null)"
 printf '  %-14s %s\n' "coolercontrold" "$(systemctl is-active coolercontrold)"
+printf '  %-14s %s\n' "liquidctl"      "$(grep -o 'true\|false' <<<"$(grep '^liquidctl_integration' /etc/coolercontrol/config.toml)")"
 printf '  %-14s %s\n' "uinput"         "$(ls -l /dev/uinput 2>/dev/null | awk '{print $1, $3":"$4}')"
 printf '\n'
 warn "LOG OUT AND BACK IN before launching Steam - the input and gamemode"
