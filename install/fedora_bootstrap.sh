@@ -166,6 +166,21 @@ PKGS=(
     selinux-policy-targeted
     policycoreutils
 
+    # PAM'S SYSTEMD MODULE, which is what registers a login with logind and
+    # sets XDG_RUNTIME_DIR. Weak, like the policy above, and its absence is
+    # invisible until something wants a session:
+    #
+    #   PAM unable to dlopen(/usr/lib64/security/pam_systemd.so)
+    #   QStandardPaths: XDG_RUNTIME_DIR not set
+    #   kwin_core: Failed to find a free display socket
+    #   FATAL ERROR: could not add wayland socket
+    #
+    # The visible failure was a black screen and a crash inside NVIDIA's EGL
+    # library, which is a long way from the cause - kwin had already died for
+    # want of /run/user/<uid>, and the greeter crashed because there was no
+    # compositor. Nothing was wrong with the driver.
+    systemd-pam
+
     # cracklib's dictionary, also weak. Without it passwd works but cannot check
     # anything: "pw_dict.pwd.gz: No such file or directory - error loading
     # dictionary". A password tool that silently stops checking passwords is
