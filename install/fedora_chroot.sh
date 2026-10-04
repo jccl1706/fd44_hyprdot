@@ -90,7 +90,7 @@ printf '  %-12s %s (uid %s, wheel)\n' "user" "$USERNAME" "$USERUID"
 printf '  %-12s %s\n' "timezone" "$TIMEZONE"
 printf '  %-12s root=UUID=%s\n' "fstab" "$ROOT_UUID"
 printf '  %-12s /boot=UUID=%s (the ESP)\n' "" "$ESP_UUID"
-printf '  bootctl install, kernel-install add, /.autorelabel\n\n'
+printf '  bootctl install, loader.conf, kernel-install add, /.autorelabel\n\n'
 (( GO )) || { warn "DRY RUN. Re-run with --go."; exit 0; }
 
 # --- running things inside -----------------------------------------------------
@@ -277,6 +277,29 @@ printf '  cmdline: %s' "$(cat "$MNT/etc/kernel/cmdline")"
 # the order is set explicitly then.
 note "installing systemd-boot to the ESP (not touching firmware variables)"
 inch bootctl install --esp-path=/boot --no-variables
+
+# THE MENU, WHICH bootctl LEAVES SWITCHED OFF. `bootctl install` writes a
+# loader.conf whose every line is a comment:
+#
+#     #timeout 3
+#     #console-mode keep
+#
+# and with no timeout set, systemd-boot's default is 0 - it boots the default
+# entry at once and shows the menu only while a key is held. That is not a
+# broken install and it produces no message, which is why it took a while to
+# notice that Fedora came up with no menu while NixOS on the other disk showed
+# one: NixOS sets boot.loader.timeout = 3, and nothing here set Fedora's.
+#
+# WHAT THE MENU IS FOR ON THIS MACHINE, given it lists one entry. Type #1
+# entries are read only from the ESP the loader was started from, and the NixOS
+# entries live on NIXESP, so this menu will never show the other system -
+# choosing between the two disks is the firmware's job. What it does give is a
+# way in when the single entry will not boot: the rescue entry, an older kernel
+# after an update, and "Reboot Into Firmware Interface" without timing a key
+# press against a one-second window.
+note "switching the systemd-boot menu on"
+printf 'timeout 5\nconsole-mode keep\n' > "$MNT/boot/loader/loader.conf"
+printf '  %s\n' "$(tr '\n' ' ' < "$MNT/boot/loader/loader.conf")"
 
 note "placing the kernel and building its initramfs"
 inch kernel-install add "$KVER" "/usr/lib/modules/$KVER/vmlinuz"
