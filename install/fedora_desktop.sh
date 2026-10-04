@@ -72,11 +72,24 @@ KDE=(
     pipewire wireplumber pipewire-pulseaudio
 )
 
+# THE TOOLS A MACHINE NEEDS WHEN SOMETHING GOES WRONG, which is not the same
+# list as the tools it needs to run. Every one of these was wanted at some point
+# while building this install and was not there; none of them is bloat, and
+# together they are a few MB.
+TOOLS=(
+    bash-completion       # dnf and systemctl are unusable without it
+    lsof strace           # what is holding this file, what is this process doing
+    wget                  # curl is in @core; wget is what half of every README uses
+    git                   # this repository has to be clonable on the machine
+    htop
+    rsync
+)
+
 if (( ! GO )); then
     note "would enable RPM Fusion free + nonfree for Fedora $RELEASEVER"
     note "would install akmod-nvidia xorg-x11-drv-nvidia-cuda"
     note "would install, with weak deps:"
-    printf '    %s\n' "${KDE[@]}"
+    printf '    %s\n' "${KDE[@]}" "${TOOLS[@]}"
     warn "DRY RUN. Re-run with --go."
     exit 0
 fi
@@ -133,6 +146,9 @@ grep -h ^options /boot/loader/entries/*.conf | sed 's/^/  /'
 # --- KDE ---------------------------------------------------------------------
 note "installing a minimal KDE (${#KDE[@]} packages named, plus their deps)"
 dnf -y install "${KDE[@]}"
+
+note "and the tools for when something goes wrong"
+dnf -y install "${TOOLS[@]}"
 
 note "enabling the display manager"
 systemctl set-default graphical.target

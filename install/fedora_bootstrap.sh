@@ -208,6 +208,14 @@ PKGS=(
     # compositor. Nothing was wrong with the driver.
     systemd-pam
 
+    # TIME SYNC, which nothing else provides. Fedora ships chrony and pulls it in
+    # weakly, so the first install had no NTP at all - "System clock
+    # synchronized: no, NTP service: inactive". Not cosmetic: a drifting clock
+    # breaks TLS certificate validation, makes every log timestamp a lie, and
+    # confuses anything that reasons about time, backup retention included.
+    # Fourth weak dependency to matter, and the reason they are now left on.
+    chrony
+
     # cracklib's dictionary, also weak. Without it passwd works but cannot check
     # anything: "pw_dict.pwd.gz: No such file or directory - error loading
     # dictionary". A password tool that silently stops checking passwords is
