@@ -217,9 +217,28 @@ fi
 # failed above. The rescue image is a ~100 MiB host-only initramfs built once
 # and never updated; on a machine that dual-boots a working NixOS beside it,
 # the rescue system IS the other disk. Delete this file to get it back.
-note "turning off the rescue image"
-mkdir -p "$MNT/etc/kernel"
+# THE RESCUE HOOK IS MASKED, NOT ASKED. dracut_rescue_image=no in
+# /etc/kernel/install.conf was the polite way and it is ignored: the hook runs
+# regardless, and then fails, and because one plugin failing aborts the whole
+# transaction it takes the GOOD initramfs down with it -
+#
+#   50-dracut.install succeeded.
+#   51-dracut-rescue.install: /boot/fedora/0-rescue/loader/entries/<id>-0-rescue.conf:
+#                             No such file or directory
+#   (plugins) failed with exit status 1.
+#
+# The path is nonsense because Fedora sets entry-token=fedora, so entries live
+# under /boot/fedora/<version>/ and the rescue hook derives a boot root from
+# that layout incorrectly.
+#
+# kernel-install reads /etc/kernel/install.d before /usr/lib/kernel/install.d
+# and a symlink to /dev/null there disables a plugin outright - the same
+# convention systemd uses for masking units. The setting is kept too, since it
+# is correct even if it is not sufficient.
+note "masking the rescue-image hook"
+mkdir -p "$MNT/etc/kernel" "$MNT/etc/kernel/install.d"
 printf 'dracut_rescue_image=no\n' > "$MNT/etc/kernel/install.conf"
+ln -sf /dev/null "$MNT/etc/kernel/install.d/51-dracut-rescue.install"
 rm -rf "$MNT/boot/fedora/0-rescue"
 
 # --no-variables, AND THAT IS THE WHOLE POINT OF THIS COMMENT.
