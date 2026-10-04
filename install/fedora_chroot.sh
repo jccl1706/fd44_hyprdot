@@ -61,6 +61,12 @@ TARGET="$(readlink -f "$DISK")"; ESP="${TARGET}p1"; ROOT="${TARGET}p2"
 findmnt -n "$MNT"      >/dev/null || die "$MNT is not mounted"
 findmnt -n "$MNT/boot" >/dev/null || die "$MNT/boot is not mounted (the ESP)"
 
+# REMOUNT THE ESP WITH umask=0077 to match the fstab written below. bootctl
+# writes a random seed there and refuses to be quiet about a world-readable
+# one - correctly, since that seed feeds the kernel's entropy pool at boot.
+# Stage two mounted it with vfat defaults, which are world-readable.
+mount -o remount,umask=0077,shortname=winnt "$MNT/boot" 2>/dev/null || true
+
 KVER="$(ls "$MNT/usr/lib/modules" | head -1)"
 [[ -n $KVER ]] || die "no kernel in $MNT/usr/lib/modules"
 ROOT_UUID="$(lsblk -no UUID "$ROOT")"
@@ -153,10 +159,22 @@ note "hostname, timezone, locale, machine-id"
 echo "$HOSTNAME_" > "$MNT/etc/hostname"
 ln -sf "/usr/share/zoneinfo/$TIMEZONE" "$MNT/etc/localtime"
 echo 'LANG="en_US.UTF-8"' > "$MNT/etc/locale.conf"
-# An EMPTY machine-id, not a copied one: systemd generates a fresh one on first
-# boot. Copying the host's would give two machines the same identity, which
-# breaks journald, DHCP leases keyed on it, and systemd-boot's entry tokens.
-: > "$MNT/etc/machine-id"
+# A REAL machine-id, GENERATED HERE - not copied, and not left empty.
+#
+# Copying the host's would give two machines one identity, which breaks
+# journald, DHCP leases keyed on it, and systemd-boot's entry tokens.
+#
+# But leaving it EMPTY, which was the first attempt, breaks kernel-install:
+# Fedora's rescue hook builds a path from the machine-id and got
+#
+#   /usr/lib/kernel/install.d/51-dracut-rescue.install: line 91:
+#   /boot/fedora/0-rescue/loader/entries/<id>-0-rescue.conf: No such file
+#   or directory
+#
+# "systemd makes one on first boot" is true for a golden image that is never
+# booted here; this disk is a one-off install, and generating it now is what
+# Anaconda does too.
+inch systemd-machine-id-setup
 
 # --- the user ----------------------------------------------------------------
 note "creating $USERNAME"
@@ -174,6 +192,15 @@ if [[ -f /home/$USERNAME/.ssh/authorized_keys ]]; then
 fi
 
 # --- bootloader, then the kernel ---------------------------------------------
+# NO RESCUE KERNEL, which is a size decision and also removes the hook that
+# failed above. The rescue image is a ~100 MiB host-only initramfs built once
+# and never updated; on a machine that dual-boots a working NixOS beside it,
+# the rescue system IS the other disk. Delete this file to get it back.
+note "turning off the rescue image"
+mkdir -p "$MNT/etc/kernel"
+printf 'dracut_rescue_image=no\n' > "$MNT/etc/kernel/install.conf"
+rm -rf "$MNT/boot/fedora/0-rescue"
+
 note "installing systemd-boot to the ESP"
 inch bootctl install --esp-path=/boot
 
