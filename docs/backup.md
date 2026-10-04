@@ -62,24 +62,24 @@ drawer" work without re-running setup on every swap.
 | machine | disks, in order |
 |---|---|
 | Framework (Fedora) | Samsung T5 `8C26-3AF6`, LaCie `b2bddbef…` |
-| Desktop (Gentoo) | T5, LaCie, then the internal NixOS drive `ffc9a423…` at `/mnt/nixhome` |
+| Desktop (Fedora) | **not set up yet** |
 | Desktop (NixOS) | T5, LaCie |
 
 Each disk holds a **complete repository of its own**, not half of one, so either
 can restore a machine alone. They are independent: a snapshot taken while the T5
 was attached is not on the LaCie until the LaCie is attached and a run happens.
 
-The Gentoo desktop's third entry is an internal cross-disk copy — Gentoo's data
-onto the NixOS drive. It survives a drive dying and nothing else, which is why
-it is **last**: the externals win whenever one is plugged in.
+Gentoo used to hold a third entry here — an internal cross-disk copy onto the
+NixOS drive. Gentoo was replaced by Fedora on 2026-10-04 and **Fedora has no
+backup configured at all**, which is the largest open item on this page.
 
-**NixOS no longer has the mirror image of that.** It used to mount Gentoo's root
-at `/mnt/gentoo` and keep a third repository there; that was dropped on
-2026-10-04 and it now backs up to the external disks only. A copy on another
+**NixOS no longer has the mirror image of that either.** It used to mount
+Gentoo's root at `/mnt/gentoo` and keep a third repository there; that was
+dropped on 2026-10-04 and it now backs up to the external disks only. A copy on another
 partition of the same machine survives a dead drive and nothing else — not
 theft, not a power supply taking the board with it, not the mistake that deletes
 the wrong thing twice. The repository already written there is left in place,
-about 95 MB, and is still reachable from Gentoo itself.
+about 95 MB, and went with the disk when Fedora replaced Gentoo.
 
 The T5 now holds **two machines' snapshots in one repository**, tagged by host.
 That is how restic is designed to work and it dedupes across both.
@@ -189,7 +189,7 @@ ssh, so the mount is refused at exactly the moment a backup should happen:
 Error mounting /dev/sda1: ...NotAuthorizedCanObtain: Not authorized
 ```
 
-The Gentoo desktop carries a narrow rule for this in
+The old Gentoo desktop carried a narrow rule for this in
 `/etc/polkit-1/rules.d/50-fd44-udisks.rules`: one action
 (`filesystem-mount`), one user. On Fedora it never surfaced because the disks
 get mounted in-session when you plug them in.

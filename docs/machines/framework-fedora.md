@@ -20,7 +20,7 @@ cannot be opened by any passphrase. See [backup.md](../backup.md).
 
 **No discrete GPU**, so the bar's thermal readout is absent by design:
 `bin/thermal.sh` answers `ok: false` and `ThermalButton` draws nothing. Same
-mechanism that keeps the Bluetooth glyph off the Gentoo desktop.
+mechanism that keeps the Bluetooth glyph off the gaming desktop.
 
 **Hibernation is deliberately off.** Resuming from it has crashed this machine,
 so it is not configured and should not be added back.

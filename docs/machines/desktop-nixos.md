@@ -1,6 +1,6 @@
 # Gaming desktop — NixOS
 
-`nixos-gaming00`, on the desktop's Samsung NVMe. The same hardware as the Gentoo
+`nixos-gaming00`, on the desktop's Samsung NVMe. The same hardware as the Fedora
 install on the other drive, reached from the firmware boot menu.
 
 | | |
@@ -32,7 +32,7 @@ README, under *Installing from scratch*. In outline:
 5. Clone this repository into `~/Work`, then `bin/link-dotfiles.sh` and
    `bin/starship-setup.sh`.
 
-Unlike Gentoo beside it, this needs no other running system — the installer ISO
+Unlike Fedora beside it, this needs no other running system — the installer ISO
 is enough, which is why it is the sensible one to put on a blank desktop first.
 
 ## What lives in the NixOS repo, not this one
@@ -41,17 +41,19 @@ is enough, which is why it is the sensible one to put on a blank desktop first.
 |---|---|
 | `gaming.nix` | `fd44-gamemode-hold` (GameMode across the pressure-vessel boundary), `fd44-epp`, GameMode hooks for do-not-disturb |
 | `fd44.nix` | the GPU power limit |
-| `cooling.nix` | CoolerControl, whose fan curves the Gentoo install adopted unchanged |
+| `cooling.nix` | CoolerControl, whose fan curves the old Gentoo install adopted unchanged |
 | `hardware.nix` | RTKit and the rest |
 
-The Gentoo install reimplements several of these as scripts under
+The Gentoo install that used to sit beside this one reimplemented several of
+these as scripts under
 `/usr/local/bin` — `fd44-gamemode-hold`, `fd44-epp` — because a distribution
 without Nix has nowhere else to put them. They are deliberately the same
-behaviour, and `install/gentoo_gaming.sh` says so where it writes them.
+behaviour. Those scripts are gone with Gentoo; the salvaged originals are on
+the Samsung T5 under `gentoo-keepsakes/setup/`.
 
 ## Open on this machine
 
-- **No backup is configured.** The laptop and the Gentoo install both have one;
+- **No backup is configured.** The laptop has one;
   this does not. It is the largest remaining gap on the desktop.
 - **`python3` was added to `packages.nix` on 2026-09-30 and needs a rebuild.**
   Until then the bar's update box reads "unknown" here, silently — an indicator

@@ -132,7 +132,7 @@ per machine:
 | | |
 |---|---|
 | [Framework 13 (AMD) — Fedora](docs/machines/framework-fedora.md) | the laptop, and the machine everything is compared against |
-| [Gaming desktop — Gentoo](docs/machines/desktop-gentoo.md) | `gentoo-gaming00`, and the traps it taught |
+| [Gaming desktop — Fedora](docs/machines/desktop-fedora.md) | `fedora-gaming00`, and the traps it taught |
 | [Gaming desktop — NixOS](docs/machines/desktop-nixos.md) | `nixos-gaming00`, whose system config lives in `fd44_nixos` |
 
 **If a machine is gone entirely**, start at
@@ -140,28 +140,24 @@ per machine:
 machine before a restore is possible, which system to install first when more
 than one is missing, and a link to each system's own steps.
 
-### Gentoo, on the gaming desktop
+### Fedora, on the gaming desktop
 
-The same desktop, built a second way. The gaming desktop dual-boots NixOS and
-Gentoo from separate NVMes with separate ESPs, chosen from the firmware menu, and
-the Gentoo side is built by a chain rather than one script - each stage is
-re-runnable, because a Gentoo install is not a thing that succeeds on the first
-attempt:
+The gaming desktop dual-boots NixOS and Fedora from separate NVMes with separate
+ESPs, chosen from the firmware menu. **Gentoo was here until 2026-10-04** and was
+replaced; its installer scripts are gone from this repository and what was worth
+keeping is on the Samsung T5 under `gentoo-keepsakes/`.
+
+Fedora is built in four stages, three of which run from the NixOS on the other
+disk. There is no install medium — a partition table, `dnf5 --installroot`, and a
+chroot. Each stage is dry by default and re-runnable, because an install is not a
+thing that succeeds on the first attempt.
 
 | | |
 |---|---|
-| `install_gentoo.sh` | partitions, unpacks a verified stage3, and chroots |
-| `gentoo_chroot.sh` | the system: profile, kernel, systemd-boot, network, `CPU_FLAGS_X86` from the real CPU, a daily sync timer |
-| `gentoo_enter.sh` | re-enter the chroot later, to repair rather than reinstall |
-| `gentoo_gaming.sh` | multilib, the 32-bit NVIDIA stack, Steam, GameMode and the `/dev/uinput` rule Steam Input needs |
-| `gentoo_desktop.sh` | Hyprland and quickshell from GURU and hyproverlay, the fonts, `nvidia_drm modeset`, a quiet boot and autologin |
-
-**The same `quickshell/` and `hypr/` drive it**, linked by `bin/link-dotfiles.sh`
-exactly as on Fedora - which is the point of the exercise, and what turns up the
-assumptions. A bar plugin that reads `/sys` the Fedora way, a keybind naming a
-file manager the distribution does not install, an `/etc/os-release` parsed for
-one quoting style: all of those were found by running this configuration on a
-distribution it was not written on.
+| `install_fedora_desktop.sh` | partitions and formats, by-id only, serial typed to confirm |
+| `fedora_bootstrap.sh` | `@core` plus a named list into the installroot |
+| `fedora_chroot.sh` | fstab, identity, systemd-boot, the kernel, SELinux labels |
+| `fedora_desktop.sh` | runs on Fedora: RPM Fusion, NVIDIA, a minimal KDE |
 
 ### Plasma instead
 
@@ -449,9 +445,10 @@ bin/             link-dotfiles.sh — point ~/.config at this checkout; run it a
                  chrome-theme.sh · chromium-policy-setup.sh — browser colours, root-written
                  gaming-setup.sh — opt-in, not run by the installer
                  starship-setup.sh — opt-in two-line prompt, per user, no sudo
-install/         install_fedora.sh - the installer - and vm-test.sh, plus the
-                 Gentoo chain: install_gentoo.sh, gentoo_chroot.sh,
-                 gentoo_enter.sh, gentoo_gaming.sh, gentoo_desktop.sh
+  install/         install_fedora.sh - the laptop's installer - and vm-test.sh,
+                   plus the gaming desktop's Fedora chain, which runs from the
+                   NixOS beside it: install_fedora_desktop.sh (partition),
+                   fedora_bootstrap.sh, fedora_chroot.sh, fedora_desktop.sh
 docs/            keybindings.md and its printable twin; backup.md - how to
                  restore, and what has to be kept off the machine for that to
                  be possible; machines/ - one page per machine, for what is
@@ -1329,7 +1326,7 @@ Each of these cost real time, and none produced an error message.
 - **No off-site copy of anything.** Both backup disks live in the same rooms as
   the machines they protect, which answers a dead disk and not a burgled flat.
   See [`docs/backup.md`](docs/backup.md).
-- The NixOS desktop has no backup configured - the laptop and the Gentoo install
+- The NixOS desktop has no backup configured - the laptop and the Fedora install
   do.
 - `bin/updates.py`'s NixOS paths are carried over from the shell version it
   replaced but have not been run on that machine yet.

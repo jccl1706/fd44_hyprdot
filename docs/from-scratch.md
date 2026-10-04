@@ -8,7 +8,7 @@ to do them in.
 |---|---|
 | Framework 13 — Fedora | [machines/framework-fedora.md](machines/framework-fedora.md#installing-it-from-nothing) |
 | Gaming desktop — NixOS | [machines/desktop-nixos.md](machines/desktop-nixos.md#installing-it-from-nothing) |
-| Gaming desktop — Gentoo | [machines/desktop-gentoo.md](machines/desktop-gentoo.md#installing-it-from-nothing) |
+| Gaming desktop — Fedora | [machines/desktop-fedora.md](machines/desktop-fedora.md#installing-it-from-nothing) |
 
 > **Read the next section today, not on the day.** Everything here assumes you
 > can decrypt a backup. If you cannot, the rest is only a fresh install of an
@@ -35,10 +35,10 @@ machine.
 
 ## The order, when more than one is gone
 
-**On a blank gaming desktop, install NixOS first.** Gentoo's installer runs from
+**On a blank gaming desktop, install NixOS first.** Fedora's installer runs from
 a *running Linux* rather than from its own ISO — that is deliberate, and it
 means the desktop needs something to install from. NixOS's installer ISO needs
-nothing, so it is the sensible first system; Gentoo then goes onto the other
+nothing, so it is the sensible first system; Fedora then goes onto the other
 drive from inside it. A live ISO works too, but a working NixOS is more use
 afterwards than a live session is.
 
