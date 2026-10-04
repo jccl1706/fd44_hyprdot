@@ -57,9 +57,20 @@ done
 [[ -n $DISK && $DISK == /dev/disk/by-id/* ]] || die "--disk <by-id path> required"
 TARGET="$(readlink -f "$DISK")"; ESP="${TARGET}p1"; ROOT="${TARGET}p2"
 
+# MOUNT IF NEEDED rather than refusing. This is stage three of a sequence that
+# has had to be re-run several times, and a clean-up between attempts leaves the
+# filesystems unmounted - which is the correct state to clean up TO. Refusing
+# then makes the operator run two commands where one would do, and hand-typing
+# mount lines for the disk you are installing to is exactly where a wrong device
+# gets typed.
+findmnt -n "$MNT"      >/dev/null 2>&1 || { mkdir -p "$MNT";      mount "$ROOT" "$MNT"; }
+findmnt -n "$MNT/boot" >/dev/null 2>&1 || { mkdir -p "$MNT/boot"; mount "$ESP"  "$MNT/boot"; }
+
+# CHECKED AFTER MOUNTING, not before - which is the order it has to be. An
+# unmounted /mnt/fedora is an empty directory, so testing it first reports "not
+# bootstrapped" for a perfectly good install and sends you looking for a problem
+# that is not there.
 [[ -d $MNT/usr/lib/modules ]] || die "$MNT does not look bootstrapped - run stage two first"
-findmnt -n "$MNT"      >/dev/null || die "$MNT is not mounted"
-findmnt -n "$MNT/boot" >/dev/null || die "$MNT/boot is not mounted (the ESP)"
 
 # REMOUNT THE ESP WITH umask=0077 to match the fstab written below. bootctl
 # writes a random seed there and refuses to be quiet about a world-readable
