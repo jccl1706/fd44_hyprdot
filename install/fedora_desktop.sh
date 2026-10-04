@@ -68,7 +68,19 @@ KDE=(
     plasma-systemsettings
     plasma-nm plasma-pa
     kscreen
-    breeze-gtk
+
+    # BREEZE FOR GTK APPLICATIONS, which is two packages, not one. breeze-gtk is
+    # only the theme sitting in /usr/share/themes; nothing reads it on its own,
+    # and a fresh Plasma install leaves GTK applications on Adwaita. kde-gtk-config
+    # is the part that applies it: it writes ~/.config/gtk-{3,4}.0/settings.ini
+    # and the matching gsettings keys, and rewrites them whenever the Plasma
+    # colour scheme changes, so light/dark stays in step with one setting.
+    #
+    # THIS IS ALSO WHAT THEMES BRAVE. Chromium follows Plasma through
+    # chromium-qt6-ui below, but Brave's upstream build has no Qt variant and
+    # derives its colours from the GTK theme, so Brave is Breeze only once
+    # kde-gtk-config has written those files.
+    breeze-gtk kde-gtk-config
 
     # DISCOVER, and only the backend this machine actually uses. Fedora splits
     # it into nine packages: plasma-discover is the shell, and each backend is
