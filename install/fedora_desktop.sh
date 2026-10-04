@@ -189,7 +189,7 @@ dnf -y install "${CHROMIUM[@]}"
 # more often than anything else on the machine, and it should come through the
 # same dnf that updates everything else.
 note "adding Brave's repository"
-rpm --import https://brave-browser-rpm-release.s3.brave.com/brave-browser.asc
+rpm --import https://brave-browser-rpm-release.s3.brave.com/brave-core.asc
 dnf -y config-manager addrepo --from-repofile=https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo \
     || dnf -y config-manager --add-repo https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo
 
