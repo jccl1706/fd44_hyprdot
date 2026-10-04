@@ -121,10 +121,20 @@ inch() {
 note "binding /dev /proc /sys /run"
 for d in dev dev/pts proc sys run; do
     mkdir -p "$MNT/$d"
-    if ! findmnt -n "$MNT/$d" >/dev/null 2>&1; then
-        mount --rbind "/$d" "$MNT/$d"
-        mount --make-rslave "$MNT/$d"
-    fi
+    findmnt -n "$MNT/$d" >/dev/null 2>&1 || mount --rbind "/$d" "$MNT/$d"
+    # UNCONDITIONALLY, not only for mounts this run created. A bind left behind
+    # by an earlier, failed run is SHARED, and skipping it because it is already
+    # mounted leaves exactly the propagation this fix exists to prevent. That is
+    # what happened: the run that first carried --make-rslave still unmounted
+    # /run/wrappers from the host, because the bind was inherited from the
+    # previous attempt and never re-slaved. /run/wrappers holds NixOS's setuid
+    # wrappers, including the unix_chkpwd that pam_unix executes, so every ssh
+    # login after that point failed with
+    #
+    #   fatal: Access denied for user jc by PAM account configuration
+    #
+    # on a machine whose account database was perfectly fine.
+    mount --make-rslave "$MNT/$d"
 done
 cleanup() {
     note "unbinding"
