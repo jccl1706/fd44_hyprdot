@@ -64,6 +64,34 @@ done
 (( EUID == 0 )) || die "run this with sudo - it partitions a disk"
 [[ -n $DISK ]]  || die "no --disk. Pick one from: ls -l /dev/disk/by-id/nvme-*"
 
+# --- every tool, checked BEFORE anything is touched --------------------------
+#
+# THIS CHECK EXISTS BECAUSE IT WAS MISSING ONCE. The first real run wiped the
+# partition table and then died on `sgdisk: command not found`, leaving the disk
+# with no table and no new one - survivable only because that disk was being
+# destroyed anyway. A destructive script must establish it can finish before it
+# starts.
+#
+# NixOS is the reason, and it is not a NixOS fault: it installs nothing it was
+# not asked for, so gptfdisk and parted are simply absent unless named.
+# packages.nix in fd44_nixos carries neither. The hint names the nixpkgs attrs
+# rather than the binaries, because that is what has to be installed.
+missing=""
+need() { command -v "$1" >/dev/null 2>&1 || missing+="    $1  (nixpkgs: $2)"$'\n'; }
+need wipefs    util-linux
+need sgdisk    gptfdisk
+need partprobe parted
+need udevadm   systemd
+need mkfs.vfat dosfstools
+need mkfs.ext4 e2fsprogs
+need lsblk     util-linux
+need findmnt   util-linux
+if [[ -n $missing ]]; then
+    warn "missing tools, and this script will not start without them:"
+    printf '%s' "$missing" >&2
+    die "on NixOS:  nix-shell -p gptfdisk parted dosfstools --run 'sudo $0 ...'"
+fi
+
 # --- the target, and the thing it must not be --------------------------------
 #
 # THREE SEPARATE CHECKS, because this is the step with no undo. A by-id path
