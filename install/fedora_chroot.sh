@@ -233,8 +233,19 @@ fi
 #
 # kernel-install reads /etc/kernel/install.d before /usr/lib/kernel/install.d
 # and a symlink to /dev/null there disables a plugin outright - the same
-# convention systemd uses for masking units. The setting is kept too, since it
-# is correct even if it is not sufficient.
+# convention systemd uses for masking units. That alone does the job.
+#
+# AND THE SETTING IS NOT KEPT ALONGSIDE IT, which is a correction: it was left
+# in /etc/kernel/install.conf on the first install, on the grounds that it was
+# "correct even if not sufficient". It is neither. dracut_rescue_image is not a
+# key systemd's kernel-install knows - it belonged to Fedora's older dracut
+# hooks - so every single run printed
+#
+#   /etc/kernel/install.conf:1: Unknown key 'dracut_rescue_image', ignoring.
+#
+# and a line that does nothing but add a warning to every kernel update is worse
+# than no line. Nothing here writes install.conf; if one exists it should carry
+# only keys systemd documents, such as layout= or initrd_generator=.
 note "masking the rescue-image hook"
 mkdir -p "$MNT/etc/kernel" "$MNT/etc/kernel/install.d"
 ln -sf /dev/null "$MNT/etc/kernel/install.d/51-dracut-rescue.install"
