@@ -237,9 +237,30 @@ fi
 # is correct even if it is not sufficient.
 note "masking the rescue-image hook"
 mkdir -p "$MNT/etc/kernel" "$MNT/etc/kernel/install.d"
-printf 'dracut_rescue_image=no\n' > "$MNT/etc/kernel/install.conf"
 ln -sf /dev/null "$MNT/etc/kernel/install.d/51-dracut-rescue.install"
 rm -rf "$MNT/boot/fedora/0-rescue"
+
+# --- THE KERNEL COMMAND LINE, WRITTEN DOWN -----------------------------------
+#
+# WITHOUT THIS THE NEW SYSTEM INHERITS THE OLD ONE'S. 90-loaderentry.install
+# falls back to the RUNNING kernel's /proc/cmdline when /etc/kernel/cmdline is
+# absent - and /proc here is bind-mounted from the host, so the first entry this
+# script produced read:
+#
+#   options init=/nix/store/x3y0srd8q4a3...-nixos-system-.../init quiet ...
+#           root=fstab splash loglevel=0 lsm=landlock,yama,bpf
+#
+# Fedora booting with NixOS's init= and root=fstab is a panic, and a baffling
+# one: the entry looks perfect, the files it names exist, and the failure says
+# nothing about where the line came from.
+#
+# WHAT IS ON IT. root by UUID, for the reason everything here is by UUID. ro
+# because the initramfs mounts read-only and systemd remounts rw - mounting rw
+# in the initramfs skips the fsck. Nothing else: no quiet, no splash. A machine
+# being installed for the first time should say what it is doing, and these are
+# one edit away once it is known to work.
+printf 'root=UUID=%s ro\n' "$ROOT_UUID" > "$MNT/etc/kernel/cmdline"
+printf '  cmdline: %s' "$(cat "$MNT/etc/kernel/cmdline")"
 
 # --no-variables, AND THAT IS THE WHOLE POINT OF THIS COMMENT.
 #
