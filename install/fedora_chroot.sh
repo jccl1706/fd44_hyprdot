@@ -201,8 +201,21 @@ mkdir -p "$MNT/etc/kernel"
 printf 'dracut_rescue_image=no\n' > "$MNT/etc/kernel/install.conf"
 rm -rf "$MNT/boot/fedora/0-rescue"
 
-note "installing systemd-boot to the ESP"
-inch bootctl install --esp-path=/boot
+# --no-variables, AND THAT IS THE WHOLE POINT OF THIS COMMENT.
+#
+# Without it, bootctl writes a firmware boot entry AND PUTS ITSELF FIRST. Run
+# against a tree that has no kernel yet - which is exactly what this script is
+# doing at this moment - the next boot hands control to a systemd-boot with an
+# empty loader/entries, and the machine reaches no operating system at all.
+# That happened: the install left BootOrder as 0002,0001,... with 0002 being
+# this half-finished Fedora, and the box had to be rescued through the
+# firmware's boot menu.
+#
+# The loader is still installed to the ESP; only NVRAM is left alone. The entry
+# gets added deliberately in stage four, after there is something to boot, and
+# the order is set explicitly then.
+note "installing systemd-boot to the ESP (not touching firmware variables)"
+inch bootctl install --esp-path=/boot --no-variables
 
 note "placing the kernel and building its initramfs"
 inch kernel-install add "$KVER" "/usr/lib/modules/$KVER/vmlinuz"
