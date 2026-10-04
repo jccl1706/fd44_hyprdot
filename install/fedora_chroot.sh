@@ -76,6 +76,28 @@ printf '  %-12s /boot=UUID=%s (the ESP)\n' "" "$ESP_UUID"
 printf '  bootctl install, kernel-install add, /.autorelabel\n\n'
 (( GO )) || { warn "DRY RUN. Re-run with --go."; exit 0; }
 
+# --- running things inside -----------------------------------------------------
+#
+# PATH HAS TO BE SET, and forgetting it fails in a way that reads as a missing
+# package. `chroot` passes the caller's environment straight through, so inside
+# the chroot PATH still points at /run/current-system/sw/bin and the rest of
+# NixOS - none of which exists there. The first run died on
+#
+#   chroot: failed to run command 'bootctl': No such file or directory
+#
+# with /mnt/fedora/usr/bin/bootctl sitting right there. The groupadd and useradd
+# calls above happened to work only because they were written as absolute paths.
+#
+# env -i rather than appending: the host's LD_LIBRARY_PATH, LOCALE_ARCHIVE and
+# the rest of NixOS's environment have no meaning inside and some of it actively
+# misleads glibc.
+inch() {
+    chroot "$MNT" /usr/bin/env -i \
+        PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+        HOME=/root TERM="${TERM:-linux}" \
+        "$@"
+}
+
 # --- the chroot needs a kernel's view of the world ---------------------------
 note "binding /dev /proc /sys /run"
 for d in dev dev/pts proc sys run; do
@@ -119,8 +141,8 @@ echo 'LANG="en_US.UTF-8"' > "$MNT/etc/locale.conf"
 
 # --- the user ----------------------------------------------------------------
 note "creating $USERNAME"
-chroot "$MNT" /usr/sbin/groupadd -g "$USERUID" "$USERNAME" 2>/dev/null || true
-chroot "$MNT" /usr/sbin/useradd -u "$USERUID" -g "$USERUID" -G wheel \
+inch groupadd -g "$USERUID" "$USERNAME" 2>/dev/null || true
+inch useradd -u "$USERUID" -g "$USERUID" -G wheel \
     -m -s /bin/bash "$USERNAME" 2>/dev/null || true
 # The same key that reaches this machine now, so the new system is reachable
 # before it has a display working - which is the whole point of installing
@@ -134,10 +156,10 @@ fi
 
 # --- bootloader, then the kernel ---------------------------------------------
 note "installing systemd-boot to the ESP"
-chroot "$MNT" bootctl install --esp-path=/boot
+inch bootctl install --esp-path=/boot
 
 note "placing the kernel and building its initramfs"
-chroot "$MNT" kernel-install add "$KVER" "/usr/lib/modules/$KVER/vmlinuz"
+inch kernel-install add "$KVER" "/usr/lib/modules/$KVER/vmlinuz"
 
 note "what landed on the ESP"
 ls "$MNT/boot" | sed 's/^/  /'
@@ -145,16 +167,16 @@ ls "$MNT/boot/loader/entries" 2>/dev/null | sed 's/^/  entry: /' || warn "no loa
 
 # --- services and SELinux ----------------------------------------------------
 note "enabling NetworkManager and sshd"
-chroot "$MNT" systemctl enable NetworkManager sshd
+inch systemctl enable NetworkManager sshd
 
 note "scheduling the SELinux relabel for first boot"
 : > "$MNT/.autorelabel"
 
 printf '\n'
 note "set a root password (you will need it if the network does not come up)"
-chroot "$MNT" passwd root
+inch passwd root
 note "and a password for $USERNAME"
-chroot "$MNT" passwd "$USERNAME"
+inch passwd "$USERNAME"
 
 printf '\n'
 note "done - this should now boot"
