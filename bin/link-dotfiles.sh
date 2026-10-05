@@ -133,6 +133,14 @@ wants Hyprland  "hypr"       && link hypr       "$CONFIG/hypr"
 wants quickshell "quickshell" && link quickshell "$CONFIG/quickshell"
 wants kitty     "kitty"      && link kitty      "$CONFIG/kitty"
 
+# CLAUDE CODE AGAINST A LOCAL OLLAMA, where there is an ollama. A shell function
+# rather than exported variables, so a terminal that is not for this keeps
+# talking to the real API. See the file for why the context window has to be
+# declared by hand.
+if have ollama || $force_all; then
+    link bashrc.d/ollama-claude.sh "$HOME/.bashrc.d/ollama-claude.sh"
+fi
+
 # These three do not care what draws the screen.
 link tmux                   "$CONFIG/tmux"
 link starship/starship.toml "$CONFIG/starship.toml"
