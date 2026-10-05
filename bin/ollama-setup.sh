@@ -148,6 +148,19 @@ Environment="OLLAMA_HOST=127.0.0.1:11434"
 # small one. Lower it if models start spilling to the CPU; `ollama ps` names the
 # processor, and anything less than "100% GPU" is that.
 Environment="OLLAMA_CONTEXT_LENGTH=65536"
+
+# A QUANTIZED KV CACHE, WHICH IS NOT THE SAME AS A QUANTIZED MODEL. These two
+# compress the CONTEXT cache - the thing that grows as a session fills the window
+# - at 8 bits instead of 16, which is worth 2-3 GiB at 64k and does not touch the
+# weights, so output quality is unaffected. Flash attention is required for the
+# cache type to take effect at all.
+#
+# It is the only lever on this card that frees real VRAM. Quantizing the model
+# further is the wrong direction here: 30.3 GiB of q8_0 weights leave no room for
+# a cache in 31.8 GiB, and the next model size up is 60-plus GiB, which no quant
+# closes. The 30B at Q4_K_M with a q8_0 cache is where this hardware lands.
+Environment="OLLAMA_FLASH_ATTENTION=1"
+Environment="OLLAMA_KV_CACHE_TYPE=q8_0"
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
 
 # The models directory is the only thing it needs to write.
