@@ -55,6 +55,21 @@ PKGS=(
     mangohud.x86_64 mangohud.i686
     gamescope
     vulkan-tools
+
+    # XPAD, WHICH FEDORA DOES NOT SHIP IN THE MAIN KERNEL PACKAGE. A wired Xbox
+    # controller needs the xpad driver, and Fedora puts it in
+    # kernel-modules-extra - so a stock install has every other controller driver
+    # (hid_playstation, hid_nintendo, hid_sony, hid_steam are all in the base
+    # kernel) and not the most common one. The pad simply does nothing: no device
+    # under /dev/input, nothing in Steam, and no error anywhere to explain it.
+    #
+    # Measured on this machine: `modinfo -n xpad` reported not present while
+    # every other pad driver resolved.
+    #
+    # It is a kernel subpackage, so once installed a kernel update brings the
+    # matching version with it and the driver does not disappear on the next
+    # reboot.
+    kernel-modules-extra
 )
 
 if (( ! GO )); then
