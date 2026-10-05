@@ -28,8 +28,16 @@
 # calls were verified returning stop_reason tool_use with well-formed input.
 if command -v ollama >/dev/null 2>&1; then
     claude-local() {
-        local model="${1:-qwen3-coder:30b}" ctx
-        (( $# )) && shift
+        local model="${OLLAMA_CLAUDE_MODEL:-qwen3-coder:30b}" ctx
+
+        # A FIRST ARGUMENT IS A MODEL ONLY IF IT IS NOT A FLAG. Taking $1 as the
+        # model unconditionally meant `claude-local -p "..."` passed `-p` as the
+        # model name and Claude Code answered "API Error: 400 invalid model
+        # name" - the flag had been eaten, and nothing said so.
+        if [[ -n ${1-} && ${1-} != -* ]]; then
+            model="$1"
+            shift
+        fi
 
         # THE LOADED CONTEXT, FROM THE API AND NOT FROM `ollama ps`. The table's
         # UNTIL column is several words ("4 minutes from now"), so counting
