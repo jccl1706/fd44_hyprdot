@@ -28,6 +28,21 @@
 # most of which is the CUDA runtime it brings so the system needs no CUDA
 # toolkit - only the driver, which xorg-x11-drv-nvidia already provides.
 #
+# IT SPEAKS ANTHROPIC'S API TOO, which is the reason the context length below is
+# set. Since v0.14.0 Ollama serves an Anthropic-compatible /v1/messages endpoint,
+# so Claude Code runs against a local model with three environment variables -
+# or `ollama launch claude`, which sets them and starts it:
+#
+#   export ANTHROPIC_AUTH_TOKEN=ollama
+#   export ANTHROPIC_API_KEY=""
+#   export ANTHROPIC_BASE_URL=http://localhost:11434
+#
+# Ollama's docs recommend 64k context or more for a repository of any size, and
+# ask for a model with tool calling. They also say plainly that hosted WebSearch
+# and the advanced tool controls are not fully supported, so this is not the
+# whole of Claude Code - it is chat, file edits and tool calls against whatever
+# model is loaded.
+#
 # IT LISTENS ON LOCALHOST ONLY. The service binds 127.0.0.1:11434 by default and
 # this script does not change that. The API has no authentication of any kind,
 # so anything that can reach it can use the GPU and read every model and prompt.
@@ -126,6 +141,13 @@ RestartSec=3
 
 # LOCALHOST ONLY, deliberately - the API is unauthenticated. See the header.
 Environment="OLLAMA_HOST=127.0.0.1:11434"
+
+# 64K CONTEXT, because the default is far smaller and an agent fills it at once.
+# This is per loaded model and costs VRAM - about 16 GiB for an 8B at this length
+# against 10 at 32k - which is affordable on a 32 GiB card and would not be on a
+# small one. Lower it if models start spilling to the CPU; `ollama ps` names the
+# processor, and anything less than "100% GPU" is that.
+Environment="OLLAMA_CONTEXT_LENGTH=65536"
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
 
 # The models directory is the only thing it needs to write.
@@ -154,5 +176,6 @@ printf '  %-14s %s\n' "service"  "$(systemctl is-active ollama.service)"
 printf '  %-14s %s\n' "listening" "$(ss -ltn 2>/dev/null | awk '/11434/{print $4; exit}')"
 printf '  %-14s %s\n' "gpu"      "$(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null)"
 printf '\n'
-log "pull a model, as yourself:  ollama run gemma3:12b"
+log "pull a model, as yourself:  ollama pull qwen3:8b"
+log "Claude Code against it:        ollama launch claude"
 log "the GPU is only used once a model is loaded - check with: ollama ps"
