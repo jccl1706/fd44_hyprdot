@@ -147,7 +147,17 @@ Environment="OLLAMA_HOST=127.0.0.1:11434"
 # against 10 at 32k - which is affordable on a 32 GiB card and would not be on a
 # small one. Lower it if models start spilling to the CPU; `ollama ps` names the
 # processor, and anything less than "100% GPU" is that.
-Environment="OLLAMA_CONTEXT_LENGTH=65536"
+# 128K CONTEXT, which is what the freed VRAM is for. qwen3-coder holds far more
+# than 64k, and Claude Code against a real repository runs out of context long
+# before it runs out of weight precision - so on a dedicated card the context
+# window is the better place to spend VRAM than a higher-precision model. The
+# measured cost at 64k was 3.4 GiB of cache against 17.3 of weights; 128k roughly
+# doubles the cache and still leaves room on a 32 GiB card.
+#
+# LOWER THIS ON A SMALLER CARD, and lower it if `ollama ps` ever reports less than
+# "100% GPU" - a context that does not fit spills to the CPU, and that costs far
+# more than the window is worth.
+Environment="OLLAMA_CONTEXT_LENGTH=131072"
 
 # A QUANTIZED KV CACHE, WHICH IS NOT THE SAME AS A QUANTIZED MODEL. These two
 # compress the CONTEXT cache - the thing that grows as a session fills the window
@@ -161,6 +171,12 @@ Environment="OLLAMA_CONTEXT_LENGTH=65536"
 # closes. The 30B at Q4_K_M with a q8_0 cache is where this hardware lands.
 Environment="OLLAMA_FLASH_ATTENTION=1"
 Environment="OLLAMA_KV_CACHE_TYPE=q8_0"
+
+# NEVER UNLOAD. The default evicts a model five minutes after its last request,
+# so the next prompt waits for 18 GiB to come off disk. This machine does not
+# share its GPU with anything - no models while gaming was the explicit plan -
+# so there is nothing to give the VRAM back to.
+Environment="OLLAMA_KEEP_ALIVE=-1"
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
 
 # The models directory is the only thing it needs to write.
