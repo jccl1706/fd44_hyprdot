@@ -109,6 +109,19 @@ KDE=(
     # -notifier is what tells you updates exist without opening anything, which
     # is the same job the fd44 bar's update box does on the Hyprland machines.
     plasma-discover plasma-discover-packagekit plasma-discover-notifier
+
+    # REMOVABLE DISKS, which a minimal Plasma does not get. Dolphin's device
+    # list, the panel's Disks & Devices applet and the Device Notifier are all
+    # Solid talking to udisks2 over D-Bus, and Solid itself (kf6-solid) is only
+    # the client half - it arrives with Plasma, udisks2 does not. Without it a
+    # plugged-in drive is visible to lsblk and lsusb and INVISIBLE TO THE
+    # DESKTOP, with nothing anywhere saying why. Measured with the Samsung T5 on
+    # this machine: sda1 present, exfat, labelled, and absent from Dolphin.
+    #
+    # exfatprogs because that is what the external drives here are formatted
+    # with. The kernel mounts exfat on its own; without the userspace tools
+    # there is no fsck.exfat, so udisks can neither check nor relabel one.
+    udisks2 exfatprogs
     pipewire wireplumber pipewire-pulseaudio
 )
 
