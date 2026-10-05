@@ -5,7 +5,8 @@
 #
 # Usage:  sudo install/fedora_desktop.sh [--go]
 #
-# Stage four of four, and the first that runs ON the new machine rather than
+# Stage four of four, the last that is required, and the first that runs ON the
+# new machine rather than
 # from the one beside it. Stages one to three were a chroot; this needs a
 # running kernel to build a module against.
 #

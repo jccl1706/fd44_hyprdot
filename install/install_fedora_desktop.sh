@@ -5,7 +5,8 @@
 #
 # Usage:  sudo install/install_fedora_desktop.sh --disk <by-id path> [--go]
 #
-# Stage one of two: partition, format, and bootstrap a Fedora @core into a
+# Stage one of four, plus two opt-in stages. Partition, format, and bootstrap
+# a Fedora @core into a
 # chroot. Stage two - KDE, systemd-boot, NVIDIA, the user - is a separate
 # script, so that a mistake in it costs a chroot rather than a disk.
 #

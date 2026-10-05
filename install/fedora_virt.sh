@@ -5,7 +5,7 @@
 #
 # Usage:  sudo install/fedora_virt.sh [--go]
 #
-# Stage six, opt-in, run ON the Fedora install. The other half of what
+# Stage six of six, opt-in, run ON the Fedora install. The other half of what
 # fd44_nixos/modules/virtualisation.nix gives the NixOS system on the disk
 # beside this one, so the Windows 11 guest can run from either side.
 #

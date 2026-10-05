@@ -5,7 +5,7 @@
 #
 # Usage:  sudo install/fedora_bootstrap.sh --disk <by-id path> [--go]
 #
-# Stage two of three. Stage one (install_fedora_desktop.sh) partitioned and
+# Stage two of four. Stage one (install_fedora_desktop.sh) partitioned and
 # formatted; this fills the root with a @core Fedora, a kernel and
 # systemd-boot, and stops there. Stage three adds KDE and NVIDIA.
 #

@@ -5,7 +5,7 @@
 #
 # Usage:  sudo install/fedora_gaming.sh [--go]
 #
-# Stage five, opt-in, run ON the Fedora install. Separate from stage four for
+# Stage five of six, opt-in, run ON the Fedora install. Separate from stage four for
 # the reason bin/gaming-setup.sh gives: Steam is a feature set one machine
 # wants, not something every install is broken without.
 #
