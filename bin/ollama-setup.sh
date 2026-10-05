@@ -193,15 +193,25 @@ RestrictSUIDSGID=yes
 WantedBy=multi-user.target
 UNITFILE
 
-log "enabling the service"
+# STARTED, NOT ENABLED, which is deliberate on this machine. With
+# OLLAMA_KEEP_ALIVE=-1 above, the first request pins ~24 GiB of VRAM until
+# something stops it, and a desktop that boots into that has given a third of its
+# graphics memory to a service it may not use that day. Nothing here needs to run
+# before someone asks for a model.
+#
+#   sudo systemctl start ollama      when you want it
+#   sudo systemctl enable ollama     if you change your mind
+#   ollama stop <model>              frees the VRAM without stopping the service
+log "starting the service (not enabling it at boot)"
 systemctl daemon-reload
-systemctl enable --now ollama.service
+systemctl start ollama.service
 
 sleep 3
 printf '\n'
 log "done"
 printf '  %-14s %s\n' "version"  "$("$PREFIX/bin/ollama" --version 2>&1 | tail -1)"
 printf '  %-14s %s\n' "service"  "$(systemctl is-active ollama.service)"
+printf '  %-14s %s\n' "at boot"  "$(systemctl is-enabled ollama.service 2>&1)"
 printf '  %-14s %s\n' "listening" "$(ss -ltn 2>/dev/null | awk '/11434/{print $4; exit}')"
 printf '  %-14s %s\n' "gpu"      "$(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null)"
 printf '\n'
