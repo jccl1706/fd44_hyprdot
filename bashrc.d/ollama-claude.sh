@@ -31,8 +31,28 @@ if command -v ollama >/dev/null 2>&1; then
         local model="${1:-qwen3-coder:30b}" ctx
         (( $# )) && shift
 
-        # The loaded context if the model is up, else a sensible guess per model.
-        ctx="$(ollama ps 2>/dev/null | awk -v m="$model" '$1 == m {print $(NF-1)}')"
+        # THE LOADED CONTEXT, FROM THE API AND NOT FROM `ollama ps`. The table's
+        # UNTIL column is several words ("4 minutes from now"), so counting
+        # fields from the end lands in the middle of it - the first version of
+        # this read `from` and handed that to Claude Code, which silently
+        # ignored it and went back to assuming 200k. /api/ps gives
+        # context_length as a number.
+        ctx="$(curl -fsS --max-time 2 http://localhost:11434/api/ps 2>/dev/null |
+            python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    raise SystemExit
+for m in d.get("models", []):
+    if m.get("name") == sys.argv[1] and m.get("context_length"):
+        print(m["context_length"])
+        break
+' "$model" 2>/dev/null)"
+
+        # Anything that is not a plain number is no answer at all.
+        [[ $ctx =~ ^[0-9]+$ ]] || ctx=""
+
         if [[ -z $ctx ]]; then
             case "$model" in
                 qwen3:8b)     ctx=40960 ;;
