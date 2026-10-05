@@ -202,6 +202,32 @@ UNITFILE
 #   sudo systemctl start ollama      when you want it
 #   sudo systemctl enable ollama     if you change your mind
 #   ollama stop <model>              frees the VRAM without stopping the service
+# THE POWER CAP, TIED TO THIS SERVICE RATHER THAN TO BOOT. Inference takes the
+# card from 21 W to 600 W in under two seconds and holds it there, which is what
+# makes the fans audible - measured on the RTX 5090: 45 C to 61 C in eight
+# seconds, 96% utilisation, mean draw 486 W.
+#
+# At 400 W - the card's floor; 350 is refused - mean draw falls to 333 W. The
+# throughput cost could not be pinned down precisely: decode fell about 9%, while
+# two runs at an unchanged 600 W differed by 8%, so the real cost is somewhere
+# between nothing and ten percent. 150 W less heat for that is worth having.
+#
+# A DROP-IN ON THE SERVICE, NOT A BOOT-TIME UNIT, because the same cap would
+# apply to games. This way the card is capped exactly while the model server is
+# up and runs at stock speed the rest of the time, which matches how this machine
+# is used - no models while gaming.
+#
+# The `+` prefix runs these as root: the service itself runs as the ollama user,
+# which cannot change a power limit. The `-` tolerates failure, so a machine with
+# no NVIDIA card still starts the service.
+log "capping the GPU to 400 W while ollama runs"
+install -d -m 0755 /etc/systemd/system/ollama.service.d
+cat > /etc/systemd/system/ollama.service.d/power-limit.conf <<'CAP'
+[Service]
+ExecStartPre=-+/usr/bin/nvidia-smi -pl 400
+ExecStopPost=-+/usr/bin/nvidia-smi -pl 600
+CAP
+
 log "starting the service (not enabling it at boot)"
 systemctl daemon-reload
 systemctl start ollama.service
@@ -212,6 +238,7 @@ log "done"
 printf '  %-14s %s\n' "version"  "$("$PREFIX/bin/ollama" --version 2>&1 | tail -1)"
 printf '  %-14s %s\n' "service"  "$(systemctl is-active ollama.service)"
 printf '  %-14s %s\n' "at boot"  "$(systemctl is-enabled ollama.service 2>&1)"
+printf '  %-14s %s\n' "gpu cap"  "$(nvidia-smi --query-gpu=power.limit --format=csv,noheader 2>/dev/null)"
 printf '  %-14s %s\n' "listening" "$(ss -ltn 2>/dev/null | awk '/11434/{print $4; exit}')"
 printf '  %-14s %s\n' "gpu"      "$(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null)"
 printf '\n'
