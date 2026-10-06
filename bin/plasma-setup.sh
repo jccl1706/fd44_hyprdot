@@ -95,14 +95,30 @@ echo "powerdevil    AC performance / battery power-saver"
 # caffeine. Without this the tray leaves it on automatic and collapses it into
 # the overflow arrow, so the toggle is two clicks away instead of one.
 #
-# CONTAINMENT 2, APPLET 7 is this machine's panel layout and is not a constant.
-# If the tray is somewhere else the key lands in a group nothing reads, which
-# is harmless but does nothing - check with --show, and find the right numbers
-# with: grep -n systemtray ~/.config/plasma-org.kde.plasma.desktop-appletsrc
-kw plasma-org.kde.plasma.desktop-appletsrc \
-   --group Containments --group 2 --group Applets --group 7 --group General \
-   --key shownItems org.kde.plasma.battery
-echo "system tray   battery applet always shown"
+# THE NUMBERS ARE FOUND, NOT ASSUMED. This used to write to containment 2,
+# applet 7 - the Framework's layout on the day it was worked out - with a
+# comment saying it would do nothing elsewhere. It did nothing elsewhere: on
+# the rebuilt desktop the tray is containment 285, applet 290, and the key went
+# into a group no program reads. Harmless, silent, and useless, which is the
+# worst combination because --show reported the value it had just written.
+#
+# Applet ids are generated per machine and change whenever a panel is rebuilt,
+# so the only reliable way to name the tray is to look for the plugin.
+APPLETSRC="${XDG_CONFIG_HOME:-$HOME/.config}/plasma-org.kde.plasma.desktop-appletsrc"
+tray_group="$(awk '
+    /^\[Containments\]\[[0-9]+\]\[Applets\]\[[0-9]+\]$/ { grp = $0 }
+    /^plugin=org\.kde\.plasma\.systemtray$/ { print grp; exit }
+' "$APPLETSRC" 2>/dev/null)"
+
+if [[ $tray_group =~ \[Containments\]\[([0-9]+)\]\[Applets\]\[([0-9]+)\] ]]; then
+    kw plasma-org.kde.plasma.desktop-appletsrc \
+       --group Containments --group "${BASH_REMATCH[1]}" \
+       --group Applets --group "${BASH_REMATCH[2]}" --group General \
+       --key shownItems org.kde.plasma.battery
+    echo "system tray   battery applet always shown (containment ${BASH_REMATCH[1]}, applet ${BASH_REMATCH[2]})"
+else
+    echo "system tray   not found in $APPLETSRC - nothing written"
+fi
 
 # ---- fonts ---------------------------------------------------------------
 #
