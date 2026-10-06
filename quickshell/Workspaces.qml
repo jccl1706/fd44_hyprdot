@@ -48,7 +48,22 @@ Row {
         // output it lives on, so there are no monitor rules to read and nothing
         // to infer. The pinning is in the KDL, declared once.
         if (Compositor.onNiri) {
+            // OCCUPIED OR FOCUSED, the same rule occupied() applies on the
+            // Hyprland path - and a correction to how this branch was first
+            // written. It drew every named workspace on the output, on the
+            // grounds that a named workspace always exists; but existing is not
+            // the question the row asks. Hyprland destroys an empty workspace, so
+            // "in the list" already means "has something on it" there, and this
+            // row has always shown only those plus wherever you are standing.
+            //
+            // IT ALSO FIXES WHAT UNPLUGGING DID. niri moves a disconnected
+            // output's workspaces to the remaining one, so undocking this laptop
+            // put all nine named workspaces plus niri's trailing empty one onto
+            // eDP-1 - ten chips on a 13 inch panel. With this filter the row
+            // shows the ones actually in use, which is what it shows on Hyprland
+            // in the same situation.
             const named = Compositor.namedWorkspacesOn(root.screenName)
+                              .filter(w => w.occupied || w.focused)
                               .map(w => parseInt(w.label, 10))
                               .filter(n => !isNaN(n))
             // Nothing named on this output is the unconfigured case - a monitor
@@ -56,7 +71,7 @@ Row {
             // ARE there are better than an empty row.
             if (named.length > 0) return named
             return Compositor.workspaceList
-                       .filter(w => w.output === root.screenName)
+                       .filter(w => w.output === root.screenName && (w.occupied || w.focused))
                        .sort((a, b) => a.order - b.order)
                        .map(w => parseInt(w.label, 10))
                        .filter(n => !isNaN(n))

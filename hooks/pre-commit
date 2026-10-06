@@ -33,9 +33,27 @@ git diff --cached --name-only --diff-filter=ACM | grep -q '^quickshell/.*\.qml$'
 # while bin/qs-check.sh prints every message - including its failures - with
 # printf to STDOUT. So stdout went to /dev/null, .git/qs-check.err was always
 # empty, and three separate refusals in a row could not be explained at all.
+# EXIT 2 IS NOT A FAILED CONFIG, and the hook used to refuse the commit for it
+# anyway. bin/qs-check.sh already separates the two: 1 means the configuration did
+# not load, 2 means the check could not be run at all - no Wayland session, no
+# Hyprland, or its nested compositor never came up.
+#
+# The case that forced this: qs-check nests a HYPRLAND to test in, so running it
+# from a niri session fails with "no new Wayland socket" every time. Refusing
+# every QML commit because the test harness cannot start is the wrong answer -
+# the right one is to say so and let the commit through, which is also what
+# happens on a machine with no desktop at all.
 printf '\033[1;32m==>\033[0m %s\n' "pre-commit: checking the shell config loads"
-if ! "$root/bin/qs-check.sh" >"$root/.git/qs-check.err" 2>&1; then
-    printf '\033[1;31m%s\033[0m\n' "pre-commit: the check did not pass - commit refused"
+"$root/bin/qs-check.sh" >"$root/.git/qs-check.err" 2>&1
+_qs_status=$?
+if (( _qs_status == 2 )); then
+    printf '\033[1;33m%s\033[0m\n' "pre-commit: could not run the check - committing without it"
+    sed 's/^/  /' "$root/.git/qs-check.err" | tail -3
+    printf '%s\n' "  (qs-check nests a Hyprland; from a niri session it cannot)"
+    exit 0
+fi
+if (( _qs_status != 0 )); then
+    printf '\033[1;31m%s\033[0m\n' "pre-commit: the configuration does not load - commit refused"
     # REPLAYED, NOT RE-RUN. This used to run the check a second time so you could
     # watch it fail, which was reasonable while the only failure was a config
     # that does not load. It is actively misleading once a failure is

@@ -119,6 +119,11 @@ Singleton {
     //   named    niri only, and the whole point of design B: a named workspace
     //            ALWAYS EXISTS, so the row can be a fixed set of chips rather
     //            than one that reflows as workspaces come and go.
+    //   occupied whether anything is on it. ON NIRI THIS CANNOT BE INFERRED FROM
+    //            EXISTENCE, which is the difference that matters: a named niri
+    //            workspace exists whether or not it holds a window, while a
+    //            Hyprland workspace is destroyed when its last window leaves - so
+    //            on Hyprland "in the list" already means occupied.
     //   order    what to sort by. niri HANDS THESE OVER UNORDERED - measured as
     //            2,3,5,6,4,1,7,9,8 for workspaces declared 1 to 9 - so a row that
     //            draws them in list order draws them scrambled. idx is their
@@ -139,6 +144,7 @@ Singleton {
                 output: w.output ? String(w.output) : "",
                 focused: w.is_focused === true,
                 named: !!w.name,
+                occupied: (Niri.windows || []).some(win => win.workspace_id === w.id),
                 order: w.idx
             }))
         }
@@ -152,6 +158,7 @@ Singleton {
                     output: w.monitor ? String(w.monitor.name || "") : "",
                     focused: w.focused === true,
                     named: false,
+                    occupied: true,
                     order: w.id
                 })
             }
