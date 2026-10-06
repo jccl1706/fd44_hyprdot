@@ -130,6 +130,14 @@ printf '\nlinking into %s\n\n' "${REPO/#$HOME/\~}"
 # else - the installer can build KDE Plasma instead - these are three symlinks
 # into a checkout that nothing ever reads.
 wants Hyprland  "hypr"       && link hypr       "$CONFIG/hypr"
+
+# THE WHOLE DIRECTORY, not niri/config.kdl on its own, and that is forced rather
+# than chosen: niri resolves a relative include against the directory the config
+# was FOUND in, not the one a symlink points at. Linking the file alone sends it
+# looking in ~/.config/niri for fragments that live in the checkout. Same
+# arrangement as hypr above, and the generated fragments that land here as a
+# result are gitignored, as hypr's are.
+wants niri      "niri"       && link niri       "$CONFIG/niri"
 wants quickshell "quickshell" && link quickshell "$CONFIG/quickshell"
 wants kitty     "kitty"      && link kitty      "$CONFIG/kitty"
 
@@ -139,6 +147,18 @@ wants kitty     "kitty"      && link kitty      "$CONFIG/kitty"
 # declared by hand.
 if have ollama || $force_all; then
     link bashrc.d/ollama-claude.sh "$HOME/.bashrc.d/ollama-claude.sh"
+fi
+
+# THE LOGIN PROFILE, where there is a uwsm to use it. This is what chooses the
+# compositor - it reads ~/.local/state/fd44-compositor and starts Hyprland or
+# niri through uwsm - so without it a machine has the configs for both and no way
+# to pick one.
+#
+# GUARDED ON uwsm RATHER THAN ON A COMPOSITOR, because the file's whole job is to
+# drive uwsm. A machine with a display manager has no use for it and would be
+# handed a login shell that tries to start a session.
+if have uwsm || $force_all; then
+    link bash/bash_profile "$HOME/.bash_profile"
 fi
 
 # These three do not care what draws the screen.

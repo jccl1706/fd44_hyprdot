@@ -1,0 +1,94 @@
+# .bash_profile
+
+# Get the aliases and functions
+if [ -f ~/.bashrc ]; then
+    . ~/.bashrc
+fi
+
+# User specific environment and startup programs
+
+# The account ships with the installer's publicly-known password. Force a real
+# one before anything else runs, and refuse to go further until it is set.
+#
+# THIS IS WHY THE PASSWORD IS NOT EXPIRED IN /etc/shadow. An expired password
+# is rejected by PAM account management under the `login -f` that
+# agetty --autologin uses - it never prompts, login just exits, and getty
+# respawns forever. Doing it here instead works because by this point login
+# has already succeeded and there is a real terminal to prompt on.
+#
+# The marker lives in ~/.local/state so a stray ~/.config wipe cannot silently
+# disarm the gate.
+_pw_marker="${XDG_STATE_HOME:-$HOME/.local/state}/password-changed"
+if [ ! -e "$_pw_marker" ]; then
+    printf '\n  This account still has the installer default password.\n'
+    printf '  Set a real one now - the desktop will not start until you do.\n\n'
+    # Ctrl+C, Ctrl+\ and Ctrl+Z are ignored while this runs - and, because an
+    # ignored signal is inherited, by passwd as well. Without this, Ctrl+C at
+    # the prompt aborted the rest of this profile and left a shell on which
+    # sudo still accepted the public default password.
+    trap '' INT QUIT TSTP
+    while ! passwd; do
+        printf '\n  Password not changed. Try again.\n\n'
+    done
+    trap - INT QUIT TSTP
+    mkdir -p "$(dirname "$_pw_marker")"
+    : >"$_pw_marker"
+    printf '\n  Thank you. Starting the desktop.\n\n'
+fi
+unset _pw_marker
+
+# Start Hyprland automatically on VT1 after getty autologin.
+#
+# When the session ENDS, log out - unless it died within its first seconds.
+# A plain crash does not end it: uwsm runs Hyprland under start-hyprland, a
+# watchdog that restarts it in the same session (in safe mode), and a crash
+# while locked comes back still locked - tested. The session ends when the
+# watchdog gives up or uwsm stops it, and then this autologin shell must not be
+# left behind as an unlocked shell on tty1. Logging out makes getty autologin a
+# fresh session instead, which bin/lock-at-login.sh locks on a machine without
+# disk encryption. A compositor that dies straight away is a broken config or
+# driver, not a session that ran; staying in the shell then is what lets it be
+# fixed, and avoids a respawn loop.
+# WHICH COMPOSITOR, chosen by a marker file rather than by editing this file.
+# The same shape as fd44.desktop on the NixOS machine: one value, both supported.
+#
+#     echo niri     > ~/.local/state/fd44-compositor     # then log out
+#     echo hyprland > ~/.local/state/fd44-compositor
+#     rm            ~/.local/state/fd44-compositor       # same as hyprland
+#
+# DEFAULTS TO HYPRLAND AND VALIDATES THE VALUE. An unreadable or unknown marker
+# must not leave this machine with no desktop, so anything that is not exactly
+# "niri" means Hyprland. uwsm runs either one the same way - it takes a session
+# desktop entry, and niri ships niri.desktop with Exec=niri-session.
+#
+# THE SAFETY NET BELOW ALREADY COVERS A BAD CHOICE: a compositor that exits
+# within 15 seconds drops you to this shell with the log path instead of
+# respawning, which is exactly what a niri config error would do.
+if uwsm check may-start -q; then
+    _uwsm_state="${XDG_STATE_HOME:-$HOME/.local/state}"
+    mkdir -p "$_uwsm_state"
+    _fd44_compositor=hyprland
+    if [[ -r $_uwsm_state/fd44-compositor ]]; then
+        read -r _fd44_want < "$_uwsm_state/fd44-compositor" || _fd44_want=""
+        [[ $_fd44_want == niri ]] && _fd44_compositor=niri
+        unset _fd44_want
+    fi
+    if [[ $_fd44_compositor == niri ]]; then
+        _uwsm_entry=niri.desktop
+        _uwsm_name=niri
+    else
+        _uwsm_entry=hyprland.desktop
+        _uwsm_name=Hyprland
+    fi
+    printf '  Starting %s.\n' "$_uwsm_name"
+    _uwsm_started=$SECONDS
+    uwsm start -e -D "$_uwsm_name" "$_uwsm_entry" >"$_uwsm_state/uwsm-start.log" 2>&1
+    _uwsm_status=$?
+    if (( SECONDS - _uwsm_started < 15 )); then
+        echo "$_uwsm_name exited after $(( SECONDS - _uwsm_started ))s (status $_uwsm_status)."
+        echo "See $_uwsm_state/uwsm-start.log"
+    else
+        exit 0
+    fi
+    unset _uwsm_state _uwsm_started _uwsm_status _fd44_compositor _uwsm_entry _uwsm_name
+fi
