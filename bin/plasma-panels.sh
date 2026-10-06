@@ -59,4 +59,24 @@ cp -p "$CONFIG" "$BACKUP"
 note "backed up to $(basename "$BACKUP")"
 note "applying"
 apply "$SCRIPT" | sed 's/^/  /'
+
+# READ IT BACK. Panel properties are assigned without complaint and then
+# ignored when the value is not one this Plasma knows - "windowscover" sets
+# nothing and reads back as "none". Printing what the panels actually are is
+# the only way to know the layout that was asked for is the one that exists.
+note "what the panels actually are now"
+readback="$(mktemp)"
+trap 'rm -f "$readback"' EXIT
+cat > "$readback" <<'READBACK'
+var out = [];
+for (var i = 0; i < panels().length; i++) {
+    var p = panels()[i];
+    out.push(p.location + ": " + p.height + "px, hiding=" + p.hiding +
+             ", align=" + p.alignment + ", length=" + p.lengthMode +
+             ", floating=" + p.floating);
+}
+print(out.join(" / "));
+READBACK
+apply "$readback" | sed 's/^/  /'
+
 note "done - bin/plasma-panels.sh --restore puts the old layout back"

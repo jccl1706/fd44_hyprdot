@@ -58,7 +58,23 @@ dock.location = "bottom";
 // 56 they sat in the middle of a band of empty background. A dock is mostly
 // icon, which is the whole visual difference between it and a panel.
 dock.height = 64;
-dock.hiding = "none";
+// DODGE WINDOWS: in plain sight on an empty desktop, out of the way the moment
+// a window would overlap it - which is what "hide when something is maximised
+// or fullscreen" means. Not "autohide", which keeps it hidden always and wants
+// a deliberate shove at the screen edge even when nothing is in the way.
+//
+// It also stops the dock reserving 64px forever: with "none" every window
+// maximises to just above it, which is a strut, not a dock.
+//
+// THE ACCEPTED VALUES ARE NOT WHAT THE PLASMA 5 DOCUMENTATION SAYS, and a
+// wrong one is taken silently - the property simply reads back "none"
+// afterwards, with no error anywhere. Measured against plasmashell 6.7.5:
+//
+//   autohide       accepted      windowscover    REJECTED
+//   dodgewindows   accepted      windowsgobelow  REJECTED
+//
+// So read it back after setting it, as bin/plasma-panels.sh does.
+dock.hiding = "dodgewindows";
 try { dock.alignment = "center"; } catch (e) {}
 try { dock.lengthMode = "fit"; } catch (e) {}
 try { dock.floating = true; } catch (e) {}
