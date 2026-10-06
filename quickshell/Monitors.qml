@@ -106,7 +106,8 @@ Singleton {
     Process {
         id: reader
         running: true
-        command: ["hyprctl", "monitors", "-j"]
+        command: Compositor.onNiri ? ["niri", "msg", "--json", "outputs"]
+                                   : ["hyprctl", "monitors", "-j"]
         stdout: StdioCollector {
             onStreamFinished: monitors.list = monitors.interpret(text)
         }
@@ -117,11 +118,58 @@ Singleton {
         try {
             raw = JSON.parse(json)
         } catch (e) {
-            console.warn("monitors: hyprctl gave something that is not JSON:", e)
+            console.warn("monitors: the compositor gave something that is not JSON:", e)
             return []
         }
+        if (Compositor.onNiri) raw = monitors.fromNiri(raw)
         if (!Array.isArray(raw)) return []
         return raw.filter(m => !m.disabled).map(m => monitors.describe(m))
+    }
+
+    // NIRI'S OUTPUTS, IN HYPRLAND'S SHAPE. Everything below this line reads the
+    // ten fields Hyprland's `hyprctl monitors -j` provides, so the cheapest
+    // correct port is to hand it those ten rather than teach five hundred lines
+    // two vocabularies. The facts are the same on both sides; only the spelling
+    // differs.
+    //
+    // A MAP KEYED BY NAME, NOT A LIST, which is the first thing that bites: niri
+    // returns {"DP-2": {...}} where Hyprland returns [{...}].
+    //
+    // description IS `make model serial` ON BOTH. Hyprland reports it as one
+    // string and niri as three fields, and they join in that order to the same
+    // text - which matters because the generated rule matches on it.
+    //
+    // AN OUTPUT WITH NO CURRENT MODE IS OFF. niri still lists it; Hyprland sets
+    // `disabled` instead. Skipping it here is the same filter either way.
+    function fromNiri(raw: var): var {
+        const out = []
+        for (const name in raw) {
+            const o = raw[name] || {}
+            const modes = o.modes || []
+            const cur = (o.current_mode === null || o.current_mode === undefined)
+                        ? null : modes[o.current_mode]
+            if (!cur) continue
+            const phys = o.physical_size || [0, 0]
+            const logical = o.logical || {}
+            out.push({
+                name: name,
+                description: [o.make, o.model, o.serial].filter(x => !!x).join(" "),
+                // Millimetres on both sides.
+                physicalWidth: phys[0] || 0,
+                physicalHeight: phys[1] || 0,
+                // The MODE's pixels, not the logical size: Hyprland's width and
+                // height are the panel's, and the scale is reported separately.
+                width: cur.width,
+                height: cur.height,
+                // niri counts refresh in millihertz.
+                refreshRate: (cur.refresh_rate || 0) / 1000,
+                scale: logical.scale || 1,
+                availableModes: modes.map(m => m.width + "x" + m.height + "@"
+                                            + ((m.refresh_rate || 0) / 1000).toFixed(2) + "Hz"),
+                disabled: false
+            })
+        }
+        return out
     }
 
     // hyprctl's entry, plus density and the scales this panel can actually do.
@@ -438,8 +486,26 @@ Singleton {
         return (kept && kept.mode) || "preferred"
     }
 
+    // niri TAKES TWO COMMANDS WHERE HYPRLAND TAKES ONE, and they are separate
+    // subcommands rather than one call with two arguments, so they are chained
+    // through sh. `niri msg output` changes things TEMPORARILY by its own
+    // documentation - exactly like hyprctl eval - which is why both sides still
+    // write a file to make it stick.
+    //
+    // BY CONNECTOR NAME AT RUNTIME, by description in the file. The runtime
+    // command addresses the output that is plugged in now; the file has to match
+    // it again next time, when the connector may differ.
+    //
+    // niri wants the rate without a unit: "2560x1440@100.000", not "...Hz".
     function apply(monitor: var, scale: string, mode: string): void {
-        applier.command = ["hyprctl", "eval", monitors.rule(monitor, scale, mode)]
+        if (Compositor.onNiri) {
+            const bare = String(mode).replace(/Hz$/i, "")
+            applier.command = ["sh", "-c",
+                'niri msg output "$1" scale "$2" && niri msg output "$1" mode "$3"',
+                "sh", monitor.name, scale, bare]
+        } else {
+            applier.command = ["hyprctl", "eval", monitors.rule(monitor, scale, mode)]
+        }
         applier.running = true
         monitors.remember(monitor, scale, mode)
     }
@@ -469,7 +535,7 @@ Singleton {
         id: applier
         running: false
         onExited: (code) => {
-            if (code !== 0) console.warn("monitors: hyprctl keyword failed:", code)
+            if (code !== 0) console.warn("monitors: the compositor refused the change:", code)
             monitors.refresh()
         }
     }
@@ -498,8 +564,14 @@ Singleton {
     // the desktop want different numbers.
     FileView {
         id: file
+        // ONE FILE PER COMPOSITOR, in each one's own language and its own config
+        // directory. niri's needs an include line in ~/.config/niri/config.kdl,
+        // placed AFTER niri/outputs.kdl so these win - niri merges output blocks
+        // and later settings override earlier ones, which is the same ordering
+        // rule monitors.lua relies on on the Hyprland side.
         path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config"))
-              + "/hypr/monitors_local.lua"
+              + (Compositor.onNiri ? "/niri/outputs_local.kdl"
+                                   : "/hypr/monitors_local.lua")
         // Not existing is the ordinary state - nothing has been chosen yet -
         // and FileView logs a WARN for it on every start otherwise.
         printErrors: false
@@ -512,6 +584,25 @@ Singleton {
     // back rather than kept in a second place that could disagree with it.
     function readBack(text: string): var {
         const found = {}
+        if (Compositor.onNiri) {
+            // output "NAME" { mode "2560x1440@100.000"; scale 1 }
+            const block = /output\s+"([^"]+)"\s*\{([^}]*)\}/g
+            let b
+            while ((b = block.exec(text)) !== null) {
+                const body = b[2]
+                const mode = /mode\s+"([^"]+)"/.exec(body)
+                const scale = /scale\s+([0-9.]+)/.exec(body)
+                found[b[1]] = {
+                    mode: mode ? mode[1] : "",
+                    scale: scale ? scale[1] : "1",
+                    // POSITION IS NOT WRITTEN HERE and so is not read back:
+                    // niri/outputs.kdl owns it, and a generated block that also
+                    // set it would silently win over that file.
+                    internal: /^eDP/i.test(b[1])
+                }
+            }
+            return found
+        }
         const line = /output\s*=\s*"desc:([^"]+)".*?mode\s*=\s*"([^"]+)".*?position\s*=\s*"([^"]+)".*?scale\s*=\s*"([^"]+)"/g
         let m
         while ((m = line.exec(text)) !== null)
@@ -520,6 +611,7 @@ Singleton {
     }
 
     function save(): void {
+        if (Compositor.onNiri) { monitors.saveNiri(); return }
         const names = Object.keys(monitors.overrides).sort()
         let out = "-- Generated by the Display page in quickshell's settings.\n"
                 + "-- Edits here are overwritten. To keep a scale, move the line\n"
@@ -536,6 +628,27 @@ Singleton {
                  + '    position = "' + (o.internal ? "auto" : "auto-left") + '",\n'
                  + '    scale    = "' + o.scale + '",\n'
                  + "})\n\n"
+        }
+        file.setText(out)
+    }
+
+    // The same thing in KDL. Only mode and scale: position belongs to
+    // niri/outputs.kdl, which places the external to the left of the laptop, and
+    // writing it here as well would quietly override that file.
+    function saveNiri(): void {
+        const names = Object.keys(monitors.overrides).sort()
+        let out = "// Generated by the Display page in quickshell's settings.\n"
+                + "// Edits here are overwritten. To keep a setting, move the block\n"
+                + "// into niri/outputs.kdl, where it will be read by a person.\n"
+                + "//\n"
+                + "// Include this AFTER niri/outputs.kdl: niri merges output blocks and\n"
+                + "// later settings override earlier ones, so these win.\n\n"
+        for (const name of names) {
+            const o = monitors.overrides[name]
+            out += 'output "' + name + '" {\n'
+            if (o.mode) out += '    mode "' + String(o.mode).replace(/Hz$/i, "") + '"\n'
+            out += "    scale " + o.scale + "\n"
+                 + "}\n\n"
         }
         file.setText(out)
     }
