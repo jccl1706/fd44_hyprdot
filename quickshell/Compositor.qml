@@ -100,6 +100,70 @@ Singleton {
         return null
     }
 
+    // WORKSPACES, NORMALISED, for the row that draws them. The raw lists above
+    // stay as they are because the old call sites read only .id off them; this
+    // is what a compositor-neutral workspace row needs instead.
+    //
+    //   label    what to print. niri names are strings and are "1".."9" here by
+    //            choice, so the bar reads the same on both; an unnamed niri
+    //            workspace falls back to its idx, which is its position in that
+    //            output's strip.
+    //   output   the connector this workspace lives on. On niri every workspace
+    //            carries it, which is why no pinning rules need reading - on
+    //            Hyprland the same information comes off the monitor object.
+    //   named    niri only, and the whole point of design B: a named workspace
+    //            ALWAYS EXISTS, so the row can be a fixed set of chips rather
+    //            than one that reflows as workspaces come and go.
+    //   order    what to sort by. niri HANDS THESE OVER UNORDERED - measured as
+    //            2,3,5,6,4,1,7,9,8 for workspaces declared 1 to 9 - so a row that
+    //            draws them in list order draws them scrambled. idx is their
+    //            position in that output's strip, which for named workspaces is
+    //            the order they were declared in. Hyprland has no idx and its ids
+    //            ARE the numbers, so the id serves.
+    //
+    // PLACEHOLDERS ARE SKIPPED on the Hyprland side. Its model briefly carries
+    // entries with id -1 and an empty lastIpcObject - a workspace known by name
+    // before it has been fetched - and anything drawing those gets a chip for a
+    // workspace that does not exist yet. Measured in a live session: one of four
+    // entries looked like that.
+    readonly property var workspaceList: {
+        if (onNiri) {
+            return (Niri.workspaces || []).map(w => ({
+                id: w.id,
+                label: w.name ? String(w.name) : String(w.idx),
+                output: w.output ? String(w.output) : "",
+                focused: w.is_focused === true,
+                named: !!w.name,
+                order: w.idx
+            }))
+        }
+        const out = []
+        if (Hyprland.workspaces) {
+            for (const w of Hyprland.workspaces.values) {
+                if (!w || w.id < 0) continue
+                out.push({
+                    id: w.id,
+                    label: String(w.name || w.id),
+                    output: w.monitor ? String(w.monitor.name || "") : "",
+                    focused: w.focused === true,
+                    named: false,
+                    order: w.id
+                })
+            }
+        }
+        return out
+    }
+
+    // The named workspaces on one output, in strip order - the fixed row for
+    // design B. Empty on Hyprland, which has no such concept and keeps using
+    // WorkspacePins instead.
+    function namedWorkspacesOn(outputName) {
+        if (!onNiri) return []
+        return workspaceList
+            .filter(w => w.named && w.output === String(outputName))
+            .sort((a, b) => a.order - b.order)
+    }
+
     // --- what the bar asks for -----------------------------------------------
 
     function focusWorkspaceId(id) {

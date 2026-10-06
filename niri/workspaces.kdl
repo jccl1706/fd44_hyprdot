@@ -1,0 +1,69 @@
+// =========================================================================
+// niri workspaces - the fixed 1-9 row, pinned to outputs
+// =========================================================================
+//
+// Include this from ~/.config/niri/config.kdl:
+//
+//     include "~/Work/fd44_hyprdot/niri/workspaces.kdl"
+//
+// WHY NAMED WORKSPACES AND NOT niri's DYNAMIC ONES. niri creates and destroys
+// workspaces as you use them and numbers them by position within an output, so a
+// bar drawing them reflows constantly and Super+1..9 cannot mean anything
+// stable. A NAMED workspace always exists, even with no windows on it - which is
+// what gives quickshell/Workspaces.qml a fixed row of chips and keeps the
+// numbers meaning what they mean under Hyprland.
+//
+// THE NAMES ARE "1".."9" ON PURPOSE. niri allows any string; these are the
+// numbers so the bar reads identically on both compositors and the binds stay in
+// muscle memory. `focus-workspace "3"` takes a name, not an index.
+//
+// THE SPLIT MIRRORS hypr/rules.lua: 1-5 on the external display, 6-9 on the
+// laptop panel.
+//
+// PINNED BY DESCRIPTION, NOT CONNECTOR, for the reason hypr/rules.lua gives -
+// connector names move between docks, so that file matches
+// `desc:LG Electronics LG ULTRAGEAR` rather than a DP number. niri does the same:
+// since 0.1.9 open-on-output accepts make, model and serial as one string. This
+// monitor's was read off the hardware rather than guessed:
+//
+//     hyprctl monitors   ->  DP-2   LG Electronics LG ULTRAGEAR 106NTNH2R807
+//
+// and niri msg --json outputs reports the same three fields separately. Worth
+// knowing: on this laptop the external is DP-2, not DP-1 - which is exactly the
+// kind of thing a connector name gets wrong.
+//
+// The internal panel stays a connector name. eDP-1 is an internal panel by
+// definition and does not move, the same reason hypr/rules.lua spells it that way.
+//
+// niri keeps one empty unnamed workspace at the end of each output's strip. That
+// is how scrolling onward works, and the bar does not draw it - see
+// namedWorkspacesOn() in quickshell/Compositor.qml.
+
+workspace "1" {
+    open-on-output "LG Electronics LG ULTRAGEAR 106NTNH2R807"
+}
+workspace "2" {
+    open-on-output "LG Electronics LG ULTRAGEAR 106NTNH2R807"
+}
+workspace "3" {
+    open-on-output "LG Electronics LG ULTRAGEAR 106NTNH2R807"
+}
+workspace "4" {
+    open-on-output "LG Electronics LG ULTRAGEAR 106NTNH2R807"
+}
+workspace "5" {
+    open-on-output "LG Electronics LG ULTRAGEAR 106NTNH2R807"
+}
+
+workspace "6" {
+    open-on-output "eDP-1"
+}
+workspace "7" {
+    open-on-output "eDP-1"
+}
+workspace "8" {
+    open-on-output "eDP-1"
+}
+workspace "9" {
+    open-on-output "eDP-1"
+}
