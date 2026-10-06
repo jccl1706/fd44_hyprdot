@@ -54,10 +54,11 @@ top.addWidget("org.kde.plasma.systemtray");
 // panel. lengthMode "fit" is what stops it stretching across the screen.
 var dock = new Panel;
 dock.location = "bottom";
-// 64 RATHER THAN 56: icontasks sizes its icons from the panel height, and at
-// 56 they sat in the middle of a band of empty background. A dock is mostly
-// icon, which is the whole visual difference between it and a panel.
-dock.height = 64;
+// SMALL ENOUGH TO READ AS A DOCK. icontasks sizes its icons from the panel
+// height, so this number is really the icon size plus its margins: 52 gives
+// icons with a little air around them, where 64 was a band of background with
+// icons in the middle of it.
+dock.height = 52;
 // DODGE WINDOWS: in plain sight on an empty desktop, out of the way the moment
 // a window would overlap it - which is what "hide when something is maximised
 // or fullscreen" means. Not "autohide", which keeps it hidden always and wants
@@ -95,7 +96,10 @@ tasks.writeConfig("launchers", [
 ].join(","));
 tasks.writeConfig("showOnlyCurrentDesktop", false);
 tasks.writeConfig("indicateAudioStreams", true);
-tasks.writeConfig("iconSpacing", 2);
+// SPACE BETWEEN THE TILES. A running application gets a filled tile behind its
+// icon, and at spacing 2 those tiles touch - so seven running applications read
+// as one striped block rather than seven icons in a dock.
+tasks.writeConfig("iconSpacing", 4);
 tasks.writeConfig("maxStripes", 1);
 
 print("removed " + removed + " panel(s); top bar at " + top.height +

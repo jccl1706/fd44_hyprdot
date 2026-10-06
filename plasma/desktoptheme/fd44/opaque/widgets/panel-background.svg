@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="54" height="54" viewBox="0 0 54 54">
+ <defs>
+  <style type="text/css" id="current-color-scheme">
+   .ColorScheme-Background { color:#eff0f1; }
+   .ColorScheme-Text { color:#232629; }
+  </style>
+ </defs>
+  <path id="topleft" style="opacity:0.85;fill:currentColor" class="ColorScheme-Background" d="M 0,14 A 14,14 0 0 1 14,0 L 14,14 Z"/>
+  <rect id="top" style="opacity:0.85;fill:currentColor" class="ColorScheme-Background" x="20" y="0" width="8" height="14"/>
+  <path id="topright" style="opacity:0.85;fill:currentColor" class="ColorScheme-Background" d="M 34,0 A 14,14 0 0 1 48,14 L 34,14 Z"/>
+  <rect id="left" style="opacity:0.85;fill:currentColor" class="ColorScheme-Background" x="0" y="20" width="14" height="8"/>
+  <rect id="center" style="opacity:0.85;fill:currentColor" class="ColorScheme-Background" x="20" y="20" width="8" height="8"/>
+  <rect id="right" style="opacity:0.85;fill:currentColor" class="ColorScheme-Background" x="34" y="20" width="14" height="8"/>
+  <path id="bottomleft" style="opacity:0.85;fill:currentColor" class="ColorScheme-Background" d="M 0,34 A 14,14 0 0 0 14,48 L 0,48 Z"/>
+  <rect id="bottom" style="opacity:0.85;fill:currentColor" class="ColorScheme-Background" x="20" y="34" width="8" height="14"/>
+  <path id="bottomright" style="opacity:0.85;fill:currentColor" class="ColorScheme-Background" d="M 48,34 A 14,14 0 0 1 34,48 L 48,48 Z"/>
+  <rect id="hint-top-margin" x="20" y="0" width="2" height="7" style="fill:#ff00ff"/>
+  <rect id="hint-bottom-margin" x="20" y="34" width="2" height="7" style="fill:#ff00ff"/>
+  <rect id="hint-left-margin" x="0" y="20" width="10" height="2" style="fill:#ff00ff"/>
+  <rect id="hint-right-margin" x="34" y="20" width="10" height="2" style="fill:#ff00ff"/>
+</svg>
