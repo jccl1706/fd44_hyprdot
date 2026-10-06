@@ -31,6 +31,12 @@ import QtQuick.Layouts
 PanelWindow {
     id: root
 
+    // ONE PANEL PER SCREEN, handed its own by Variants - the same arrangement as
+    // PowerMenu. Without declaring it, quickshell warns that the type has no
+    // modelData property and the panel has no screen to live on.
+    required property var modelData
+    screen: modelData
+
     property bool revealed: false
 
     WlrLayershell.layer: WlrLayer.Overlay
@@ -121,7 +127,11 @@ PanelWindow {
         id: card
         anchors.centerIn: parent
         width: Math.min(parent.width - Theme.barPadding * 4, columns.implicitWidth + 48)
-        height: columns.height + 76
+        // HUGS THE CONTENT, NOT THE ALLOWANCE. columns.height is the height the
+        // Flow is ALLOWED to use before wrapping into another column; the tallest
+        // column it actually produced is implicitHeight. Using the former left a
+        // strip of empty card below the last group.
+        height: Math.min(columns.height, columns.implicitHeight) + 76
         radius: Theme.cornerRadius
 
         // ALPHA IN THE COLOUR, NOT `opacity`. An Item's opacity applies to its
@@ -183,7 +193,7 @@ PanelWindow {
             // three entries and a lot of nothing; shorter and it spills into four.
             // Clamped by the screen so the laptop panel cannot be overflowed.
             height: Math.min(root.height - BarStyle.barBottom - Theme.barPadding * 4 - 76,
-                             560)
+                             660)
             spacing: 26
 
             Repeater {
@@ -196,7 +206,7 @@ PanelWindow {
                         text: modelData.name
                         color: Theme.accent
                         font.family: Theme.font
-                        font.pixelSize: Theme.fontSizeSmall
+                        font.pixelSize: Theme.fontSizeSmall + 1
                         font.weight: Font.DemiBold
                         font.capitalization: Font.AllUppercase
                         Layout.bottomMargin: 4
@@ -214,16 +224,16 @@ PanelWindow {
                                 text: modelData.key.replace(/\bMod\b/, "Super")
                                 color: Theme.fg
                                 font.family: Theme.font
-                                font.pixelSize: Theme.fontSizeSmall
+                                font.pixelSize: Theme.fontSize
                                 font.weight: Font.Medium
-                                Layout.minimumWidth: 132
+                                Layout.minimumWidth: 158
                             }
 
                             Text {
                                 text: modelData.label
                                 color: Theme.dim
                                 font.family: Theme.font
-                                font.pixelSize: Theme.fontSizeSmall
+                                font.pixelSize: Theme.fontSize
                                 Layout.fillWidth: true
                             }
                         }
