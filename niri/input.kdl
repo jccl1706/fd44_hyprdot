@@ -1,0 +1,26 @@
+// =========================================================================
+// niri input - focus follows the pointer
+// =========================================================================
+//
+// Include this from ~/.config/niri/config.kdl:
+//
+//     include "~/Work/fd44_hyprdot/niri/input.kdl"
+//
+// PARITY WITH hypr/input.lua, which sets `follow_mouse = 1`: moving the pointer
+// over a window focuses it, with no click. niri defaults to click-to-focus, which
+// is why this had to be asked for.
+//
+// max-scroll-amount="0%" IS THE PART THAT MATTERS ON A SCROLLING LAYOUT, and it
+// has no Hyprland counterpart because Hyprland has nothing to scroll. Without it,
+// hovering a window that is only partly on screen focuses it AND scrolls the strip
+// to bring it fully into view - so the window moves out from under the pointer,
+// which can land the pointer on a different window and focus that instead. At 0%
+// niri focuses on hover only when doing so moves the view not at all, which keeps
+// the strip still and makes hover focus mean what it means on Hyprland.
+//
+// The cost: a window hanging off the edge of the screen needs a click, or a
+// Super+Left/Right, rather than a hover. That is a smaller surprise than a view
+// that slides while being aimed at.
+input {
+    focus-follows-mouse max-scroll-amount="0%"
+}
