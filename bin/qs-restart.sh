@@ -45,7 +45,33 @@ nap()  { sleep "$1"; }
 
 # The session's environment, when run from somewhere that lacks it (ssh, a tty).
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+
+# WHICH COMPOSITOR IS RUNNING, because the one thing this script cannot do
+# itself is start the new shell in the right place. See "WHY THROUGH HYPRLAND"
+# above: started straight from here, quickshell belongs to whatever terminal or
+# ssh session ran it and dies with it. Hyprland has `hl.exec_cmd` for that and
+# niri has `niri msg action spawn`, and they are the only part of this script
+# that differs.
+#
+# NIRI_SOCKET FIRST, THE SAME WAY the signature is found below: a socket that
+# answers is a live compositor and nothing else is. niri leaves its socket
+# behind when it exits, and running `niri` nested to test something leaves
+# another, so the newest name is not reliably the running one.
+compositor=""
+if [[ -n ${NIRI_SOCKET:-} ]] && niri msg version >/dev/null 2>&1; then
+    compositor=niri
+else
+    # shellcheck disable=SC2012
+    for candidate in $(ls -t "$XDG_RUNTIME_DIR"/niri.wayland-*.sock 2>/dev/null); do
+        if NIRI_SOCKET="$candidate" niri msg version >/dev/null 2>&1; then
+            export NIRI_SOCKET="$candidate"
+            compositor=niri
+            break
+        fi
+    done
+fi
+
+if [[ -z $compositor && -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
     # NEWEST FIRST, BUT ONLY ONE THAT ANSWERS. Taking the newest directory
     # outright is the obvious version and it broke here: Hyprland leaves its
     # instance directory behind when it exits, and bin/qs-check.sh starts a
@@ -62,16 +88,22 @@ if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
             break
         fi
     done
-    [[ -n ${sig:-} ]] || die "no running Hyprland found in $XDG_RUNTIME_DIR/hypr"
+    [[ -n ${sig:-} ]] || die "no running compositor found: no niri socket in $XDG_RUNTIME_DIR and no live Hyprland in $XDG_RUNTIME_DIR/hypr"
     export HYPRLAND_INSTANCE_SIGNATURE="$sig"
 fi
+[[ -n $compositor ]] || compositor=hyprland
 if [[ -z ${WAYLAND_DISPLAY:-} ]]; then
     for s in "$XDG_RUNTIME_DIR"/wayland-*; do
         if [[ ${s##*/} =~ ^wayland-[0-9]+$ ]]; then WAYLAND_DISPLAY="${s##*/}"; break; fi
     done
     export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}"
 fi
-hyprctl version >/dev/null 2>&1 || die "cannot reach Hyprland (instance $HYPRLAND_INSTANCE_SIGNATURE)"
+if [[ $compositor == hyprland ]]; then
+    hyprctl version >/dev/null 2>&1 \
+        || die "cannot reach Hyprland (instance $HYPRLAND_INSTANCE_SIGNATURE)"
+else
+    niri msg version >/dev/null 2>&1 || die "cannot reach niri ($NIRI_SOCKET)"
+fi
 
 # BY EXECUTABLE, NOT BY PROCESS NAME. `pgrep -x quickshell` is the obvious way
 # to do this and it finds nothing on NixOS: what is on PATH there is a wrapper,
@@ -122,8 +154,15 @@ else
     log "quickshell was not running"
 fi
 
-log "starting quickshell through Hyprland"
-hyprctl eval 'hl.exec_cmd("qs -d")' >/dev/null || die "hyprctl could not start it"
+log "starting quickshell through $compositor"
+if [[ $compositor == hyprland ]]; then
+    hyprctl eval 'hl.exec_cmd("qs -d")' >/dev/null || die "hyprctl could not start it"
+else
+    # SAME JOB AS hl.exec_cmd: niri spawns the command itself, so the new shell
+    # is the compositor's child in the session scope rather than this script's.
+    # `--` is required - without it niri reads `-d` as its own flag.
+    niri msg action spawn -- qs -d >/dev/null || die "niri could not start it"
+fi
 
 # Wait for the one instance to load its config, rather than a fixed sleep.
 loaded=0
