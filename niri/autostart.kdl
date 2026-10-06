@@ -1,0 +1,50 @@
+// =========================================================================
+// niri autostart - what hypr/autostart.lua starts, started by niri
+// =========================================================================
+//
+// Include this from ~/.config/niri/config.kdl:
+//
+//     include "~/Work/fd44_hyprdot/niri/autostart.kdl"
+//
+// MOST OF THIS IS COMPOSITOR-NEUTRAL ALREADY. These are the same scripts
+// hypr/autostart.lua runs; they talk to quickshell, systemd and the filesystem
+// rather than to a compositor, so they need no niri versions.
+//
+// PATHS ARE SPELLED OUT, unlike the Hyprland side. That file reaches the
+// repository as "$HOME/.config/hypr/../bin/...", which works because
+// ~/.config/hypr is a symlink into the checkout. ~/.config/niri is not a
+// symlink - it is a real file with include lines - so there is no such
+// shortcut and the location is written once, here.
+//
+// ORDER MATTERS IN ONE PLACE: icon-bridge.sh before `qs -d`, because the bridge
+// is what lets quickshell see the icon theme at all, and a bar started before it
+// draws empty boxes until the next restart.
+
+spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/icon-bridge.sh >/dev/null 2>&1; qs -d"
+
+// The wallpaper quickshell draws, restored from what was set last, then its
+// thumbnails rebuilt in the background for the picker.
+spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/wallpaper.sh restore"
+spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/wallpaper.sh thumbs"
+
+// The palette. KNOWN GAP: theme.sh is one of the scripts that calls hyprctl, so
+// parts of it will fail under niri until that is ported. It is left in rather
+// than dropped, because the parts that set GTK, kitty and quickshell colours do
+// not involve the compositor and are most of what it does.
+spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/theme.sh restore"
+
+// The lock screen at login, for an autologin session. hyprlock speaks
+// ext-session-lock-v1, which niri implements, so this carries over unchanged.
+spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/lock-at-login.sh"
+
+// Audio interface gain, which is a USB device setting and has nothing to do with
+// the compositor.
+spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/evo4-gain.sh"
+
+// THE SYSTEMD USER SERVICES ARE LEFT TO niri-session. hypr/autostart.lua starts
+// pipewire, wireplumber and hypridle itself, each guarded by `systemctl --user
+// is-enabled`, because uwsm's graphical-session.target does not cover them there.
+// niri-session binds graphical-session.target the same way, so a service enabled
+// for the user starts with the session and starting it again here would be a
+// second copy or a no-op. If any of them does not come up, that guard is the
+// thing to add back.

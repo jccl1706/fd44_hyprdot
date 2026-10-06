@@ -1,0 +1,35 @@
+// =========================================================================
+// niri layer rules - the bar's surfaces
+// =========================================================================
+//
+// Include this from ~/.config/niri/config.kdl:
+//
+//     include "~/Work/fd44_hyprdot/niri/layers.kdl"
+//
+// ONE RULE, where hypr/rules.lua has four. Three of those four are `no_anim`,
+// which exists because Hyprland animates a layer surface opening while
+// Quickshell is animating a card inside it - two curves, two durations, read as
+// stutter. niri's animation documentation does not mention layer surfaces at
+// all, so there appears to be nothing to turn off. If the same stutter shows up
+// on the launcher or the drop panels, that assumption is wrong and this is where
+// the fix goes.
+//
+// THE PICKER BLUR IS THE ONE THAT CARRIES OVER, and the reason it works is a
+// property of the SURFACE, not of the compositor: the wallpaper and theme
+// pickers deliberately omit ExclusionMode.Ignore, so the bar's and the frame's
+// exclusive zones shrink them to the content well. A layer's blur reaches only
+// as far as its own surface, so the frame outside it keeps its hard edge.
+//
+// WHICH IS WHY THE LAUNCHER IS NOT MATCHED HERE EITHER. Blur on it was tried
+// under Hyprland and removed: its surface covers the whole screen - it has to,
+// so a click anywhere outside dismisses it - so blurring the surface blurs the
+// frame too, measured as a 1.3px softening of what should be a hard 1px line.
+// niri blurs per surface in the same way, so the same thing would happen.
+
+layer-rule {
+    match namespace="^quickshell-(wallpapers|themes)$"
+
+    background-effect {
+        blur true
+    }
+}
