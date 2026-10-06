@@ -144,6 +144,16 @@ TOOLS=(
     rsync                 # moving things between the two systems on this box
     efibootmgr            # the boot entry below, and reading the order back
     compsize              # what the btrfs compression is actually saving
+
+    # PAPIRUS, AND FROM FEDORA RATHER THAN FROM GIT. Tela was here first,
+    # installed by a script that cloned upstream and ran its installer into
+    # ~/.local/share/icons - 190MB of theme, updated by remembering to pull.
+    # Papirus is packaged, so it updates with everything else, and it already
+    # draws the icons Tela did not: Plasma's battery applet asks for
+    # battery-040-profile-balanced and its relatives when a power profile is
+    # set, Tela ships only the plain names, and that one icon fell back to
+    # Breeze and looked like a different theme in the middle of the tray.
+    papirus-icon-theme
 )
 
 # THE BROWSERS. Chromium is in Fedora's own repositories; Brave is not and

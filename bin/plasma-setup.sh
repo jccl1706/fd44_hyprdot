@@ -32,6 +32,7 @@ kw()  { kwriteconfig6 --file "$@"; }
 
 if [[ "${1:-}" == "--show" ]]; then
     printf '\ncurrent Plasma settings this script manages\n\n'
+    printf '  icon theme                %s\n' "$(kr kdeglobals --group Icons --key Theme)"
     printf '  konsole default profile   %s\n' "$(kr konsolerc --group 'Desktop Entry' --key DefaultProfile)"
     for s in AC Battery LowBattery; do
         printf '  power profile on %-12s %s\n' "$s" \
@@ -87,6 +88,19 @@ kw powerdevilrc --group AC         --group Performance --key PowerProfile perfor
 kw powerdevilrc --group Battery    --group Performance --key PowerProfile power-saver
 kw powerdevilrc --group LowBattery --group Performance --key PowerProfile power-saver
 echo "powerdevil    AC performance / battery power-saver"
+
+# ---- icon theme ----------------------------------------------------------
+#
+# PAPIRUS WHERE IT IS INSTALLED, and silence where it is not. install/
+# fedora_desktop.sh installs it from Fedora's own packages; a machine without
+# it keeps whatever it has rather than being pointed at a theme that is not
+# there, which Plasma renders as a tray full of missing-icon squares.
+if [[ -d /usr/share/icons/Papirus ]]; then
+    kw kdeglobals --group Icons --key Theme Papirus
+    echo "icon theme    Papirus"
+else
+    echo "icon theme    Papirus not installed - left alone"
+fi
 
 # ---- system tray ---------------------------------------------------------
 #
