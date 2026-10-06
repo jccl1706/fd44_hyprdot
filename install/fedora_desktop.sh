@@ -66,6 +66,12 @@ KDE=(
     sddm sddm-breeze
     xdg-desktop-portal-kde
     dolphin ark konsole
+    # SPECTACLE, BECAUSE WITHOUT IT PRINT SCREEN DOES NOTHING. Plasma's
+    # screenshot shortcut and its portal both hand the job to Spectacle, and on
+    # Wayland there is no fallback: grim and friends need wlr-screencopy, which
+    # KWin does not implement. A desktop that cannot take a picture of itself is
+    # missing something basic, and it was noticed the hard way - twice.
+    spectacle
     plasma-systemsettings
     plasma-nm plasma-pa
     kscreen
@@ -247,9 +253,33 @@ systemctl enable sddm
 #
 # WHAT THIS FILE DOES AND DOES NOT DO. `First Use=false` skips the wizard's
 # introductory page, and that is all - the wizard fires on the ABSENCE OF A
-# WALLET, so this file alone does not suppress it. pam-kwallet above is what
-# prevents it, by creating the wallet at login; this only settles how the wallet
+# WALLET, so this file alone does not suppress it. It settles how the wallet
 # behaves once it exists, so it never asks to be unlocked again.
+#
+# AND pam-kwallet NO LONGER CREATES THAT WALLET, which this comment used to
+# claim. Measured on this machine, Fedora 44, libgcrypt 1.12.2, KDE 6.7.5, on a
+# fresh install with an empty home:
+#
+#   sddm-helper[...]: pam_kwallet5(sddm:session): pam_kwallet5: Fail into
+#                     creating the hash
+#
+# every login, after which ~/.local/share/kwalletd stays empty and the first
+# application to want a secret - a browser - gets the creation wizard. The
+# failure is inside the module's PBKDF2 call. It is not SELinux (no AVC names
+# it), not FIPS (fips_enabled is 0), not a missing binary (/usr/bin/ksecretd is
+# present and running) and not a permissions problem on the directory.
+#
+# So the wallet has to be created by hand, once, and the choice there is real:
+# a BLANK password means kwalletd opens it silently forever and nothing ever
+# prompts again, at the cost of the wallet being unencrypted at rest. A real
+# password is properly encrypted and asks once per login, because unlocking
+# goes through the same broken hash. This machine took the blank one, which is
+# the same security as Chromium's --password-store=basic but covers every KDE
+# application rather than just the browsers.
+#
+# Revisit when pam-kwallet or libgcrypt moves: if a login ever populates
+# ~/.local/share/kwalletd by itself, the wallet can be recreated with a real
+# password and this note deleted.
 if [[ -n ${SUDO_USER-} && $SUDO_USER != root ]]; then
     user_home="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
     if [[ -d $user_home ]]; then
