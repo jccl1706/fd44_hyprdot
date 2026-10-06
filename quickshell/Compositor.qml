@@ -65,17 +65,37 @@ Singleton {
     // history. Hyprland calls it `class`, niri calls it `app_id`. What the bar
     // wants in both cases is the app id, the title, and which workspace it is
     // on - so that is what comes out.
+    //
+    // initialAppId IS CARRIED FOR HYPRLAND ONLY and is empty on niri. It is
+    // Hyprland's initialClass, which FocusedApp falls back to for a client that
+    // renamed itself after mapping; niri reports one app_id and never a first
+    // one, so there is nothing to fall back to rather than something missing.
+    //
+    // THE WORKSPACE IS REPORTED, NOT FILTERED ON. Hyprland's focus history can
+    // point at a window on another workspace, so a caller that means "what is
+    // focused HERE" has to compare workspaceId itself - FocusedApp does, and the
+    // comment there explains what goes wrong otherwise.
     readonly property var focusedWindow: {
         if (onNiri) {
             const w = Niri.focusedWindow
             if (!w) return null
-            return { appId: w.app_id || "", title: w.title || "", workspaceId: w.workspace_id }
+            return {
+                appId: w.app_id || "",
+                initialAppId: "",
+                title: w.title || "",
+                workspaceId: w.workspace_id
+            }
         }
         if (!Hyprland.toplevels) return null
         for (const t of Hyprland.toplevels.values) {
             const o = t.lastIpcObject
             if (o && o.focusHistoryID === 0 && o.workspace)
-                return { appId: o.class || "", title: o.title || "", workspaceId: o.workspace.id }
+                return {
+                    appId: o.class || "",
+                    initialAppId: o.initialClass || "",
+                    title: o.title || "",
+                    workspaceId: o.workspace.id
+                }
         }
         return null
     }

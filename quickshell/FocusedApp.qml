@@ -51,14 +51,11 @@ Item {
     // halves are needed: the workspace alone would match every window on it,
     // and the history alone matches a window that is not here.
     readonly property var focused: {
-        const here = Hyprland.focusedWorkspace
-        if (!here) return null
-        for (const t of Hyprland.toplevels.values) {
-            const o = t.lastIpcObject
-            if (o && o.focusHistoryID === 0 && o.workspace && o.workspace.id === here.id)
-                return o
-        }
-        return null
+        const w = Compositor.focusedWindow
+        if (!w) return null
+        const here = Compositor.focusedWorkspaceId
+        if (here === -1 || w.workspaceId !== here) return null
+        return w
     }
 
     // WHAT THE EVENT SAID, WITHOUT WAITING TO BE TOLD AGAIN.
@@ -91,7 +88,7 @@ Item {
     // shell restart, when no event has been seen at all - but only until the
     // next event that names a window, which is fresher by definition.
     readonly property string modelClass: root.focused
-        ? (root.focused.class || root.focused.initialClass || "") : ""
+        ? (root.focused.appId || root.focused.initialAppId || "") : ""
 
     readonly property string appClass:
         root.liveEvent && root.liveClass !== "" ? root.liveClass : root.modelClass
@@ -164,8 +161,16 @@ Item {
     // Hyprland says "focus moved"; it does not say what focusHistoryID now is
     // for every window. Asking costs one IPC round trip per focus change,
     // which is the same order as the workspace chips already do.
+    // HYPRLAND ONLY, AND NOT NEEDED ON NIRI. This block is the latency fix
+    // described above: it reads the class out of the event itself instead of
+    // waiting for the model to catch up. niri has no equivalent event
+    // vocabulary - no `activewindow`, no `workspacev2` - and no need for one,
+    // because its event stream updates Compositor.focusedWindow directly with
+    // no round trip to wait for. So on niri the fast path is switched off and
+    // appClass falls through to modelClass, which is already current.
     Connections {
         target: Hyprland
+        enabled: !Compositor.onNiri
         function onRawEvent(event): void {
             switch (event.name) {
             case "activewindow": {
@@ -174,7 +179,7 @@ Item {
                 const comma = data.indexOf(",")
                 root.liveClass = comma >= 0 ? data.substring(0, comma) : data
                 root.liveEvent = true
-                Hyprland.refreshToplevels()
+                Compositor.refreshWindows()
                 return
             }
             case "activewindowv2":
@@ -193,10 +198,10 @@ Item {
                 // asked - and `liveClass` is left alone, because the event
                 // that set it is still the most recent thing anyone said about
                 // focus.
-                Hyprland.refreshToplevels()
+                Compositor.refreshWindows()
             }
         }
     }
 
-    Component.onCompleted: Hyprland.refreshToplevels()
+    Component.onCompleted: Compositor.refreshWindows()
 }
