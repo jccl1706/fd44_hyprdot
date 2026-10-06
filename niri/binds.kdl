@@ -1,0 +1,77 @@
+// =========================================================================
+// niri binds - the keys that drive the fd44 bar
+// =========================================================================
+//
+// Include this from ~/.config/niri/config.kdl:
+//
+//     include "~/Work/fd44_hyprdot/niri/binds.kdl"
+//
+// WHY THIS FILE EXISTS AT ALL. quickshell's GlobalShortcut comes from the
+// hyprland-global-shortcuts protocol, and niri does not implement it - running
+// the bar under niri logs "GlobalShortcut will not work" nine times and every
+// one of those keys does nothing. niri binds a key to a COMMAND instead, so each
+// key here calls the bar over its own IPC.
+//
+// NOTHING IN THE BAR HAD TO CHANGE FOR THIS. Every panel the keyboard opens
+// already had an IpcHandler beside its GlobalShortcut - launcher, settings,
+// theme, wallpaper, focus, power and media all expose toggle() - because the
+// same panels are driven from scripts and from the tray. So this is one config
+// file and no QML: the shortcuts stay for Hyprland, the IPC serves niri, and
+// both reach the same functions.
+//
+// `qs ipc call <target> <function>` with no instance id, which is correct while
+// one shell runs. With two, `qs -i <id> ipc call ...` picks one.
+//
+// THE KEYS ARE hypr/binds.lua's, so muscle memory carries over. Where that file
+// says `{ locked = true }` for the media keys, niri says
+// allow-when-locked=true - same intent, different spelling.
+
+binds {
+    // --- the panels -------------------------------------------------------
+    Mod+Space       { spawn "qs" "ipc" "call" "launcher" "toggle"; }
+    Mod+Comma       { spawn "qs" "ipc" "call" "wallpaper" "toggle"; }
+    Mod+Period      { spawn "qs" "ipc" "call" "theme" "toggle"; }
+    Mod+Shift+Comma { spawn "qs" "ipc" "call" "settings" "toggle"; }
+    Mod+Z           { spawn "qs" "ipc" "call" "focus" "toggle"; }
+    Mod+M           { spawn "qs" "ipc" "call" "power" "toggle"; }
+
+    // The laptop's own power button opens the menu rather than acting, which is
+    // the same choice hypr/binds.lua makes.
+    XF86PowerOff    { spawn "qs" "ipc" "call" "power" "toggle"; }
+
+    // --- media, which must work with the screen locked --------------------
+    XF86AudioPlay  allow-when-locked=true { spawn "qs" "ipc" "call" "media" "toggle"; }
+    XF86AudioPause allow-when-locked=true { spawn "qs" "ipc" "call" "media" "toggle"; }
+    XF86AudioNext  allow-when-locked=true { spawn "qs" "ipc" "call" "media" "next"; }
+    XF86AudioPrev  allow-when-locked=true { spawn "qs" "ipc" "call" "media" "previous"; }
+
+    // --- workspaces, BY NAME ---------------------------------------------
+    //
+    // The names come from niri/workspaces.kdl, where they are "1".."9" so that
+    // these binds mean what Super+1..9 has always meant. focus-workspace takes a
+    // name as a string; an integer there would be an INDEX into the output's
+    // strip, which is a different thing and moves as workspaces come and go.
+    Mod+1 { focus-workspace "1"; }
+    Mod+2 { focus-workspace "2"; }
+    Mod+3 { focus-workspace "3"; }
+    Mod+4 { focus-workspace "4"; }
+    Mod+5 { focus-workspace "5"; }
+    Mod+6 { focus-workspace "6"; }
+    Mod+7 { focus-workspace "7"; }
+    Mod+8 { focus-workspace "8"; }
+    Mod+9 { focus-workspace "9"; }
+
+    Mod+Shift+1 { move-column-to-workspace "1"; }
+    Mod+Shift+2 { move-column-to-workspace "2"; }
+    Mod+Shift+3 { move-column-to-workspace "3"; }
+    Mod+Shift+4 { move-column-to-workspace "4"; }
+    Mod+Shift+5 { move-column-to-workspace "5"; }
+    Mod+Shift+6 { move-column-to-workspace "6"; }
+    Mod+Shift+7 { move-column-to-workspace "7"; }
+    Mod+Shift+8 { move-column-to-workspace "8"; }
+    Mod+Shift+9 { move-column-to-workspace "9"; }
+
+    // Tab steps through the strip, as it steps through workspaces on Hyprland.
+    Mod+Tab       { focus-workspace-down; }
+    Mod+Shift+Tab { focus-workspace-up; }
+}
