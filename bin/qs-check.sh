@@ -73,7 +73,19 @@ config="${1:-$root/quickshell}"
 
 # How long to give each stage. The load itself takes about a second; the rest
 # is starting a compositor.
-compositor_wait=8
+#
+# RAISED FROM 8, because 8 was not enough and the way it failed was confusing.
+# A nested Hyprland usually has its socket in two or three seconds, but under
+# load - another compositor starting, a model loading, a build running - it can
+# take longer, and then this exits 2 with "no new Wayland socket". The
+# pre-commit hook captures that stderr, prints "the configuration does not load"
+# and re-runs visibly, where it passes. So a QML commit intermittently needed two
+# attempts and the message blamed the config, which was fine all along.
+#
+# Reproduced deliberately on 2026-10-06 by running this while nested compositors
+# were being started and stopped nearby: it failed, and the immediate retry with
+# nothing stale left behind passed.
+compositor_wait=25
 load_wait=20
 
 red()   { printf '\033[1;31m%s\033[0m\n' "$*"; }

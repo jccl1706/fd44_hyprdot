@@ -54,6 +54,11 @@ Singleton {
         ? Niri.workspaces
         : (Hyprland.workspaces ? Hyprland.workspaces.values : [])
 
+    readonly property string focusedWorkspaceLabel: {
+        for (const w of workspaceList) if (w.focused) return w.label
+        return ""
+    }
+
     readonly property int focusedWorkspaceId: {
         if (onNiri) return Niri.focusedWorkspace ? Niri.focusedWorkspace.id : -1
         return Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : -1
@@ -166,9 +171,19 @@ Singleton {
 
     // --- what the bar asks for -----------------------------------------------
 
-    function focusWorkspaceId(id) {
-        if (onNiri) Niri.focusWorkspaceId(id)
-        else Hyprland.dispatch("workspace " + id)
+    // BY LABEL, NOT BY ID, because the two compositors number differently and the
+    // bar thinks in the numbers it draws. Hyprland's ids ARE 1-9; niri's are
+    // global and arbitrary, and its named workspaces are addressed by name -
+    // which is why they are named "1".."9" in niri/workspaces.kdl.
+    //
+    // HYPRLAND 0.56 EVALUATES A DISPATCH AS LUA, so the string form
+    // `dispatch("workspace 3")` is a syntax error - ")' expected near '3'" - and
+    // it fails SILENTLY: the click does nothing and only quickshell's log knows.
+    // The first version of this file had exactly that bug. The Lua form below is
+    // the one hypr/binds.lua uses for the same job.
+    function focusWorkspaceLabel(label) {
+        if (onNiri) Niri.action(["focus-workspace", String(label)])
+        else Hyprland.dispatch("hl.dsp.focus({ workspace = " + Number(label) + " })")
     }
 
     // delta > 0 is "the next one". Hyprland counts workspaces globally and niri
@@ -179,18 +194,10 @@ Singleton {
             if (delta > 0) Niri.focusWorkspaceDown()
             else Niri.focusWorkspaceUp()
         } else {
-            Hyprland.dispatch(delta > 0 ? "workspace e+1" : "workspace e-1")
+            Hyprland.dispatch(delta > 0
+                ? 'hl.dsp.focus({ workspace = "e+1" })'
+                : 'hl.dsp.focus({ workspace = "e-1" })')
         }
-    }
-
-    function quitCompositor() {
-        if (onNiri) Niri.quitCompositor()
-        else Hyprland.dispatch("exit")
-    }
-
-    function powerOffMonitors() {
-        if (onNiri) Niri.powerOffMonitors()
-        else Hyprland.dispatch("dpms off")
     }
 
     // A NO-OP ON NIRI, and that is the point of having it. Hyprland's toplevel

@@ -29,13 +29,22 @@ cd "$root" || exit 0
 
 git diff --cached --name-only --diff-filter=ACM | grep -q '^quickshell/.*\.qml$' || exit 0
 
+# BOTH STREAMS, and that is a fix rather than tidying. This captured 2> only,
+# while bin/qs-check.sh prints every message - including its failures - with
+# printf to STDOUT. So stdout went to /dev/null, .git/qs-check.err was always
+# empty, and three separate refusals in a row could not be explained at all.
 printf '\033[1;32m==>\033[0m %s\n' "pre-commit: checking the shell config loads"
-if ! "$root/bin/qs-check.sh" >/dev/null 2>"$root/.git/qs-check.err"; then
-    printf '\033[1;31m%s\033[0m\n' "pre-commit: the configuration does not load - commit refused"
-    # Re-run visibly rather than replaying a captured log: the failure is
-    # short, and seeing it produced is worth more than seeing it quoted.
-    "$root/bin/qs-check.sh"
-    printf '\n%s\n' "  commit anyway with:  git commit --no-verify"
+if ! "$root/bin/qs-check.sh" >"$root/.git/qs-check.err" 2>&1; then
+    printf '\033[1;31m%s\033[0m\n' "pre-commit: the check did not pass - commit refused"
+    # REPLAYED, NOT RE-RUN. This used to run the check a second time so you could
+    # watch it fail, which was reasonable while the only failure was a config
+    # that does not load. It is actively misleading once a failure is
+    # INTERMITTENT: the second run passes, and the message above then sits over
+    # output saying the config is fine. Printing what actually failed keeps the
+    # two consistent.
+    sed 's/^/  /' "$root/.git/qs-check.err"
+    printf '\n%s\n' "  the output above is kept in .git/qs-check.err"
+    printf '%s\n' "  commit anyway with:  git commit --no-verify"
     exit 1
 fi
 rm -f "$root/.git/qs-check.err"

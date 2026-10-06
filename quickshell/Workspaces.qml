@@ -38,6 +38,30 @@ Row {
     // none are. Workspaces outside the set still work, they are just not
     // shown here.
     readonly property var slots: {
+        // NIRI DRAWS ALL ITS NAMED WORKSPACES AND FILTERS NOTHING, which is the
+        // whole reason niri/workspaces.kdl declares them. A named workspace
+        // always exists, so the row is a fixed set of chips that never reflows -
+        // the thing the header above wishes for and Hyprland cannot give, since
+        // it destroys a workspace the moment its last window leaves.
+        //
+        // No WorkspacePins on this path either: every niri workspace carries the
+        // output it lives on, so there are no monitor rules to read and nothing
+        // to infer. The pinning is in the KDL, declared once.
+        if (Compositor.onNiri) {
+            const named = Compositor.namedWorkspacesOn(root.screenName)
+                              .map(w => parseInt(w.label, 10))
+                              .filter(n => !isNaN(n))
+            // Nothing named on this output is the unconfigured case - a monitor
+            // the KDL does not mention - and then the dynamic workspaces that
+            // ARE there are better than an empty row.
+            if (named.length > 0) return named
+            return Compositor.workspaceList
+                       .filter(w => w.output === root.screenName)
+                       .sort((a, b) => a.order - b.order)
+                       .map(w => parseInt(w.label, 10))
+                       .filter(n => !isNaN(n))
+        }
+
         const own = WorkspacePins.idsFor(root.screenName)
         const taken = WorkspacePins.inheritedFor(root.screenName)
 
@@ -165,9 +189,7 @@ Row {
     WheelHandler {
         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         onWheel: event => {
-            Hyprland.dispatch(event.angleDelta.y > 0
-                ? 'hl.dsp.focus({ workspace = "e-1" })'
-                : 'hl.dsp.focus({ workspace = "e+1" })')
+            Compositor.focusWorkspaceStep(event.angleDelta.y > 0 ? -1 : 1)
         }
     }
 
@@ -186,17 +208,24 @@ Row {
 
             // Does this workspace exist in Hyprland right now? A workspace
             // only exists once something is on it.
+            // BY LABEL, because that is the one thing both compositors agree on
+            // here: Hyprland's workspace ids are the numbers 1-9, and niri's
+            // named workspaces are called "1".."9" for exactly this reason. The
+            // ids themselves are not comparable - niri's are global and
+            // arbitrary.
             readonly property var ws: {
-                const list = Hyprland.workspaces.values
+                const want = String(wsId)
+                const list = Compositor.workspaceList
                 for (let i = 0; i < list.length; i++) {
-                    if (list[i].id === wsId) return list[i]
+                    if (list[i].label === want) return list[i]
                 }
                 return null
             }
 
+            // ALWAYS TRUE ON NIRI for a named workspace, and that is correct
+            // rather than a shortcut: it exists whether or not anything is on it.
             readonly property bool exists: ws !== null
-            readonly property bool focused: Hyprland.focusedWorkspace
-                                            && Hyprland.focusedWorkspace.id === wsId
+            readonly property bool focused: ws !== null && ws.focused === true
 
             // Set by Hyprland when a window on a workspace you are NOT
             // looking at asks for attention - xdg-activation, or an X11
@@ -362,8 +391,7 @@ Row {
                 // It fails silently from the bar's point of view - the click
                 // simply does nothing - and only shows up in quickshell's log.
                 // Same call the keybinds use, see hypr/binds.lua.
-                onClicked: Hyprland.dispatch(
-                    "hl.dsp.focus({ workspace = " + chip.wsId + " })")
+                onClicked: Compositor.focusWorkspaceLabel(chip.wsId)
             }
         }
     }
