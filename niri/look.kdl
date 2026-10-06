@@ -47,3 +47,41 @@ window-rule {
     geometry-corner-radius 10
     clip-to-geometry true
 }
+
+// NO FOCUS RING AND NO BORDER, which is hypr/look.lua's `border_size = 0`.
+//
+// niri draws TWO things that Hyprland's single border_size covers. The focus ring
+// is drawn around the ACTIVE window only and does not change its size; the border
+// is drawn around every window and shrinks them to make room. niri ships with the
+// ring on at 4px and the border off, so a fresh niri has an outline the Hyprland
+// setup does not.
+//
+// Both are turned off here. The cost is real and worth stating: with neither, a
+// window carries no indication that it is focused. That is the same trade the
+// Hyprland side makes at border_size = 0, where the bar's focused-app readout and
+// the cursor are what tell you - so it is the trade already being lived with, not
+// a new one.
+//
+// The layout block MERGES with the one in niri's own config, so this turns the
+// ring off without restating its width, colours or anything else.
+layout {
+    focus-ring {
+        off
+    }
+
+    border {
+        off
+    }
+}
+
+// NO HOTKEY HELP AT STARTUP. niri shows an "Important Hotkeys" panel every time
+// it starts, which is useful exactly once. Super+Shift+Slash still opens it on
+// demand - that bind is niri's own and is left alone.
+//
+// hide-not-bound is set with it: the overlay lists niri's standard hotkeys
+// whether or not this config binds them, so without this it advertises keys that
+// do nothing here. With it, the panel shows what is actually bound.
+hotkey-overlay {
+    skip-at-startup
+    hide-not-bound
+}
