@@ -1,0 +1,49 @@
+// =========================================================================
+// niri look - decorations
+// =========================================================================
+//
+// Include this from ~/.config/niri/config.kdl:
+//
+//     include "~/Work/fd44_hyprdot/niri/look.kdl"
+//
+// NO TITLE BARS, which on Wayland is a negotiation rather than a setting. There
+// is no server-side title bar to turn off: niri draws a focus ring and a border
+// and never a title bar. What appears instead is the APPLICATION'S OWN
+// decoration - client-side decorations, drawn inside its surface.
+//
+// prefer-no-csd is niri asking clients to omit them, over the xdg-decoration
+// protocol. Clients that negotiate decorations server-side - kitty, most Qt
+// applications - then draw none and get niri's ring and border instead. It is
+// also why windows come up without the compositor's own solid background behind
+// their frame.
+//
+// IT IS A REQUEST, NOT A RULE, and two kinds of window will ignore it:
+//
+//   - A client that specifically ASKS for CSD is honoured, by design.
+//   - GTK applications mostly draw a headerbar regardless and have no SSD path
+//     at all. Nautilus keeps its header here exactly as it does under Hyprland,
+//     so this changes nothing about those - they were never niri's doing.
+//
+// It also tells clients they are tiled, which removes some rounded corners that
+// a floating window would otherwise draw for itself.
+prefer-no-csd
+
+// ROUNDED CORNERS, 10px, which is hypr/look.lua's `rounding = 10`.
+//
+// TWO SETTINGS, NOT ONE, and the second is the one that is easy to miss.
+// geometry-corner-radius rounds the GEOMETRY niri draws - the focus ring and the
+// border - while the window's own content is still a rectangle underneath, so on
+// its own it leaves square corners poking out of rounded ones.
+// clip-to-geometry clips the surface to that shape, which is what actually
+// rounds the window.
+//
+// A WINDOW RULE WITH NO MATCH applies to every window, which is what Hyprland's
+// single `rounding` value does too.
+//
+// Hyprland also sets rounding_power = 2, the exponent of the corner curve - 2 is
+// a plain circular arc. niri's radius has no such control, so a squircle is not
+// available here; at 10px the difference is not visible.
+window-rule {
+    geometry-corner-radius 10
+    clip-to-geometry true
+}

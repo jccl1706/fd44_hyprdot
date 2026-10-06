@@ -1,0 +1,104 @@
+// =========================================================================
+// niri binds - applications, windows and the hardware keys
+// =========================================================================
+//
+// Include this from ~/.config/niri/config.kdl:
+//
+//     include "~/Work/fd44_hyprdot/niri/apps.kdl"
+//
+// niri/binds.kdl covers the bar and the workspaces. This is everything else
+// hypr/binds.lua binds: the apps, the window management, brightness and
+// screenshots. The keys are the same ones, so muscle memory carries over.
+//
+// WHERE THE TWO COMPOSITORS DISAGREE, THE DISAGREEMENT IS LEFT VISIBLE rather
+// than approximated. niri is a scrollable strip of columns and Hyprland is a
+// tree, so "move the window left" is not the same operation and some binds have
+// no counterpart at all - those are named below with what was dropped, so the
+// next person does not go looking for a translation that does not exist.
+//
+// The action names here were read out of `niri msg action --help` on the running
+// compositor, not from memory.
+
+binds {
+    // --- the three applications ------------------------------------------
+    //
+    // The commands are hypr/hyprland.lua's Apps table: kitty, nautilus with a
+    // new window, and bin/browser.sh, which picks whichever browser is
+    // installed rather than naming one.
+    Mod+Return { spawn "kitty"; }
+    Mod+E      { spawn "nautilus" "--new-window"; }
+    Mod+B      { spawn-sh "$HOME/Work/fd44_hyprdot/bin/browser.sh"; }
+
+    // YouTube as its own window, the same --app= trick as on Hyprland.
+    Mod+Y { spawn-sh "$HOME/Work/fd44_hyprdot/bin/browser.sh --app=https://www.youtube.com/"; }
+
+    // The theme toggle. One of the scripts that calls hyprctl, so parts of it
+    // will complain under niri until that is ported - the colours it writes for
+    // GTK, kitty and quickshell do not involve the compositor.
+    Mod+T { spawn-sh "$HOME/Work/fd44_hyprdot/bin/theme.sh toggle"; }
+
+    // --- windows ----------------------------------------------------------
+    Mod+W { close-window; }
+    Mod+F { fullscreen-window; }
+    Mod+V { toggle-window-floating; }
+
+    // Mod+J was `colresize +1` on Hyprland. niri's nearest is cycling the
+    // column through its preset widths, which is the idiom niri is built around.
+    Mod+J { switch-preset-column-width; }
+
+    // Hyprland's consume/expel moved a window in and out of the group beside it;
+    // niri's names describe the same motion on a strip.
+    Mod+BracketLeft  { consume-or-expel-window-left; }
+    Mod+BracketRight { consume-or-expel-window-right; }
+
+    // Mod+A was `fit all`, which sized the layout to fit every window. niri has
+    // no equivalent - the strip is not meant to fit on screen. expand-column-to-
+    // available-width is the closest useful thing: give this column the room
+    // nothing else is using.
+    Mod+A { expand-column-to-available-width; }
+
+    // DIRECTION IS WHERE THE MODELS PART. Left and right move between COLUMNS on
+    // the strip; up and down move between windows WITHIN a column. On Hyprland
+    // all four were the same kind of motion through a tree.
+    Mod+Left  { focus-column-left; }
+    Mod+Right { focus-column-right; }
+    Mod+Up    { focus-window-up; }
+    Mod+Down  { focus-window-down; }
+
+    Mod+Shift+Left  { move-column-left; }
+    Mod+Shift+Right { move-column-right; }
+    Mod+Shift+Up    { move-window-up; }
+    Mod+Shift+Down  { move-window-down; }
+
+    // DROPPED, with the reason, so nobody hunts for them:
+    //   Mod+P              Hyprland's pseudo-tiling. niri has no such mode.
+    //   Mod+Escape         a submap for passthrough. niri has no submaps; the
+    //                      nearest is toggle-keyboard-shortcuts-inhibit, which
+    //                      is a different thing - it lets the FOCUSED CLIENT
+    //                      grab the keys rather than suspending the whole map.
+    //   Mod+mouse drag     Hyprland bound move and resize to Mod plus a button.
+    //                      niri does this natively and not as a bind.
+
+    // --- brightness, which must work with the screen locked ---------------
+    //
+    // The OSD call is what makes the bar show the level; backlight.sh does the
+    // work. repeat=true because holding the key should keep changing it, which
+    // is `repeating = true` on the Hyprland side.
+    XF86MonBrightnessUp allow-when-locked=true repeat=true {
+        spawn-sh "$HOME/Work/fd44_hyprdot/bin/backlight.sh set 5%+ && qs ipc call osd brightness"
+    }
+    XF86MonBrightnessDown allow-when-locked=true repeat=true {
+        spawn-sh "$HOME/Work/fd44_hyprdot/bin/backlight.sh set 5%- && qs ipc call osd brightness"
+    }
+
+    // --- screenshots ------------------------------------------------------
+    //
+    // niri HAS its own screenshot actions, and these use grim and slurp anyway,
+    // because the Hyprland binds do: the same three behaviours, the same
+    // clipboard, and the same file name pattern in Pictures. Changing to niri's
+    // built-ins would change where things land and what ends up on the
+    // clipboard, which is not a port.
+    Print              { spawn-sh "grim - | wl-copy"; }
+    Mod+Shift+P        { spawn-sh "grim -g \"$(slurp)\" - | wl-copy"; }
+    Mod+Ctrl+P         { spawn-sh "grim -g \"$(slurp)\" \"$HOME/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png\""; }
+}
