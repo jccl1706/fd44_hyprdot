@@ -110,5 +110,27 @@ tasks.writeConfig("indicateAudioStreams", true);
 tasks.writeConfig("iconSpacing", 4);
 tasks.writeConfig("maxStripes", 1);
 
+// PANEL COLORIZER, IF IT IS INSTALLED. It restyles the panel it sits in -
+// background, radius, opacity, margins, per-widget colours - from a settings
+// page, which is a great deal more than a hand-written theme SVG can offer.
+// Added last so it is the final item, and skipped silently when absent so this
+// script still works on a machine without it.
+var colorizer = null;
+try { colorizer = dock.addWidget("luisbocanegra.panel.colorizer"); } catch (e) {}
+if (colorizer) {
+    colorizer.currentConfigGroup = ["General"];
+    // THE DESIGN LIVES IN plasma/panel-colorizer-dock.json, and
+    // bin/plasma-panels.sh substitutes it here before this script is sent. A
+    // settings blob of 12KB has no business being inline in a layout script,
+    // and keeping it as JSON means it can be diffed when it changes.
+    colorizer.writeConfig("globalSettings", "@COLORIZER_SETTINGS@");
+    colorizer.writeConfig("isEnabled", true);
+    // HIDDEN, BUT STILL WORKING. The widget has to live in the panel it
+    // styles; without this it also occupies a cell, which on a four-icon dock
+    // is a 20% tax for something nobody clicks.
+    colorizer.writeConfig("hideWidget", true);
+    print("panel colorizer configured and hidden");
+}
+
 print("removed " + removed + " panel(s); top bar at " + top.height +
       "px, dock at " + dock.height + "px");

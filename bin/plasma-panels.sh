@@ -29,14 +29,34 @@ BACKUP="$CONFIG.before-fd44-panels"
 # gdbus RATHER THAN qdbus, because qdbus is not installed on a Fedora KDE spin
 # built from packages rather than a group - and gdbus comes with glib, which
 # everything pulls in.
-command -v gdbus >/dev/null || die "gdbus is not installed (glib2)"
+command -v busctl >/dev/null || die "busctl is not installed (systemd)"
 
+# THE COLORIZER SETTINGS ARE SUBSTITUTED IN, NOT PASTED IN. panels.js carries a
+# placeholder; the JSON lives beside it as a file that can be read and diffed.
+# It is JSON inside a JS string literal inside a D-Bus argument - two layers of
+# escaping - which python does correctly and sed does not.
+prepare() {
+    local json="$REPO/plasma/panel-colorizer-dock.json"
+    if [[ -f $json ]]; then
+        python3 -c 'import json,sys
+script = open(sys.argv[1]).read()
+blob = json.dumps(open(sys.argv[2]).read().strip())
+sys.stdout.write(script.replace(chr(34) + "@COLORIZER_SETTINGS@" + chr(34), blob))' \
+            "$SCRIPT" "$json" > "$1"
+    else
+        sed 's/"@COLORIZER_SETTINGS@"/""/' "$SCRIPT" > "$1"
+    fi
+}
+
+# busctl RATHER THAN gdbus. gdbus parses each argument as GVariant text, so a
+# string has to survive that grammar on its way through - which a 12KB script
+# carrying JSON full of quotes and braces does not: it fails with "expected
+# value" and points at the first line, which is not where the problem is.
+# busctl takes a plain string for an "s" parameter and nothing is parsed.
 apply() {
-    gdbus call --session \
-        --dest org.kde.plasmashell \
-        --object-path /PlasmaShell \
-        --method org.kde.PlasmaShell.evaluateScript \
-        "$(cat "$1")"
+    busctl --user call \
+        org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript \
+        s "$(cat "$1")"
 }
 
 if [[ ${1-} == --restore ]]; then
@@ -58,7 +78,10 @@ fi
 cp -p "$CONFIG" "$BACKUP"
 note "backed up to $(basename "$BACKUP")"
 note "applying"
-apply "$SCRIPT" | sed 's/^/  /'
+prepared="$(mktemp)"
+trap 'rm -f "$prepared" "${readback:-}"' EXIT
+prepare "$prepared"
+apply "$prepared" | sed 's/^/  /'
 
 # READ IT BACK. Panel properties are assigned without complaint and then
 # ignored when the value is not one this Plasma knows - "windowscover" sets
