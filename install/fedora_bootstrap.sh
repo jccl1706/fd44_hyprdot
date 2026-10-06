@@ -108,7 +108,19 @@ if (( ! GO )); then warn "DRY RUN. Re-run with --go."; exit 0; fi
 
 # --- mount, idempotently -----------------------------------------------------
 note "mounting"
-findmnt -n "$MNT"      >/dev/null 2>&1 || { mkdir -p "$MNT";      mount "$ROOT" "$MNT"; }
+# THE SUBVOLUME HAS TO BE NAMED HERE TOO. A bare `mount "$ROOT" "$MNT"` on btrfs
+# mounts the TOP LEVEL, not subvol=root - so dnf would install into a directory
+# beside the subvolumes rather than into the one the system boots from, and the
+# mistake would only show up as an unbootable install much later. This path runs
+# whenever stage two is started fresh, which is the normal case after a reboot.
+if ! findmnt -n "$MNT" >/dev/null 2>&1; then
+    mkdir -p "$MNT"
+    mount -o subvol=root,compress=zstd:1,noatime "$ROOT" "$MNT"
+fi
+if ! findmnt -n "$MNT/home" >/dev/null 2>&1; then
+    mkdir -p "$MNT/home"
+    mount -o subvol=home,compress=zstd:1,noatime "$ROOT" "$MNT/home"
+fi
 findmnt -n "$MNT/boot" >/dev/null 2>&1 || { mkdir -p "$MNT/boot"; mount "$ESP"  "$MNT/boot"; }
 findmnt -R "$MNT" -o TARGET,SOURCE | sed 's/^/  /'
 

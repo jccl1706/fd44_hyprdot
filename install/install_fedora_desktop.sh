@@ -83,8 +83,9 @@ need wipefs    util-linux
 need sgdisk    gptfdisk
 need partprobe parted
 need udevadm   systemd
-need mkfs.vfat dosfstools
-need mkfs.ext4 e2fsprogs
+need mkfs.vfat  dosfstools
+need mkfs.btrfs btrfs-progs
+need btrfs      btrfs-progs
 need lsblk     util-linux
 need findmnt   util-linux
 if [[ -n $missing ]]; then
@@ -168,8 +169,8 @@ printf '\n'
 # Fedora kernel update ends up breaking NixOS's boot entries.
 note "plan"
 cat <<PLAN
-    ${TARGET}p1   ${ESP_GIB} GiB   vfat   FEDESP    -> /boot/efi   (its own ESP)
-    ${TARGET}p2   rest          ext4   FEDROOT   -> /
+    ${TARGET}p1   ${ESP_GIB} GiB   vfat   FEDESP    -> /boot       (its own ESP)
+    ${TARGET}p2   rest          btrfs  FEDROOT   -> subvol=root at /, subvol=home at /home
     no swap partition - zram, as Fedora defaults to
     no LUKS       - as asked, and matching the NixOS disk beside it
 PLAN
@@ -210,14 +211,44 @@ run partprobe "$TARGET"
 run udevadm settle
 
 note "formatting"
-run mkfs.vfat -F32 -n FEDESP  "${TARGET}p1"
-run mkfs.ext4 -F  -L FEDROOT  "${TARGET}p2"
+run mkfs.vfat -F32 -n FEDESP "${TARGET}p1"
+# BTRFS, AND THE SUBVOLUMES ARE THE REASON. ext4 worked and gave up nothing
+# except the one thing this machine now wants: a system that can be rolled back
+# to what it was before an update. btrfs-patrol, which this repository also
+# carries, expects exactly Fedora's installer layout - a 'root' subvolume and a
+# 'home' subvolume on one filesystem - and gets it here without configuration.
+run mkfs.btrfs -f -L FEDROOT "${TARGET}p2"
 
-note "mounting at $MNT"
+# THE TOP LEVEL IS MOUNTED ONCE, TO MAKE THE SUBVOLUMES, AND THEN LET GO. What
+# gets mounted at / afterwards is subvol=root, never subvolid=5 - a system
+# installed onto the top level cannot be rolled back, because the thing you
+# would replace is the thing everything else lives inside.
+note "creating the subvolumes"
 run mkdir -p "$MNT"
 run mount "${TARGET}p2" "$MNT"
-run mkdir -p "$MNT/boot/efi"
-run mount "${TARGET}p1" "$MNT/boot/efi"
+run btrfs subvolume create "$MNT/root"
+run btrfs subvolume create "$MNT/home"
+run umount "$MNT"
+
+# NO 'snapshots' SUBVOLUME HERE, DELIBERATELY. `btrfs-patrol setup` creates it,
+# mounts it at /.snapshots, writes the fstab line, sets it 0700 and adds the
+# SELinux exclusion - five things that have to agree. Doing half of them here
+# would mean maintaining the other half in two places.
+
+# COMPRESSION ON FROM THE FIRST FILE. Setting compress on an existing
+# filesystem only affects what is written afterwards, so it belongs here rather
+# than in a later tidy-up: everything dnf unpacks in stage two is compressed.
+note "mounting at $MNT"
+run mount -o subvol=root,compress=zstd:1,noatime "${TARGET}p2" "$MNT"
+run mkdir -p "$MNT/home"
+run mount -o subvol=home,compress=zstd:1,noatime "${TARGET}p2" "$MNT/home"
+# /boot, NOT /boot/efi. Fedora's kernel-install writes Boot Loader Specification
+# entries to /boot/loader/entries and systemd-boot reads them only from the ESP,
+# so the two are one filesystem here - which is what the fstab stage three writes
+# says, and where stage two expects to find it. Mounting it at /boot/efi as well
+# left the ESP mounted twice and an empty /boot/efi in the installed system.
+run mkdir -p "$MNT/boot"
+run mount "${TARGET}p1" "$MNT/boot"
 
 printf '\n'
 note "done - partitioned, formatted and mounted"

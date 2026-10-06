@@ -88,9 +88,10 @@ printf '  %-12s %s\n' "kernel"   "$KVER"
 printf '  %-12s %s\n' "hostname" "$HOSTNAME_"
 printf '  %-12s %s (uid %s, wheel)\n' "user" "$USERNAME" "$USERUID"
 printf '  %-12s %s\n' "timezone" "$TIMEZONE"
-printf '  %-12s root=UUID=%s\n' "fstab" "$ROOT_UUID"
+printf '  %-12s root=UUID=%s (subvol=root; /home is subvol=home on the same UUID)\n' "fstab" "$ROOT_UUID"
 printf '  %-12s /boot=UUID=%s (the ESP)\n' "" "$ESP_UUID"
-printf '  bootctl install, loader.conf, kernel-install add, /.autorelabel\n\n'
+printf '  bootctl install, loader.conf, kernel-install add, /.autorelabel\n'
+printf '  grub hooks masked; no grub2-efi or shim is installed\n\n'
 (( GO )) || { warn "DRY RUN. Re-run with --go."; exit 0; }
 
 # --- running things inside -----------------------------------------------------
@@ -170,8 +171,22 @@ cat > "$MNT/etc/fstab" <<FSTAB
 # entries to /boot/loader/entries, and systemd-boot reads them only from the
 # EFI System Partition - so the two are the same filesystem here. This is the
 # same arrangement as the NixOS install on the other disk.
-UUID=$ROOT_UUID  /      ext4  defaults,noatime  0 1
-UUID=$ESP_UUID   /boot  vfat  umask=0077,shortname=winnt  0 2
+#
+# SUBVOLUMES, NOT PARTITIONS. / and /home are two subvolumes of one btrfs
+# filesystem, so they share free space and neither can run out while the other
+# has room. subvol= is what decides which one a mount gets; without it the mount
+# lands on the top level, which is the one place a system must not live if it is
+# ever to be rolled back.
+#
+# THE LAST FIELD IS 0 AND THAT IS NOT AN OVERSIGHT. btrfs has no fsck to run at
+# boot - it checks and repairs itself - and a non-zero pass number makes systemd
+# look for a btrfs fsck helper that does nothing useful.
+#
+# /.snapshots IS NOT HERE. 'btrfs-patrol setup' adds it, with the subvolume, the
+# mode and the SELinux exclusion that have to match it.
+UUID=$ROOT_UUID  /      btrfs  subvol=root,compress=zstd:1,noatime  0 0
+UUID=$ROOT_UUID  /home  btrfs  subvol=home,compress=zstd:1,noatime  0 0
+UUID=$ESP_UUID   /boot  vfat   umask=0077,shortname=winnt  0 2
 FSTAB
 sed 's/^/  /' "$MNT/etc/fstab"
 
@@ -251,6 +266,25 @@ mkdir -p "$MNT/etc/kernel" "$MNT/etc/kernel/install.d"
 ln -sf /dev/null "$MNT/etc/kernel/install.d/51-dracut-rescue.install"
 rm -rf "$MNT/boot/fedora/0-rescue"
 
+# AND THE TWO GRUB HOOKS, FOR THE SAME REASON AND BY THE SAME MEANS. This
+# machine boots with systemd-boot; nothing here installs grub2-efi-x64 or shim,
+# so there is no GRUB binary on the ESP and GRUB could not boot it if it tried.
+#
+# The TOOLING arrives anyway, as a weak dependency of @core - grubby,
+# grub2-install, /etc/grub.d and these two kernel-install plugins. The packages
+# are harmless sitting there and are left alone, because removing them fights
+# Fedora's dependency graph for no gain. The plugins are not harmless: they run
+# on EVERY kernel update and write grub.cfg and grubenv into the ESP, which is
+# at best noise in a directory that should contain systemd-boot and the BLS
+# entries, and at worst a second, stale description of how to boot this machine
+# sitting next to the real one.
+#
+# 90-loaderentry.install is the plugin that matters and it stays: it writes the
+# Boot Loader Specification entry that systemd-boot actually reads.
+note "masking the grub hooks - this machine boots with systemd-boot"
+ln -sf /dev/null "$MNT/etc/kernel/install.d/20-grub.install"
+ln -sf /dev/null "$MNT/etc/kernel/install.d/99-grub-mkconfig.install"
+
 # --- THE KERNEL COMMAND LINE, WRITTEN DOWN -----------------------------------
 #
 # WITHOUT THIS THE NEW SYSTEM INHERITS THE OLD ONE'S. 90-loaderentry.install
@@ -270,7 +304,12 @@ rm -rf "$MNT/boot/fedora/0-rescue"
 # in the initramfs skips the fsck. Nothing else: no quiet, no splash. A machine
 # being installed for the first time should say what it is doing, and these are
 # one edit away once it is known to work.
-printf 'root=UUID=%s ro\n' "$ROOT_UUID" > "$MNT/etc/kernel/cmdline"
+#
+# rootflags=subvol=root, WITHOUT WHICH THIS DOES NOT BOOT. The initramfs mounts
+# the root filesystem before anything reads fstab, and a btrfs filesystem
+# mounted with no subvol= gives it the top level - where there is no /sbin/init,
+# only the subvolumes. The failure is a dracut shell and no explanation.
+printf 'root=UUID=%s ro rootflags=subvol=root\n' "$ROOT_UUID" > "$MNT/etc/kernel/cmdline"
 printf '  cmdline: %s' "$(cat "$MNT/etc/kernel/cmdline")"
 
 # --no-variables, AND THAT IS THE WHOLE POINT OF THIS COMMENT.
