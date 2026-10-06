@@ -95,6 +95,16 @@ echo "powerdevil    AC performance / battery power-saver"
 # caffeine. Without this the tray leaves it on automatic and collapses it into
 # the overflow arrow, so the toggle is two clicks away instead of one.
 #
+# ONLY WHERE THERE IS A SYSTEM BATTERY, and "is there a battery" is a narrower
+# question than it looks. /sys/class/power_supply holds anything that reports a
+# charge, which on fedora-gaming00 is
+#
+#     hidpp_battery_0   type=Battery   model=PRO X Wireless
+#
+# a wireless headset. Testing for type=Battery pinned the applet on a desktop
+# and put a permanent headset-charge icon in the tray, which is not what this
+# setting is for. A laptop has BAT0 or BAT1; peripherals do not.
+#
 # THE NUMBERS ARE FOUND, NOT ASSUMED. This used to write to containment 2,
 # applet 7 - the Framework's layout on the day it was worked out - with a
 # comment saying it would do nothing elsewhere. It did nothing elsewhere: on
@@ -110,14 +120,29 @@ tray_group="$(awk '
     /^plugin=org\.kde\.plasma\.systemtray$/ { print grp; exit }
 ' "$APPLETSRC" 2>/dev/null)"
 
-if [[ $tray_group =~ \[Containments\]\[([0-9]+)\]\[Applets\]\[([0-9]+)\] ]]; then
+has_system_battery() {
+    local b
+    for b in /sys/class/power_supply/BAT*; do [[ -e $b ]] && return 0; done
+    return 1
+}
+
+if [[ ! $tray_group =~ \[Containments\]\[([0-9]+)\]\[Applets\]\[([0-9]+)\] ]]; then
+    echo "system tray   not found in $APPLETSRC - nothing written"
+elif has_system_battery; then
     kw plasma-org.kde.plasma.desktop-appletsrc \
        --group Containments --group "${BASH_REMATCH[1]}" \
        --group Applets --group "${BASH_REMATCH[2]}" --group General \
        --key shownItems org.kde.plasma.battery
     echo "system tray   battery applet always shown (containment ${BASH_REMATCH[1]}, applet ${BASH_REMATCH[2]})"
 else
-    echo "system tray   not found in $APPLETSRC - nothing written"
+    # NOT LEFT ALONE - UNDONE. A machine that once had this pinned by an earlier
+    # version of this script keeps it pinned forever otherwise, which is how the
+    # headset icon survived being explained.
+    kw plasma-org.kde.plasma.desktop-appletsrc \
+       --group Containments --group "${BASH_REMATCH[1]}" \
+       --group Applets --group "${BASH_REMATCH[2]}" --group General \
+       --key shownItems --delete
+    echo "system tray   no system battery here - battery applet left on automatic"
 fi
 
 # ---- fonts ---------------------------------------------------------------
