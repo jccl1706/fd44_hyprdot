@@ -273,6 +273,15 @@ PanelWindow {
         onCleared: root.close()
     }
 
+    // THE SAME JOB ON NIRI, which has no focus-grab protocol - see
+    // NiriFocusGrab.qml. Both are present and only one is ever armed:
+    // HyprlandFocusGrab does nothing without Hyprland, and this is
+    // inert unless Compositor.onNiri.
+    NiriFocusGrab {
+        active: root.revealed
+        onCleared: root.close()
+    }
+
     // --- scrim -----------------------------------------------------------
 
     // Dims the CONTENT WELL only - inset past the bar and the frame, so the
