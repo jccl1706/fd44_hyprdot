@@ -25,17 +25,17 @@ binds {
     // The commands are hypr/hyprland.lua's Apps table: kitty, nautilus with a
     // new window, and bin/browser.sh, which picks whichever browser is
     // installed rather than naming one.
-    Mod+Return { spawn "kitty"; }
-    Mod+E      { spawn "nautilus" "--new-window"; }
-    Mod+B      { spawn-sh "$HOME/Work/fd44_hyprdot/bin/browser.sh"; }
+    Mod+Return hotkey-overlay-title="Terminal" { spawn "kitty"; }
+    Mod+E hotkey-overlay-title="Files" { spawn "nautilus" "--new-window"; }
+    Mod+B hotkey-overlay-title="Browser" { spawn-sh "$HOME/Work/fd44_hyprdot/bin/browser.sh"; }
 
     // YouTube as its own window, the same --app= trick as on Hyprland.
-    Mod+Y { spawn-sh "$HOME/Work/fd44_hyprdot/bin/browser.sh --app=https://www.youtube.com/"; }
+    Mod+Y hotkey-overlay-title="YouTube" { spawn-sh "$HOME/Work/fd44_hyprdot/bin/browser.sh --app=https://www.youtube.com/"; }
 
     // The theme toggle. One of the scripts that calls hyprctl, so parts of it
     // will complain under niri until that is ported - the colours it writes for
     // GTK, kitty and quickshell do not involve the compositor.
-    Mod+T { spawn-sh "$HOME/Work/fd44_hyprdot/bin/theme.sh toggle"; }
+    Mod+T hotkey-overlay-title="Toggle dark/light theme" { spawn-sh "$HOME/Work/fd44_hyprdot/bin/theme.sh toggle"; }
 
     // --- windows ----------------------------------------------------------
     Mod+W { close-window; }
@@ -84,10 +84,10 @@ binds {
     // The OSD call is what makes the bar show the level; backlight.sh does the
     // work. repeat=true because holding the key should keep changing it, which
     // is `repeating = true` on the Hyprland side.
-    XF86MonBrightnessUp allow-when-locked=true repeat=true {
+    XF86MonBrightnessUp allow-when-locked=true repeat=true hotkey-overlay-title="Brightness up" {
         spawn-sh "$HOME/Work/fd44_hyprdot/bin/backlight.sh set 5%+ && qs ipc call osd brightness"
     }
-    XF86MonBrightnessDown allow-when-locked=true repeat=true {
+    XF86MonBrightnessDown allow-when-locked=true repeat=true hotkey-overlay-title="Brightness down" {
         spawn-sh "$HOME/Work/fd44_hyprdot/bin/backlight.sh set 5%- && qs ipc call osd brightness"
     }
 
@@ -103,13 +103,13 @@ binds {
     // the sink for this, it is told. Which is why these keys must each run both
     // halves, and why a volume key that works while the OSD does not appear means
     // the IPC half failed, not the audio half.
-    XF86AudioRaiseVolume allow-when-locked=true repeat=true {
+    XF86AudioRaiseVolume allow-when-locked=true repeat=true hotkey-overlay-title="Volume up" {
         spawn-sh "wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+ && qs ipc call osd volume"
     }
-    XF86AudioLowerVolume allow-when-locked=true repeat=true {
+    XF86AudioLowerVolume allow-when-locked=true repeat=true hotkey-overlay-title="Volume down" {
         spawn-sh "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- && qs ipc call osd volume"
     }
-    XF86AudioMute allow-when-locked=true repeat=true {
+    XF86AudioMute allow-when-locked=true repeat=true hotkey-overlay-title="Mute" {
         spawn-sh "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle && qs ipc call osd volume"
     }
 
@@ -120,7 +120,7 @@ binds {
     // clipboard, and the same file name pattern in Pictures. Changing to niri's
     // built-ins would change where things land and what ends up on the
     // clipboard, which is not a port.
-    Print              { spawn-sh "grim - | wl-copy"; }
-    Mod+Shift+P        { spawn-sh "grim -g \"$(slurp)\" - | wl-copy"; }
-    Mod+Ctrl+P         { spawn-sh "grim -g \"$(slurp)\" \"$HOME/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png\""; }
+    Print hotkey-overlay-title="Screenshot: whole screen to clipboard" { spawn-sh "grim - | wl-copy"; }
+    Mod+Shift+P hotkey-overlay-title="Screenshot: region to clipboard" { spawn-sh "grim -g \"$(slurp)\" - | wl-copy"; }
+    Mod+Ctrl+P hotkey-overlay-title="Screenshot: region to a file" { spawn-sh "grim -g \"$(slurp)\" \"$HOME/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png\""; }
 }

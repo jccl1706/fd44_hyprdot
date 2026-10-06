@@ -1,0 +1,44 @@
+// =========================================================================
+// niri outputs - where the external display sits
+// =========================================================================
+//
+// Include this from ~/.config/niri/config.kdl:
+//
+//     include "~/Work/fd44_hyprdot/niri/outputs.kdl"
+//
+// THE EXTERNAL GOES ON THE LEFT, which is what hypr/monitors.lua does with a
+// catch-all rule - `output = ""` with `position = "auto-left"`, so ANY external
+// display lands left of the laptop without naming it. niri has no auto-left:
+// positions are explicit numbers, and by default it places outputs left to right
+// sorted by name, which put this one on the right.
+//
+// ONLY THE EXTERNAL IS POSITIONED, AND THAT IS THE TRICK. niri's placement
+// algorithm puts every output with an explicit position first, then puts the rest
+// to the RIGHT of everything already placed. So positioning the external at
+// x=-2560 and leaving eDP-1 alone lands the laptop at x=0, to its right, without
+// saying so.
+//
+// WHICH ALSO KEEPS THE LAPTOP AT THE ORIGIN WHETHER OR NOT THE EXTERNAL IS THERE.
+// hypr/monitors.lua warns about exactly this: with the laptop moved off 0,0,
+// anything given coordinates by hand - `grim -g "0,0 300x40"` - captures nothing,
+// because nothing is there. Undocked, eDP-1 is the only output and still lands at
+// x=0.
+//
+// -2560 IS THE EXTERNAL'S LOGICAL WIDTH at scale 1 (2560x1440), so its right edge
+// meets the laptop's left edge at 0 with no gap and no overlap. An overlap would
+// not be an error: niri warns and places the output to the right instead, which is
+// the behaviour this file exists to avoid.
+//
+// MATCHED BY MAKE, MODEL AND SERIAL rather than by DP-2, the same way
+// niri/workspaces.kdl pins the workspaces - the connector moves between docks and
+// is already known to be wrong once: this laptop calls it DP-2 while the notes in
+// hypr/monitors.lua say DP-1.
+//
+// NOT SET HERE: scale. niri picked 1.5 for the laptop panel on its own, where
+// hypr/monitors.lua asks for 1. That is a visible difference and changing it would
+// resize the whole desktop, so it is left as niri found it and written down
+// instead. The 1px overlaps in quickshell that hypr/monitors.lua calls
+// "unnecessary at scale 1" are doing real work at 1.5.
+output "LG Electronics LG ULTRAGEAR 106NTNH2R807" {
+    position x=-2560 y=0
+}

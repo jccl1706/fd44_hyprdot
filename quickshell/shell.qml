@@ -184,6 +184,14 @@ ShellRoot {
         }
     }
 
+    // The keyboard cheatsheet. Replaces niri's unstyled hotkey overlay and adds
+    // one to Hyprland, which has none - see Keybinds.qml.
+    Variants {
+        id: keybindsVariants
+        model: Quickshell.screens
+        Keybinds {}
+    }
+
     // Volume and device selection, sliding down out of the bar's top-right
     // corner. Opened from the speaker glyph in the bar.
     Variants {
@@ -392,6 +400,22 @@ ShellRoot {
                         + " next=" + p.canGoNext + " prev=" + p.canGoPrevious)
                      : "no player"
         }
+    }
+
+    // HYPRLAND ONLY, like every GlobalShortcut here: niri does not implement the
+    // protocol these use, and reaches the same panel through the IPC handler
+    // below instead - see niri/binds.kdl.
+    GlobalShortcut {
+        appid: "quickshell"
+        name: "keybinds"
+        onPressed: shell.toggleFocused(keybindsVariants.instances)
+    }
+
+    IpcHandler {
+        target: "keybinds"
+        function toggle(): void { shell.toggleFocused(keybindsVariants.instances) }
+        function open(): void   { shell.openFocused(keybindsVariants.instances) }
+        function close(): void  { shell.closeAll(keybindsVariants.instances) }
     }
 
     IpcHandler {

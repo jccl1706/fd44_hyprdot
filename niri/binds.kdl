@@ -39,6 +39,13 @@ binds {
     // the same choice hypr/binds.lua makes.
     XF86PowerOff    { spawn "qs" "ipc" "call" "power" "toggle"; }
 
+    // THE CHEATSHEET, replacing niri's own overlay on its own key. niri binds
+    // Mod+Shift+Slash to show-hotkey-overlay in its default config; this comes
+    // later in the include order, and binds override previously-defined keys, so
+    // this one wins. niri's overlay has no styling of any kind - two flags and
+    // nothing else - which is why quickshell/Keybinds.qml exists.
+    Mod+Shift+Slash hotkey-overlay-title="This cheatsheet" { spawn "qs" "ipc" "call" "keybinds" "toggle"; }
+
     // --- media, which must work with the screen locked --------------------
     XF86AudioPlay  allow-when-locked=true { spawn "qs" "ipc" "call" "media" "toggle"; }
     XF86AudioPause allow-when-locked=true { spawn "qs" "ipc" "call" "media" "toggle"; }
