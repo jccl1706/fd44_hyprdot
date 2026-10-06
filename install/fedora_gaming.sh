@@ -11,10 +11,13 @@
 #
 # NOT bin/gaming-setup.sh, WHICH IS FOR A MACHINE THAT IS GONE. That script
 # targets the previous desktop - ASRock B650I, Radeon RX 9070 XT, Btrfs - and
-# does three things that are wrong here: it swaps Mesa's VA-API driver for
-# RPM Fusion's AMD build, caps an AMD GPU at 250 W, and marks a Btrfs Steam
-# library nodatacow. This machine is NVIDIA on ext4. The lessons carry over;
-# the script does not.
+# does two things that are wrong here: it swaps Mesa's VA-API driver for RPM
+# Fusion's AMD build, and caps an AMD GPU at 250 W. This machine is NVIDIA. The
+# lessons carry over; the script does not.
+#
+# ITS THIRD STEP IS NOW RIGHT AGAIN. That script marked a Btrfs Steam library
+# nodatacow, which did not apply while this machine was on ext4 - it is on Btrfs
+# again since the rebuild, so the step is back, below.
 #
 # RPM Fusion is assumed - stage four enables it for the NVIDIA driver.
 
@@ -103,6 +106,37 @@ printf 'KERNEL=="uinput", MODE="0660", GROUP="input", OPTIONS+="static_node=uinp
 modprobe uinput || warn "could not load uinput now; it will load at boot"
 udevadm control --reload-rules && udevadm trigger --subsystem-match=misc || true
 usermod -aG input "$TARGET_USER"
+
+# --- Steam on Btrfs ----------------------------------------------------------
+#
+# NODATACOW ON THE LIBRARY, AND IT HAS TO BE SET ON AN EMPTY DIRECTORY. A game
+# is a large file written once and then rewritten in place by every patch, which
+# is the worst case for copy-on-write: each update scatters new extents and the
+# file fragments until load times suffer. chattr +C turns that off for the
+# directory's future contents.
+#
+# IT IS NOT RETROACTIVE. The flag is inherited by files created afterwards and
+# does nothing to files already there, so this runs before Steam has downloaded
+# anything - on a fresh install, which is exactly when this script runs. If the
+# library already has games in it, the only way to apply it is to move them out
+# and back.
+#
+# Snapshots are the other reason: a rolled-back system should not drag 58 GB of
+# games back with it, and nodatacow subvolume data is not what anyone wants in a
+# system snapshot.
+if [[ "$(findmnt -no FSTYPE /)" == btrfs ]]; then
+    STEAM_DIR="/home/$TARGET_USER/.local/share/Steam"
+    if [[ ! -e $STEAM_DIR ]]; then
+        note "marking the Steam library nodatacow, before Steam fills it"
+        install -d -o "$TARGET_USER" -g "$TARGET_USER" -m 0755 "$STEAM_DIR"
+        chattr +C "$STEAM_DIR" && printf '  %s +C\n' "$STEAM_DIR"
+    elif [[ -z "$(ls -A "$STEAM_DIR" 2>/dev/null)" ]]; then
+        chattr +C "$STEAM_DIR" && printf '  %s +C (was empty)\n' "$STEAM_DIR"
+    else
+        warn "$STEAM_DIR already has files in it, so nodatacow cannot be applied"
+        warn "now - the flag only affects files created after it is set."
+    fi
+fi
 
 # --- GameMode ----------------------------------------------------------------
 #
