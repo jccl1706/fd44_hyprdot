@@ -60,11 +60,11 @@ top.addWidget("org.kde.plasma.systemtray");
 // panel. lengthMode "fit" is what stops it stretching across the screen.
 var dock = new Panel;
 dock.location = "bottom";
-// SMALL ENOUGH TO READ AS A DOCK. icontasks sizes its icons from the panel
-// height, so this number is really the icon size plus its margins: 52 gives
-// icons with a little air around them, where 64 was a band of background with
-// icons in the middle of it.
-dock.height = 52;
+// SMALL ENOUGH TO READ AS A DOCK, AND NARROW BECAUSE OF IT. icontasks sizes
+// its icons from the panel height and gives each one a cell about that wide, so
+// this number sets the dock's width as much as its height: seven icons at 64
+// was a bar, four at 44 is a dock.
+dock.height = 44;
 // DODGE WINDOWS: in plain sight on an empty desktop, out of the way the moment
 // a window would overlap it - which is what "hide when something is maximised
 // or fullscreen" means. Not "autohide", which keeps it hidden always and wants
@@ -91,14 +91,16 @@ try { dock.floating = true; } catch (e) {}
 // same object rather than two.
 var tasks = dock.addWidget("org.kde.plasma.icontasks");
 tasks.currentConfigGroup = ["General"];
+// FOUR, NOT SEVEN. A dock is for what you reach for without thinking; the
+// launcher is two keystrokes away for everything else. virt-manager, Spectacle
+// and System Settings came out because each one was costing a cell's width to
+// save a keystroke nobody minds typing. Anything running still appears here
+// whether it is pinned or not.
 tasks.writeConfig("launchers", [
     "applications:org.kde.dolphin.desktop",
     "applications:org.kde.konsole.desktop",
     "applications:brave-browser.desktop",
-    "applications:steam.desktop",
-    "applications:virt-manager.desktop",
-    "applications:org.kde.spectacle.desktop",
-    "applications:systemsettings.desktop"
+    "applications:steam.desktop"
 ].join(","));
 tasks.writeConfig("showOnlyCurrentDesktop", false);
 tasks.writeConfig("indicateAudioStreams", true);
