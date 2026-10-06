@@ -25,7 +25,7 @@ top.location = "top";
 // A NUMBER, BECAUSE theme IS NOT IN THIS API. Plasma 5's scripting interface
 // exposed theme.defaultFont; Plasma 6's does not, and reading it throws
 // "Cannot read property 'pixelSize' of undefined" before anything is created.
-top.height = 36;
+top.height = 42;   // room for a 15px bold clock with the date under it
 top.hiding = "none";
 try { top.lengthMode = "fill"; } catch (e) {}
 try { top.floating = false; } catch (e) {}
@@ -43,7 +43,13 @@ clock.currentConfigGroup = ["Appearance"];
 clock.writeConfig("showDate", true);
 clock.writeConfig("dateFormat", "custom");
 clock.writeConfig("customDateFormat", "ddd d MMM");
-clock.writeConfig("fontWeight", 500);
+// BIG AND BOLD, AND THEREFORE NOT AUTOMATIC. The clock sizes itself to the
+// panel unless autoFontAndSize is off; with it off these three take over.
+// Weight 700 is Bold - Inter has a real bold, so nothing is synthesised.
+clock.writeConfig("autoFontAndSize", false);
+clock.writeConfig("fontFamily", "Inter");
+clock.writeConfig("fontWeight", 700);
+clock.writeConfig("fontSize", 15);
 
 top.addWidget("org.kde.plasma.panelspacer");
 top.addWidget("org.kde.plasma.systemtray");
