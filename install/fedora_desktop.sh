@@ -142,6 +142,8 @@ TOOLS=(
     wget                  # curl is in @core; wget is what half of every README uses
     git                   # this repository has to be clonable on the machine
     rsync                 # moving things between the two systems on this box
+    efibootmgr            # the boot entry below, and reading the order back
+    compsize              # what the btrfs compression is actually saving
 )
 
 # THE BROWSERS. Chromium is in Fedora's own repositories; Brave is not and
@@ -296,6 +298,46 @@ Leave Open=true
 WALLET
         chown "$SUDO_USER:$SUDO_USER" "$user_home/.config/kwalletrc"
     fi
+fi
+
+# --- the firmware boot entry -------------------------------------------------
+#
+# STAGE THREE PROMISED THIS AND NOTHING DELIVERED IT. bootctl runs there with
+# --no-variables for a good reason - at that moment there is no kernel yet, and
+# a firmware entry pointing at an empty systemd-boot is a machine that reaches
+# no operating system at all, which happened once and needed the firmware menu
+# to rescue. Its comment says the entry "gets added deliberately in stage four,
+# after there is something to boot". Stage four never did.
+#
+# What that left: Fedora reachable only through the firmware's fallback path
+# (\EFI\BOOT\BOOTX64.EFI, which both disks have), listed last in BootOrder
+# behind NixOS, so every boot needed somebody to choose it by hand.
+#
+# A NAMED ENTRY, NOT bootctl's. `bootctl install` without --no-variables would
+# create one labelled "Linux Boot Manager" - which is exactly what the NixOS
+# install on the other disk already calls itself, giving two identically named
+# entries on two disks. "Fedora" says which is which in the firmware menu.
+note "the firmware boot entry"
+ESP_DEV="$(findmnt -no SOURCE /boot)"
+ESP_DISK="/dev/$(lsblk -no PKNAME "$ESP_DEV")"
+ESP_PART="$(cat "/sys/class/block/$(basename "$ESP_DEV")/partition")"
+if efibootmgr | grep -q 'Fedora[[:space:]]'; then
+    note "already there"
+else
+    efibootmgr -q -c -d "$ESP_DISK" -p "$ESP_PART" -L "Fedora" \
+        -l '\EFI\systemd\systemd-bootx64.efi' \
+        || warn "could not create the entry - the firmware may refuse writes"
+fi
+
+# FIRST IN THE ORDER, WITHOUT DISCARDING THE REST. -o takes the whole list, so
+# it is built from what is already there rather than typed out: the other
+# entries are NixOS's, and a Fedora install has no business dropping them.
+fedora_num="$(efibootmgr | awk '/[[:space:]]Fedora$/ {print substr($1,5,4); exit}')"
+if [[ -n $fedora_num ]]; then
+    rest="$(efibootmgr | awk '/^BootOrder:/ {print $2}' | tr ',' '\n' | grep -vx "$fedora_num" | paste -sd,)"
+    efibootmgr -q -o "${fedora_num}${rest:+,$rest}" \
+        || warn "could not set the boot order - set it in the firmware menu"
+    efibootmgr | grep -E '^BootOrder|Fedora' | sed 's/^/  /'
 fi
 
 printf '\n'
