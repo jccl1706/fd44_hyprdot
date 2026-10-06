@@ -89,18 +89,18 @@ PanelWindow {
     // focusedMonitor, not an enter/leave handler: this window covers its own
     // output only, so it never sees the pointer arrive on the other one.
     Connections {
-        target: Hyprland
-        function onFocusedMonitorChanged() {
+        target: Compositor
+        function onFocusedMonitorNameChanged() {
             if (!root.revealed || !root.screen) return
-            const mon = Hyprland.focusedMonitor
-            // A null focusedMonitor is the second or so after a shell restart,
-            // before the first event lands. Not knowing where the pointer is
-            // is not a reason to close anything.
+            const want = Compositor.focusedMonitorName
+            // An empty name is the second or so after a shell restart, before
+            // the first event lands. Not knowing where the pointer is is not a
+            // reason to close anything.
             //
-            // By name: focusedMonitor and monitorFor() return different
-            // wrapper objects for the same output, so identity between them
-            // cannot be relied on.
-            if (mon && root.screen && String(root.screen.name) !== String(mon.name)) root.close()
+            // By name, because the compositor's output object and a ShellScreen
+            // are different objects for the same output and identity between
+            // them cannot be relied on.
+            if (want !== "" && root.screen && String(root.screen.name) !== want) root.close()
         }
     }
 

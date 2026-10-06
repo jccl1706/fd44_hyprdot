@@ -17,8 +17,8 @@
 // RAM. The entry would be there purely to fail.
 
 import Quickshell
-import Quickshell.Io
 import Quickshell.Hyprland
+import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
 

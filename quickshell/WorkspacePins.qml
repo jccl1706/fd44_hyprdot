@@ -25,8 +25,8 @@ pragma Singleton
 // a machine this config is meant to work on.
 
 import Quickshell
-import Quickshell.Io
 import Quickshell.Hyprland
+import Quickshell.Io
 import QtQuick
 
 Singleton {

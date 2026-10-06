@@ -38,7 +38,6 @@
 // are typing into.
 
 import Quickshell
-import Quickshell.Hyprland
 import Quickshell.Wayland
 import QtQuick
 
@@ -59,8 +58,8 @@ PanelWindow {
     property bool onFocusedMonitor: false
 
     function refreshFocus(): void {
-        const mon = Hyprland.focusedMonitor
-        if (!mon) {
+        const want = Compositor.focusedMonitorName
+        if (want === "") {
             // Not knowing yet. One arbitrary screen beats all of them, and
             // beats none - a notification that never appears is worse than
             // one that appears on the wrong monitor for a second.
@@ -68,17 +67,18 @@ PanelWindow {
                                     && Quickshell.screens[0] === root.modelData
             return
         }
-        // BY NAME. focusedMonitor and monitorFor() are different wrapper
-        // objects for the same output, so `===` between them is false during
-        // the monitor-list churn at startup - which is exactly when this
-        // first runs, so the window latched "not focused" and never mapped.
+        // BY NAME, which is all Compositor offers: the compositor's output
+        // object and a ShellScreen are different objects for the same output,
+        // so `===` between them is false during the monitor-list churn at
+        // startup - which is exactly when this first runs, so the window
+        // latched "not focused" and never mapped.
         root.onFocusedMonitor = root.modelData
-                                && String(root.modelData.name) === String(mon.name)
+                                && String(root.modelData.name) === want
     }
 
     Connections {
-        target: Hyprland
-        function onFocusedMonitorChanged() { root.refreshFocus() }
+        target: Compositor
+        function onFocusedMonitorNameChanged() { root.refreshFocus() }
     }
 
     Component.onCompleted: root.refreshFocus()

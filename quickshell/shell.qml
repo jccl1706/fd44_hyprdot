@@ -835,15 +835,15 @@ ShellRoot {
     // wrong answer.
     function focusedOne(instances) {
         // BY NAME, NOT BY OBJECT IDENTITY, and that was a real bug rather
-        // than caution. Hyprland.focusedMonitor and Hyprland.monitorFor()
-        // hand back different wrapper objects for the same output, so `===`
+        // than caution. The compositor's idea of an output and quickshell's
+        // ShellScreen are different objects for the same thing, so `===`
         // between them is only reliably true once everything has settled.
         // Compared during the monitor-list churn at startup it is false for
         // every instance, and anything latching a value then keeps the wrong
-        // answer. A ShellScreen's name and a HyprlandMonitor's name are both
-        // the connector name, so comparing those needs no lookup at all.
-        const mon = Hyprland.focusedMonitor
-        const want = mon ? String(mon.name) : ""
+        // answer. Both sides call the output by its connector name, so
+        // comparing names needs no lookup at all - which is why Compositor
+        // hands over a name rather than an object.
+        const want = Compositor.focusedMonitorName
         let first = null
         for (let i = 0; i < instances.length; i++) {
             const inst = instances[i]
