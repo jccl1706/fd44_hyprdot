@@ -135,6 +135,18 @@ fi
 # Writing those out would pin values that are already right and would stop
 # following the distribution if it ever revised them.
 #
+# AND THAT IS STILL TRUE OF THIS SCRIPT, BUT NO LONGER TRUE OF EVERY MACHINE.
+# fedora-gaming00 reads
+#
+#     font    Inter,10,-1,5,400,...
+#
+# because bin/font-setup.sh was run there deliberately: Inter, with hinting
+# almost off, for type that renders the way macOS renders it. That is a choice
+# made per machine and asked for, not a default that drifted - which is exactly
+# why it lives in its own opt-in script and not here. --show prints whatever is
+# set, so a non-blank font line means font-setup.sh has been run on that
+# machine, not that something went wrong.
+#
 # WHAT ACTUALLY MAKES PLASMA TEXT LOOK BETTER is not a Plasma setting at all.
 # Fedora's kde-settings ships /etc/fonts/conf.d/10-sub-pixel-rgb-for-kde.conf,
 # which tests the desktop name and enables RGB sub-pixel rendering FOR KDE
