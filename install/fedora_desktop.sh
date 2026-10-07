@@ -328,8 +328,16 @@ PARAMS+=(quiet rhgb loglevel=3 systemd.show_status=false
          rd.systemd.show_status=false rd.udev.log_level=3 udev.log_level=3
          vt.global_cursor_default=0)
 
+# WHOLE ARGUMENTS, NOT SUBSTRINGS. This was `grep -qw -- "$arg"`, and -w counts
+# a dot as a word boundary - so udev.log_level=3 matched INSIDE the
+# rd.udev.log_level=3 that had just been added, and was silently never written.
+# Any argument that is a suffix of another is dropped the same way. Comparing
+# the fields of the line is the only check that means what it says.
+read -r -a have < "$CMDLINE"
 for arg in "${PARAMS[@]}"; do
-    grep -qw -- "$arg" "$CMDLINE" || printf ' %s' "$arg" >> "$CMDLINE"
+    found=0
+    for h in "${have[@]}"; do [[ $h == "$arg" ]] && { found=1; break; }; done
+    (( found )) || { printf ' %s' "$arg" >> "$CMDLINE"; have+=("$arg"); }
 done
 sed -i 's/[[:space:]]\+/ /g; s/[[:space:]]*$//' "$CMDLINE"
 printf '  %s\n' "$(cat "$CMDLINE")"
