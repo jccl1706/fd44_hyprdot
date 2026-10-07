@@ -457,6 +457,44 @@ if [[ -f $MNT/etc/selinux/targeted/contexts/files/file_contexts ]]; then
         2>/dev/null || warn "restorecon reported errors on the account files"
 fi
 
+# AND MAKE SURE NEITHER PASSWORD ARRIVES ALREADY EXPIRED.
+#
+# The last install came up asking for an immediate password change at the first
+# login - "you are required to change your password immediately". That is PAM
+# reading field 3 of /etc/shadow, the day the password was last changed: zero
+# means "never, change it now". useradd and passwd normally fill it in with
+# today, and the installer never set it either way, so it inherited whatever
+# they left - including a wrong value if the clock in the installer environment
+# was not right, which on a fresh machine with an unset RTC it need not be.
+#
+# WHY THIS IS A GUARD AND NOT A DIAGNOSIS. The evidence was overwritten the
+# moment the password was changed on the running machine, so the original field
+# cannot be read back and the cause is not established. Setting it explicitly
+# costs one command and makes the symptom impossible whatever produced it,
+# which is worth more here than being right about the cause.
+#
+# -d with today's date, not `chage -d 0` - zero is the value that CAUSES this.
+# -M 99999 matches PASS_MAX_DAYS in Fedora's own /etc/login.defs; it is set
+# explicitly so a password cannot quietly expire on a machine that is left
+# running for years.
+note "clearing any forced-change flag on the accounts"
+today="$(date +%Y-%m-%d)"
+for u in root "$USERNAME"; do
+    inch chage -d "$today" -M 99999 "$u" \
+        || warn "chage failed for $u - check 'chage -l $u' after the first boot"
+done
+
+# Read it back, because a guard nobody verifies is a comment. A password that
+# still looks expired here will do the same at the login prompt.
+for u in root "$USERNAME"; do
+    last="$(awk -F: -v u="$u" '$1==u {print $3}' "$MNT/etc/shadow" 2>/dev/null)"
+    if [[ -z $last || $last == 0 ]]; then
+        warn "$u still shows last-change '$last' - it will demand a new password"
+    else
+        printf '    %-6s last password change: day %s\n' "$u" "$last"
+    fi
+done
+
 printf '\n'
 note "done - this should now boot"
 warn "the FIRST boot relabels SELinux and reboots itself once. That is expected."
