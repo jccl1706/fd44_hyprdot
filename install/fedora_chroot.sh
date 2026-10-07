@@ -377,6 +377,48 @@ ls "$MNT/boot/loader/entries" 2>/dev/null | sed 's/^/  entry: /' || warn "no loa
 note "enabling NetworkManager and sshd"
 inch systemctl enable NetworkManager sshd
 
+# --- ownership dnf --installroot got wrong -----------------------------------
+#
+# A PACKAGE WHOSE FILES BELONG TO A SERVICE USER GETS THEM AS root:root when it
+# is unpacked into a chroot, because the user is created by a scriptlet in the
+# same transaction and may not exist yet when the files land. rpm knows what
+# each file should be; --setugids puts it back.
+#
+# Measured on the Plasma rebuild: 17 files across four packages - sssd-common,
+# sssd-krb5-common, polkit-pkla-compat and sddm. The symptom was sssd_kcm
+# failing on every ssh login and broadcasting "Permission denied" to every
+# terminal on the machine, which is a long way from "the installer chose the
+# wrong uid".
+#
+# ONLY THE PACKAGES THAT ARE ACTUALLY WRONG, found first and reported, rather
+# than `rpm --setugids -a` over everything: a list of what was repaired is worth
+# having, and a run that touches nothing should say so.
+#
+# rpm -Va PRINTS NINE FIXED COLUMNS - SM5DLUGTP - so User is column 6 and Group
+# column 7. A pattern that looks for them anywhere near the start of the line
+# matches nothing and reports a clean system; that is exactly what the first
+# version of this check did, over a directory that was still root-owned.
+note "checking for ownership dnf --installroot left wrong"
+_own_bad="$(inch rpm -Va --nofiledigest --nosize --nomtime --nomode --nordev \
+                --nocaps --nolinkto 2>/dev/null \
+            | awk '$1 ~ /^[.SM5DLUGTP?]{9}$/ && ($1 ~ /U/ || $1 ~ /G/) {print $NF}' || true)"
+if [[ -n $_own_bad ]]; then
+    _own_pkgs="$(printf '%s\n' "$_own_bad" \
+        | while read -r f; do inch rpm -qf "$f" 2>/dev/null || true; done | sort -u)"
+    printf '    %s file(s) across %s package(s):\n' \
+        "$(printf '%s\n' "$_own_bad" | grep -c .)" \
+        "$(printf '%s\n' "$_own_pkgs" | grep -c .)"
+    printf '%s\n' "$_own_pkgs" | sed 's/^/      /'
+    # shellcheck disable=SC2086
+    printf '%s\n' "$_own_pkgs" | xargs -r chroot "$MNT" /usr/bin/env -i \
+        PATH=/usr/sbin:/usr/bin:/sbin:/bin rpm --setugids \
+        || warn "rpm --setugids reported errors"
+    note "ownership reset from the rpm database"
+else
+    note "ownership is already correct"
+fi
+unset _own_bad _own_pkgs
+
 # --- SELinux, labelled HERE rather than on first boot -------------------------
 #
 # .autorelabel IS NOT ENOUGH AND CANNOT BE. Packages installed through an
