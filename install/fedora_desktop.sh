@@ -183,6 +183,11 @@ NIRI=(
     grim slurp              # screenshots, which quickshell's binds call
     fuzzel                  # a launcher that works when quickshell does not
     waybar                  # likewise a bar - the fallback when the shell breaks
+    # WITHOUT THIS THERE IS NO WALLPAPER AND NO ERROR. Every wallpaper in this
+    # repository is .webp, and Qt cannot decode webp without the image format
+    # plugins - so quickshell loads nothing, draws black, and says nothing in
+    # the journal. The Framework has it; a minimal install does not.
+    qt6-qtimageformats
     jetbrains-mono-fonts
     # THE AGENT THE FRAMEWORK ACTUALLY RUNS, read off it rather than guessed.
     # The first version of this list said polkit-gnome, which does not exist in
