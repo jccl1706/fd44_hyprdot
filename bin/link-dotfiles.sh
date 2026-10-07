@@ -140,6 +140,7 @@ wants Hyprland  "hypr"       && link hypr       "$CONFIG/hypr"
 wants niri      "niri"       && link niri       "$CONFIG/niri"
 wants quickshell "quickshell" && link quickshell "$CONFIG/quickshell"
 wants kitty     "kitty"      && link kitty      "$CONFIG/kitty"
+wants alacritty "alacritty"  && link alacritty  "$CONFIG/alacritty"
 
 # CLAUDE CODE AGAINST A LOCAL OLLAMA, where there is an ollama. A shell function
 # rather than exported variables, so a terminal that is not for this keeps

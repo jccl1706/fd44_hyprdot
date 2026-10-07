@@ -1,0 +1,42 @@
+# =========================================================================
+# alacritty.toml - the other terminal, coloured from the same palette
+# =========================================================================
+#
+# kitty is the terminal the keybinds open. Alacritty is here because it is
+# installed and because a second terminal that does not match the rest of the
+# desktop is worse than no second terminal.
+#
+# THE COLOURS ARE NOT IN THIS FILE. bin/theme.sh writes theme.toml beside it
+# from themes/<name>.conf, the same source kitty's theme.conf comes from, so
+# both terminals change together and neither has its own copy of the palette
+# to drift.
+#
+# AN import OF A MISSING FILE IS AN ERROR IN ALACRITTY, unlike kitty's include -
+# it logs "unable to read config" and ignores the whole file. So theme.sh writes
+# theme.toml whenever it runs, and this repository ships a theme.toml beside
+# this file so a fresh checkout starts in the right colours rather than
+# failing before the first theme switch.
+[general]
+import = ["~/.config/alacritty/theme.toml"]
+
+# LIVE RELOAD, which is how a theme switch reaches a running window. Alacritty
+# watches its config and the files it imports; kitty needs SIGUSR1 for the same
+# effect, which is why theme.sh signals one and not the other.
+live_config_reload = true
+
+[window]
+padding = { x = 10, y = 10 }
+decorations = "none"
+dynamic_title = true
+
+[font]
+size = 11.0
+normal = { family = "JetBrainsMono Nerd Font", style = "Regular" }
+bold   = { family = "JetBrainsMono Nerd Font", style = "Bold" }
+italic = { family = "JetBrainsMono Nerd Font", style = "Italic" }
+
+[scrolling]
+history = 10000
+
+[cursor]
+style = { shape = "Beam", blinking = "On" }
