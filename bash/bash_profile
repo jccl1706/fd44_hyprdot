@@ -18,8 +18,21 @@ fi
 #
 # The marker lives in ~/.local/state so a stray ~/.config wipe cannot silently
 # disarm the gate.
+#
+# AND ONLY WHERE A COMPOSITOR IS ABOUT TO BE STARTED FROM THIS SHELL, which is
+# the autologin on tty1 and nowhere else. A display manager ALSO runs
+# `bash --login`: sddm's /etc/sddm/wayland-session does, so on the Plasma
+# machine this gate ran inside the graphical session, called passwd with no
+# terminal anyone could see, and blocked startplasma-wayland forever. The
+# symptom is a black screen with a cursor after a successful login, and the
+# only visible trace is a `passwd` process sitting in the session scope.
+#
+# `uwsm check may-start` is the same test the compositor start below uses, so
+# the gate now fires exactly where the thing it guards would run. On a machine
+# with no uwsm - any Plasma install - it is skipped entirely, which is correct:
+# there the password is typed by the operator during install, not shipped.
 _pw_marker="${XDG_STATE_HOME:-$HOME/.local/state}/password-changed"
-if [ ! -e "$_pw_marker" ]; then
+if [ ! -e "$_pw_marker" ] && command -v uwsm >/dev/null 2>&1 && uwsm check may-start -q; then
     printf '\n  This account still has the installer default password.\n'
     printf '  Set a real one now - the desktop will not start until you do.\n\n'
     # Ctrl+C, Ctrl+\ and Ctrl+Z are ignored while this runs - and, because an
