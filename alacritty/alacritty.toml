@@ -24,6 +24,10 @@ import = ["~/.config/alacritty/theme.toml"]
 # effect, which is why theme.sh signals one and not the other.
 live_config_reload = true
 
+# NO opacity HERE. theme.toml sets it from the palette, and a value in this
+# file would win: alacritty applies imports first and lets the importing file
+# override them. Setting it in both is how the theme stops being able to change
+# it.
 [window]
 padding = { x = 10, y = 10 }
 decorations = "none"
