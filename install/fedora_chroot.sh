@@ -396,10 +396,23 @@ inch systemctl enable NetworkManager sshd
 # setfiles works offline from the file_contexts database and needs no loaded
 # policy, which is exactly why Anaconda runs it at the end of an install rather
 # than deferring. It takes a couple of minutes on a fresh root.
+# AND / IS NOT THE WHOLE FILESYSTEM ANY MORE. setfiles does not cross mount
+# points, and since this installer moved to btrfs subvolumes /home is one:
+# subvol=home is a separate mount with its own device id, so relabelling / skips
+# it entirely. The result is a machine that logs in at the console and refuses
+# every ssh key, because sshd running as sshd_t cannot read an authorized_keys
+# under an unlabelled home - and says only "Permission denied (publickey)".
+#
+# Measured on fedora-gaming00 after the btrfs rebuild: /home/jc had no useful
+# label until `restorecon -R /home` was run by hand. On the old ext4 install
+# /home was part of / and this could not happen.
 note "labelling the filesystem for SELinux (this takes a minute)"
 if [[ -f $MNT/etc/selinux/targeted/contexts/files/file_contexts ]]; then
-    inch setfiles -F /etc/selinux/targeted/contexts/files/file_contexts / \
-        || warn "setfiles reported errors - check before booting"
+    FC=/etc/selinux/targeted/contexts/files/file_contexts
+    for tree in / /home; do
+        inch setfiles -F "$FC" "$tree" \
+            || warn "setfiles reported errors on $tree - check before booting"
+    done
     # No .autorelabel afterwards: the work is done, and leaving it would make
     # the first boot repeat it for no reason.
     rm -f "$MNT/.autorelabel"
@@ -426,6 +439,23 @@ for u in root "$USERNAME"; do
         inch passwd "$u"
     fi
 done
+
+# AND RELABEL WHAT passwd JUST WROTE. passwd replaces /etc/shadow by writing a
+# temporary file and renaming it, and in a chroot with no policy loaded the new
+# file is labelled from its directory - etc_t - rather than shadow_t. Nothing
+# can then read it: with SELinux enforcing the first boot refuses every
+# password, at the console and over ssh, while reporting only that the password
+# is wrong. The hashes are perfectly correct and unreadable.
+#
+# This ran after the relabel above, so the relabel could not have covered it.
+# Doing it here rather than moving the passwords earlier keeps the prompts last,
+# where they are seen, instead of in the middle of several minutes of output.
+if [[ -f $MNT/etc/selinux/targeted/contexts/files/file_contexts ]]; then
+    note "relabelling the account files passwd just rewrote"
+    inch restorecon -F /etc/shadow /etc/shadow- /etc/passwd /etc/passwd- \
+                       /etc/group /etc/group- /etc/gshadow /etc/gshadow- \
+        2>/dev/null || warn "restorecon reported errors on the account files"
+fi
 
 printf '\n'
 note "done - this should now boot"
