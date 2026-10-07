@@ -165,6 +165,15 @@ NIRI=(
     niri
     quickshell
     uwsm                    # starts the session; the compositor runs under it
+    # uwsm's OWN DEPENDENCY, WHICH IT DOES NOT DECLARE. `rpm -q --requires uwsm`
+    # names /usr/bin/python3 and nothing else, but uwsm/main.py imports xdg on
+    # line 34 - so on a minimal install every invocation dies with
+    #
+    #   ModuleNotFoundError: No module named 'xdg'
+    #
+    # and the session never starts. The Framework has it only because something
+    # else pulled it in. Measured on a fresh fedora-gaming00: not installed.
+    python3-pyxdg
     xwayland-satellite      # X11 applications, which niri cannot host itself
     xorg-x11-server-Xwayland
     xdg-desktop-portal xdg-desktop-portal-gtk xdg-desktop-portal-gnome
