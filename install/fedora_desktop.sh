@@ -511,6 +511,82 @@ fi
 # AS THE USER, NOT AS ROOT. The script installs into a home directory and
 # refuses to run under sudo, which is correct - so it is the one step in this
 # stage that drops privileges rather than keeping them.
+# --- VS Code, and Claude Code with it ----------------------------------------
+#
+# THE ONLY EDITOR WITH A FIRST-PARTY Claude Code INTEGRATION, along with the
+# JetBrains IDEs. Kate cannot have one: the integration is an extension, and
+# Claude Code is not a language server, so Kate's LSP client has nothing to
+# talk to.
+#
+# ITS OWN REPOSITORY, SIGNED, the same arrangement as Brave above and for the
+# same reason - an editor that opens everything on the machine should get
+# security updates through the same dnf as everything else, not from a tarball
+# in a home directory.
+#
+# BOTH DESKTOPS, unlike Brave. An editor is not a desktop choice, and the niri
+# machine wants it just as much.
+note "adding Microsoft's VS Code repository"
+rpm --import https://packages.microsoft.com/keys/microsoft.asc
+cat > /etc/yum.repos.d/vscode.repo <<'VSCODE'
+[code]
+name=Visual Studio Code
+baseurl=https://packages.microsoft.com/yumrepos/vscode
+enabled=1
+autorefresh=1
+gpgcheck=1
+gpgkey=https://packages.microsoft.com/keys/microsoft.asc
+VSCODE
+note "installing VS Code"
+dnf -y install code || warn "VS Code did not install"
+
+# WAYLAND, NOT XWAYLAND. VS Code is Electron and defaults to X11 under
+# XWayland, which on a HiDPI or fractional-scaled output means blurred text and
+# a cursor that lags the compositor. --ozone-platform-hint=auto picks Wayland
+# when there is one. It goes in a USER desktop file rather than the packaged
+# one, because dnf replaces the packaged one on every update.
+#
+# Telemetry off in the same breath: the editor is installed from Microsoft's
+# repository, which is a deliberate trade, but the default reporting is not
+# part of that trade.
+if [[ -f /usr/share/applications/code.desktop ]]; then
+    note "giving VS Code native Wayland and turning telemetry off"
+    install -d -o "$TARGET_USER" -g "$TARGET_USER" \
+        "/home/$TARGET_USER/.local/share/applications"
+    sed 's#^Exec=/usr/share/code/code #Exec=/usr/share/code/code --ozone-platform-hint=auto #' \
+        /usr/share/applications/code.desktop \
+        > "/home/$TARGET_USER/.local/share/applications/code.desktop"
+    chown "$TARGET_USER:$TARGET_USER" "/home/$TARGET_USER/.local/share/applications/code.desktop"
+
+    install -d -o "$TARGET_USER" -g "$TARGET_USER" \
+        "/home/$TARGET_USER/.config/Code/User"
+    _vs="/home/$TARGET_USER/.config/Code/User/settings.json"
+    if [[ ! -f $_vs ]]; then
+        printf '{\n    "telemetry.telemetryLevel": "off"\n}\n' > "$_vs"
+        chown "$TARGET_USER:$TARGET_USER" "$_vs"
+    else
+        note "  settings.json already exists - left alone"
+    fi
+    unset _vs
+fi
+
+# --- Claude Code --------------------------------------------------------------
+#
+# THE NATIVE INSTALLER, which is what the Framework runs: it puts a versioned
+# directory under ~/.local/share/claude and a symlink in ~/.local/bin, and
+# updates itself in place. Not packaged by Fedora and not in npm's global
+# prefix, so it belongs to the user rather than the system - hence runuser, the
+# same as starship below.
+#
+# THE ONE STEP HERE THAT REACHES THE PUBLIC INTERNET AND MAY FAIL. It is allowed
+# to: a machine without Claude Code is an inconvenience, not a broken desktop.
+if ! runuser -u "$TARGET_USER" -- test -x "/home/$TARGET_USER/.local/bin/claude"; then
+    note "installing Claude Code for $TARGET_USER"
+    runuser -u "$TARGET_USER" -- bash -c 'curl -fsSL https://claude.ai/install.sh | bash' \
+        || warn "Claude Code did not install - see https://claude.ai/install.sh"
+else
+    note "Claude Code is already installed"
+fi
+
 if [[ -x $REPO/bin/starship-setup.sh ]]; then
     note "starship, which Fedora does not package"
     runuser -u "$TARGET_USER" -- "$REPO/bin/starship-setup.sh" \
