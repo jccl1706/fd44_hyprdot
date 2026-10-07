@@ -192,6 +192,19 @@ NIRI=(
     qt6-qtimageformats
     jetbrains-mono-fonts
 
+    # THE FONT kitty.conf AND alacritty.toml ACTUALLY NAME, which nothing was
+    # installing. Both ask for "Noto Sans Mono"; the laptop happened to have it
+    # pulled in by another package and this machine did not, so the same
+    # configuration rendered in two different fonts and only one of them was
+    # the one written down. kitty hid it by matching a monospace face on its
+    # own; alacritty took the substitution fontconfig offered - Noto Sans,
+    # proportional - and the tmux status bar fell apart.
+    #
+    # A configuration that names a font is a configuration that has to install
+    # it. Depending on another package to drag it in is how two machines from
+    # one repository end up looking different.
+    google-noto-sans-mono-fonts
+
     # THE APPLICATIONS THE REPOSITORY ALREADY ASSUMES. These were missing from
     # the first niri build because the list was read off the Framework's
     # SESSION packages and stopped there - so the machine came up with a
