@@ -191,6 +191,26 @@ NIRI=(
     # the journal. The Framework has it; a minimal install does not.
     qt6-qtimageformats
     jetbrains-mono-fonts
+
+    # THE APPLICATIONS THE REPOSITORY ALREADY ASSUMES. These were missing from
+    # the first niri build because the list was read off the Framework's
+    # SESSION packages and stopped there - so the machine came up with a
+    # compositor, a shell and no file manager. Each of these is named in this
+    # repository's own files, which is the test for belonging here:
+    #
+    #   nautilus      hypr/rules.lua has a translucency rule for it, and
+    #                 Mod+E opens it in both compositors' binds
+    #   gvfs          without it Nautilus has no trash, no mounts and no
+    #                 network browsing - and says nothing about why
+    #   file-roller   what Nautilus hands an archive to
+    #   udiskie       systemd/udiskie.service is linked by link-dotfiles.sh
+    #   restic        bin/backup.sh is nothing without it
+    #   tmux          tmux/ is a tracked config this repository links
+    #   bat           bashrc.d aliases to it in several places
+    nautilus gvfs gvfs-fuse file-roller
+    udiskie
+    restic
+    tmux bat
     # THE AGENT THE FRAMEWORK ACTUALLY RUNS, read off it rather than guessed.
     # The first version of this list said polkit-gnome, which does not exist in
     # Fedora 44 at all - and because this script runs under set -e, that one
