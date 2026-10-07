@@ -440,23 +440,6 @@ for u in root "$USERNAME"; do
     fi
 done
 
-# AND RELABEL WHAT passwd JUST WROTE. passwd replaces /etc/shadow by writing a
-# temporary file and renaming it, and in a chroot with no policy loaded the new
-# file is labelled from its directory - etc_t - rather than shadow_t. Nothing
-# can then read it: with SELinux enforcing the first boot refuses every
-# password, at the console and over ssh, while reporting only that the password
-# is wrong. The hashes are perfectly correct and unreadable.
-#
-# This ran after the relabel above, so the relabel could not have covered it.
-# Doing it here rather than moving the passwords earlier keeps the prompts last,
-# where they are seen, instead of in the middle of several minutes of output.
-if [[ -f $MNT/etc/selinux/targeted/contexts/files/file_contexts ]]; then
-    note "relabelling the account files passwd just rewrote"
-    inch restorecon -F /etc/shadow /etc/shadow- /etc/passwd /etc/passwd- \
-                       /etc/group /etc/group- /etc/gshadow /etc/gshadow- \
-        2>/dev/null || warn "restorecon reported errors on the account files"
-fi
-
 # AND MAKE SURE NEITHER PASSWORD ARRIVES ALREADY EXPIRED.
 #
 # The last install came up asking for an immediate password change at the first
@@ -494,6 +477,31 @@ for u in root "$USERNAME"; do
         printf '    %-6s last password change: day %s\n' "$u" "$last"
     fi
 done
+
+# AND RELABEL WHAT passwd JUST WROTE. passwd replaces /etc/shadow by writing a
+# temporary file and renaming it, and in a chroot with no policy loaded the new
+# file is labelled from its directory - etc_t - rather than shadow_t. Nothing
+# can then read it: with SELinux enforcing the first boot refuses every
+# password, at the console and over ssh, while reporting only that the password
+# is wrong. The hashes are perfectly correct and unreadable.
+#
+# IT MUST BE THE LAST THING THAT TOUCHES THESE FILES, and that is not a style
+# point. The chage above rewrites /etc/shadow the same way passwd does - temp
+# file, rename - so when it ran AFTER this block, /etc/shadow came out with no
+# security.selinux attribute at all. Not the wrong label: none. The kernel
+# treats an unlabeled file as unlabeled_t and denies it to everything, which
+# fails exactly like the etc_t case this block was written for.
+#
+# Caught by reading the xattr before the first boot, on the install this
+# ordering was introduced in. getfattr -n security.selinux is how to check it
+# from outside; ls -Z cannot, because a host without SELinux userspace has
+# nothing to ask and prints '?'.
+if [[ -f $MNT/etc/selinux/targeted/contexts/files/file_contexts ]]; then
+    note "relabelling the account files passwd just rewrote"
+    inch restorecon -F /etc/shadow /etc/shadow- /etc/passwd /etc/passwd- \
+                       /etc/group /etc/group- /etc/gshadow /etc/gshadow- \
+        2>/dev/null || warn "restorecon reported errors on the account files"
+fi
 
 printf '\n'
 note "done - this should now boot"
