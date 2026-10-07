@@ -156,6 +156,45 @@ if [[ -n $target_home && -d "$target_home/.local/share/fonts" ]]; then
     fi
 fi
 
+# --- the patched terminal font ----------------------------------------------
+#
+# A SECOND FONT, FOR A PROBLEM THE FIRST ONE CANNOT SOLVE. Symbols Nerd Font is
+# a symbols-only face: its glyphs sit in its own em box and were never scaled
+# to any text font, so a separator drawn from it does not fill a terminal cell.
+# Measured at 11pt on fedora-gaming00:
+#
+#     cell                             13.2 px wide x 31 px tall
+#     cap U+E0B6, Symbols Nerd Font    advance 11.8, ink height 23
+#     cap U+E0B6, NotoSansM Nerd Font  advance 13.2, ink height 31
+#
+# which is why the tmux status bar's pills ended in a step instead of a curve.
+# The patched font is the same glyphs rescaled to Noto Sans Mono's metrics, and
+# the cell size is identical either way - nothing about the typeface changes.
+#
+# BOTH FONTS ARE NEEDED. The terminals use this one; waybar, quickshell, fuzzel
+# and the lock screen ask for a UI font and reach the icons through the
+# fontconfig fallback, which points at Symbols Nerd Font. Neither replaces the
+# other.
+TERMDEST="/usr/local/share/fonts/noto-sans-mono-nerd"
+termsrc="$repo/fonts/noto-sans-mono-nerd"
+if [[ -d $termsrc ]]; then
+    mkdir -p "$TERMDEST"
+    for face in "$termsrc"/NotoSansMNerdFont-*.ttf; do
+        [[ -f $face ]] || continue
+        base="$(basename "$face")"
+        if [[ -f "$TERMDEST/$base" ]] && cmp -s "$face" "$TERMDEST/$base"; then
+            log "already correct: $TERMDEST/$base"
+        else
+            install -m 0644 -o root -g root "$face" "$TERMDEST/$base"
+            log "installed $TERMDEST/$base"
+        fi
+    done
+else
+    printf 'install-nerd-font: WARNING - no patched font at %s\n' "$termsrc" >&2
+    printf '  the terminals will fall back to Symbols Nerd Font for separators,\n' >&2
+    printf '  which draws them short - see fonts/noto-sans-mono-nerd/README.md\n' >&2
+fi
+
 fc-cache -f >/dev/null 2>&1 || true
 
 # Report what fontconfig actually resolves now, as the user rather than as
