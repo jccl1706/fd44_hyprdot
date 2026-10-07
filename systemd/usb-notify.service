@@ -19,7 +19,7 @@ After=graphical-session.target
 # It tests ~/.config/hypr rather than the script because that link is what
 # makes the ExecStart path resolve at all - and on a machine without it there
 # is no quickshell either, so no notification daemon to send anything to.
-ConditionPathExists=%h/.config/hypr
+ConditionPathExists=%h/.config/fd44
 
 [Service]
 Type=simple
@@ -27,7 +27,7 @@ Type=simple
 # kernel resolves the symlink before applying "..", so this lands in the
 # repo's bin/ wherever the repo actually lives, rather than assuming the
 # clone is at a particular path.
-ExecStart=%h/.config/hypr/../bin/usb-notify.sh watch
+ExecStart=%h/.config/fd44/bin/usb-notify.sh watch
 
 # The watcher is a pipeline around `udevadm monitor`; if that dies the service
 # should come back rather than silently stop reacting to anything being

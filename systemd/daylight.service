@@ -6,11 +6,11 @@
 # A USER UNIT: it writes ~/.local/state/wallpaper, which is this user's
 # desktop, and runs bin/theme.sh, which writes this user's configuration.
 Description=Follow the sun: wallpaper and palette
-ConditionPathExists=%h/.config/hypr
+ConditionPathExists=%h/.config/fd44
 
 [Service]
 Type=oneshot
-ExecStart=%h/.config/hypr/../bin/daylight.py
+ExecStart=%h/.config/fd44/bin/daylight.py
 
 # Not Restart=on-failure: the timer comes round again in five minutes, which
 # is sooner than any retry would be worth, and a failure that persists should

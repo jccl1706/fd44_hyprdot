@@ -33,7 +33,7 @@ After=graphical-session.target
 # machine this unit does not belong on.
 # the wrong section - `systemd-analyze verify` says so and was how this was
 # caught.
-ConditionPathExists=%h/.config/hypr
+ConditionPathExists=%h/.config/fd44
 
 [Service]
 Type=simple
@@ -44,7 +44,7 @@ Type=simple
 # derives the clone directory from the repo URL's basename - a rename or a
 # fork installed under any other name would have broken this silently.
 # systemd keeps the ".." rather than normalising it away lexically; verified.
-ExecStart=%h/.config/hypr/../bin/power-mode.sh watch
+ExecStart=%h/.config/fd44/bin/power-mode.sh watch
 
 # The watcher is a pipeline around `udevadm monitor`; if that ever dies, the
 # service should come back rather than silently stop reacting to the charger.

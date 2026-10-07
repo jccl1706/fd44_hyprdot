@@ -10,11 +10,11 @@ Documentation=man:restic(1)
 
 # Same reasoning as the other units here: if the checkout is not where the
 # symlink says, do nothing rather than fail every day.
-ConditionPathExists=%h/.config/hypr
+ConditionPathExists=%h/.config/fd44
 
 [Service]
 Type=oneshot
-ExecStart=%h/.config/hypr/../bin/backup.sh run
+ExecStart=%h/.config/fd44/bin/backup.sh run
 
 # NOT Restart=on-failure. The ordinary failure is "the disk is not plugged in",
 # which the script already treats as success until the last backup is a

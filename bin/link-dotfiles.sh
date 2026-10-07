@@ -163,6 +163,13 @@ if have uwsm || $force_all; then
 fi
 
 # These three do not care what draws the screen.
+# THE ANCHOR EVERY systemd USER UNIT RESOLVES THE CHECKOUT THROUGH, and it has
+# to exist on any desktop. The units used to say %h/.config/hypr/../bin, which
+# resolves only where Hyprland's config is linked - so on the Plasma machine
+# every one of them silently did nothing, guarded by a
+# ConditionPathExists that was never met. Nothing failed; the backup timer
+# simply never ran, which is the worst way for a backup to be absent.
+link .                      "$CONFIG/fd44"
 link tmux                   "$CONFIG/tmux"
 link starship/starship.toml "$CONFIG/starship.toml"
 link wireplumber            "$CONFIG/wireplumber"
