@@ -498,6 +498,27 @@ else
     warn "bin/install-nerd-font.sh is missing - tmux and starship will show empty boxes"
 fi
 
+# --- starship ---------------------------------------------------------------
+#
+# FEDORA PACKAGES NO starship, so bin/starship-setup.sh fetches a pinned,
+# checksummed release into the user's ~/.local/bin. It is installed here for
+# the same reason the fonts above are: bin/link-dotfiles.sh links
+# starship/starship.toml on every machine this repository touches, and a
+# restic restore brings back ~/.bashrc.d/starship.sh along with the rest of the
+# dotfiles - so without the binary the hook is there, the config is there, and
+# the prompt silently falls back to plain bash with nothing to say why.
+#
+# AS THE USER, NOT AS ROOT. The script installs into a home directory and
+# refuses to run under sudo, which is correct - so it is the one step in this
+# stage that drops privileges rather than keeping them.
+if [[ -x $REPO/bin/starship-setup.sh ]]; then
+    note "starship, which Fedora does not package"
+    runuser -u "$TARGET_USER" -- "$REPO/bin/starship-setup.sh" \
+        || warn "starship did not install - the prompt will be plain bash"
+else
+    warn "bin/starship-setup.sh is missing - the prompt will be plain bash"
+fi
+
 if [[ $DESKTOP == niri ]]; then
     # --- xwayland-satellite, held at 0.8.1 -----------------------------------
     #
