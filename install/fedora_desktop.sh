@@ -299,13 +299,20 @@ if (( ! GO )); then
     if [[ $DESKTOP == niri ]]; then
         printf '    %s\n' "${NIRI[@]}" "${TOOLS[@]}" chromium
         note "would enable the nett00n/hyprland COPR for quickshell"
-        note "would install Symbols Nerd Font from $REPO/fonts (Fedora packages none)"
         note "would autologin $TARGET_USER on tty1, with no display manager"
+        note "would hold xwayland-satellite at 0.8.1 if 0.8.2 is installed"
     else
         printf '    %s\n' "${KDE[@]}" "${TOOLS[@]}" "${CHROMIUM[@]}"
         note "would add Brave's repository and install brave-browser"
         note "would pre-answer KWallet for ${SUDO_USER:-the invoking user}"
     fi
+    # BOTH PATHS, so the dry run says so once rather than inside one branch.
+    # It lived in the niri branch while the install did too; when the install
+    # moved, this did not, and a dry run that omits a step it will perform is
+    # worse than no dry run at all.
+    note "would install the Nerd Fonts from $REPO/fonts (Fedora packages none)"
+    note "  - Symbols Nerd Font: the glyphs tmux and starship draw"
+    note "  - NotoSansM Nerd Font: the patched face whose separators fit the cell"
     warn "DRY RUN. Re-run with --go."
     exit 0
 fi
