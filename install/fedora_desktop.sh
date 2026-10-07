@@ -208,6 +208,11 @@ NIRI=(
     #   tmux          tmux/ is a tracked config this repository links
     #   bat           bashrc.d aliases to it in several places
     nautilus gvfs gvfs-fuse file-roller
+    # PLYMOUTH, SO THE BOOT IS NOT A WALL OF TEXT. install_fedora.sh installs
+    # these on the Framework and this machine had them before the rebuild;
+    # plymouth-system-theme is what pulls the bgrt theme the firmware logo
+    # needs, and without it the splash falls back to text.
+    plymouth plymouth-system-theme
     udiskie
     restic
     tmux bat
@@ -312,7 +317,18 @@ akmods --kernels "$KVER" --force || warn "akmods reported a problem - check befo
 # write-up is in install/gentoo_desktop.sh and the salvaged scripts on the T5.
 note "adding the NVIDIA kernel parameters"
 CMDLINE=/etc/kernel/cmdline
-for arg in nvidia_drm.modeset=1 nvidia_drm.fbdev=1; do
+PARAMS=(nvidia_drm.modeset=1 nvidia_drm.fbdev=1)
+
+# AND THE QUIET BOOT, WHICH IS PLYMOUTH'S HALF OF THE BARGAIN. The splash only
+# replaces the text if the text is silenced: rhgb asks for the graphical boot,
+# quiet and the log levels stop the kernel and udev writing over it, and
+# vt.global_cursor_default=0 removes the blinking cursor that otherwise sits in
+# the corner of the splash. This is the Framework's line, kept in step.
+PARAMS+=(quiet rhgb loglevel=3 systemd.show_status=false
+         rd.systemd.show_status=false rd.udev.log_level=3 udev.log_level=3
+         vt.global_cursor_default=0)
+
+for arg in "${PARAMS[@]}"; do
     grep -qw -- "$arg" "$CMDLINE" || printf ' %s' "$arg" >> "$CMDLINE"
 done
 sed -i 's/[[:space:]]\+/ /g; s/[[:space:]]*$//' "$CMDLINE"
@@ -518,6 +534,23 @@ if [[ -n $fedora_num ]]; then
     efibootmgr -q -o "${fedora_num}${rest:+,$rest}" \
         || warn "could not set the boot order - set it in the firmware menu"
     efibootmgr | grep -E '^BootOrder|Fedora' | sed 's/^/  /'
+fi
+
+# --- btrfs-patrol -------------------------------------------------------------
+#
+# ON A BTRFS MACHINE ONLY, and this one is only btrfs since the rebuild. It is
+# this project's own tool and comes from its own COPR; `btrfs-patrol setup` is
+# still a deliberate step afterwards, because creating the snapshot subvolume
+# and editing fstab is not something to do to someone unasked.
+if [[ "$(findmnt -no FSTYPE /)" == btrfs ]]; then
+    note "btrfs-patrol, from its COPR"
+    dnf -y copr enable jccl1706/btrfs-patrol >/dev/null 2>&1 || true
+    dnf -y install btrfs-patrol >/dev/null \
+        && printf '  btrfs-patrol %s - run `sudo btrfs-patrol setup` when ready\n' \
+               "$(rpm -q --qf '%{VERSION}' btrfs-patrol)" \
+        || warn "btrfs-patrol did not install - check the COPR"
+else
+    note "not btrfs - skipping btrfs-patrol"
 fi
 
 printf '\n'
