@@ -504,8 +504,9 @@ apply() {
         # Icon theme: the palette's icon_theme if it is actually installed,
         # Adwaita otherwise. CHECKED, not trusted - gsettings accepts any string,
         # and naming a theme that is not there leaves GTK apps drawing
-        # missing-image icons. Reversal is opt-in (bin/icon-theme.sh), so a
-        # machine without it must still come out looking right.
+        # missing-image icons. The palettes name Papirus, which the installer
+        # installs, so this should not fire on a machine built from this
+        # repository - but a machine can always be older than the palette.
         #
         # AND IT SAYS SO WHEN IT FALLS BACK. Silently is how this bites: the
         # icons change under you on a run that was about something else
