@@ -465,6 +465,42 @@ if [[ $DESKTOP == niri ]]; then
         warn "bin/install-nerd-font.sh is missing - the bar will show empty boxes"
     fi
 
+    # --- xwayland-satellite, held at 0.8.1 -----------------------------------
+    #
+    # A DOWNGRADE, DELIBERATELY, AND A LOCK TO KEEP IT. 0.8.2 tells an X11
+    # override-redirect popup that the pointer left it about 35ms after it
+    # maps, so every menu in every X11 application closes the instant it
+    # opens. Steam is where it is unmissable - Steam, View, Friends, Games,
+    # Help and every right-click are all unusable - but it is not a Steam bug
+    # and not a bug in niri/rules.kdl's floating rule, which is what it looks
+    # like from the outside.
+    #
+    #   https://github.com/Supreeeme/xwayland-satellite/issues/503
+    #   https://github.com/niri-wm/niri/issues/4532
+    #
+    # Measured on fedora-gaming00: 0.8.2 broken, 0.8.1 fine, confirmed by
+    # downgrading and restarting the session. Steam's own -system-composer
+    # workaround was tried first and did nothing.
+    #
+    # THE LOCK IS THE IMPORTANT HALF. Without it the next `dnf upgrade` puts
+    # 0.8.2 back and the menus break again weeks later, with nothing
+    # connecting the two events.
+    #
+    # REMOVE ALL OF THIS when Fedora ships a build newer than 0.8.2 - the fix
+    # is already in xwayland-satellite main. Leaving a package pinned to an old
+    # version after the bug is fixed is its own kind of trap, so this block
+    # only acts while the installed version is exactly 0.8.2.
+    if [[ "$(rpm -q --qf '%{VERSION}' xwayland-satellite 2>/dev/null)" == "0.8.2" ]]; then
+        note "holding xwayland-satellite at 0.8.1 - 0.8.2 breaks X11 menus"
+        if dnf -y downgrade xwayland-satellite-0.8.1-1.fc44; then
+            dnf versionlock add xwayland-satellite 2>/dev/null \
+                || warn "could not lock it: a later dnf upgrade will undo this"
+        else
+            warn "the downgrade failed - X11 menus (Steam's especially) will not work"
+            warn "see https://github.com/Supreeeme/xwayland-satellite/issues/503"
+        fi
+    fi
+
     # NO DISPLAY MANAGER, WHICH IS THE FRAMEWORK'S ARRANGEMENT. getty logs the
     # user in on tty1 and ~/.bash_profile - linked by bin/link-dotfiles.sh -
     # reads ~/.local/state/fd44-compositor and hands niri or Hyprland to uwsm.

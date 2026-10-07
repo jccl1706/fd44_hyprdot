@@ -44,3 +44,19 @@ window-rule {
     match app-id=r#"^steam$"#
     open-floating true
 }
+
+// IF STEAM'S MENUS DO NOT OPEN, IT IS NOT THIS RULE. That is the first thing
+// anyone will suspect, because the symptom appears the moment the client starts
+// floating and every menu - Steam, View, Friends, Games, Help, every
+// right-click - flashes and vanishes.
+//
+// It is xwayland-satellite 0.8.2, which tells an X11 override-redirect popup
+// that the pointer left it about 35ms after it maps:
+//
+//   https://github.com/Supreeeme/xwayland-satellite/issues/503
+//   https://github.com/niri-wm/niri/issues/4532
+//
+// Measured on fedora-gaming00: broken on 0.8.2, fine on 0.8.1. Steam's own
+// -system-composer workaround changed nothing. install/fedora_desktop.sh holds
+// the package at 0.8.1 and locks it, and says when to remove that - the fix is
+// already in xwayland-satellite main and will arrive in a Fedora build.
