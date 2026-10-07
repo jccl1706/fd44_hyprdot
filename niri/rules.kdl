@@ -65,9 +65,26 @@ window-rule {
 // a swarm of small windows; a game is one window that wants the whole screen
 // and already gets it - measured at 2560x1440 against a 2560x1440 output.
 // Floating it would be forcing a decision the game has already made correctly.
+// AND OPENED FULLSCREEN, which is not the same as being the size of the
+// screen. ARC Raiders came up as a tiled window measuring exactly 2560x1440
+// against a 2560x1440 output and still was not fullscreen: the bar stayed
+// drawn on top of it and the picture sat below a black band. A window filling
+// the output and a window in the fullscreen state are different things, and
+// only the second one covers a layer-shell surface.
+//
+// `niri msg action fullscreen-window` on the running game changed nothing,
+// while the same action on a kitty window took it from 1256x1356 to 2560x1440
+// and hid the bar - so the mechanism works and the request was not reaching
+// this X11 client. Asking at map time is a different path from toggling a
+// mapped window, which is why this is worth having.
+//
+// IF IT STILL COMES UP LETTERBOXED, the remaining lever is the game's own
+// display mode: "Fullscreen" rather than "Borderless Window". A client that
+// has decided it is a window on a desktop will keep drawing itself that way.
 window-rule {
     match app-id=r#"^steam_app_"#
     open-on-workspace "5"
+    open-fullscreen true
 }
 
 // IF STEAM'S MENUS DO NOT OPEN, IT IS NOT THIS RULE. That is the first thing
