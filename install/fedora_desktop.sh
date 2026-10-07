@@ -185,12 +185,6 @@ NIRI=(
     grim slurp              # screenshots, which quickshell's binds call
     fuzzel                  # a launcher that works when quickshell does not
     waybar                  # likewise a bar - the fallback when the shell breaks
-    # WITHOUT THIS THERE IS NO WALLPAPER AND NO ERROR. Every wallpaper in this
-    # repository is .webp, and Qt cannot decode webp without the image format
-    # plugins - so quickshell loads nothing, draws black, and says nothing in
-    # the journal. The Framework has it; a minimal install does not.
-    qt6-qtimageformats
-    jetbrains-mono-fonts
 
     # THE FONT kitty.conf AND alacritty.toml ACTUALLY NAME, which nothing was
     # installing. Both ask for "Noto Sans Mono"; the laptop happened to have it
@@ -203,6 +197,10 @@ NIRI=(
     # A configuration that names a font is a configuration that has to install
     # it. Depending on another package to drag it in is how two machines from
     # one repository end up looking different.
+    #
+    # THIS ONE STAYS niri-ONLY, unlike the other fonts, because only kitty.conf
+    # and alacritty.toml name it and neither terminal is installed on the Plasma
+    # path - konsole/fd44.profile sets a colour scheme and no font at all.
     google-noto-sans-mono-fonts
 
     # THE APPLICATIONS THE REPOSITORY ALREADY ASSUMES. These were missing from
@@ -255,6 +253,20 @@ TOOLS=(
     tmux                  # tmux/ is a tracked config link-dotfiles.sh links
     restic                # bin/backup.sh is nothing without it
     bat                   # bashrc.d aliases to it in several places
+
+    # AND TWO THAT LOOK LIKE niri THINGS AND ARE NOT.
+    #
+    # qt6-qtimageformats is the only thing in Fedora providing webp for Qt, and
+    # plasma-workspace does not require it - checked, not assumed. Every
+    # wallpaper in this repository is .webp, so without it Plasma cannot show
+    # one either, exactly as quickshell could not: it loads nothing, draws
+    # black, and says nothing in the journal.
+    #
+    # jetbrains-mono-fonts is asked for by mangohud/presets.conf - JetBrains
+    # Mono Bold, so the overlay's numbers keep their width - and MangoHud comes
+    # from stage five, which runs whichever desktop is installed.
+    qt6-qtimageformats
+    jetbrains-mono-fonts
 
     # PAPIRUS, AND FROM FEDORA RATHER THAN FROM GIT. Tela was here first,
     # installed by a script that cloned upstream and ran its installer into
@@ -454,24 +466,32 @@ note "installing Brave"
 dnf -y install brave-browser
 fi
 
-if [[ $DESKTOP == niri ]]; then
-    # SYMBOLS NERD FONT, WHICH FEDORA DOES NOT PACKAGE AT ALL. The only "nerd"
-    # font in the repositories is texlive-inconsolata-nerd-font, which is
-    # unrelated - so the glyphs in the bar, launcher, OSDs, power menu and lock
-    # screen come from a font this repository carries at
-    # fonts/nerd-fonts-symbols/ and installs itself.
-    #
-    # IT CANNOT BE LEFT AS A STEP TO REMEMBER. Without it every one of those
-    # glyphs is an empty box, which looks like a broken shell rather than a
-    # missing font - and on a fresh fedora-gaming00 that is exactly how it
-    # looked until the two machines were compared.
-    if [[ -x $REPO/bin/install-nerd-font.sh ]]; then
-        note "Symbols Nerd Font, which Fedora does not package"
-        "$REPO/bin/install-nerd-font.sh" || warn "the nerd font did not install - the bar will show empty boxes"
-    else
-        warn "bin/install-nerd-font.sh is missing - the bar will show empty boxes"
-    fi
+# --- the Nerd Fonts, on either desktop ---------------------------------------
+#
+# FEDORA PACKAGES NO SYMBOLS NERD FONT AT ALL. The only "nerd" font in the
+# repositories is texlive-inconsolata-nerd-font, which is unrelated - so the
+# glyphs come from fonts/ in this repository, which installs them itself.
+#
+# NOT niri-ONLY, AND KDE IS THE CASE IT EXISTS FOR. On niri the glyphs are the
+# bar, launcher, OSD, power menu and lock screen. On Plasma none of those exist
+# - but tmux and starship do, and bin/link-dotfiles.sh links their configs and
+# the fontconfig fallback rule on EVERY machine, with no desktop test, because
+# fontconfig is everywhere. That rule's own comment names the case exactly:
+# kitty finds the glyphs by itself, konsole goes through Qt and fontconfig and
+# does not. So a Plasma install linked the rule, linked the tmux config, and
+# had nothing for either to point at.
+#
+# It cannot be left as a step to remember: every missing glyph is an empty box,
+# which reads as a broken shell rather than a missing font. That is exactly how
+# a fresh fedora-gaming00 looked until the two machines were compared.
+if [[ -x $REPO/bin/install-nerd-font.sh ]]; then
+    note "the Nerd Fonts, which Fedora does not package"
+    "$REPO/bin/install-nerd-font.sh" || warn "the nerd fonts did not install - tmux and starship will show empty boxes"
+else
+    warn "bin/install-nerd-font.sh is missing - tmux and starship will show empty boxes"
+fi
 
+if [[ $DESKTOP == niri ]]; then
     # --- xwayland-satellite, held at 0.8.1 -----------------------------------
     #
     # A DOWNGRADE, DELIBERATELY, AND A LOCK TO KEEP IT. 0.8.2 tells an X11
