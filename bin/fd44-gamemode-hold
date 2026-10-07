@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# =========================================================================
+# fd44-gamemode-hold - GameMode that survives Proton's container
+# =========================================================================
+#
+# Usage, as a Steam launch option:
+#
+#     mangohud fd44-gamemode-hold %command%
+#
+# NOT `gamemoderun %command%`, WHICH SILENTLY DOES NOTHING UNDER PROTON.
+# gamemoderun works by putting libgamemodeauto.so in LD_PRELOAD; the game then
+# registers with gamemoded as it starts and deregisters as it exits. Proton
+# runs the game inside pressure-vessel, which builds a fresh environment and
+# does not carry LD_PRELOAD across - so the library unloads before the game has
+# started, GameMode deregisters, and the governor goes back to where it was.
+# Nothing reports this. `gamemoded -s` says "gamemode is inactive" while the
+# game runs, which is the only way to notice.
+#
+# SO THE REGISTRATION IS HELD OUTSIDE THE CONTAINER. This script starts a tiny
+# process under gamemoderun that does nothing but outlive the game, and runs
+# the game normally beside it. GameMode stays active because that holder is
+# still registered, whatever pressure-vessel does to the game's environment.
+#
+# THE HOLDER WATCHES THIS PROCESS rather than sleeping for a fixed time: if the
+# wrapper is killed outright - Steam's Stop button, a crash - the holder
+# notices within two seconds that its parent is gone and exits, which releases
+# GameMode. A holder that slept forever would latch the governor on until the
+# next reboot.
+#
+# Ported from fd44_nixos/modules/gaming.nix, where the NixOS install builds the
+# same thing with writeShellApplication. Fedora has no equivalent, so this is a
+# plain script and install/fedora_gaming.sh puts it in /usr/local/bin - the
+# same path, so a launch option set on either install works on both.
+
+set -euo pipefail
+
+command -v gamemoderun >/dev/null 2>&1 || {
+    echo "fd44-gamemode-hold: gamemoderun not found - running the game without GameMode" >&2
+    exec "$@"
+}
+
+# $$ is this script's PID, expanded here rather than inside the holder.
+gamemoderun sh -c "while kill -0 $$ 2>/dev/null; do sleep 2; done" &
+holder=$!
+trap 'kill "$holder" 2>/dev/null || true' EXIT HUP INT TERM
+
+"$@"

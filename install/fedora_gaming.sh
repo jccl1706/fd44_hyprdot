@@ -42,6 +42,10 @@ rpm -q rpmfusion-nonfree-release >/dev/null 2>&1 \
     || die "RPM Fusion is not enabled - run install/fedora_desktop.sh first"
 
 TARGET_USER="${SUDO_USER:-jc}"
+# The checkout this script lives in, so it can install the wrapper that ships
+# beside it. Resolved from BASH_SOURCE rather than assumed to be ~/Work, which
+# is true on these machines and need not be on the next one.
+REPO="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # BY ARCHITECTURE, SPELLED OUT, and this is not decoration. A bare `gamemode`
 # next to `gamemode.i686` once installed ONLY the i686 package - dnf's own
@@ -136,6 +140,27 @@ if [[ "$(findmnt -no FSTYPE /)" == btrfs ]]; then
         warn "$STEAM_DIR already has files in it, so nodatacow cannot be applied"
         warn "now - the flag only affects files created after it is set."
     fi
+fi
+
+# --- the GameMode wrapper Proton needs ---------------------------------------
+#
+# `gamemoderun %command%` DOES NOTHING UNDER PROTON and says so nowhere.
+# gamemoderun works through LD_PRELOAD; pressure-vessel builds the game a fresh
+# environment and does not carry it across, so GameMode deregisters before the
+# game starts. `gamemoded -s` reporting "inactive" during a session is the only
+# symptom.
+#
+# bin/fd44-gamemode-hold holds the registration outside the container. It is
+# installed to /usr/local/bin because that is where the NixOS install on the
+# other disk puts its copy - so one Steam launch option works from either
+# system, and this box dual-boots.
+if [[ -f $REPO/bin/fd44-gamemode-hold ]]; then
+    note "installing fd44-gamemode-hold to /usr/local/bin"
+    install -D -m 0755 -o root -g root \
+        "$REPO/bin/fd44-gamemode-hold" /usr/local/bin/fd44-gamemode-hold
+else
+    warn "bin/fd44-gamemode-hold is missing - the fd44 launch options will fail"
+    warn "with 'command not found' on every game."
 fi
 
 # --- GameMode ----------------------------------------------------------------
