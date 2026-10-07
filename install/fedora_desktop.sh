@@ -3,7 +3,7 @@
 # fedora_desktop.sh - NVIDIA and a minimal KDE, on a booted Fedora
 # =========================================================================
 #
-# Usage:  sudo install/fedora_desktop.sh [--go]
+# Usage:  sudo install/fedora_desktop.sh [--niri|--plasma] [--go]
 #
 # Stage four of four, the last that is required, and the first that runs ON the
 # new machine rather than
@@ -29,9 +29,15 @@ warn() { printf '%s!!%s  %s\n' "$bold" "$reset" "$*" >&2; }
 die()  { printf '%sfedora:%s %s\n' "$red" "$reset" "$*" >&2; exit 1; }
 
 GO=0
+# ONE DESKTOP OR THE OTHER, NEVER BOTH - the same rule install_fedora.sh keeps
+# for Hyprland and Plasma, and for the same reason: two session managers and two
+# portal implementations on one machine is a set of quiet, confusing failures.
+DESKTOP=plasma
 while (( $# )); do
     case "$1" in
         --go) GO=1; shift ;;
+        --niri)   DESKTOP=niri;   shift ;;
+        --plasma) DESKTOP=plasma; shift ;;
         -h|--help) sed -n '2,/^set -euo/{/^#/s/^# \{0,1\}//p}' "$0"; exit 0 ;;
         *) die "unknown argument: $1" ;;
     esac
@@ -41,12 +47,14 @@ done
 [[ -f /etc/fedora-release ]] || die "this runs ON the Fedora install, not from NixOS"
 RELEASEVER="$(rpm -E %fedora)"
 KVER="$(uname -r)"
+TARGET_USER="${SUDO_USER:-jc}"
 
 note "this machine"
 printf '  %-12s %s\n' "fedora"  "$RELEASEVER"
 printf '  %-12s %s\n' "kernel"  "$KVER"
 printf '  %-12s %s\n' "packages" "$(rpm -qa | wc -l)"
 printf '  %-12s %s\n' "gpu"     "$(lspci -nn | grep -i 'VGA\|3D' | head -1 | cut -c1-70)"
+printf '  %-12s %s\n' "desktop" "$DESKTOP"
 printf '\n'
 
 # THE KDE LIST, NAMED RATHER THAN GROUPED.
@@ -136,6 +144,40 @@ KDE=(
 # list as the tools it needs to run. Every one of these was wanted at some point
 # while building this install and was not there; none of them is bloat, and
 # together they are a few MB.
+# THE NIRI LIST, WHICH IS WHAT THE FRAMEWORK RUNS.
+#
+# No display manager and no Plasma: the session is getty autologin on tty1 plus
+# ~/.bash_profile, which reads ~/.local/state/fd44-compositor and hands the
+# chosen compositor to uwsm. That arrangement is already in the repository and
+# is linked by bin/link-dotfiles.sh; this list is the software it needs.
+#
+# niri IS IN FEDORA'S OWN REPOSITORIES - no COPR, no build. quickshell is not,
+# and comes from the same COPR the laptop uses.
+#
+# xwayland-satellite IS NOT OPTIONAL ON niri. niri has no built-in Xwayland, so
+# without it every X11 application simply fails to start, with nothing on screen
+# to say why.
+#
+# THE PORTALS ARE gtk AND gnome, NOT kde. On niri the gnome portal provides the
+# screencast and screenshot interfaces and gtk provides the file chooser; the
+# KDE one would pull a third of Plasma in behind it.
+NIRI=(
+    niri
+    quickshell
+    uwsm                    # starts the session; the compositor runs under it
+    xwayland-satellite      # X11 applications, which niri cannot host itself
+    xorg-x11-server-Xwayland
+    xdg-desktop-portal xdg-desktop-portal-gtk xdg-desktop-portal-gnome
+    kitty                   # the terminal the keybinds in niri/binds.kdl name
+    swaylock
+    wl-clipboard cliphist   # copy/paste and its history
+    grim slurp              # screenshots, which quickshell's binds call
+    fuzzel                  # a launcher that works when quickshell does not
+    waybar                  # likewise a bar - the fallback when the shell breaks
+    jetbrains-mono-fonts
+    polkit-gnome            # the authentication agent; nothing else provides one
+)
+
 TOOLS=(
     bash-completion       # dnf and systemctl are unusable without it
     lsof strace           # what is holding this file, what is this process doing
@@ -173,9 +215,15 @@ if (( ! GO )); then
     note "would enable RPM Fusion free + nonfree for Fedora $RELEASEVER"
     note "would install akmod-nvidia xorg-x11-drv-nvidia-cuda"
     note "would install, with weak deps:"
-    printf '    %s\n' "${KDE[@]}" "${TOOLS[@]}" "${CHROMIUM[@]}"
-    note "would add Brave's repository and install brave-browser"
-    note "would pre-answer KWallet for ${SUDO_USER:-the invoking user}"
+    if [[ $DESKTOP == niri ]]; then
+        printf '    %s\n' "${NIRI[@]}" "${TOOLS[@]}" chromium
+        note "would enable the nett00n/hyprland COPR for quickshell"
+        note "would autologin $TARGET_USER on tty1, with no display manager"
+    else
+        printf '    %s\n' "${KDE[@]}" "${TOOLS[@]}" "${CHROMIUM[@]}"
+        note "would add Brave's repository and install brave-browser"
+        note "would pre-answer KWallet for ${SUDO_USER:-the invoking user}"
+    fi
     warn "DRY RUN. Re-run with --go."
     exit 0
 fi
@@ -229,15 +277,32 @@ note "rewriting the boot entry with the new command line"
 kernel-install add "$KVER" "/usr/lib/modules/$KVER/vmlinuz"
 grep -h ^options /boot/loader/entries/*.conf | sed 's/^/  /'
 
-# --- KDE ---------------------------------------------------------------------
-note "installing a minimal KDE (${#KDE[@]} packages named, plus their deps)"
-dnf -y install "${KDE[@]}"
+# --- the desktop -------------------------------------------------------------
+if [[ $DESKTOP == niri ]]; then
+    # THE COPR IS FOR quickshell ALONE. niri is in Fedora's own repositories;
+    # quickshell is not, and this is the COPR the Framework already uses, so
+    # both machines run the same build.
+    note "adding the quickshell COPR"
+    dnf -y copr enable nett00n/hyprland
 
-note "and the tools for when something goes wrong"
-dnf -y install "${TOOLS[@]}"
+    note "installing niri and quickshell (${#NIRI[@]} packages named, plus their deps)"
+    dnf -y install "${NIRI[@]}"
 
-note "Chromium, with the Qt6 UI so it matches Plasma"
-dnf -y install "${CHROMIUM[@]}"
+    note "and the tools for when something goes wrong"
+    dnf -y install "${TOOLS[@]}"
+
+    note "Chromium"
+    dnf -y install chromium
+else
+    note "installing a minimal KDE (${#KDE[@]} packages named, plus their deps)"
+    dnf -y install "${KDE[@]}"
+
+    note "and the tools for when something goes wrong"
+    dnf -y install "${TOOLS[@]}"
+
+    note "Chromium, with the Qt6 UI so it matches Plasma"
+    dnf -y install "${CHROMIUM[@]}"
+fi
 
 # --- Brave -------------------------------------------------------------------
 #
@@ -248,6 +313,7 @@ dnf -y install "${CHROMIUM[@]}"
 # NOT a flatpak, and not a tarball in $HOME: a browser gets security updates
 # more often than anything else on the machine, and it should come through the
 # same dnf that updates everything else.
+if [[ $DESKTOP == plasma ]]; then
 note "adding Brave's repository"
 rpm --import https://brave-browser-rpm-release.s3.brave.com/brave-core.asc
 dnf -y config-manager addrepo --from-repofile=https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo \
@@ -255,10 +321,37 @@ dnf -y config-manager addrepo --from-repofile=https://brave-browser-rpm-release.
 
 note "installing Brave"
 dnf -y install brave-browser
+fi
 
-note "enabling the display manager"
-systemctl set-default graphical.target
-systemctl enable sddm
+if [[ $DESKTOP == niri ]]; then
+    # NO DISPLAY MANAGER, WHICH IS THE FRAMEWORK'S ARRANGEMENT. getty logs the
+    # user in on tty1 and ~/.bash_profile - linked by bin/link-dotfiles.sh -
+    # reads ~/.local/state/fd44-compositor and hands niri or Hyprland to uwsm.
+    #
+    # graphical.target STILL, NOT multi-user. The session is started by a shell
+    # on tty1, but everything else about the machine is a graphical install, and
+    # the user units the shell starts expect graphical-session.target to be
+    # reachable.
+    note "autologin on tty1, with no display manager"
+    systemctl set-default graphical.target
+    install -d /etc/systemd/system/getty@tty1.service.d
+    cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf <<AUTOLOGIN
+# Written by fd44_hyprdot install/fedora_desktop.sh --niri
+#
+# ExecStart IS CLEARED FIRST. A drop-in adds to ExecStart rather than replacing
+# it, so without the empty assignment getty is started twice and the second one
+# fails, which systemd reports as the unit failing even though the session is up.
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin $TARGET_USER --noclear %I \$TERM
+AUTOLOGIN
+    printf '  autologin as %s on tty1\n' "$TARGET_USER"
+    systemctl disable sddm 2>/dev/null || true
+else
+    note "enabling the display manager"
+    systemctl set-default graphical.target
+    systemctl enable sddm
+fi
 
 
 # --- KWallet ----------------------------------------------------------------
@@ -292,7 +385,7 @@ systemctl enable sddm
 # Revisit when pam-kwallet or libgcrypt moves: if a login ever populates
 # ~/.local/share/kwalletd by itself, the wallet can be recreated with a real
 # password and this note deleted.
-if [[ -n ${SUDO_USER-} && $SUDO_USER != root ]]; then
+if [[ $DESKTOP == plasma && -n ${SUDO_USER-} && $SUDO_USER != root ]]; then
     user_home="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
     if [[ -d $user_home ]]; then
         note "pre-answering KWallet for $SUDO_USER"
