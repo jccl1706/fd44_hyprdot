@@ -506,8 +506,21 @@ apply() {
         # and naming a theme that is not there leaves GTK apps drawing
         # missing-image icons. Reversal is opt-in (bin/icon-theme.sh), so a
         # machine without it must still come out looking right.
+        #
+        # AND IT SAYS SO WHEN IT FALLS BACK. Silently is how this bites: the
+        # icons change under you on a run that was about something else
+        # entirely - a palette switch, the daylight timer, `theme.sh restore`
+        # at login - and nothing connects the two. It cost a round of "why is
+        # the bar's focused-window icon missing" on fedora-gaming00, where the
+        # answer was that Adwaita has no icon for alacritty and the palette's
+        # theme had stopped being installed.
         local icons; icons="${_vals[icon_theme]-}"
-        if [[ -z $icons ]] || ! icon_theme_installed "$icons"; then
+        if [[ -z $icons ]]; then
+            icons=Adwaita
+        elif ! icon_theme_installed "$icons"; then
+            printf 'theme: icon theme %s is not installed - using Adwaita.\n' "$icons" >&2
+            printf 'theme: install it with bin/icon-theme-hatter.sh, or name an\n' >&2
+            printf 'theme: installed theme in themes/*.conf.\n' >&2
             icons=Adwaita
         fi
 
