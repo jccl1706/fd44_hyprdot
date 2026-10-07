@@ -256,6 +256,11 @@ clear_links() {
 
 build() {
     local theme; theme=$(current_icon_theme)
+
+    # WHAT THE LINKS WERE, so the end of this function can tell whether
+    # anything actually moved. See the restart below for why that matters.
+    local before; before=$(find "$OVERLAY" -type l -printf '%P -> %l\n' 2>/dev/null | sort)
+
     local removed; removed=$(clear_links)
     [[ $removed -gt 0 ]] && note "cleared $removed old link(s)"
 
@@ -276,6 +281,34 @@ build() {
     printf '    %sinto %s%s\n' "$dim" "$OVERLAY" "$reset"
     printf '    %squickshell reads icons through hicolor - see the note at the top%s\n' \
            "$dim" "$reset"
+
+    # AND RESTART quickshell, BECAUSE IT CANNOT SEE THIS OTHERWISE. Qt caches
+    # the path it resolved for an icon, keyed on the theme name - which is
+    # always "hicolor" here, because that is the whole trick this script plays.
+    # So the name never changes, the cache is never invalidated, and a running
+    # shell keeps drawing from links that have since been repointed. The
+    # symptom is the bar's focused-window pill showing Qt's missing-image
+    # checkerboard, and it is thoroughly misleading: every path checks out by
+    # hand, because the files really are there.
+    #
+    # It happened twice in one afternoon - once on each machine - with
+    # bin/theme.sh calling this script on every theme switch, so it is not a
+    # rare ordering.
+    #
+    # ONLY WHEN THE LINKS ACTUALLY CHANGED. Two palettes naming the same icon
+    # theme rebuild an identical set, and restarting the bar for that would
+    # make every theme toggle flicker for nothing.
+    local after; after=$(find "$OVERLAY" -type l -printf '%P -> %l\n' 2>/dev/null | sort)
+    if [[ $before != "$after" ]] && pgrep -x qs >/dev/null 2>&1; then
+        if [[ -x $(dirname "${BASH_SOURCE[0]}")/qs-restart.sh ]]; then
+            note "links changed - restarting quickshell so it sees them"
+            "$(dirname "${BASH_SOURCE[0]}")/qs-restart.sh" >/dev/null 2>&1 \
+                || warn "quickshell did not restart - its icons will be stale until it does"
+        else
+            warn "links changed but bin/qs-restart.sh is missing - quickshell's"
+            warn "icons will be stale until it is restarted."
+        fi
+    fi
 }
 
 status() {
