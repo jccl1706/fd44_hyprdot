@@ -76,7 +76,13 @@ fi
 #
 # SIZES ARE PLASMA'S OWN DEFAULTS (10, and 8 for the small one). Only the
 # family changes, so a future Plasma that rethinks its sizing is not fought.
-if fc-list : family | tr ',' '\n' | grep -qix inter; then
+# THE FAMILY LIST IS CAPTURED ONCE, not piped into grep -q, and that is not
+# style. This script runs under `set -o pipefail`: grep -q exits at the first
+# match, closes the pipe, fc-list dies with SIGPIPE, and the pipeline reports
+# 141 - so the test says "Inter is not installed" about a font that is. It did
+# exactly that on the rebuilt desktop with rsms-inter-fonts 4.1 in place.
+_families="$(fc-list : family | tr ',' '\n' | sort -u)"
+if grep -qix inter <<<"$_families"; then
     for k in font menuFont toolBarFont; do
         kw kdeglobals --group General --key "$k" "Inter,10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1"
     done
@@ -88,7 +94,7 @@ else
     echo "              (dnf install rsms-inter-fonts, then run this again)"
 fi
 
-if fc-list : family | tr ',' '\n' | grep -qix "notosansm nerd font"; then
+if grep -qix "notosansm nerd font" <<<"$_families"; then
     kw kdeglobals --group General --key fixed \
         "NotoSansM Nerd Font,11,-1,5,400,0,0,0,0,0,0,0,0,0,0,1"
     echo "fonts         fixed -> NotoSansM Nerd Font 11 (konsole inherits it)"
@@ -96,6 +102,7 @@ else
     echo "fonts         the patched Nerd Font is missing - tmux will show boxes"
     echo "              (sudo bin/install-nerd-font.sh)"
 fi
+unset _families
 
 # ---- konsole -------------------------------------------------------------
 #
