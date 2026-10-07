@@ -328,18 +328,33 @@ PARAMS+=(quiet rhgb loglevel=3 systemd.show_status=false
          rd.systemd.show_status=false rd.udev.log_level=3 udev.log_level=3
          vt.global_cursor_default=0)
 
-# WHOLE ARGUMENTS, NOT SUBSTRINGS. This was `grep -qw -- "$arg"`, and -w counts
-# a dot as a word boundary - so udev.log_level=3 matched INSIDE the
-# rd.udev.log_level=3 that had just been added, and was silently never written.
-# Any argument that is a suffix of another is dropped the same way. Comparing
-# the fields of the line is the only check that means what it says.
-read -r -a have < "$CMDLINE"
+# WHOLE ARGUMENTS, WHOLE FILE, ONE LINE OUT. Three things went wrong here in
+# turn, and each hid the next:
+#
+#   1. `grep -qw -- "$arg"` treats a dot as a word boundary, so
+#      udev.log_level=3 matched inside the rd.udev.log_level=3 added moments
+#      before and was never written.
+#
+#   2. Reading with `read -r -a have < "$CMDLINE"` takes only the FIRST LINE.
+#      The file had two: stage three ends its line with a newline, so the very
+#      first `printf ' %s' >>` started a second one. Everything on line two
+#      looked absent and was appended again - the whole set, twice, which is
+#      what the kernel then booted with.
+#
+#   3. `sed 's/[[:space:]]\+/ /g'` cannot join those lines, because sed works a
+#      line at a time. The file stayed two lines however often it was tidied.
+#
+# So: read every line, compare whole fields, and write the result back as ONE
+# line. A kernel command line is a single line by definition.
+mapfile -t _cmdline_lines < "$CMDLINE"
+read -r -a have <<< "$(printf '%s ' "${_cmdline_lines[@]}")"
 for arg in "${PARAMS[@]}"; do
     found=0
     for h in "${have[@]}"; do [[ $h == "$arg" ]] && { found=1; break; }; done
-    (( found )) || { printf ' %s' "$arg" >> "$CMDLINE"; have+=("$arg"); }
+    (( found )) || have+=("$arg")
 done
-sed -i 's/[[:space:]]\+/ /g; s/[[:space:]]*$//' "$CMDLINE"
+printf '%s\n' "$(printf '%s ' "${have[@]}" | sed 's/[[:space:]]\+/ /g; s/ *$//')" > "$CMDLINE"
+unset _cmdline_lines have
 printf '  %s\n' "$(cat "$CMDLINE")"
 
 note "rewriting the boot entry with the new command line"
