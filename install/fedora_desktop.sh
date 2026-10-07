@@ -175,7 +175,13 @@ NIRI=(
     fuzzel                  # a launcher that works when quickshell does not
     waybar                  # likewise a bar - the fallback when the shell breaks
     jetbrains-mono-fonts
-    polkit-gnome            # the authentication agent; nothing else provides one
+    # THE AGENT THE FRAMEWORK ACTUALLY RUNS, read off it rather than guessed.
+    # The first version of this list said polkit-gnome, which does not exist in
+    # Fedora 44 at all - and because this script runs under set -e, that one
+    # wrong name took the whole desktop install down with it after the NVIDIA
+    # driver had already been built. Fedora offers polkit-kde (a third of
+    # Plasma) and mate-polkit; the laptop uses neither.
+    hyprpolkitagent         # without an agent, nothing can ask for a password
 )
 
 TOOLS=(
@@ -286,6 +292,21 @@ if [[ $DESKTOP == niri ]]; then
     # both machines run the same build.
     note "adding the quickshell COPR"
     dnf -y copr enable nett00n/hyprland
+
+    # NAMES ARE CHECKED BEFORE ANY OF THEM IS INSTALLED. A single package that
+    # does not exist makes dnf fail, and under set -e that ends the script -
+    # after the NVIDIA driver has been built and before anything of the desktop
+    # exists, which looks like "stage four finished" and is not.
+    note "checking the package names resolve"
+    missing=""
+    for p in "${NIRI[@]}"; do
+        dnf -q info "$p" >/dev/null 2>&1 || missing+="    $p"$'\n'
+    done
+    if [[ -n $missing ]]; then
+        warn "these are not in any enabled repository:"
+        printf '%s' "$missing" >&2
+        die "fix the list before going further - nothing has been installed"
+    fi
 
     note "installing niri and quickshell (${#NIRI[@]} packages named, plus their deps)"
     dnf -y install "${NIRI[@]}"
