@@ -519,8 +519,7 @@ apply() {
             icons=Adwaita
         elif ! icon_theme_installed "$icons"; then
             printf 'theme: icon theme %s is not installed - using Adwaita.\n' "$icons" >&2
-            printf 'theme: install it with bin/icon-theme-hatter.sh, or name an\n' >&2
-            printf 'theme: installed theme in themes/*.conf.\n' >&2
+            printf 'theme: install it, or name an installed theme in themes/*.conf.\n' >&2
             icons=Adwaita
         fi
 
