@@ -548,14 +548,20 @@ dnf -y install code || warn "VS Code did not install"
 # Telemetry off in the same breath: the editor is installed from Microsoft's
 # repository, which is a deliberate trade, but the default reporting is not
 # part of that trade.
-if [[ -f /usr/share/applications/code.desktop ]]; then
+# THE DESKTOP FILE IS NAMED com.microsoft.VSCode.desktop, not code.desktop.
+# Older builds used the short name and plenty of guides still say so; this one
+# is found rather than assumed, so a future rename makes the step skip loudly
+# instead of patching a file that is not there.
+_vscode_desktop="$(rpm -ql code 2>/dev/null | grep -E '/applications/.*VSCode\.desktop$' | grep -v UrlHandler | head -1)"
+if [[ -n $_vscode_desktop && -f $_vscode_desktop ]]; then
     note "giving VS Code native Wayland and turning telemetry off"
     install -d -o "$TARGET_USER" -g "$TARGET_USER" \
         "/home/$TARGET_USER/.local/share/applications"
     sed 's#^Exec=/usr/share/code/code #Exec=/usr/share/code/code --ozone-platform-hint=auto #' \
-        /usr/share/applications/code.desktop \
-        > "/home/$TARGET_USER/.local/share/applications/code.desktop"
-    chown "$TARGET_USER:$TARGET_USER" "/home/$TARGET_USER/.local/share/applications/code.desktop"
+        "$_vscode_desktop" \
+        > "/home/$TARGET_USER/.local/share/applications/$(basename "$_vscode_desktop")"
+    chown "$TARGET_USER:$TARGET_USER" \
+        "/home/$TARGET_USER/.local/share/applications/$(basename "$_vscode_desktop")"
 
     install -d -o "$TARGET_USER" -g "$TARGET_USER" \
         "/home/$TARGET_USER/.config/Code/User"
@@ -567,7 +573,10 @@ if [[ -f /usr/share/applications/code.desktop ]]; then
         note "  settings.json already exists - left alone"
     fi
     unset _vs
+else
+    warn "no VS Code desktop file found - it will run under XWayland"
 fi
+unset _vscode_desktop
 
 # --- Claude Code --------------------------------------------------------------
 #
