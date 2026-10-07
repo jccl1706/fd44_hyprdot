@@ -218,8 +218,11 @@ NIRI=(
     #   file-roller   what Nautilus hands an archive to
     #   udiskie       systemd/udiskie.service is linked by link-dotfiles.sh
     #   restic        bin/backup.sh is nothing without it
-    #   tmux          tmux/ is a tracked config this repository links
     #   bat           bashrc.d aliases to it in several places
+    #
+    # tmux WAS HERE AND IS NOW IN TOOLS, because it is not a niri thing: the
+    # tracked tmux/ config is linked on any machine this repository touches, and
+    # a Plasma install was getting Konsole with no tmux in it.
     nautilus gvfs gvfs-fuse file-roller
     # PLYMOUTH, SO THE BOOT IS NOT A WALL OF TEXT. install_fedora.sh installs
     # these on the Framework and this machine had them before the rebuild;
@@ -228,7 +231,7 @@ NIRI=(
     plymouth plymouth-system-theme
     udiskie
     restic
-    tmux bat
+    bat
     # THE AGENT THE FRAMEWORK ACTUALLY RUNS, read off it rather than guessed.
     # The first version of this list said polkit-gnome, which does not exist in
     # Fedora 44 at all - and because this script runs under set -e, that one
@@ -248,6 +251,8 @@ TOOLS=(
                           # reports the GPU before installing a driver for it
     efibootmgr            # the boot entry below, and reading the order back
     compsize              # what the btrfs compression is actually saving
+    tmux                  # tmux/ is a tracked config this repository links, on
+                          # either desktop - it was in the niri list until now
 
     # PAPIRUS, AND FROM FEDORA RATHER THAN FROM GIT. Tela was here first,
     # installed by a script that cloned upstream and ran its installer into
