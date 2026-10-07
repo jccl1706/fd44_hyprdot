@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =========================================================================
-# icon-theme.sh - install the Reversal icon theme the palettes ask for
+# icon-theme.sh - install the Reversal icon theme (the palettes no longer ask)
 # =========================================================================
 #
 # Usage:
@@ -10,6 +10,11 @@
 #
 # No root: installs to ~/.local/share/icons, the user's own icon directory,
 # which GTK searches before the system ones.
+#
+# THE PALETTES NAME Hatter NOW, not Reversal - see bin/icon-theme-hatter.sh.
+# This script still works and Reversal is still a good theme; it is simply no
+# longer what themes/*.conf select, so installing it alone will not change
+# anything until a palette names it again.
 #
 # OPT-IN, NOT PART OF THE INSTALLER. Icons are appearance, not breakage - the
 # desktop is complete without them, because theme.sh falls back to Adwaita
