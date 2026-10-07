@@ -74,13 +74,18 @@ window-rule {
 //
 // `niri msg action fullscreen-window` on the running game changed nothing,
 // while the same action on a kitty window took it from 1256x1356 to 2560x1440
-// and hid the bar - so the mechanism works and the request was not reaching
-// this X11 client. Asking at map time is a different path from toggling a
-// mapped window, which is why this is worth having.
+// and hid the bar - so the mechanism worked and the request was not reaching
+// this X11 client. Asking at map time is a different path from toggling an
+// already-mapped window.
 //
-// IF IT STILL COMES UP LETTERBOXED, the remaining lever is the game's own
-// display mode: "Fullscreen" rather than "Borderless Window". A client that
-// has decided it is a window on a desktop will keep drawing itself that way.
+// CONFIRMED on relaunch: the bar is covered and the picture fills the screen.
+// The black bars left top and bottom are symmetric, which is the tell - that
+// is the cutscene's own cinematic ratio. The fault this rule fixes showed as a
+// band at the TOP ONLY, offset by exactly the space the bar had reserved.
+//
+// IF A GAME STILL COMES UP LETTERBOXED ASYMMETRICALLY, the remaining lever is
+// its own display mode: "Fullscreen" rather than "Borderless Window". No rule
+// here can override a client that has decided it is a window on a desktop.
 window-rule {
     match app-id=r#"^steam_app_"#
     open-on-workspace "5"
