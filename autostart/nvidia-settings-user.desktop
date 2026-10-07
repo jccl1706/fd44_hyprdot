@@ -1,0 +1,11 @@
+# Masks /etc/xdg/autostart/nvidia-settings-user.desktop, which the NVIDIA
+# driver package installs. It runs `nvidia-settings -l` to replay
+# ~/.nvidia-settings-rc, but that is an X11 mechanism: both desktops here are
+# Wayland, there is no rc file to load, and it exits 1 at every login - a
+# failed unit in `systemctl --user --failed` for nothing. Same file name in
+# ~/.config/autostart wins, and Hidden=true means "as if it were deleted".
+[Desktop Entry]
+Type=Application
+Name=nvidia-settings
+Exec=nvidia-settings -l
+Hidden=true

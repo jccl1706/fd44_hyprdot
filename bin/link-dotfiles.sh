@@ -296,6 +296,11 @@ link bin/browser.sh "$HOME/.local/bin/fd44-browser"
 # with everything else, no restart needed.
 link applications/youtube.desktop "$DATA/applications/youtube.desktop"
 
+# Autostart overrides: an entry here with the same name as one in
+# /etc/xdg/autostart replaces it, so these mask things packages start that
+# have no business running in these sessions. See each file for why.
+link autostart/nvidia-settings-user.desktop "$CONFIG/autostart/nvidia-settings-user.desktop"
+
 link systemd/usb-notify.service "$CONFIG/systemd/user/usb-notify.service"
 
 # Automounting removable disks. Linked but NOT enabled here, like the daylight
