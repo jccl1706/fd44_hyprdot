@@ -217,12 +217,12 @@ NIRI=(
     #                 network browsing - and says nothing about why
     #   file-roller   what Nautilus hands an archive to
     #   udiskie       systemd/udiskie.service is linked by link-dotfiles.sh
-    #   restic        bin/backup.sh is nothing without it
-    #   bat           bashrc.d aliases to it in several places
     #
-    # tmux WAS HERE AND IS NOW IN TOOLS, because it is not a niri thing: the
-    # tracked tmux/ config is linked on any machine this repository touches, and
-    # a Plasma install was getting Konsole with no tmux in it.
+    # tmux, restic AND bat WERE HERE AND ARE NOW IN TOOLS. None of them is a
+    # niri thing: bin/backup.sh and the tracked tmux/ config and the bashrc.d
+    # aliases are linked on any machine this repository touches, whichever
+    # desktop it runs. A Plasma install was getting all three configs and none
+    # of the three programs.
     nautilus gvfs gvfs-fuse file-roller
     # PLYMOUTH, SO THE BOOT IS NOT A WALL OF TEXT. install_fedora.sh installs
     # these on the Framework and this machine had them before the rebuild;
@@ -230,8 +230,6 @@ NIRI=(
     # needs, and without it the splash falls back to text.
     plymouth plymouth-system-theme
     udiskie
-    restic
-    bat
     # THE AGENT THE FRAMEWORK ACTUALLY RUNS, read off it rather than guessed.
     # The first version of this list said polkit-gnome, which does not exist in
     # Fedora 44 at all - and because this script runs under set -e, that one
@@ -251,8 +249,12 @@ TOOLS=(
                           # reports the GPU before installing a driver for it
     efibootmgr            # the boot entry below, and reading the order back
     compsize              # what the btrfs compression is actually saving
-    tmux                  # tmux/ is a tracked config this repository links, on
-                          # either desktop - it was in the niri list until now
+    # THE THREE THE REPOSITORY'S OWN FILES DEPEND ON, on either desktop. Each
+    # was in the niri-only list until a Plasma install was about to be built and
+    # the configs would have been linked against programs that were not there.
+    tmux                  # tmux/ is a tracked config link-dotfiles.sh links
+    restic                # bin/backup.sh is nothing without it
+    bat                   # bashrc.d aliases to it in several places
 
     # PAPIRUS, AND FROM FEDORA RATHER THAN FROM GIT. Tela was here first,
     # installed by a script that cloned upstream and ran its installer into
