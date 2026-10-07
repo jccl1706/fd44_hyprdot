@@ -113,6 +113,13 @@ KDE=(
     # lines sit inert on a stock install until the package is there, and then
     # SDDM creates and unlocks the wallet with the login password.
     pam-kwallet
+    # THE STATIC Inter, which is what kdeglobals can name. bin/plasma-setup.sh
+    # sets the UI font to "Inter"; Plasma's own default is Noto Sans.
+    #
+    # NOT the variable build - see the niri list, which needs the other one.
+    # The two packages register different family names and only one of them
+    # answers to each spelling.
+    rsms-inter-fonts
 
     # DISCOVER, and only the backend this machine actually uses. Fedora splits
     # it into nine packages: plasma-discover is the shell, and each backend is
@@ -203,6 +210,16 @@ NIRI=(
     # path - konsole/fd44.profile sets a colour scheme and no font at all.
     google-noto-sans-mono-fonts
 
+    # THE VARIABLE Inter, AND THE SPELLING MATTERS. quickshell/Theme.qml asks
+    # for "Inter Variable", which is the family rsms-inter-vf-fonts registers -
+    # the static rsms-inter-fonts registers "Inter" and answers to nothing else.
+    # Ask for the wrong one and the bar falls back to Noto Sans and merely looks
+    # slightly off, which Theme.qml's own comment warns about.
+    #
+    # Nothing installed this until now: the Framework has it because it was put
+    # there by hand, and a fresh niri build would have come up in the fallback.
+    rsms-inter-vf-fonts
+
     # THE APPLICATIONS THE REPOSITORY ALREADY ASSUMES. These were missing from
     # the first niri build because the list was read off the Framework's
     # SESSION packages and stopped there - so the machine came up with a
@@ -250,9 +267,6 @@ TOOLS=(
     # THE THREE THE REPOSITORY'S OWN FILES DEPEND ON, on either desktop. Each
     # was in the niri-only list until a Plasma install was about to be built and
     # the configs would have been linked against programs that were not there.
-    rsms-inter-fonts      # the UI typeface bin/plasma-setup.sh sets; Fedora's
-                          # default is Noto Sans. Harmless on niri, where
-                          # nothing selects it yet.
     tmux                  # tmux/ is a tracked config link-dotfiles.sh links
     restic                # bin/backup.sh is nothing without it
     bat                   # bashrc.d aliases to it in several places
