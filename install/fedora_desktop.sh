@@ -346,15 +346,27 @@ PARAMS+=(quiet rhgb loglevel=3 systemd.show_status=false
 #
 # So: read every line, compare whole fields, and write the result back as ONE
 # line. A kernel command line is a single line by definition.
+# AND IT DEDUPLICATES WHAT IS ALREADY THERE, not only what it adds. The first
+# attempt at this fix joined the two lines and left every pre-existing
+# duplicate in place - correct for new arguments, useless for a machine that
+# had already been written twice by the broken version. A script that repairs
+# the file has to repair the whole file.
+#
+# First occurrence wins, so order is preserved: root= stays at the front where
+# it is read, and nothing is reordered behind the operator's back.
 mapfile -t _cmdline_lines < "$CMDLINE"
-read -r -a have <<< "$(printf '%s ' "${_cmdline_lines[@]}")"
-for arg in "${PARAMS[@]}"; do
-    found=0
-    for h in "${have[@]}"; do [[ $h == "$arg" ]] && { found=1; break; }; done
-    (( found )) || have+=("$arg")
-done
-printf '%s\n' "$(printf '%s ' "${have[@]}" | sed 's/[[:space:]]\+/ /g; s/ *$//')" > "$CMDLINE"
-unset _cmdline_lines have
+read -r -a _have <<< "$(printf '%s ' "${_cmdline_lines[@]}")"
+_out=()
+_add() {
+    local candidate="$1" seen
+    for seen in "${_out[@]}"; do [[ $seen == "$candidate" ]] && return; done
+    _out+=("$candidate")
+}
+for h in "${_have[@]}"; do [[ -n $h ]] && _add "$h"; done
+for arg in "${PARAMS[@]}"; do _add "$arg"; done
+printf '%s\n' "${_out[*]}" > "$CMDLINE"
+unset _cmdline_lines _have _out
+unset -f _add
 printf '  %s\n' "$(cat "$CMDLINE")"
 
 note "rewriting the boot entry with the new command line"
