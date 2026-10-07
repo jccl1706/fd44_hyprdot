@@ -1,0 +1,46 @@
+// =========================================================================
+// niri window rules - which windows open floating, and where
+// =========================================================================
+//
+// Include this from ~/.config/niri/config.kdl:
+//
+//     include "rules.kdl"
+//
+// The counterpart to hypr/rules.lua. niri/look.kdl holds the rule that applies
+// to EVERY window - corner radius and clipping - because that is appearance;
+// this file holds the ones that single out an application, because that is
+// behaviour. Both are window-rule blocks and niri applies them in order, which
+// is unlike the input and layout sections: those exist once and a second one is
+// ignored, as niri/input.kdl explains at some length.
+//
+// AN app-id HERE IS MEASURED, NEVER REMEMBERED. Every one in this file was read
+// off `niri msg windows` against the running application on fedora-gaming00.
+
+// --- Steam ------------------------------------------------------------------
+//
+// THE WHOLE CLIENT FLOATS. Steam is one X11 application that opens a lot of
+// small toplevels - Friends List, Special Offers, Settings, the screenshot
+// uploader, one window per chat - and every one of them arrives as a normal
+// toplevel with the same app-id. In a scrolling layout each takes a column of
+// its own and pushes real work off the strip; hypr/rules.lua records two doing
+// exactly that within a minute of the first login.
+//
+// THE app-id IS "steam", LOWERCASE, measured here under xwayland-satellite -
+// the same string Hyprland reports as the class, so the two configurations
+// agree for once without either of them guessing.
+//
+// GAMES ARE DELIBERATELY NOT MATCHED, so a game is never forced to float.
+// Steam gives a game its own app-id of the form steam_app_<appid>, which this
+// anchored regex does not match.
+//
+// ONE DELIBERATE DIFFERENCE FROM HYPRLAND. hypr/rules.lua also pins the client
+// to workspace 5 and relies on misc:initial_workspace_tracking to carry games
+// there with it. niri has no equivalent of that tracking, so pinning the client
+// alone would separate Steam from the games it launches rather than keep them
+// together - half a behaviour, which is worse than none. Add
+// `open-on-workspace "5"` to this block if you want the client pinned anyway;
+// the workspaces are named in niri/workspaces.kdl.
+window-rule {
+    match app-id=r#"^steam$"#
+    open-floating true
+}
