@@ -205,6 +205,21 @@ PKGS=(
     selinux-policy-targeted
     policycoreutils
 
+    # THE TOOLS FOR THE FILESYSTEM STAGE ONE JUST CREATED. @core does not carry
+    # them and nothing in this list required them, so the only reason
+    # fedora-gaming00 had a `btrfs` command at all was that btrfs-patrol - a
+    # COPR package installed in stage four, behind a guard that fails silently -
+    # happens to depend on it.
+    #
+    # That is a machine one unavailable COPR away from running on btrfs with no
+    # way to scrub it, snapshot it, or ask it how much space it is really using.
+    # bin/btrfs-scrub-setup.sh, bin/btrfs-patrol and compsize all assume it.
+    #
+    # The filesystem is created in stage one; the system should carry its own
+    # tools from the first boot rather than acquire them by accident three
+    # stages later.
+    btrfs-progs
+
     # PAM'S SYSTEMD MODULE, which is what registers a login with logind and
     # sets XDG_RUNTIME_DIR. Weak, like the policy above, and its absence is
     # invisible until something wants a session:
