@@ -250,6 +250,9 @@ TOOLS=(
     # THE THREE THE REPOSITORY'S OWN FILES DEPEND ON, on either desktop. Each
     # was in the niri-only list until a Plasma install was about to be built and
     # the configs would have been linked against programs that were not there.
+    rsms-inter-fonts      # the UI typeface bin/plasma-setup.sh sets; Fedora's
+                          # default is Noto Sans. Harmless on niri, where
+                          # nothing selects it yet.
     tmux                  # tmux/ is a tracked config link-dotfiles.sh links
     restic                # bin/backup.sh is nothing without it
     bat                   # bashrc.d aliases to it in several places

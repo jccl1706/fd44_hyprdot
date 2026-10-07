@@ -42,7 +42,7 @@ if [[ "${1:-}" == "--show" ]]; then
         "$(kr plasma-org.kde.plasma.desktop-appletsrc \
              --group Containments --group 2 --group Applets --group 7 \
              --group General --key shownItems)"
-    printf '\n  fonts (blank = Plasma default, which is what is wanted)\n'
+    printf '\n  fonts (blank = Plasma default; this script sets them)\n'
     for k in font fixed smallestReadableFont toolBarFont menuFont; do
         printf '    %-22s %s\n' "$k" "$(kr kdeglobals --group General --key "$k")"
     done
@@ -51,6 +51,50 @@ if [[ "${1:-}" == "--show" ]]; then
         "$(fc-match --verbose sans 2>/dev/null | awk '/rgba:/{print $2}')"
     printf '\n'
     exit 0
+fi
+
+# ---- fonts ---------------------------------------------------------------
+#
+# WHAT FEDORA ALREADY DOES, so this does not: sub-pixel rendering and slight
+# hinting. kde-settings ships 10-sub-pixel-rgb-for-kde.conf, which tests the
+# desktop name and sets rgba=rgb for KDE - measured on this machine as
+# `antialias: True, hintstyle: 1, rgba: 1` before anything here ran. The
+# matching fontconfig/99-subpixel-rgb.conf in this repository exists for the
+# machines Fedora leaves out, and on Plasma it is a harmless duplicate.
+#
+# SO ONLY THE TYPEFACE IS SET HERE, which is the part Fedora gets wrong for
+# this desk: Plasma's default is Noto Sans, and Inter is what makes the UI read
+# the way the rest of these machines do.
+#
+# THE FIXED FONT IS THE PATCHED NERD FONT, and that is not an aesthetic choice.
+# konsole/fd44.profile deliberately names no font, so konsole inherits this
+# one - and tmux draws its status bar out of Material Design glyphs in plane-15
+# with separators that have to fill the terminal cell exactly. Plain Noto Sans
+# Mono leaves those to Symbols Nerd Font, whose glyphs are 8px short of the
+# cell; the patched face carries them at the right size. See
+# fonts/noto-sans-mono-nerd/README.md for the measurements.
+#
+# SIZES ARE PLASMA'S OWN DEFAULTS (10, and 8 for the small one). Only the
+# family changes, so a future Plasma that rethinks its sizing is not fought.
+if fc-list : family | tr ',' '\n' | grep -qix inter; then
+    for k in font menuFont toolBarFont; do
+        kw kdeglobals --group General --key "$k" "Inter,10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1"
+    done
+    kw kdeglobals --group General --key smallestReadableFont \
+        "Inter,8,-1,5,400,0,0,0,0,0,0,0,0,0,0,1"
+    echo "fonts         UI -> Inter 10"
+else
+    echo "fonts         Inter is not installed - leaving the UI font alone"
+    echo "              (dnf install rsms-inter-fonts, then run this again)"
+fi
+
+if fc-list : family | tr ',' '\n' | grep -qix "notosansm nerd font"; then
+    kw kdeglobals --group General --key fixed \
+        "NotoSansM Nerd Font,11,-1,5,400,0,0,0,0,0,0,0,0,0,0,1"
+    echo "fonts         fixed -> NotoSansM Nerd Font 11 (konsole inherits it)"
+else
+    echo "fonts         the patched Nerd Font is missing - tmux will show boxes"
+    echo "              (sudo bin/install-nerd-font.sh)"
 fi
 
 # ---- konsole -------------------------------------------------------------
