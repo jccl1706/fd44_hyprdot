@@ -360,6 +360,53 @@ note "installing the NVIDIA driver"
 dnf -y install kernel-devel-"$KVER" akmod-nvidia xorg-x11-drv-nvidia-cuda
 
 note "building the module for $KVER now, rather than discovering it at boot"
+
+# --- suspend, which does not work on the default path ------------------------
+#
+# MEASURED ON fedora-gaming00, RTX 5090, driver 615.71.09. The machine suspends
+# and resumes perfectly - `PM: suspend entry (deep)` then `PM: suspend exit`,
+# ssh, network and CoolerControl all come back - and every display connector
+# comes back dead: five connectors, `disconnected`, no EDID, no hotplug events,
+# while nvidia-smi answers normally throughout. The card survives; its display
+# engine does not reinitialise. From the desk it looks like the machine never
+# woke up.
+#
+# THE CAUSE IS WHICH MECHANISM PRESERVES VIDEO MEMORY. Fedora's default for the
+# open kernel module is UseKernelSuspendNotifiers=1, where the kernel does it
+# and nvidia-suspend/resume.service skip on an ExecCondition. On this card that
+# skip is the whole fault - nothing saves or restores the display engine:
+#
+#   default path   nvidia-resume.service: Skipped due to 'exec-condition'
+#                  -> 5 connectors disconnected after resume
+#   legacy path    nvidia-suspend.service ran, 574ms CPU, 766.9M memory peak
+#                  nvidia-resume.service: Finished successfully
+#                  -> DP-3 connected, session intact
+#
+# That the default is deliberate does not make it work here. It was tested both
+# ways on this machine before this block was written.
+#
+# TemporaryFilePath IS LOAD-BEARING. On the legacy path the driver writes the
+# card's video memory to a file. This card has 31.8 GiB of VRAM, the machine
+# has 30 GiB of RAM, and the default location is /tmp - a tmpfs, in RAM, sized
+# 15.5 GiB. /var/tmp is on the btrfs root with terabytes free. Fedora's own
+# shipped nvidia-power-management.conf says the same thing in its comments,
+# with all three options commented out.
+#
+# REMOVE THIS when a driver release fixes the kernel-notifier path. Pinning a
+# machine to an older mechanism after its bug is fixed is its own kind of trap -
+# the same reasoning as the xwayland-satellite hold further down.
+note "holding video memory across suspend the old way - the default path leaves"
+note "the display engine dead on this card"
+cat > /etc/modprobe.d/fd44-nvidia-suspend.conf <<'NVSUSPEND'
+# Written by install/fedora_desktop.sh. The kernel-notifier path - Fedora's
+# default for the open module - leaves every display connector disconnected
+# after resume on this card. See the comment in that script for the
+# measurements from both paths.
+options nvidia NVreg_PreserveVideoMemoryAllocations=1
+options nvidia NVreg_UseKernelSuspendNotifiers=0
+options nvidia NVreg_TemporaryFilePath=/var/tmp
+NVSUSPEND
+sed 's/^/    /' /etc/modprobe.d/fd44-nvidia-suspend.conf
 akmods --kernels "$KVER" --force || warn "akmods reported a problem - check before rebooting"
 
 # --- the kernel command line -------------------------------------------------
