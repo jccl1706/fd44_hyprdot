@@ -33,11 +33,20 @@ padding = { x = 10, y = 10 }
 decorations = "none"
 dynamic_title = true
 
+# THE SAME FONT AND SIZE AS kitty.conf, deliberately - two terminals on one
+# desktop that disagree about the font are two terminals that look like a
+# mistake. The first version of this file asked for "JetBrainsMono Nerd Font",
+# which is not installed anywhere on these machines: Fedora ships JetBrains
+# Mono plain, and the Nerd glyphs come from Symbols Nerd Font, a symbols-only
+# face. alacritty silently fell back to something arbitrary and the tmux status
+# bar drew as tofu.
+#
+# bold and italic inherit the family from normal, so there is one name here to
+# keep in step with kitty rather than three. Noto Sans Mono has no italic face;
+# fontconfig synthesises one, which is what kitty gets too.
 [font]
 size = 11.0
-normal = { family = "JetBrainsMono Nerd Font", style = "Regular" }
-bold   = { family = "JetBrainsMono Nerd Font", style = "Bold" }
-italic = { family = "JetBrainsMono Nerd Font", style = "Italic" }
+normal = { family = "Noto Sans Mono" }
 
 [scrolling]
 history = 10000
