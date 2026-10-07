@@ -53,7 +53,7 @@ note "this machine"
 printf '  %-12s %s\n' "fedora"  "$RELEASEVER"
 printf '  %-12s %s\n' "kernel"  "$KVER"
 printf '  %-12s %s\n' "packages" "$(rpm -qa | wc -l)"
-printf '  %-12s %s\n' "gpu"     "$(lspci -nn | grep -i 'VGA\|3D' | head -1 | cut -c1-70)"
+printf '  %-12s %s\n' "gpu"     "$(command -v lspci >/dev/null && lspci -nn | grep -i 'VGA\|3D' | head -1 | cut -c1-70 || echo '(lspci not installed yet)')"
 printf '  %-12s %s\n' "desktop" "$DESKTOP"
 printf '\n'
 
@@ -184,6 +184,8 @@ TOOLS=(
     wget                  # curl is in @core; wget is what half of every README uses
     git                   # this repository has to be clonable on the machine
     rsync                 # moving things between the two systems on this box
+    pciutils              # lspci - @core does not ship it, and this script
+                          # reports the GPU before installing a driver for it
     efibootmgr            # the boot entry below, and reading the order back
     compsize              # what the btrfs compression is actually saving
 
