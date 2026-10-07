@@ -43,6 +43,31 @@
 window-rule {
     match app-id=r#"^steam$"#
     open-floating true
+    open-on-workspace "5"
+}
+
+// --- and the games with it --------------------------------------------------
+//
+// THE SECOND HALF OF WHAT HYPRLAND GETS FOR FREE. There, Steam is pinned to
+// workspace 5 and misc:initial_workspace_tracking carries every game to the
+// workspace of the process that launched it - GameThread <- reaper <- steam -
+// so the client and its games end up together without a rule naming games at
+// all. niri has no equivalent, so pinning only the client would scatter the
+// games across whatever workspace happened to be focused. Both halves are
+// named here or neither is worth having.
+//
+// MATCHED ON THE PREFIX, because Steam gives each game an app-id of the form
+// steam_app_<appid> - steam_app_1808500 is ARC Raiders, read off
+// `niri msg windows` while it ran. The appid differs per game, so the prefix
+// is the only stable part.
+//
+// NOT FLOATED, deliberately. The rule above floats the client because it opens
+// a swarm of small windows; a game is one window that wants the whole screen
+// and already gets it - measured at 2560x1440 against a 2560x1440 output.
+// Floating it would be forcing a decision the game has already made correctly.
+window-rule {
+    match app-id=r#"^steam_app_"#
+    open-on-workspace "5"
 }
 
 // IF STEAM'S MENUS DO NOT OPEN, IT IS NOT THIS RULE. That is the first thing
