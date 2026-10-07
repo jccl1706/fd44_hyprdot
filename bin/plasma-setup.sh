@@ -74,8 +74,27 @@ fi
 # cell; the patched face carries them at the right size. See
 # fonts/noto-sans-mono-nerd/README.md for the measurements.
 #
-# SIZES ARE PLASMA'S OWN DEFAULTS (10, and 8 for the small one). Only the
-# family changes, so a future Plasma that rethinks its sizing is not fought.
+# SIZES ARE ONE POINT ABOVE PLASMA'S DEFAULTS, and that is arithmetic rather
+# than taste. The desk monitor is 60x34 cm at 2560x1440 - about 27 inches and
+# 108.5 DPI - and Qt lays text out assuming 96. So every point size renders
+# about 11% physically smaller than the number says:
+#
+#     10pt intended   10 x 108.5/72 = 15.1 px
+#     10pt as drawn   10 x 96/72    = 13.3 px
+#
+# 11pt draws at 14.7 px, which is what 10pt is supposed to look like. This is
+# the only readability lever worth pulling here: Fedora already ships
+# 10-hinting-slight, 11-lcdfilter-default and 10-sub-pixel-rgb-for-kde, so the
+# rendering pipeline is already at its recommended settings and nothing about
+# antialiasing or hinting is left to improve.
+#
+# THE ALTERNATIVE IS forceFontDPI, which scales every Qt font at once instead
+# of naming sizes. It is not used because it interacts with Wayland scaling in
+# ways that differ per toolkit, while a point size means the same thing
+# everywhere.
+#
+# A laptop at a different density wants different numbers. These are right for
+# this desk; the Framework sets its own through Plasma's scaling.
 # THE FAMILY LIST IS CAPTURED ONCE, not piped into grep -q, and that is not
 # style. This script runs under `set -o pipefail`: grep -q exits at the first
 # match, closes the pipe, fc-list dies with SIGPIPE, and the pipeline reports
@@ -84,11 +103,11 @@ fi
 _families="$(fc-list : family | tr ',' '\n' | sort -u)"
 if grep -qix inter <<<"$_families"; then
     for k in font menuFont toolBarFont; do
-        kw kdeglobals --group General --key "$k" "Inter,10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1"
+        kw kdeglobals --group General --key "$k" "Inter,11,-1,5,400,0,0,0,0,0,0,0,0,0,0,1"
     done
     kw kdeglobals --group General --key smallestReadableFont \
-        "Inter,8,-1,5,400,0,0,0,0,0,0,0,0,0,0,1"
-    echo "fonts         UI -> Inter 10"
+        "Inter,9,-1,5,400,0,0,0,0,0,0,0,0,0,0,1"
+    echo "fonts         UI -> Inter 11 (96dpi Qt on a 108dpi panel)"
 else
     echo "fonts         Inter is not installed - leaving the UI font alone"
     echo "              (dnf install rsms-inter-fonts, then run this again)"
@@ -96,8 +115,8 @@ fi
 
 if grep -qix "notosansm nerd font" <<<"$_families"; then
     kw kdeglobals --group General --key fixed \
-        "NotoSansM Nerd Font,11,-1,5,400,0,0,0,0,0,0,0,0,0,0,1"
-    echo "fonts         fixed -> NotoSansM Nerd Font 11 (konsole inherits it)"
+        "NotoSansM Nerd Font,12,-1,5,400,0,0,0,0,0,0,0,0,0,0,1"
+    echo "fonts         fixed -> NotoSansM Nerd Font 12 (konsole inherits it)"
 else
     echo "fonts         the patched Nerd Font is missing - tmux will show boxes"
     echo "              (sudo bin/install-nerd-font.sh)"
