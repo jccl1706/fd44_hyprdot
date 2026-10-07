@@ -28,6 +28,36 @@
 // a floating window would otherwise draw for itself.
 prefer-no-csd
 
+// A SECOND THING THE CLIENT DECIDES, AND IT LOOKS LIKE A BUG IN THESE RULES.
+//
+// A window that comes up filling the screen - no gaps, corners square against
+// the edges - has usually not escaped the rules below. It asked to be
+// maximized, and niri honoured it by handing over the whole working area,
+// which is drawn without gaps; the corner radius is then rounding against the
+// screen edge where it cannot be seen.
+//
+// GTK applications remember that state across sessions, so maximizing one once
+// makes every later window open that way. Nautilus keeps it in GSettings:
+//
+//     gsettings get org.gnome.nautilus.window-state maximized
+//     gsettings set org.gnome.nautilus.window-state maximized false
+//
+// Measured on the Framework, where it had been true and the desktop's fresh
+// install still had it false - which is the whole reason the same Nautilus
+// looked different on two machines built from this repository:
+//
+//     maximized true    tile 1504 x 951   full working area, no gaps
+//     maximized false   tile  728 x 919   the same as every other window
+//
+// NIRI'S OWN MAXIMIZE IS NOT THIS. Maximizing a column with Mod+F gives
+// 1472 x 919 - the working area minus the 32px of gaps - and keeps its
+// corners. Only the client-side request bypasses them, so "maximized" means
+// two different things here depending on who asked, and one of them is
+// indistinguishable from a window rule that did not apply.
+//
+// It is per-user state, not configuration, so it does not travel with this
+// repository and a fresh machine will not have it.
+
 // ROUNDED CORNERS, 10px, which is hypr/look.lua's `rounding = 10`.
 //
 // TWO SETTINGS, NOT ONE, and the second is the one that is easy to miss.
