@@ -497,10 +497,45 @@ done
 # from outside; ls -Z cannot, because a host without SELinux userspace has
 # nothing to ask and prints '?'.
 if [[ -f $MNT/etc/selinux/targeted/contexts/files/file_contexts ]]; then
-    note "relabelling the account files passwd just rewrote"
-    inch restorecon -F /etc/shadow /etc/shadow- /etc/passwd /etc/passwd- \
-                       /etc/group /etc/group- /etc/gshadow /etc/gshadow- \
-        2>/dev/null || warn "restorecon reported errors on the account files"
+    # setfiles, NOT restorecon, FOR THE SAME REASON THE FULL RELABEL USES IT:
+    # restorecon asks the running kernel for the policy and refuses when SELinux
+    # is disabled, which it is on the NixOS host this script runs from. setfiles
+    # reads the file_contexts database directly and works offline.
+    #
+    # This was restorecon until the install that found it, and it had never once
+    # worked from NixOS - it failed, said so on stderr, and the 2>/dev/null
+    # below swallowed the message. The only reason the problem ever looked fixed
+    # is that the repair was run by hand from the BOOTED Fedora, where SELinux
+    # is enabled and restorecon works.
+    #
+    # NO 2>/dev/null. A relabel that fails silently is how an unbootable login
+    # reaches the first boot twice in one day.
+    # Named here rather than reused: FC is set inside the full-relabel block
+    # above, which has its own guard, and a variable that is only sometimes set
+    # is a worse bug than a repeated path.
+    ACCT_FC=/etc/selinux/targeted/contexts/files/file_contexts
+
+    note "relabelling the account files passwd and chage just rewrote"
+    inch setfiles -F "$ACCT_FC" /etc/shadow /etc/shadow- /etc/passwd /etc/passwd- \
+                                /etc/group /etc/group- /etc/gshadow /etc/gshadow- \
+        || warn "setfiles reported errors on the account files - check before booting"
+
+    # AND READ IT BACK, because the failure this guards against is a MISSING
+    # attribute and no exit status reports one. setfiles -n changes nothing and
+    # prints a line for every file whose context does not match the database, so
+    # silence here means every one of them is right.
+    #
+    # getfattr would be the direct way to ask and is not in a minimal Fedora;
+    # ls -Z cannot answer either, because the host has no SELinux enabled and
+    # prints '?'. setfiles is already a dependency, so it is what gets used.
+    if out="$(inch setfiles -n -v "$ACCT_FC" /etc/shadow /etc/passwd /etc/gshadow 2>&1)" \
+       && [[ -z ${out//[[:space:]]/} ]]; then
+        printf '    account files verified against the policy\n'
+    else
+        warn "the account files still do not match the policy:"
+        printf '%s\n' "$out" | sed 's/^/      /' >&2
+        warn "the first boot will reject every password - do not reboot yet."
+    fi
 fi
 
 printf '\n'
