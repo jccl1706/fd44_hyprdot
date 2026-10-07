@@ -48,6 +48,8 @@ done
 RELEASEVER="$(rpm -E %fedora)"
 KVER="$(uname -r)"
 TARGET_USER="${SUDO_USER:-jc}"
+# The checkout this script lives in, so it can call its siblings.
+REPO="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
 note "this machine"
 printf '  %-12s %s\n' "fedora"  "$RELEASEVER"
@@ -240,6 +242,7 @@ if (( ! GO )); then
     if [[ $DESKTOP == niri ]]; then
         printf '    %s\n' "${NIRI[@]}" "${TOOLS[@]}" chromium
         note "would enable the nett00n/hyprland COPR for quickshell"
+        note "would install Symbols Nerd Font from $REPO/fonts (Fedora packages none)"
         note "would autologin $TARGET_USER on tty1, with no display manager"
     else
         printf '    %s\n' "${KDE[@]}" "${TOOLS[@]}" "${CHROMIUM[@]}"
@@ -361,6 +364,23 @@ dnf -y install brave-browser
 fi
 
 if [[ $DESKTOP == niri ]]; then
+    # SYMBOLS NERD FONT, WHICH FEDORA DOES NOT PACKAGE AT ALL. The only "nerd"
+    # font in the repositories is texlive-inconsolata-nerd-font, which is
+    # unrelated - so the glyphs in the bar, launcher, OSDs, power menu and lock
+    # screen come from a font this repository carries at
+    # fonts/nerd-fonts-symbols/ and installs itself.
+    #
+    # IT CANNOT BE LEFT AS A STEP TO REMEMBER. Without it every one of those
+    # glyphs is an empty box, which looks like a broken shell rather than a
+    # missing font - and on a fresh fedora-gaming00 that is exactly how it
+    # looked until the two machines were compared.
+    if [[ -x $REPO/bin/install-nerd-font.sh ]]; then
+        note "Symbols Nerd Font, which Fedora does not package"
+        "$REPO/bin/install-nerd-font.sh" || warn "the nerd font did not install - the bar will show empty boxes"
+    else
+        warn "bin/install-nerd-font.sh is missing - the bar will show empty boxes"
+    fi
+
     # NO DISPLAY MANAGER, WHICH IS THE FRAMEWORK'S ARRANGEMENT. getty logs the
     # user in on tty1 and ~/.bash_profile - linked by bin/link-dotfiles.sh -
     # reads ~/.local/state/fd44-compositor and hands niri or Hyprland to uwsm.
