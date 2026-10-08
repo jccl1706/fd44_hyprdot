@@ -85,6 +85,53 @@ DropPanel {
     readonly property var streams: root.allStreams.filter(
         n => (n.properties?.["media.class"] ?? "") === "Stream/Output/Audio")
 
+    // ONE ROW PER APPLICATION, NOT PER STREAM, and the difference is the whole
+    // point of this list. A browser opens a stream per tab that is playing, so
+    // five YouTube tabs are five streams - five rows labelled "Chromium", one
+    // per tab, indistinguishable from each other and growing the panel past
+    // two thirds of the screen. Measured at five; a dozen runs off the bottom.
+    //
+    // Grouped, "turn Chromium down" is one slider, which is what is actually
+    // being asked almost every time. The cost is real and worth stating: there
+    // is no longer a way to quiet one tab and leave another alone. pavucontrol
+    // still does that, and is the right tool for it.
+    readonly property var appGroups: {
+        const by = new Map()
+        for (const n of root.streams) {
+            const key = n.properties?.["application.name"] || root.streamName(n)
+            if (!by.has(key)) by.set(key, [])
+            by.get(key).push(n)
+        }
+        return Array.from(by, ([name, nodes]) => ({ name: name, nodes: nodes }))
+    }
+
+    // THE LOUDEST OF THE GROUP, because the slider has to show one number for
+    // streams that may disagree, and the loudest is the one you are reaching
+    // for the slider about. Moving it sets them all to that value, which
+    // flattens any difference - stated here because it is a real behaviour and
+    // not an accident.
+    function groupVolume(nodes): real {
+        let v = 0
+        for (const n of nodes) v = Math.max(v, n?.audio?.volume ?? 0)
+        return v
+    }
+
+    // Muted only when every one of them is: a group with one audible stream is
+    // not muted, and the button should offer to silence it rather than claim
+    // it already is.
+    function groupMuted(nodes): bool {
+        return nodes.length > 0 && nodes.every(n => n?.audio?.muted ?? false)
+    }
+
+    function setGroupVolume(nodes, v: real): void {
+        for (const n of nodes) root.setVolume(n, v)
+    }
+
+    function toggleGroupMute(nodes): void {
+        const next = !root.groupMuted(nodes)
+        for (const n of nodes) if (n?.audio) n.audio.muted = next
+    }
+
     function streamName(n): string {
         if (!n) return ""
         return n.properties["application.name"]
@@ -590,31 +637,51 @@ DropPanel {
         }
 
         Repeater {
-            model: root.streams
+            model: root.appGroups
 
             Column {
                 id: appRow
                 required property var modelData
                 width: content.width
 
-                // The application's name above its slider rather than beside
-                // it: "Firefox" and "Chromium — YouTube" are not a column of
-                // similar widths, and squeezing them next to a slider either
-                // elides the useful half or steals the slider's travel.
-                Text {
-                    leftPadding: 44
+                // The name above its slider rather than beside it: application
+                // names are not a column of similar widths, and squeezing one
+                // next to a slider either elides the useful half or steals the
+                // slider's travel.
+                Item {
                     width: parent.width
-                    elide: Text.ElideRight
-                    text: root.streamName(appRow.modelData)
-                    color: Theme.fg
-                    font.family: Theme.font
-                    font.pixelSize: Theme.fontSizeSmall
-                    font.weight: Theme.weightMedium
+                    height: 18
+
+                    Text {
+                        anchors { left: parent.left; leftMargin: 44
+                                  right: count.left; rightMargin: 8
+                                  verticalCenter: parent.verticalCenter }
+                        elide: Text.ElideRight
+                        text: appRow.modelData.name
+                        color: Theme.fg
+                        font.family: Theme.font
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.weight: Theme.weightMedium
+                    }
+
+                    // How many streams this one slider is moving. Only when
+                    // there is more than one, and it is the answer to "why is
+                    // there a single row for my five tabs".
+                    Text {
+                        id: count
+                        anchors { right: parent.right; rightMargin: 4
+                                  verticalCenter: parent.verticalCenter }
+                        visible: appRow.modelData.nodes.length > 1
+                        text: appRow.modelData.nodes.length + " streams"
+                        color: Theme.dim
+                        font.family: Theme.font
+                        font.pixelSize: Theme.fontSizeSmall
+                    }
                 }
 
                 VolumeRow {
                     width: parent.width
-                    node: appRow.modelData
+                    nodes: appRow.modelData.nodes
                 }
             }
         }
@@ -633,17 +700,20 @@ DropPanel {
     component VolumeRow: Item {
         id: row
 
-        // The node this row controls: an output, an input, or one
-        // application's stream. All three behave identically - a mute toggle,
-        // a slider, a percentage - which is why this is one component rather
+        // What this row controls: a single node - an output or an input - or a
+        // group of an application's streams. All of them behave identically:
+        // a mute toggle, a slider, a percentage. Hence one component rather
         // than three nearly identical blocks.
         property var node
+        property var nodes: []
+
+        readonly property var targets: row.node ? [row.node] : row.nodes
 
         // Draw the microphone glyphs instead of the speaker ones.
         property bool micStyle: false
 
-        readonly property real volume: row.node?.audio?.volume ?? 0
-        readonly property bool muted:  row.node?.audio?.muted ?? false
+        readonly property real volume: root.groupVolume(row.targets)
+        readonly property bool muted:  root.groupMuted(row.targets)
 
             width: parent.width
             height: 44
@@ -689,7 +759,7 @@ DropPanel {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: root.toggleMute(row.node)
+                    onClicked: root.toggleGroupMute(row.targets)
                 }
             }
 
@@ -734,7 +804,7 @@ DropPanel {
                 function send(): void {
                     if (Math.abs(slider.dragValue - slider.lastSent) < 0.001) return
                     slider.lastSent = slider.dragValue
-                    root.setVolume(row.node, slider.dragValue)
+                    root.setGroupVolume(row.targets, slider.dragValue)
                 }
 
                 // ~30 updates a second: smooth to the ear, and not one
