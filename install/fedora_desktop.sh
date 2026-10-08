@@ -642,6 +642,37 @@ else
 fi
 unset _vscode_desktop
 
+# --- the update count in the bar ---------------------------------------------
+#
+# bin/updates.py caches its answer for an hour so the bar can draw instantly
+# instead of waiting on dnf. The cost is that an upgrade run from a terminal
+# leaves the pill showing the old number until the cache ages out - measured on
+# the Framework as 68 packages still displayed on a fully updated machine.
+#
+# This hook removes the cache after every transaction. It does NOT run
+# `updates.py check`: a dnf hook runs as root, which would write root's cache in
+# /root/.cache, which the bar never reads - the count would stay wrong and the
+# hook would look like it had worked. With no cache, updates.py answers
+# "unknown", the bar draws nothing, and it spawns a real check as the session's
+# own user a moment later.
+#
+# NEEDS libdnf5-plugin-actions, which btrfs-patrol already recommends for its
+# own snapshot hooks. Both drop a file into the same actions.d directory and
+# neither knows about the other, which is how that interface is meant to work.
+if [[ -f $REPO/dnf/fd44-updates.actions && -x $REPO/bin/updates-invalidate.sh ]]; then
+    note "keeping the bar's update count honest after dnf transactions"
+    dnf -y install libdnf5-plugin-actions >/dev/null 2>&1 \
+        || warn "libdnf5-plugin-actions did not install - the hook will not run"
+    install -D -m 0755 -o root -g root \
+        "$REPO/bin/updates-invalidate.sh" /usr/local/bin/fd44-updates-invalidate
+    install -D -m 0644 -o root -g root \
+        "$REPO/dnf/fd44-updates.actions" \
+        /etc/dnf/libdnf5-plugins/actions.d/fd44-updates.actions
+else
+    warn "dnf/fd44-updates.actions is missing - the bar's update count will lag"
+    warn "by up to an hour after an upgrade run outside it."
+fi
+
 # --- Claude Code --------------------------------------------------------------
 #
 # THE NATIVE INSTALLER, which is what the Framework runs: it puts a versioned

@@ -1,0 +1,13 @@
+# fd44: keep the bar's update count honest after a dnf transaction.
+# Needs libdnf5-plugin-actions.
+#
+# Format (libdnf5-actions(8)): callback_name:package_filter:direction:options:command
+#
+# The empty package filter runs the command once per transaction rather than
+# once per package. enabled=host-only skips transactions on an --installroot:
+# installing into a chroot does not change what this system has waiting, and
+# install/fedora_bootstrap.sh does exactly that.
+#
+# post_transaction only. Nothing useful can be said before the packages change,
+# and a pre hook would only make the count wrong a few seconds earlier.
+post_transaction:::enabled=host-only:/usr/local/bin/fd44-updates-invalidate
