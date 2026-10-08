@@ -609,6 +609,26 @@ PanelWindow {
             property var pressedSlot: null
             property bool dragging: false
 
+            // WHETHER THE POINTER ACTUALLY WENT ANYWHERE. Holding a glyph for
+            // a third of a second arms the drag, which is the documented way
+            // to pick a plugin up - but on its own that is also just a slow
+            // click, and a slow click was swallowed: `dragging` was already
+            // true when the button came up, so onClicked did nothing and the
+            // panel never opened.
+            //
+            // So the drag is armed by the hold, as before, and only COMMITTED
+            // by movement. Released without having moved, it is a click.
+            //
+            // This is NOT what the three-click panel switch turned out to be -
+            // see onCanceled below for that. It is a second way the same
+            // handler could eat a click, found while looking for the first.
+            property bool movedFar: false
+            property real pressX: 0
+
+            // Whether this press has already been turned into an activation,
+            // so the click and the cancel below cannot both fire it.
+            property bool handled: false
+
             function sameTarget(a, b): bool {
                 if (a === null || b === null) return a === b
                 return a.zone === b.zone && a.index === b.index
@@ -616,6 +636,9 @@ PanelWindow {
 
             onPressed: mouse => {
                 dragging = false
+                movedFar = false
+                handled = false
+                pressX = mouse.x
                 const hit = root.slotAt(mouse.x, mouse.y)
                 if (!hit) {
                     mouse.accepted = false
@@ -634,6 +657,9 @@ PanelWindow {
             }
 
             onPositionChanged: mouse => {
+                // Eight pixels of slop, so the hand's own wobble during a
+                // click is not a drag.
+                if (!movedFar && Math.abs(mouse.x - pressX) > 8) movedFar = true
                 if (!dragging) return
                 root.dragX = mouse.x
                 const t = root.targetFor(mouse.x, mouse.y)
@@ -642,7 +668,9 @@ PanelWindow {
 
             onReleased: mouse => {
                 if (!dragging) return
-                if (root.dropTarget)
+                // Nothing moved, so nothing is dropped - onClicked below
+                // treats this as the click it was.
+                if (movedFar && root.dropTarget)
                     BarLayout.move(root.dragId, root.dropTarget.zone, root.dropTarget.index)
                 root.dropTarget = null
                 root.dragId = ""
@@ -651,10 +679,30 @@ PanelWindow {
             }
 
             onClicked: mouse => {
-                if (!dragging && pressedSlot) root.activate(pressedId, pressedSlot)
+                // A held-but-motionless press is a click, not a dropped drag.
+                if (!handled && pressedSlot && (!dragging || !movedFar)) {
+                    handled = true
+                    root.activate(pressedId, pressedSlot)
+                }
             }
 
+            // A CANCELLED PRESS THAT NEVER MOVED IS STILL A CLICK, and this
+            // is what made switching panels take three clicks instead of one.
+            //
+            // Pressing a second glyph while a panel is open closes that panel,
+            // and the close cancels this MouseArea's grab - so the release
+            // never became a click and the plugin was never activated. The
+            // press itself arrived perfectly well; it was destroyed on the way
+            // to becoming a click. Measured with counters on this handler:
+            // two presses reached the bar, one activation came out, one cancel.
+            //
+            // Only when nothing moved: a cancel in the middle of a real drag
+            // is a cancel and must stay one.
             onCanceled: {
+                if (!handled && !dragging && !movedFar && pressedSlot) {
+                    handled = true
+                    root.activate(pressedId, pressedSlot)
+                }
                 dragging = false
                 root.dropTarget = null
                 root.dragId = ""
