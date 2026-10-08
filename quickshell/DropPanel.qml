@@ -153,7 +153,8 @@ PanelWindow {
         root.opening()
         root.visible = true
         // Before `revealed`, always - see the duration note in PowerMenu.qml.
-        root.slideDuration = root.openDuration
+        root.slideDuration = root.replacing ? root.switchDuration : root.openDuration
+        root.replacing = false
         root.revealed = true
         card.forceActiveFocus()
     }
@@ -183,6 +184,23 @@ PanelWindow {
     // tuned separately.
     readonly property int openDuration: BarStyle.joined ? 260 : 170
     readonly property int closeDuration: BarStyle.joined ? 140 : 110
+
+    // AND THE CASE THE NOTE ABOVE DESCRIBES BUT DID NOT COVER: replacing a
+    // panel that is already open. Going from the network card to the audio one
+    // is not a slide out of nothing - the old card is still on screen, in the
+    // same place, and the eye is already there. It is the cross-fade, and at
+    // 260 it reads exactly as "slow to make up its mind", which is what it was
+    // reported as.
+    //
+    // Opening from closed keeps its 260: there the slide covers real distance
+    // and is worth watching.
+    readonly property int switchDuration: BarStyle.joined ? 150 : 110
+
+    // Set by shell.qml just before it opens this panel, when the click also
+    // closed another one. Consumed by open() and cleared there, so a stale
+    // true cannot make an ordinary open feel clipped.
+    property bool replacing: false
+
     property int slideDuration: openDuration
 
     // How far the card starts UNDER the bar's bottom edge, in px.

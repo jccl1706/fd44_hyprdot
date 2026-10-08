@@ -747,16 +747,22 @@ ShellRoot {
         return null
     }
 
+    // Closes the other bar panels on this screen, and tells the one being kept
+    // whether it is REPLACING one of them rather than opening into empty
+    // space. DropPanel uses that to pick a shorter animation: see the
+    // switchDuration note there.
     function closeBarPanels(screen, keep): void {
+        let closedOne = false
         for (let g = 0; g < shell.barPanelGroups.length; g++) {
             const instances = shell.barPanelGroups[g].instances
             for (let i = 0; i < instances.length; i++) {
                 const p = instances[i]
                 if (!p || p === keep) continue
                 if (p.modelData !== screen) continue
-                if (p.revealed) p.close()
+                if (p.revealed) { p.close(); closedOne = true }
             }
         }
+        if (keep) keep.replacing = closedOne
     }
 
     function eachAudio(fn): void {
