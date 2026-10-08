@@ -253,10 +253,24 @@ Singleton {
     // interesting behind them, and a translucent border reads as a rendering
     // fault rather than as a choice.
     //
-    // Paired with a blur layer rule in hypr/rules.lua. Without the blur a
-    // translucent panel over a terminal is genuinely hard to read - the text
-    // behind it competes with the text on it.
-    readonly property real panelAlpha: parseFloat(c("panelAlpha", "0.85"))
+    // OPAQUE, and it was 0.85 with a blur layer rule in hypr/rules.lua behind
+    // it. The blur is what made translucency legible, and it cannot be applied
+    // to these surfaces here: the drop panels, the launcher and the power menu
+    // each cover the whole screen so that a click anywhere dismisses them, and
+    // both Hyprland and niri blur a layer PER SURFACE - so blurring them blurs
+    // the frame and everything else behind, measured once at a 1.3px softening
+    // of what should be a hard 1px line. niri/layers.kdl therefore blurs only
+    // the two pickers, whose surfaces are small enough to blur safely.
+    //
+    // Which left every other popup translucent over nothing, and a card with a
+    // terminal showing through it is genuinely hard to read - the text behind
+    // competes with the text on it, which is what the old comment here said
+    // would happen without the blur. It was right; the blur just never arrived
+    // on this compositor.
+    //
+    // A theme can still ask for translucency by setting panelAlpha, for a
+    // machine whose compositor does blur these surfaces.
+    readonly property real panelAlpha: parseFloat(c("panelAlpha", "1"))
 
     // --- motion ----------------------------------------------------------
     // Kept short throughout: a bar should feel instant. Anything above about
