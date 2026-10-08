@@ -69,6 +69,14 @@ Singleton {
     // direction it is going.
     property real watts: 0
 
+    // The pair in watt-hours, summed across packs. DERIVED, NOT READ, on this
+    // laptop: it reports charge_* in microamp-hours and no energy_* at all, so
+    // these are charge times voltage. Machines that do report energy_* - the
+    // T480 with its two packs is one - have it used directly. Same duality the
+    // charge/energy pairs above already deal with, for the same reason.
+    property real energyNowWh: 0
+    property real energyFullWh: 0
+
     // Hours at the present draw, or 0 when that cannot be said. It usually
     // cannot: sitting at the charge limit this machine draws a milliamp, and
     // dividing by that gives an answer in months.
@@ -232,6 +240,11 @@ Singleton {
             readonly property FileView powerF:   FileView { path: modelData + "/power_now";          printErrors: false }
             readonly property FileView voltageF: FileView { path: modelData + "/voltage_now";        printErrors: false }
             readonly property FileView techF:    FileView { path: modelData + "/technology";         printErrors: false }
+            // Read once and never again - a pack does not change its name. Both
+            // are absent on some machines, which reads as empty and is drawn as
+            // nothing rather than as "undefined".
+            readonly property FileView makerF:   FileView { path: modelData + "/manufacturer";       printErrors: false }
+            readonly property FileView modelF:   FileView { path: modelData + "/model_name";         printErrors: false }
 
             function reload(): void {
                 capFile.reload(); statFile.reload()
@@ -268,6 +281,7 @@ Singleton {
         let now = 0, cap = 0, capSum = 0, n = 0
         let anyCharging = false, anyDischarging = false, seen = ""
         let design = 0, watts = 0, cycles = 0
+        let energyNow = 0, energyFull = 0
         const rows = []
 
         for (let i = 0; i < packs.count; i++) {
@@ -303,6 +317,22 @@ Singleton {
             const c = battery.num(p.cycles, 0)
             if (c > cycles) cycles = c
 
+            // Volts, and the pack in watt-hours. `wh` takes the energy reading
+            // when the pack has one and falls back to charge x volts, which is
+            // the same quantity by a different route: microamp-hours times
+            // microvolts, hence dividing each by a million rather than the
+            // combined 1e12 used for the wattage above.
+            const volt = battery.num(p.voltageF, 0) / 1e6
+            const wh = (energyRaw, chargeRaw) =>
+                  energyRaw >= 0 ? energyRaw / 1e6
+                : chargeRaw >= 0 ? (chargeRaw / 1e6) * volt
+                : 0
+            const eNow  = wh(battery.num(p.nowE, -1),    battery.num(p.nowC, -1))
+            const eFull = wh(battery.num(p.fullE, -1),   battery.num(p.fullC, -1))
+            const eDes  = wh(battery.num(p.designE, -1), battery.num(p.designC, -1))
+            energyNow  += eNow
+            energyFull += eFull
+
             rows.push({
                 name:    String(p.modelData).split("/").pop(),
                 percent: fullV > 0 ? Math.round(nowV * 100 / fullV)
@@ -311,7 +341,13 @@ Singleton {
                 cycles:  c,
                 health:  desV > 0 ? Math.round(fullV * 100 / desV) : 0,
                 watts:   packW,
-                tech:    String(p.techF.text()).trim()
+                tech:    String(p.techF.text()).trim(),
+                volts:   volt,
+                energyNow:    eNow,
+                energyFull:   eFull,
+                energyDesign: eDes,
+                maker:   String(p.makerF.text()).trim(),
+                model:   String(p.modelF.text()).trim()
             })
         }
 
@@ -367,6 +403,8 @@ Singleton {
         battery.details = rows
         battery.cycleCount = cycles
         battery.watts = watts
+        battery.energyNowWh = energyNow
+        battery.energyFullWh = energyFull
         battery.healthPercent = design > 0 ? Math.round(cap * 100 / design) : 0
 
         // Only when it means something: a reading taken while the charge
