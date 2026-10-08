@@ -219,20 +219,16 @@ if wants konsole "konsole profile and Breeze colours"; then
     link konsole/Breeze-fd44.colorscheme "$DATA/konsole/Breeze-fd44.colorscheme"
 fi
 
-# THE UPDATE INDICATOR, for the Plasma tray. The same thing the Hyprland bar's
-# update box is - both front ends poll bin/updates.py and draw its answer, so
-# there is one place that knows what "pending" means on dnf, emerge and nix.
+# THE PLASMA UPDATE INDICATOR IS GONE, and this is where it was linked from.
+# plasma/plasmoids/com.fd44.updates went with the rest of plasma/ when the
+# panel work was reverted; the line stayed behind and reported "missing" on
+# every run, for a file deliberately deleted. A linker that warns about
+# something nobody intends to restore trains you to ignore its warnings.
 #
-# LINKED AS A DIRECTORY, which is also how the applet finds the repository: its
-# QML resolves this very symlink and strips the known suffix to get back to the
-# checkout, so a clone anywhere works and moving it keeps working. A copy
-# instead of a link would break that and freeze the applet at install time.
-#
-# Keyed on plasmashell: on a machine running Hyprland this is skipped, because
-# an applet nothing can display is just a directory in the way.
-if wants plasmashell "the Plasma update indicator"; then
-    link plasma/plasmoids/com.fd44.updates "$DATA/plasma/plasmoids/com.fd44.updates"
-fi
+# bin/updates.py has not gone anywhere - quickshell's Updates.qml still polls
+# it, and dnf/fd44-updates.actions keeps its cache honest. Only the Plasma
+# front end is absent, and the Plasma machine uses plasma-discover-notifier
+# instead.
 
 # MangoHud, where there is a MangoHud. Linked file by file rather than as a
 # directory: other things write into ~/.config/MangoHud, so it is not ours to own.
