@@ -122,7 +122,25 @@ window-rule {
 // wherever the focus happened to be.
 //
 // The workspaces are named in niri/workspaces.kdl; "2" is a name, not an index.
+// AND FULL WIDTH, which is not the same as fullscreen and not the same as the
+// maximized state Chromium asks for itself.
+//
+// Three things that all look like "big" and are not:
+//
+//   open-maximized    niri makes the COLUMN full width. Measured here as
+//                     1472x919 - the working area minus the 32px of gaps -
+//                     with the bar visible and the corners rounded.
+//   open-fullscreen   covers the output, 1504x1002, over the bar. What a game
+//                     wants; not what a browser wants.
+//   the client asking the window manager to maximize it, which is what
+//                     Chromium did out of the box: 1504x951, the full working
+//                     area with the gaps skipped and the corners clipped
+//                     against the screen edge. That one was turned off in
+//                     ~/.config/chromium/Default/Preferences
+//                     (browser.window_placement.maximized), because a client
+//                     deciding this for itself overrides anything set here.
 window-rule {
     match app-id=r#"^chromium-browser$"#
     open-on-workspace "2"
+    open-maximized true
 }
