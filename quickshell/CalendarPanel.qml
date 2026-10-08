@@ -2,22 +2,44 @@
 // CalendarPanel - the month, from the clock
 // =========================================================================
 //
-// Material's date grid, in this desktop's palette: a month at a time, the
-// weekday initials above it, today marked by a filled circle rather than by
-// a colour on the number. Material does it that way because a coloured digit
-// competes with the digits around it while a filled shape does not, and at
-// 11px that difference decides whether today is findable at a glance.
+// Four parts, in the order the questions get asked:
 //
-// THE WEEK STARTS WHERE THE LOCALE SAYS. Qt.locale().firstDayOfWeek is
-// Sunday here and Monday across most of Europe, and a calendar that starts
-// on the wrong day is worse than no calendar - every date lands one column
-// out and the error is quiet. The weekday initials come from the same
-// locale, so they cannot disagree with the columns beneath them.
+//   what is today    the date as a tile, beside the day it names
+//   which month      the title, a way back to today, and the way through
+//   the grid         ISO weeks down the left, weekends tinted, today filled
 //
-// ONLY THIS MONTH'S DAYS ARE DRAWN. Filling the leading and trailing cells
-// with the neighbouring months is the other common choice, and it puts two
-// answers to "what is the 3rd" on one grid. Blanks say "not this month"
-// without needing to be read.
+// Taken from the sway laptop's calendar, which is the design this is: a tile
+// for today rather than a line of text under the grid, pill day cells, and a
+// week-number column. What it replaced was flatter - no tile, no week
+// numbers, blanks where the neighbouring months are - and the parts of that
+// design worth keeping are kept and noted below.
+//
+// THE WEEK STARTS ON MONDAY, which does not follow the locale and is the
+// price of the week-number column. ISO weeks run Monday to Sunday; this
+// machine's en_US locale starts the week on Sunday, so every row would
+// straddle two ISO weeks and the number beside it would be right for six
+// cells and wrong for the seventh. Starting on Monday makes the row and the
+// week the same object. Set weekStart to Qt.locale().firstDayOfWeek to follow
+// the locale again, and drop the column if you do.
+//
+// NEIGHBOURING MONTHS ARE DRAWN, dimmed, where the previous panel left blanks
+// - and that was a considered choice there, on the grounds that a filled
+// leading cell puts two answers to "what is the 3rd" on one grid. It is a
+// real trade and the dimming carries it: those days are pitched well below
+// the in-month ones rather than just slightly under.
+//
+// COLOUR ONLY WHERE IT MEANS SOMETHING, which is the rule the rest of the bar
+// follows. Today is the accent, filled, and it is the only saturated thing on
+// the grid. The weekends are tinted because they are a different kind of day,
+// and that tint is pulled almost half way to the foreground: at full strength
+// this palette's warm tone shouted louder than today's disc, which defeats
+// the point of marking today at all.
+//
+// HUES FROM THE PALETTE, not from the original's Catppuccin names, so the
+// card follows bin/theme.sh like everything else: term_color13 for the mauve
+// of the month title, term_color3 for the warm of the weekends. Deliberately
+// NOT Theme.danger for those, which is this theme's nearest match to the
+// original's peach and is also what the bar uses for a battery about to die.
 
 import Quickshell
 import QtQuick
@@ -26,53 +48,52 @@ DropPanel {
     id: root
 
     layerNamespace: "quickshell-calendar"
-    // 420. Seven columns at 57px each, which is what lets the day numbers
-    // go up to 15px and still sit clear of their neighbours.
-    panelWidth: 420
+    // 380: the week column plus seven day cells wide enough to be round.
+    panelWidth: 380
 
-    // The month on display. Reset to today's whenever the panel opens, so
-    // it never comes back showing a month you paged to a week ago.
-    property int viewYear: 0
-    property int viewMonth: 0
+    readonly property color hueMauve: Theme.palette.term_color13 || "#c061cb"
+    readonly property color hueWarm:  Theme.palette.term_color3  || "#f5c211"
 
-    // TODAY HAS TO KEEP UP WITH THE CLOCK. This was `new Date()`, which a QML
-    // property binding evaluates ONCE - when the shell starts - so after
-    // midnight the panel still circled yesterday and the line at the bottom
-    // still read yesterday's date. A shell that is restarted every day hides
-    // it; this one runs for weeks.
+    function tint(c, a): color { return Qt.rgba(c.r, c.g, c.b, a) }
+
+    // Pulled toward the foreground, because the original's weekend colour is a
+    // soft peach and the nearest thing this palette has is a saturated yellow.
+    // At full strength it shouted louder than today's filled disc, which is
+    // the one thing on the grid that should carry colour.
+    function mix(a, b, t): color {
+        return Qt.rgba(a.r + (b.r - a.r) * t,
+                       a.g + (b.g - a.g) * t,
+                       a.b + (b.b - a.b) * t, 1)
+    }
+
+    readonly property color weekendInk: root.mix(root.hueWarm, Theme.fg, 0.42)
+
+    // --- when "now" is ------------------------------------------------------
     //
-    // onOpening already took a fresh date for the MONTH, which is why the
-    // grid was right and only the highlight and the date line were wrong -
-    // the two things that come from `today`.
-    //
-    // HOURS, NOT MINUTES. SystemClock ticks on the boundary, and the only
-    // thing read from it here is which day it is, which changes on an hour
-    // boundary and no other: 24 wakes a day instead of 1440 for the same
-    // answer. Clock.qml asks for Minutes because it shows minutes.
+    // Both halves kept from the panel next door, because both were bugs there
+    // first. HOURS, not minutes: the only thing read from this is which day it
+    // is, which changes on an hour boundary and no other - 24 wakes a day
+    // instead of 1440 for the same answer.
     SystemClock {
         id: dayClock
         precision: SystemClock.Hours
         onDateChanged: root.today = dayClock.date
     }
 
-    // AND NOT A BINDING ON dayClock.date, WHICH GOES STALE ACROSS SUSPEND.
-    // SystemClock arms a timer for the next boundary, and the timer counts
-    // monotonic time, which does not advance while the machine is asleep. A
-    // laptop that suspends at 21:29 and wakes at 08:14 comes back with most
-    // of that hour still on the clock, so `date` reads 21:xx YESTERDAY until
-    // the timer finally fires - up to an hour after resume, and a whole wrong
-    // day if the sleep crossed midnight. Which it does every night.
-    //
-    // So `today` is written, not bound: by the tick while the shell runs, and
-    // from the system date every time the panel opens. Opening is the only
-    // moment any of this is on screen, and `new Date()` at that moment cannot
-    // be stale. The tick still matters for a panel left open past midnight.
+    // AND WRITTEN, NOT BOUND, because a binding on dayClock.date goes stale
+    // across suspend: SystemClock arms a monotonic timer, which does not
+    // advance while the machine sleeps, so a laptop that suspends at 21:29 and
+    // wakes at 08:14 reads 21:xx YESTERDAY until the timer fires. Opening the
+    // panel takes a fresh date, and opening is the only moment this is seen.
     property date today: new Date()
 
-    // Opened without a position - from IPC or a keybind rather than from a
-    // click - it centres on the screen, which is where the clock is. The
-    // bar's other panels default to the right edge because their glyphs live
-    // there; this one's does not.
+    property int viewYear: 0
+    property int viewMonth: 0
+
+    // HOW THIS PANEL IS OPENED, and it must keep these names: shell.qml calls
+    // them by hand rather than open()/close(), because this is the one panel
+    // whose glyph is not at the right-hand end of the bar. Opened without a
+    // position it centres on the screen, which is where the clock is.
     function openUnderClock(): void {
         root.open(root.screen ? root.screen.width / 2 : -1)
     }
@@ -89,49 +110,61 @@ DropPanel {
         root.viewMonth = now.getMonth()
     }
 
-    readonly property var loc: Qt.locale()
+    // 1 = Monday. Qt.locale().firstDayOfWeek here instead to follow the
+    // locale, at the cost described at the top.
+    readonly property int weekStart: 1
 
-    // 0 = Sunday. Qt's Locale.Sunday is 0 too, so no translation needed.
-    readonly property int weekStart: root.loc.firstDayOfWeek
+    readonly property var loc: Qt.locale()
 
     readonly property var dayNames: {
         const out = []
-        for (let i = 0; i < 7; i++) {
-            const d = (root.weekStart + i) % 7
-            // NarrowFormat is the single letter Material uses. Some locales
-            // repeat letters across days - T for Tuesday and Thursday - and
-            // that is the convention, not a bug.
-            out.push(root.loc.dayName(d, Locale.NarrowFormat))
-        }
+        for (let i = 0; i < 7; i++)
+            out.push(root.loc.dayName((root.weekStart + i) % 7, Locale.ShortFormat).slice(0, 2))
         return out
     }
 
-    // 0 for a blank, otherwise the day of the month - and only as many rows
-    // as the month actually occupies.
-    //
-    // THIS USED TO BE A FIXED 42, so the panel never changed height as you
-    // paged. It cost an empty row under most months: 42px of nothing between
-    // the last week and the rule below it, which read as a mistake rather
-    // than as stability. The card's height already follows its contents on a
-    // curve, so a month that needs a sixth row grows into it smoothly.
-    readonly property var cells: {
+    // ISO 8601: the week containing the year's first Thursday is week 1. The
+    // arithmetic is the standard one - step to the Thursday of this week, then
+    // count weeks from the first of January.
+    function isoWeek(d): int {
+        const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
+        const day = t.getUTCDay() || 7
+        t.setUTCDate(t.getUTCDate() + 4 - day)
+        return Math.ceil(((t - Date.UTC(t.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7)
+    }
+
+    function dayOfYear(d): int {
+        return Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate())
+                         - new Date(d.getFullYear(), 0, 1)) / 86400000) + 1
+    }
+
+    // One entry per week on display: its ISO number, and its seven days. Built
+    // whole rather than as a flat run of cells, so the week number and the row
+    // it labels cannot drift apart.
+    readonly property var weeks: {
         const first = new Date(root.viewYear, root.viewMonth, 1)
         const lead = (first.getDay() - root.weekStart + 7) % 7
         const length = new Date(root.viewYear, root.viewMonth + 1, 0).getDate()
         const rows = Math.ceil((lead + length) / 7)
         const out = []
-        for (let i = 0; i < rows * 7; i++) {
-            const day = i - lead + 1
-            out.push(day >= 1 && day <= length ? day : 0)
+        for (let r = 0; r < rows; r++) {
+            const days = []
+            for (let c = 0; c < 7; c++) {
+                const d = new Date(root.viewYear, root.viewMonth, r * 7 + c - lead + 1)
+                days.push({
+                    n: d.getDate(),
+                    inMonth: d.getMonth() === root.viewMonth,
+                    // Saturday and Sunday, whatever column they landed in.
+                    weekend: d.getDay() === 0 || d.getDay() === 6,
+                    today: d.toDateString() === root.today.toDateString()
+                })
+            }
+            out.push({
+                week: root.isoWeek(new Date(root.viewYear, root.viewMonth, r * 7 - lead + 1)),
+                days: days
+            })
         }
         return out
-    }
-
-    function isToday(day): bool {
-        return day > 0
-            && day === root.today.getDate()
-            && root.viewMonth === root.today.getMonth()
-            && root.viewYear === root.today.getFullYear()
     }
 
     function step(months): void {
@@ -143,77 +176,150 @@ DropPanel {
         root.viewYear = y
     }
 
-    Column {
-        width: parent.width
-        spacing: 0
+    readonly property bool onThisMonth: root.viewMonth === root.today.getMonth()
+                                        && root.viewYear === root.today.getFullYear()
 
-        // --- month, and the way through the year ---------------------------
+    function backToToday(): void {
+        root.viewYear = root.today.getFullYear()
+        root.viewMonth = root.today.getMonth()
+    }
+
+    Column {
+        id: stack
+        width: parent.width
+        topPadding: 16
+        spacing: 14
+
+        // ---- today ---------------------------------------------------------
+
+        Row {
+            x: 16
+            spacing: 14
+
+            Rectangle {
+                width: 64
+                height: 64
+                radius: 20
+                color: root.tint(Theme.accent, 0.16)
+
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 0
+
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: root.loc.standaloneMonthName(root.today.getMonth(),
+                                                           Locale.ShortFormat).toUpperCase()
+                        color: Theme.accent
+                        font.family: Theme.font
+                        font.pixelSize: 10
+                        font.weight: Theme.weightSemi
+                        font.letterSpacing: 1
+                    }
+
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: root.today.getDate()
+                        color: Theme.fg
+                        font.family: Theme.font
+                        font.pixelSize: 26
+                        font.weight: Theme.weightSemi
+                        font.letterSpacing: Theme.trackingTight
+                        font.features: ({ "tnum": 1 })
+                    }
+                }
+            }
+
+            Column {
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 3
+
+                Text {
+                    text: Qt.formatDate(root.today, "dddd")
+                    color: Theme.fg
+                    font.family: Theme.font
+                    font.pixelSize: 18
+                    font.weight: Theme.weightSemi
+                    font.letterSpacing: Theme.trackingTight
+                }
+
+                Text {
+                    text: Qt.formatDate(root.today, "d MMMM yyyy")
+                    color: Theme.dim
+                    font.family: Theme.font
+                    font.pixelSize: Theme.fontSize
+                }
+
+                Text {
+                    text: "Week " + root.isoWeek(root.today)
+                          + "  ·  day " + root.dayOfYear(root.today)
+                    color: root.tint(Theme.dim, 0.75)
+                    font.family: Theme.font
+                    font.pixelSize: Theme.fontSizeSmall
+                }
+            }
+        }
+
+        // ---- the month, and the way through the year ------------------------
 
         Item {
             width: parent.width
-            height: 48
+            height: 30
 
             Text {
                 anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
                 text: root.loc.standaloneMonthName(root.viewMonth, Locale.LongFormat)
                       + " " + root.viewYear
-                color: Theme.fg
+                color: root.hueMauve
                 font.family: Theme.font
-                font.pixelSize: 16
+                font.pixelSize: 15
                 font.weight: Theme.weightSemi
             }
 
-            // Only once paged away from this month - otherwise it is a
-            // button that does nothing.
-            Text {
-                id: backToToday
-                anchors { right: arrows.left; rightMargin: 10; verticalCenter: parent.verticalCenter }
-                visible: root.viewMonth !== root.today.getMonth()
-                         || root.viewYear !== root.today.getFullYear()
-                text: "Today"
-                color: backHover.hovered ? Theme.fg : Theme.accent
-                font.family: Theme.font
-                font.pixelSize: Theme.fontSizeSmall
-                font.weight: Theme.weightMedium
-                Behavior on color { ColorAnimation { duration: Theme.animFast } }
-
-                HoverHandler { id: backHover }
-                TapHandler {
-                    onTapped: {
-                        root.viewYear = root.today.getFullYear()
-                        root.viewMonth = root.today.getMonth()
-                    }
-                }
-            }
-
             Row {
-                id: arrows
-                anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                spacing: 2
+                anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
+                spacing: 4
+
+                // Only once paged away - otherwise a button that does nothing.
+                Rectangle {
+                    visible: !root.onThisMonth
+                    width: todayLabel.implicitWidth + 20
+                    height: 28
+                    radius: 14
+                    color: todayHover.hovered ? Theme.accent : Theme.surfaceHigh
+                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
+
+                    Text {
+                        id: todayLabel
+                        anchors.centerIn: parent
+                        text: "Today"
+                        color: todayHover.hovered ? Theme.accentFg : Theme.fg
+                        font.family: Theme.font
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.weight: Theme.weightSemi
+                    }
+
+                    HoverHandler { id: todayHover }
+                    TapHandler { onTapped: root.backToToday() }
+                }
 
                 Repeater {
                     model: [{ g: "\u{F0141}", d: -1 }, { g: "\u{F0142}", d: 1 }]
 
-                    Item {
+                    Rectangle {
                         required property var modelData
                         width: 28
                         height: 28
-
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: width / 2
-                            color: Theme.fg
-                            opacity: arrowHover.hovered ? 0.1 : 0
-                            Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
-                        }
+                        radius: 14
+                        color: arrowHover.hovered ? Theme.surfaceTop : Theme.surfaceHigh
+                        Behavior on color { ColorAnimation { duration: Theme.animFast } }
 
                         Text {
                             anchors.centerIn: parent
                             text: parent.modelData.g
+                            color: arrowHover.hovered ? Theme.fg : Theme.dim
                             font.family: Theme.glyphFont
                             font.pixelSize: 16
-                            color: arrowHover.hovered ? Theme.fg : Theme.dim
-                            Behavior on color { ColorAnimation { duration: Theme.animFast } }
                         }
 
                         HoverHandler { id: arrowHover }
@@ -223,128 +329,132 @@ DropPanel {
             }
         }
 
-        // --- weekday initials ----------------------------------------------
+        // ---- the grid --------------------------------------------------------
 
-        Row {
-            width: parent.width - 24
-            x: 12
-            height: 32
+        Column {
+            x: 16
+            width: parent.width - 32
+            spacing: 2
 
-            Repeater {
-                model: root.dayNames
+            // The week column is narrow on purpose: it labels the row, it is
+            // not one of the seven.
+            readonly property int weekW: 26
+            readonly property int cellW: (width - weekW) / 7
 
-                Item {
-                    required property string modelData
-                    width: parent.width / 7
+            // Column headings.
+            Row {
+                width: parent.width
+                height: 22
+
+                Text {
+                    width: parent.parent.weekW
                     height: parent.height
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    text: "Wk"
+                    color: root.tint(Theme.dim, 0.55)
+                    font.family: Theme.font
+                    font.pixelSize: Theme.fontSizeSmall
+                    font.weight: Theme.weightSemi
+                }
+
+                Repeater {
+                    model: root.dayNames
 
                     Text {
-                        anchors.centerIn: parent
-                        text: parent.modelData
-                        // Bigger, heavier and brighter than the usual
-                        // caption. These are the column headings for
-                        // everything under them, and at 12px medium in `dim`
-                        // they sat quieter than the 15px numbers they label -
-                        // the eye read the grid and skipped the key to it.
-                        //
-                        // `fg`, the same as the dates. A heading in the same
-                        // ink as its column is what makes the two read as one
-                        // table; the weight alone separates them, and the
-                        // letterSpacing keeps single letters from looking
-                        // like a word.
-                        color: Theme.fg
+                        required property string modelData
+                        required property int index
+                        width: parent.parent.cellW
+                        height: parent.height
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        text: modelData
+                        // The last two columns are the weekend, because the
+                        // week starts on Monday here.
+                        color: index >= 5 ? root.weekendInk : Theme.dim
                         font.family: Theme.font
-                        font.pixelSize: 14
+                        font.pixelSize: Theme.fontSizeSmall
                         font.weight: Theme.weightSemi
                         font.letterSpacing: Theme.trackingLoose
                     }
                 }
             }
-        }
-
-        // --- the grid --------------------------------------------------------
-
-        Grid {
-            x: 12
-            width: parent.width - 24
-            columns: 7
 
             Repeater {
-                model: root.cells
+                model: root.weeks
 
-                Item {
-                    required property int modelData
-                    // From the Grid's own width, not from panelWidth: the
-                    // card is panelWidth PLUS the frame thickness when it is
-                    // docked to an edge, so the two disagree by 4px and the
-                    // weekday initials stop sitting over their columns.
-                    width: parent.width / 7
-                    height: 44
-
-                    // Today: a filled disc, not a coloured number.
-                    Rectangle {
-                        anchors.centerIn: parent
-                        width: 38
-                        height: 38
-                        radius: width / 2
-                        color: Theme.accent
-                        visible: root.isToday(parent.modelData)
-                    }
-
-                    // Hover, for every real day. A blank cell is not a target.
-                    Rectangle {
-                        anchors.centerIn: parent
-                        width: 38
-                        height: 38
-                        radius: width / 2
-                        color: Theme.fg
-                        opacity: dayHover.hovered && parent.modelData > 0
-                                 && !root.isToday(parent.modelData) ? 0.08 : 0
-                        Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
-                    }
+                Row {
+                    id: weekRow
+                    required property var modelData
+                    width: parent.width
+                    height: 32
+                    spacing: 0
 
                     Text {
-                        anchors.centerIn: parent
-                        text: parent.modelData > 0 ? parent.modelData : ""
-                        color: root.isToday(parent.modelData) ? Theme.accentFg : Theme.fg
+                        width: weekRow.parent.weekW
+                        height: parent.height
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        text: weekRow.modelData.week
+                        color: root.tint(Theme.dim, 0.55)
                         font.family: Theme.font
-                        font.pixelSize: 15
-                        font.weight: root.isToday(parent.modelData) ? Theme.weightSemi
-                                                                    : Theme.weightNormal
-                        font.features: { "tnum": 1 }
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.features: ({ "tnum": 1 })
                     }
 
-                    HoverHandler { id: dayHover; enabled: parent.modelData > 0 }
+                    Repeater {
+                        model: weekRow.modelData.days
+
+                        Item {
+                            id: cell
+                            required property var modelData
+                            width: weekRow.parent.cellW
+                            height: 32
+
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width: Math.min(parent.width - 2, 34)
+                                height: 30
+                                radius: 15
+                                color: cell.modelData.today ? Theme.accent
+                                     : dayHover.hovered && cell.modelData.inMonth ? Theme.surfaceHigh
+                                     : cell.modelData.weekend && cell.modelData.inMonth
+                                       ? root.tint(root.hueWarm, 0.07)
+                                     : "transparent"
+                                Behavior on color { ColorAnimation { duration: Theme.animFast } }
+                            }
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: cell.modelData.n
+                                color: cell.modelData.today      ? Theme.accentFg
+                                     : !cell.modelData.inMonth   ? root.tint(Theme.dim, 0.38)
+                                     : cell.modelData.weekend    ? root.weekendInk
+                                                                 : Theme.fg
+                                font.family: Theme.font
+                                font.pixelSize: Theme.fontSize
+                                font.weight: cell.modelData.today ? Theme.weightSemi
+                                                                  : Theme.weightNormal
+                                font.features: ({ "tnum": 1 })
+                            }
+
+                            HoverHandler { id: dayHover; enabled: cell.modelData.inMonth }
+                        }
+                    }
                 }
             }
         }
 
-        Item { width: 1; height: 4 }
+        Item { width: 1; height: 14 }
 
-        // --- today, spelled out ----------------------------------------------
-        //
-        // NO CLOCK HERE, and that is deliberate rather than an omission. A
-        // large time in this panel sat a couple of centimetres under the
-        // bar's own clock, which is what the panel drops from - two readings
-        // of the same thing, one of them redundant by construction.
-        //
-        // The date is a different matter: the grid says which square today
-        // is, and this says what today is, which is the other half of why
-        // anyone opens a calendar.
-
-        Rectangle { width: parent.width; height: 1; color: Theme.outline }
-
-        Item {
-            width: parent.width
-            height: 40
-
-            Text {
-                anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
-                text: Qt.formatDateTime(root.today, "dddd d MMMM yyyy")
-                color: Theme.dim
-                font.family: Theme.font
-                font.pixelSize: 13
-            }
+        // Scroll anywhere on the card to page the month, as the original does.
+        // ON THE COLUMN, NOT ON THE PANEL: DropPanel is not an Item, so a
+        // handler attached to it cannot fire - which is also what qs-check
+        // reported about the arrow keys that used to be here. Keyboard paging
+        // would need the focus item inside DropPanel and is not worth it; the
+        // arrows and the wheel both work.
+        WheelHandler {
+            onWheel: event => root.step(event.angleDelta.y > 0 ? -1 : 1)
         }
     }
 }
