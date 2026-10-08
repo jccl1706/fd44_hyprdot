@@ -107,3 +107,22 @@ window-rule {
 // -system-composer workaround changed nothing. install/fedora_desktop.sh holds
 // the package at 0.8.1 and locks it, and says when to remove that - the fix is
 // already in xwayland-satellite main and will arrive in a Fedora build.
+
+// --- Chromium, on workspace 2 ------------------------------------------------
+//
+// THE app-id IS "chromium-browser", NOT "chromium". Measured with
+// `niri msg windows` against the running browser on the Framework. Fedora's
+// package installs the binary as /usr/bin/chromium-browser and names the
+// window to match - there is no `chromium` command at all, which is also how
+// the first attempt to launch it for this measurement failed.
+//
+// NOT FLOATED and not sized: this only says where it opens. A browser is a
+// window you work in, so it takes its share of the column strip like anything
+// else - the rule exists so it opens in the same place every time rather than
+// wherever the focus happened to be.
+//
+// The workspaces are named in niri/workspaces.kdl; "2" is a name, not an index.
+window-rule {
+    match app-id=r#"^chromium-browser$"#
+    open-on-workspace "2"
+}
