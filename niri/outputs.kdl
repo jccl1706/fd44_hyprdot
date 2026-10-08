@@ -39,6 +39,24 @@
 // resize the whole desktop, so it is left as niri found it and written down
 // instead. The 1px overlaps in quickshell that hypr/monitors.lua calls
 // "unnecessary at scale 1" are doing real work at 1.5.
+// AND y=-219, WHICH CENTRES THE LAPTOP AGAINST IT. Both were top-aligned at
+// y=0, and the external is 438 logical pixels taller (1440 against 1002) - so
+// the bottom 438 of it had no output to its right at all. The cursor crosses
+// only where two outputs are DIRECTLY ADJACENT, which niri's own config says
+// and sway documents too, so down there the pointer hit a dead edge and stuck
+// near the corner.
+//
+// The heights cannot be made to match, so the only choice is where the dead
+// strip goes. Centred splits it: 219 above and 219 below, instead of 438 all
+// at the bottom where a hand reaching across from the big screen actually is.
+//
+// THE EXTERNAL MOVES, NOT THE LAPTOP, and that is the whole reason this is
+// -219 on this line rather than y=219 on an eDP-1 block. Positioning eDP-1
+// would take the laptop off 0,0 - including when it is the only output - and
+// the note above about `grim -g "0,0 300x40"` capturing nothing is exactly
+// what would happen. Moving the external to -219 centres the pair and leaves
+// the laptop at the origin: its 0..1002 sits inside the external's -219..1221,
+// both centred on y=501.
 output "LG Electronics LG ULTRAGEAR 106NTNH2R807" {
-    position x=-2560 y=0
+    position x=-2560 y=-219
 }
