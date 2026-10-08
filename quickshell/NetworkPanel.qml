@@ -132,6 +132,81 @@ DropPanel {
         return a ? { iface: pick.name, v4: a.v4, prefix: a.prefix, v6: a.v6 } : null
     }
 
+    // Upload against the accent's download. term_color13 is the palette's
+    // mauve; deliberately not Theme.danger, which this bar uses for things
+    // that are wrong rather than for a second series on a chart.
+    readonly property color upColour: Theme.palette.term_color13 || "#c061cb"
+
+    // --- throughput --------------------------------------------------
+    //
+    // FROM /sys, NOT FROM A PROGRAM. The interface's byte counters are two
+    // files; reading them is the same trick Battery.qml uses on the power
+    // supply, and it means a graph that updates every second costs no
+    // processes at all. The sway laptop's version of this card shells out to
+    // a Python script once a second to get the same two numbers.
+    //
+    // ONLY WHILE THE PANEL IS OPEN. A rate needs two samples a known time
+    // apart, so this is a poll rather than a subscription, and nothing reads
+    // it while the card is shut.
+
+    property real rxRate: 0          // bytes/second
+    property real txRate: 0
+    property var  rates: []          // [{rx, tx}], the last 60 seconds
+    property var  lastSample: null   // { t, iface, rx, tx }
+
+    readonly property string rateIface: root.activeAddress ? root.activeAddress.iface : ""
+
+    FileView {
+        id: rxFile
+        path: root.rateIface !== "" ? "/sys/class/net/" + root.rateIface + "/statistics/rx_bytes" : ""
+        printErrors: false
+    }
+
+    FileView {
+        id: txFile
+        path: root.rateIface !== "" ? "/sys/class/net/" + root.rateIface + "/statistics/tx_bytes" : ""
+        printErrors: false
+    }
+
+    function counter(view): real {
+        const t = String(view.text()).trim()
+        if (t === "") return -1
+        const v = parseFloat(t)
+        return isNaN(v) ? -1 : v
+    }
+
+    Timer {
+        interval: 1000
+        repeat: true
+        running: root.revealed && root.rateIface !== ""
+        onTriggered: {
+            rxFile.reload()
+            txFile.reload()
+            const rx = root.counter(rxFile), tx = root.counter(txFile)
+            if (rx < 0 || tx < 0) return
+            const now = Date.now()
+            const prev = root.lastSample
+            // A DIFFERENT INTERFACE IS NOT A BURST OF TRAFFIC. Switching from
+            // wifi to a cable swaps the counters for another card's, and the
+            // difference between them is meaningless - and enormous.
+            if (prev && prev.iface === root.rateIface && now > prev.t) {
+                const dt = (now - prev.t) / 1000
+                // Counters only climb; a drop means they were reset.
+                root.rxRate = Math.max(0, (rx - prev.rx) / dt)
+                root.txRate = Math.max(0, (tx - prev.tx) / dt)
+                root.rates = root.rates.concat([{ rx: root.rxRate, tx: root.txRate }]).slice(-60)
+            }
+            root.lastSample = { t: now, iface: root.rateIface, rx: rx, tx: tx }
+        }
+    }
+
+    function humanRate(b: real): string {
+        const u = ["B", "kB", "MB", "GB"]
+        let i = 0, v = b
+        while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
+        return (i === 0 ? Math.round(v) : v.toFixed(1)) + " " + u[i] + "/s"
+    }
+
     // Closing collapses the open network, which clears a half-typed password
     // (see row.onExpandedChanged) instead of leaving it in the hidden window.
     onClosing: wifiList.expanded = ""
@@ -334,6 +409,124 @@ DropPanel {
             font.family: Theme.font
             font.pixelSize: Theme.fontSize
             color: Theme.dim
+        }
+
+
+        // --- throughput ------------------------------------------------
+        //
+        // Above the address and under the same rule, because both answer
+        // "how is this connection doing" rather than "what can I join".
+
+        Rectangle {
+            width: parent.width
+            height: 1
+            color: Theme.outline
+            visible: root.activeAddress !== null
+        }
+
+        Item {
+            width: parent.width
+            height: 92
+            visible: root.activeAddress !== null
+
+            Row {
+                id: rateRow
+                anchors { left: parent.left; leftMargin: 4; top: parent.top; topMargin: 10 }
+                spacing: 18
+
+                Repeater {
+                    model: [
+                        { g: "\u{F0045}", label: "down", v: root.rxRate, c: Theme.accent },
+                        { g: "\u{F005D}", label: "up",   v: root.txRate, c: root.upColour }
+                    ]
+
+                    Row {
+                        required property var modelData
+                        spacing: 6
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: parent.modelData.g
+                            font.family: Theme.glyphFont
+                            font.pixelSize: 13
+                            color: parent.modelData.c
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: root.humanRate(parent.modelData.v)
+                            color: Theme.fg
+                            font.family: Theme.font
+                            font.pixelSize: Theme.fontSize
+                            font.weight: Theme.weightMedium
+                            font.features: ({ "tnum": 1 })
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: parent.modelData.label
+                            color: Theme.dim
+                            font.family: Theme.font
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.letterSpacing: Theme.trackingLoose
+                        }
+                    }
+                }
+            }
+
+            Text {
+                anchors { right: parent.right; rightMargin: 4
+                          verticalCenter: rateRow.verticalCenter }
+                text: "last 60s"
+                color: Theme.dim
+                font.family: Theme.font
+                font.pixelSize: Theme.fontSizeSmall
+            }
+
+            Canvas {
+                id: graph
+                anchors { left: parent.left; leftMargin: 4
+                          right: parent.right; rightMargin: 4
+                          bottom: parent.bottom; bottomMargin: 10 }
+                height: 46
+
+                readonly property var pts: root.rates
+                onPtsChanged: requestPaint()
+
+                onPaint: {
+                    const g = getContext("2d")
+                    g.reset()
+                    const pts = graph.pts
+                    if (pts.length < 2) return
+
+                    // A FLOOR ON THE SCALE, or an idle link draws its own noise as
+                    // mountains: a few hundred bytes of background chatter fills
+                    // the whole height when the maximum is a few hundred bytes.
+                    let max = 16 * 1024
+                    for (const p of pts) max = Math.max(max, p.rx, p.tx)
+
+                    const X = i => graph.width - (pts.length - 1 - i) * (graph.width / 59)
+                    const Y = v => graph.height - 1 - (graph.height - 2) * (v / max)
+
+                    function trace(key, colour, fillAlpha) {
+                        g.beginPath()
+                        g.moveTo(X(0), Y(pts[0][key]))
+                        for (let i = 1; i < pts.length; i++) g.lineTo(X(i), Y(pts[i][key]))
+                        g.strokeStyle = colour
+                        g.lineWidth = 1.5
+                        g.lineJoin = "round"
+                        g.stroke()
+                        g.lineTo(X(pts.length - 1), graph.height)
+                        g.lineTo(X(0), graph.height)
+                        g.closePath()
+                        g.fillStyle = Qt.rgba(colour.r, colour.g, colour.b, fillAlpha)
+                        g.fill()
+                    }
+
+                    trace("rx", Theme.accent, 0.16)
+                    trace("tx", root.upColour, 0.10)
+                }
+            }
         }
 
         // --- this machine's address ------------------------------------

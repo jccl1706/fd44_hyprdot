@@ -128,6 +128,56 @@ Item {
         list.failures = f
     }
 
+    // What the connected row says under the name: how strong the link is and
+    // what secures it. Both are already on the network object, so this costs
+    // nothing but the words.
+    function connectedDetail(row): string {
+        const pct = Math.round((row.net?.signalStrength ?? 0) * 100)
+        const sec = row.open ? "Open" : WifiSecurityType.toString(row.security)
+        const bits = ["Connected"]
+        if (pct > 0) bits.push(pct + "%")
+        if (sec !== "") bits.push(sec)
+        return bits.join("  \u00b7  ")
+    }
+
+    // --- rescan ------------------------------------------------------
+    //
+    // THE ONE PROCESS THIS FILE FORKS, so the panel's "no nmcli processes" is
+    // now a claim with an exception, and this is it. Quickshell's networking
+    // service has no scan trigger in this version - wifiEnabled,
+    // signalStrength, requestConnect and activeAccessPoint, and nothing to ask
+    // for a fresh scan - so a rescan button goes through nmcli or does not
+    // exist.
+    //
+    // Worth the exception because the alternative is invisible: NetworkManager
+    // rescans on its own schedule, so a network that has just appeared turns up
+    // whenever it turns up and there is no way to say "look again now". One
+    // fork per press, on a press, is the kind the addresses note already calls
+    // acceptable.
+    property bool scanning: false
+
+    Process {
+        id: rescanProc
+        command: ["nmcli", "device", "wifi", "rescan"]
+        onExited: scanSpin.restart()
+    }
+
+    function rescan(): void {
+        if (list.scanning || !Networking.wifiEnabled) return
+        list.scanning = true
+        rescanProc.running = true
+    }
+
+    // THE SPIN OUTLIVES THE PROCESS ON PURPOSE. nmcli returns as soon as the
+    // request is accepted, not when results arrive, so stopping the spinner on
+    // exit blinks it for a fraction of a second and reads as nothing having
+    // happened. Four seconds is roughly how long the list takes to settle.
+    Timer {
+        id: scanSpin
+        interval: 4000
+        onTriggered: list.scanning = false
+    }
+
     // --- security --------------------------------------------------------
 
     function isOpen(sec: int): bool {
@@ -174,11 +224,53 @@ Item {
                 // Unusable while a hardware switch (or rfkill) holds the
                 // radio off - software cannot override that.
                 ToggleSwitch {
+                    id: wifiSwitch
                     anchors { right: parent.right; rightMargin: 4
                               verticalCenter: parent.verticalCenter }
                     checked: Networking.wifiEnabled
                     interactive: Networking.wifiHardwareEnabled
                     onToggled: Networking.wifiEnabled = !Networking.wifiEnabled
+                }
+
+                // Look again, now. Hidden with the radio off, where there
+                // is nothing to look for.
+                Item {
+                    anchors { right: wifiSwitch.left; rightMargin: 10
+                              verticalCenter: parent.verticalCenter }
+                    width: 24
+                    height: 24
+                    visible: Networking.wifiEnabled
+                
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: width / 2
+                        color: Theme.fg
+                        opacity: scanHover.hovered ? 0.1 : 0
+                        Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+                    }
+                
+                    Text {
+                        id: scanGlyph
+                        anchors.centerIn: parent
+                        text: "\u{F0450}"
+                        font.family: Theme.glyphFont
+                        font.pixelSize: 14
+                        color: list.scanning     ? Theme.accent
+                             : scanHover.hovered ? Theme.fg
+                                                 : Theme.dim
+                        Behavior on color { ColorAnimation { duration: Theme.animFast } }
+                
+                        RotationAnimation on rotation {
+                            running: list.scanning
+                            from: 0; to: 360
+                            duration: 900
+                            loops: Animation.Infinite
+                            onRunningChanged: if (!running) scanGlyph.rotation = 0
+                        }
+                    }
+                
+                    HoverHandler { id: scanHover }
+                    TapHandler { onTapped: list.rescan() }
                 }
             }
 
@@ -350,8 +442,14 @@ Item {
 
                             Text {
                                 width: parent.width
+                                // CONNECTED SAYS HOW WELL, not merely that it is.
+                                // "Connected" alone was the one line on this list
+                                // answering a question nobody asked - the accent bar
+                                // beside the row already says which network it is.
+                                // The signal is what you open the panel to find out
+                                // when a page is loading slowly.
                                 text: row.failure                                  ? row.failure
-                                    : row.connected                                ? "Connected"
+                                    : row.connected                                ? list.connectedDetail(row)
                                     : row.state === ConnectionState.Connecting     ? "Connecting…"
                                     : row.state === ConnectionState.Disconnecting  ? "Disconnecting…"
                                     : row.known                                    ? "Saved"
