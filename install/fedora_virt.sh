@@ -132,6 +132,67 @@ for n in default lan; do
     fi
 done
 
+# --- the virtiofsd wrapper ----------------------------------------------------
+#
+# WHAT GOES WRONG WITHOUT IT. virtiofsd runs as root and a virtiofs share is
+# accessmode='passthrough', so whatever uid and gid the guest claims are written
+# straight onto the host's files. The Windows virtio-fs driver claims 301:67,
+# which exists on no Fedora system - so the moment the guest touched the share
+# directory, it became owned by a phantom account:
+#
+#   drwxrwsr-x. 1 301 67   /home/vms/share
+#
+# Mode 2775 gives the owner and the group write access, and the host user is
+# neither, so it fell through to "other" and could no longer write to its own
+# share. Found that way on 2026-10-08; a 165 GB image written by the guest three
+# days earlier had the same ownership.
+#
+# THE FIX IS A WRAPPER BECAUSE LIBVIRT HAS NO XML FOR IT. virtiofsd grew
+# --translate-uid in 1.x; libvirt 12's <binary> element still exposes only
+# cache, sandbox, locking and the thread pool. Pointing <binary path=.../> at a
+# script that re-execs the real binary with the flags added is the way round,
+# and libvirt passes its own arguments through untouched.
+#
+# squash-guest maps a RANGE of guest ids onto ONE host id, so every id the guest
+# can present lands as the desktop user. 65536 is far past anything a Windows
+# guest reports.
+#
+# THE DOMAIN IS NOT EDITED HERE. This stage deliberately defines no guest - see
+# the note at the top - so it installs the wrapper and prints the one line to
+# add. A guest migrated from the NixOS side gets it when its XML is written.
+note "installing the virtiofsd wrapper"
+
+VIRTIOFS_WRAP=/usr/libexec/fd44-virtiofsd
+TARGET_UID="$(id -u "$TARGET_USER")"
+TARGET_GID="$(id -g "$TARGET_USER")"
+
+cat > "$VIRTIOFS_WRAP" <<WRAPPER
+#!/bin/sh
+# Installed by install/fedora_virt.sh - see the note there for why this exists.
+#
+# Everything the guest writes lands on the host owned by $TARGET_USER, whatever
+# uid or gid the guest claims. Without this, virtiofsd faithfully applies the
+# guest's ids, and a Windows guest claims 301:67 - which exists nowhere here.
+exec /usr/libexec/virtiofsd \\
+    --translate-uid "squash-guest:0:$TARGET_UID:65536" \\
+    --translate-gid "squash-guest:0:$TARGET_GID:65536" \\
+    "\$@"
+WRAPPER
+chmod 0755 "$VIRTIOFS_WRAP"
+
+# SELinux: libvirt will not execute it without virtiofsd's own label. They are
+# both bin_t on Fedora 44, but taking it from the real binary keeps this true if
+# the policy ever gives virtiofsd a type of its own.
+if command -v chcon >/dev/null 2>&1 && [[ -e /usr/libexec/virtiofsd ]]; then
+    chcon --reference=/usr/libexec/virtiofsd "$VIRTIOFS_WRAP" 2>/dev/null || true
+    if command -v semanage >/dev/null 2>&1; then
+        _t="$(stat -c %C /usr/libexec/virtiofsd | cut -d: -f3)"
+        semanage fcontext -a -t "$_t" "$VIRTIOFS_WRAP" 2>/dev/null \
+            || semanage fcontext -m -t "$_t" "$VIRTIOFS_WRAP" 2>/dev/null || true
+    fi
+fi
+ls -lZ "$VIRTIOFS_WRAP" | sed 's/^/  /'
+
 # --- the default libvirt URI -------------------------------------------------
 #
 # A bare `virsh` run by a normal user talks to qemu:///session, the per-user
@@ -162,3 +223,8 @@ printf '  %-14s %s\n' "machines"  "$(/usr/bin/qemu-system-x86_64 -M help | grep 
 printf '\n'
 warn "LOG OUT AND BACK IN before using virt-manager - the libvirt group only"
 warn "reaches a session that started after it was granted."
+printf '\n'
+note "for a guest with a virtiofs share, add this inside its <filesystem>:"
+printf "  <binary path='%s'/>\n" "$VIRTIOFS_WRAP"
+printf '  %s\n' "without it the guest's own uid/gid land on the host's files -"
+printf '  %s\n' "see the virtiofsd wrapper note in this script"
