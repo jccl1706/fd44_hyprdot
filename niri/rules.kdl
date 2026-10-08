@@ -144,3 +144,19 @@ window-rule {
     open-on-workspace "2"
     open-maximized true
 }
+
+// --- the startup terminal ----------------------------------------------------
+//
+// A DEDICATED app-id, NOT "kitty". niri/autostart.kdl launches this one with
+// --app-id kitty-framework so the rule can single it out. Matching plain
+// "kitty" would pin every terminal opened with Mod+Return to workspace 1 at
+// full width, which is the opposite of what a tiling compositor is for.
+//
+// open-maximized, not open-fullscreen: full width inside the working area, bar
+// visible, gaps and corners intact. See the Chromium rule above for the three
+// kinds of "big" and how they differ.
+window-rule {
+    match app-id=r#"^kitty-framework$"#
+    open-on-workspace "1"
+    open-maximized true
+}

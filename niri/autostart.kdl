@@ -41,6 +41,25 @@ spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/lock-at-login.sh"
 // the compositor.
 spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/evo4-gain.sh"
 
+// THE WORKING TERMINAL, on workspace 1 and full width.
+//
+// --app-id kitty-framework is what niri/rules.kdl matches on, and it has to be
+// a name of its own: a rule keyed on plain "kitty" would pin every terminal
+// opened with Mod+Return to workspace 1 at full width.
+//
+// `tmux new-session -A` attaches to "framework" if it exists and creates it
+// otherwise, so this is safe to run again after the compositor restarts - it
+// finds the session that survived rather than starting a second one. The
+// command after it only runs when the session is NEW; attaching ignores it,
+// which is the behaviour wanted here.
+//
+// claude --resume takes a conversation id. Resuming the SAME id at every login
+// means every session continues one long conversation; starting a fresh one is
+// `claude` with no arguments. Two instances resuming one id at once is worth
+// avoiding - this one is attached to a tmux session, so a second login finds
+// the first rather than racing it.
+spawn-at-startup "sh" "-c" "kitty --app-id kitty-framework -e tmux new-session -A -s framework claude --resume 4c3c50be-ace6-48fa-a669-28809a94ba06"
+
 // THE SYSTEMD USER SERVICES ARE LEFT TO niri-session. hypr/autostart.lua starts
 // pipewire, wireplumber and hypridle itself, each guarded by `systemctl --user
 // is-enabled`, because uwsm's graphical-session.target does not cover them there.
