@@ -119,7 +119,21 @@ PanelWindow {
 
     // --- public API ------------------------------------------------------
 
+    // WHAT WAS FOCUSED BEFORE THIS OPENED, taken at open() and not read live.
+    //
+    // niri reports NO focused window while a layer surface holds keyboard
+    // focus - NiriFocusGrab.qml is built on exactly that - so once this card
+    // is up, Compositor.focusedWindow is null and "am I already in this app"
+    // can never be answered. Asked live, it said no every time: from a kitty,
+    // typing kitty focused the kitty already in front of you and the screen
+    // did not change.
+    property string focusedAppIdAtOpen: ""
+
     function open(): void {
+        // Before anything takes focus, and before the card is revealed.
+        const f = Compositor.focusedWindow
+        root.focusedAppIdAtOpen = f ? String(f.appId || "") : ""
+
         // Pick up anything installed since the last time this was opened.
         // One short script over a few small files; see SteamGames.qml.
         SteamGames.refresh()
@@ -161,18 +175,31 @@ PanelWindow {
         return out
     }
 
+    function appIdMatches(appId: string, keys): bool {
+        const a = String(appId || "").toLowerCase()
+        if (a === "") return false
+        const tail = a.split(".").pop()
+        for (const k of keys)
+            if (a === k || tail === k) return true
+        return false
+    }
+
     function windowFor(entry): var {
         if (!entry || entry.isSteamGame) return null
         const keys = root.appKeys(entry)
         if (keys.length === 0) return null
-        for (const w of Compositor.windows) {
-            const a = String(w.appId || "").toLowerCase()
-            if (a === "") continue
-            const tail = a.split(".").pop()
-            for (const k of keys)
-                if (a === k || tail === k) return w
-        }
+        for (const w of Compositor.windows)
+            if (root.appIdMatches(w.appId, keys)) return w
         return null
+    }
+
+    // Whether the window you are looking at right now already belongs to this
+    // entry. Asked because focusing it would be a no-op: you press Enter and
+    // the screen does not change, which reads as the launcher being broken.
+    // Reported that way for kitty, from a kitty.
+    function focusedBelongsTo(entry): bool {
+        if (!entry || root.focusedAppIdAtOpen === "") return false
+        return root.appIdMatches(root.focusedAppIdAtOpen, root.appKeys(entry))
     }
 
     function isRunning(entry): bool { return root.windowFor(entry) !== null }
@@ -189,8 +216,12 @@ PanelWindow {
         // to it, and answering with a second copy is never what was meant.
         // Steam games are exempt: their windows carry app ids of their own
         // that have nothing to do with the entry.
+        // ALREADY IN IT MEANS GIVE ME ANOTHER. Focusing the window you are
+        // already using changes nothing on screen, so asking for kitty from a
+        // kitty starts a second one instead - which is what asking for it
+        // again can only have meant.
         const open = root.windowFor(entry)
-        if (open) {
+        if (open && !root.focusedBelongsTo(entry)) {
             Compositor.focusWindow(open)
             return
         }
