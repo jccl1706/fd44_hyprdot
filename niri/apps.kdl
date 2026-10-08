@@ -26,6 +26,22 @@ binds {
     // new window, and bin/browser.sh, which picks whichever browser is
     // installed rather than naming one.
     Mod+Return hotkey-overlay-title="Terminal" { spawn "kitty"; }
+    // THE SESSION TERMINAL, the same one niri/autostart.kdl opens at login.
+    // Mod+Return is a fresh terminal wherever you are; this is the one that
+    // goes to workspace 1 at full width and attaches to the tmux session the
+    // work lives in.
+    //
+    // --app-id kitty-framework is not decoration: it is what the window rule in
+    // niri/rules.kdl matches. Launch kitty without it and you get an ordinary
+    // terminal in the current column.
+    //
+    // `tmux new-session -A` attaches if "framework" exists and creates it
+    // otherwise, so pressing this twice gives you the session you already have
+    // rather than a second one - and the claude command only runs when the
+    // session is new.
+    Mod+Shift+Return hotkey-overlay-title="Session terminal" {
+        spawn "kitty" "--app-id" "kitty-framework" "-e" "tmux" "new-session" "-A" "-s" "framework" "claude" "--resume" "4c3c50be-ace6-48fa-a669-28809a94ba06";
+    }
     Mod+E hotkey-overlay-title="Files" { spawn "nautilus" "--new-window"; }
     Mod+B hotkey-overlay-title="Browser" { spawn-sh "$HOME/Work/fd44_hyprdot/bin/browser.sh"; }
 
