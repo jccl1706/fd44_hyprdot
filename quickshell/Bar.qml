@@ -641,6 +641,19 @@ PanelWindow {
                 pressX = mouse.x
                 const hit = root.slotAt(mouse.x, mouse.y)
                 if (!hit) {
+                    // CLEARED, NOT LEFT BEHIND. These used to keep the last
+                    // hit plugin when a press missed, which was harmless while
+                    // only onClicked read them - it cannot run for a press this
+                    // handler refused. onCanceled can, and with a stale slot it
+                    // activated whatever was clicked before: pressing the logo
+                    // or the settings gear, which fall through here by design,
+                    // toggled a panel on top of the thing that had just opened.
+                    //
+                    // Worse on the power glyph, which is an ArmedButton - one
+                    // call arms it and the next one FIRES. A stale activation
+                    // is a power action nobody asked for.
+                    pressedId = ""
+                    pressedSlot = null
                     mouse.accepted = false
                     return
                 }

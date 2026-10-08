@@ -762,7 +762,14 @@ ShellRoot {
                 if (p.revealed) { p.close(); closedOne = true }
             }
         }
-        if (keep) keep.replacing = closedOne
+        // ONLY WHERE THAT PROPERTY EXISTS. `replacing` belongs to DropPanel,
+        // and the thing being kept is not always one: the launcher, the
+        // settings window and the power menu all come through here from
+        // openFocused and toggleFocused. Assigning an undeclared property on
+        // those throws, and the throw took out the `one.open()` on the line
+        // after the call - so all three stopped opening at all while every
+        // drop panel carried on working.
+        if (keep && typeof keep.replacing === "boolean") keep.replacing = closedOne
     }
 
     function eachAudio(fn): void {
