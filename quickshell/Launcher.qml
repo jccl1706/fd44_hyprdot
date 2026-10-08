@@ -143,12 +143,57 @@ PanelWindow {
         else root.open()
     }
 
+    // --- what is already running -------------------------------------------
+    //
+    // MATCHED LOOSELY, BECAUSE THE TWO NAMES ARE NOT THE SAME NAME. A desktop
+    // entry is identified by its file - org.gnome.Nautilus.desktop - and a
+    // window by whatever the toolkit set as its app id, which may be the same
+    // string, the last component of it, or the executable. So: compare the id
+    // without its suffix, and accept a match on the final dotted component
+    // either way round. Wrong matches here cost a focus instead of a launch,
+    // which is recoverable; a missed one just means no dot.
+    function appKeys(entry): var {
+        const out = []
+        const id = String(entry.id || "").replace(/\.desktop$/, "").toLowerCase()
+        if (id !== "") { out.push(id); out.push(id.split(".").pop()) }
+        const name = String(entry.name || "").toLowerCase()
+        if (name !== "") out.push(name)
+        return out
+    }
+
+    function windowFor(entry): var {
+        if (!entry || entry.isSteamGame) return null
+        const keys = root.appKeys(entry)
+        if (keys.length === 0) return null
+        for (const w of Compositor.windows) {
+            const a = String(w.appId || "").toLowerCase()
+            if (a === "") continue
+            const tail = a.split(".").pop()
+            for (const k of keys)
+                if (a === k || tail === k) return w
+        }
+        return null
+    }
+
+    function isRunning(entry): bool { return root.windowFor(entry) !== null }
+
     function launch(entry): void {
         if (!entry) return
         root.close()
         // Remembered before launching, not after: AppLaunch is asynchronous
         // and this is the only point where the choice is certain.
         LauncherFrecency.record(entry.id)
+
+        // ALREADY OPEN MEANS GO TO IT, not start another. Pressing Super+Space
+        // and typing the name of something already running is how you switch
+        // to it, and answering with a second copy is never what was meant.
+        // Steam games are exempt: their windows carry app ids of their own
+        // that have nothing to do with the entry.
+        const open = root.windowFor(entry)
+        if (open) {
+            Compositor.focusWindow(open)
+            return
+        }
 
         // A Steam game has no .desktop file for uwsm to start, so it goes
         // through Steam's own URL handler instead.
@@ -160,6 +205,111 @@ PanelWindow {
         // As its own systemd service, not a child of quickshell - see
         // AppLaunch.qml for why, and for the bug the old way had.
         AppLaunch.launch(entry)
+    }
+
+    // The name as rich text with the matched characters picked out.
+    //
+    // ESCAPED FIRST, AND THAT IS NOT OPTIONAL. The plain-text note on the row
+    // below says why: a desktop entry is a file anyone can drop into
+    // ~/.local/share/applications, so its name is untrusted input. Rendering it
+    // as rich text to colour three letters would hand it an HTML parser. Every
+    // character is escaped and only this function's own markup survives.
+    function escapeHtml(t: string): string {
+        return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    }
+
+    function markedName(entry, q: string): string {
+        const name = String(entry.name || "")
+        const at = root.highlightPositions(name, q)
+        if (at.length === 0) return root.escapeHtml(name)
+
+        const hit = {}
+        for (const i of at) hit[i] = true
+
+        // <font color>, NOT <span style>. Text.StyledText takes a small fixed
+        // subset of HTML - b, i, u, font, br - and silently ignores anything
+        // else, so a span with a style attribute renders as plain text with no
+        // error anywhere. That is what the first version of this did.
+        //
+        // The colour is composed from the channels rather than taken from
+        // color.toString(), which yields #aarrggbb when there is an alpha and
+        // is not what the font tag parses.
+        const c = Theme.accent
+        const hex = n => ("0" + Math.round(n * 255).toString(16)).slice(-2)
+        const colour = "#" + hex(c.r) + hex(c.g) + hex(c.b)
+
+        let out = ""
+        let open = false
+        for (let i = 0; i < name.length; i++) {
+            const want = hit[i] === true
+            if (want && !open) { out += '<font color="' + colour + '">'; open = true }
+            if (!want && open) { out += "</font>"; open = false }
+            out += root.escapeHtml(name[i])
+        }
+        if (open) out += "</font>"
+        return out
+    }
+
+    // THE QUERY, ONCE. Trimmed and folded here so the ranking, the
+    // highlighting and the match note cannot disagree about what was typed -
+    // a row picked for one reason and painted for another is worse than no
+    // highlighting at all.
+    readonly property string query: search.text.trim().toLowerCase()
+
+    // --- matching ----------------------------------------------------------
+    //
+    // Shared by the ranking above and by the highlighting in each row, so a
+    // result cannot be picked for one reason and painted for another.
+
+    // Where `q` sits in `hay` as letters in order, or [] if it does not.
+    // Greedy from the left: the earliest occurrence of each letter, which is
+    // what reads correctly when the spans are drawn.
+    function fuzzyPositions(hay: string, q: string): var {
+        if (q === "") return []
+        const out = []
+        let i = 0
+        for (const ch of q) {
+            const at = hay.indexOf(ch, i)
+            if (at < 0) return []
+            out.push(at)
+            i = at + 1
+        }
+        return out
+    }
+
+    // The characters of `name` to pick out for this query: the run itself for
+    // a substring match, the scattered letters for a fuzzy one, and nothing
+    // when the match came from somewhere other than the name.
+    function highlightPositions(name: string, q: string): var {
+        if (q === "") return []
+        const low = name.toLowerCase()
+        const at = low.indexOf(q)
+        if (at >= 0) {
+            const out = []
+            for (let i = 0; i < q.length; i++) out.push(at + i)
+            return out
+        }
+        return root.fuzzyPositions(low, q)
+    }
+
+    // WHY A ROW IS HERE when its name does not contain what was typed. The
+    // generic name, a keyword or the description matched instead, and without
+    // saying so the row looks arbitrary - typing "browser" lists Chromium,
+    // whose name does not contain the word.
+    function matchNote(entry, q: string): string {
+        if (q === "") return ""
+        const name = (entry.name || "").toLowerCase()
+        if (name.includes(q)) return ""
+
+        const generic = entry.genericName || ""
+        if (generic.toLowerCase().includes(q)) return generic
+
+        for (const k of (entry.keywords || []))
+            if (String(k).toLowerCase().includes(q)) return String(k)
+
+        const comment = entry.comment || ""
+        if (comment.toLowerCase().includes(q)) return comment
+        return ""
     }
 
     // --- results ---------------------------------------------------------
@@ -226,6 +376,12 @@ PanelWindow {
             else if (generic.includes(q)) rank = 2
             else if (keys.includes(q))    rank = 3
             else if (comment.includes(q)) rank = 4
+            // FUZZY LAST, AND THAT ORDERING IS THE POINT. Letters in order but
+            // not together - "vsc" for Visual Studio Code - finds things no
+            // substring can, and would also find half the menu if it were
+            // allowed to compete. Ranked below every real match, it only ever
+            // adds rows to a search that was otherwise coming up empty.
+            else if (root.fuzzyPositions(name, q).length > 0) rank = 5
 
             if (rank >= 0) scored.push({ entry: e, rank: rank, name: name })
         }
@@ -354,6 +510,11 @@ PanelWindow {
             // squeezed out of - the card came up 34px short with tabs on, and
             // the last row was clipped.
             + (root.tabsVisible ? tabs.height + tabs.anchors.topMargin : 0)
+            // And the hint line, for exactly the same reason: it was added
+            // without being counted here, and the card came up short by its
+            // height - the last row ran over the rule and the result count
+            // was clipped by the card's own bottom edge.
+            + hints.height
 
         // FITS ITS CONTENTS rather than standing at a fixed 420. With a
         // handful of apps installed the old fixed height left half the panel
@@ -770,10 +931,14 @@ PanelWindow {
 
                     Text {
                         width: parent.width
-                        // Plain text: desktop entries are files any app can drop into
-                        // ~/.local/share/applications, and AutoText renders HTML.
-                        textFormat: Text.PlainText
-                        text: row.modelData.name
+                        // STYLED, NOT AUTO. Desktop entries are files any app
+                        // can drop into ~/.local/share/applications, and
+                        // AutoText would hand one an HTML parser. StyledText
+                        // renders only what markedName() emits, and that
+                        // function escapes the name before adding its own
+                        // spans - so the markup is ours and the text is theirs.
+                        textFormat: Text.StyledText
+                        text: root.markedName(row.modelData, root.query)
                         font.family: Theme.font
                         font.weight: Theme.weightSemi
                         font.pixelSize: Theme.fontSizeTitle
@@ -793,7 +958,14 @@ PanelWindow {
                     Text {
                         width: parent.width
                         textFormat: Text.PlainText
-                        text: row.modelData.comment || row.modelData.genericName || ""
+                        // The description normally, but when the row matched
+                        // on something that is not its name, what that was -
+                        // otherwise "browser" listing Chromium looks arbitrary.
+                        text: {
+                            const note = root.matchNote(row.modelData, root.query)
+                            if (note !== "") return "matched: " + note
+                            return row.modelData.comment || row.modelData.genericName || ""
+                        }
                         font.family: Theme.font
                         font.weight: Theme.weightNormal
                         font.pixelSize: Theme.fontSizeSmall
@@ -803,6 +975,22 @@ PanelWindow {
                         elide: Text.ElideRight
                         Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
                     }
+                }
+
+                // ALREADY OPEN. A dot rather than a word: the row's two lines
+                // are spoken for, and this is a state, not a label. Enter on a
+                // dotted row goes to that window instead of starting another -
+                // see launch().
+                Rectangle {
+                    anchors { right: parent.right; rightMargin: 16
+                              verticalCenter: parent.verticalCenter }
+                    width: 6
+                    height: 6
+                    radius: 3
+                    visible: root.isRunning(row.modelData)
+                    color: row.active ? Theme.accent : Theme.dim
+                    opacity: row.active ? 1 : 0.7
+                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
                 }
 
                 MouseArea {
@@ -827,6 +1015,52 @@ PanelWindow {
                 color: Theme.dim
             }
         }
+
+        // --- hints ---------------------------------------------------------
+        //
+        // How many results there are, and the three keys that act on them.
+        // Read once and then never again, which is the entire budget a line
+        // like this has - so it is small, dim, and takes its height from the
+        // list rather than growing the card.
+
+        Item {
+            id: hints
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+            height: 30 + BarStyle.frameRun
+
+            // A hairline, so the legend reads as chrome rather than as a last
+            // result that lost its icon.
+            Rectangle {
+                anchors { left: parent.left; right: parent.right
+                          leftMargin: 12; rightMargin: 12; top: parent.top }
+                height: 1
+                color: Theme.outline
+                opacity: 0.6
+            }
+
+            Text {
+                anchors { left: parent.left; leftMargin: 18; top: parent.top; topMargin: 8 }
+                text: root.results.length === 0 ? ""
+                    : root.results.length === 1 ? "1 result"
+                                                : root.results.length + " results"
+                color: Theme.dim
+                font.family: Theme.font
+                font.pixelSize: Theme.fontSizeSmall
+                font.letterSpacing: Theme.trackingLoose
+            }
+
+            Text {
+                anchors { right: parent.right; rightMargin: 18; top: parent.top; topMargin: 8 }
+                // Glyphs rather than the words: three keys named in full is a
+                // sentence, and this is a legend.
+                text: "\u2191\u2193 select    \u21b5 open    esc close"
+                color: Theme.dim
+                font.family: Theme.font
+                font.pixelSize: Theme.fontSizeSmall
+                font.letterSpacing: Theme.trackingLoose
+            }
+        }
+
     }
 
     // Moves the selection by `delta`, clamped to the ends rather than

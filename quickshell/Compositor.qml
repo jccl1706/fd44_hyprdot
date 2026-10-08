@@ -105,6 +105,49 @@ Singleton {
         return null
     }
 
+    // EVERY WINDOW, NORMALISED, in the same shape focusedWindow uses. The
+    // launcher asks "is this application already open", which needs the whole
+    // list rather than whichever one has focus.
+    //
+    // `handle` is the thing focusWindow() below needs to get back to it, and is
+    // the one field that cannot be made compositor-neutral: niri identifies a
+    // window by a numeric id, Hyprland by an address string.
+    readonly property var windows: {
+        const out = []
+        if (onNiri) {
+            for (const w of Niri.windows)
+                out.push({
+                    appId: w.app_id || "",
+                    title: w.title || "",
+                    workspaceId: w.workspace_id,
+                    handle: w.id
+                })
+            return out
+        }
+        if (!Hyprland.toplevels) return out
+        for (const t of Hyprland.toplevels.values) {
+            const o = t.lastIpcObject
+            if (!o) continue
+            out.push({
+                appId: o.class || "",
+                title: o.title || "",
+                workspaceId: o.workspace ? o.workspace.id : -1,
+                handle: o.address || ""
+            })
+        }
+        return out
+    }
+
+    // Go to a window from the list above.
+    function focusWindow(w): void {
+        if (!w || w.handle === undefined || w.handle === "") return
+        if (onNiri) {
+            Niri.action(["focus-window", "--id", String(w.handle)])
+            return
+        }
+        Hyprland.dispatch("focuswindow address:" + w.handle)
+    }
+
     // WORKSPACES, NORMALISED, for the row that draws them. The raw lists above
     // stay as they are because the old call sites read only .id off them; this
     // is what a compositor-neutral workspace row needs instead.
