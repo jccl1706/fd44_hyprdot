@@ -73,6 +73,14 @@ Singleton {
     // LauncherFrecency for what the number means.
     property real frecencyHalfLifeDays: 10
 
+    // HOW LONG THE SCREEN WAITS BEFORE LOCKING, in minutes.
+    //
+    // hypridle owns the timer and reads its configuration once, at startup -
+    // it has no runtime interface - so changing this rewrites
+    // ~/.config/hypr/idle-timeouts.conf and restarts the daemon. See
+    // applyIdleTimeouts() below.
+    property int lockMinutes: 5
+
     // THE THEME IS NOT STORED HERE, and neither are the bar's plugin
     // switches. bin/theme.sh owns the theme and BarLayout owns the bar; their
     // schema rows below carry `get`/`set` and reach the real owner directly,
@@ -195,7 +203,16 @@ Singleton {
             rows: [
                 { key: "osdHideMs", label: "OSD hide delay",
                   type: "ms", min: 500, max: 5000, step: 250,
-                  help: "the volume and brightness popup" }
+                  help: "the volume and brightness popup" },
+                // NOT A `key` ROW: moving this has to restart hypridle as well
+                // as store the number, so it goes through setLockMinutes.
+                { label: "Lock after", type: "min", min: 1, max: 30, step: 1,
+                  get: function() { return Settings.lockMinutes },
+                  set: function(v) { Settings.setLockMinutes(v) },
+                  help: "idle time before the screen locks; the display blanks "
+                      + "30s later. On battery the machine suspends at 15 min "
+                      + "and locks on the way down, so longer values only "
+                      + "stretch the wait on mains" }
             ]
         },
         {
@@ -378,6 +395,48 @@ Singleton {
         else settings.setBarStyle("focus")
     }
 
+    // --- the idle timeouts ------------------------------------------------
+    //
+    // ONE FORK, ON A CHANGE, which is the kind this shell allows: hypridle has
+    // no runtime interface, so the only way to move its timer is to rewrite
+    // what it reads and restart it. Changing a setting is rare and deliberate;
+    // this is not a hot path.
+    //
+    // WRITTEN WITHOUT A RESTART AT STARTUP, so the file always matches the
+    // stored value. Restarting hypridle at every shell start would kill a
+    // running hyprlock - the note in hypridle.conf's general block explains
+    // why - and a restart is only ever the consequence of moving the slider,
+    // which cannot happen while the screen is locked.
+    Process { id: idleProc }
+
+    // THE ONE WAY IN for the lock timeout, so the daemon cannot be left
+    // disagreeing with the stored value.
+    function setLockMinutes(v: int): void {
+        const n = Math.max(1, Math.min(30, Math.round(v)))
+        if (n === settings.lockMinutes) return
+        settings.setValue("lockMinutes", n)
+        settings.applyIdleTimeouts(true)
+    }
+
+    function applyIdleTimeouts(restart: bool): void {
+        const lock = Math.max(60, settings.lockMinutes * 60)
+        // Plus thirty seconds, always: hyprlock must paint before the display
+        // is powered off, and collapsing the two left the screen black with no
+        // way back. hypridle.conf carries the full account.
+        const blank = lock + 30
+        // STATE, NOT ~/.config/hypr: that directory is the repository itself
+        // via link-dotfiles.sh, so writing a generated file there shows up as
+        // an untracked change every time this runs.
+        const dir = "$HOME/.local/state/fd44-hyprdot"
+        const body = "$lockTimeout  = " + lock + "\n$blankTimeout = " + blank + "\n"
+        idleProc.command = ["sh", "-c",
+            "mkdir -p " + dir + " && printf '%s' '" + body + "' > " + dir + "/idle-timeouts.conf"
+            + (restart ? " && systemctl --user restart hypridle" : "")]
+        idleProc.running = true
+    }
+
+    Component.onCompleted: settings.applyIdleTimeouts(false)
+
     function setValue(key: string, v): void {
         if (settings[key] === undefined) {
             console.warn("Settings: no such key", key)
@@ -396,6 +455,7 @@ Singleton {
         settings.notifyMaxMs = 30000
         settings.osdHideMs = 1500
         settings.frecencyHalfLifeDays = 10
+        settings.lockMinutes = 5
         settings.barStyle = "frame"
         settings.barStylePrev = "frame"
         settings.dirty = true
@@ -420,6 +480,7 @@ Singleton {
                 notifyMaxMs: settings.notifyMaxMs,
                 osdHideMs: settings.osdHideMs,
                 frecencyHalfLifeDays: settings.frecencyHalfLifeDays,
+                lockMinutes: settings.lockMinutes,
                 barStyle: settings.barStyle,
                 barStylePrev: settings.barStylePrev
             }, null, 1))

@@ -357,3 +357,18 @@ NEXT
 fi
 
 exit $(( blocked > 0 ? 1 : 0 ))
+
+# THE IDLE TIMEOUTS, written here only if nothing has written them yet. The
+# settings panel's lock slider owns this file from then on. hypridle sources it
+# and, when it is missing, logs
+#
+#   [ERR] source= globbing error: found no match
+#
+# before falling back to the defaults in hypridle.conf - harmless, but one error
+# line per start for a file we can simply create.
+_idle="${XDG_STATE_HOME:-$HOME/.local/state}/fd44-hyprdot/idle-timeouts.conf"
+if [ ! -e "$_idle" ]; then
+    mkdir -p "$(dirname "$_idle")"
+    printf '$lockTimeout  = 300\n$blankTimeout = 330\n' > "$_idle"
+    printf '  created   %s\n' "${_idle/#$HOME/\~}"
+fi

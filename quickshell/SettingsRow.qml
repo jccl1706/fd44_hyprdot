@@ -149,7 +149,7 @@ Item {
                         case "toggle":  return toggleSwitch
                         case "select":  return segmented
                         case "menu":    return menuButton
-                        default:        return numberSlider     // "ms", "days"
+                        default:        return numberSlider     // "ms", "min", "days"
                     }
                 }
             }
@@ -485,6 +485,8 @@ Item {
                 // in; days likewise read better than a bare number.
                 text: settingRow.row.type === "ms"
                         ? (sl.value / 1000).toFixed(sl.value % 1000 ? 1 : 0) + "s"
+                      : settingRow.row.type === "min"
+                        ? sl.value.toFixed(0) + " min"
                         : sl.value.toFixed(0) + "d"
             }
         }
