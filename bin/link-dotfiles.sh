@@ -150,6 +150,15 @@ if have ollama || $force_all; then
     link bashrc.d/ollama-claude.sh "$HOME/.bashrc.d/ollama-claude.sh"
 fi
 
+# tmux helpers, wherever tmux is. `tls` lists sessions and `ta` gets back into
+# one - and `ta` has to be a function rather than an alias, because attaching
+# from inside tmux needs switch-client instead. Keyed on tmux: the file is
+# harmless without it, but a helper for a program that is not installed is
+# clutter.
+if wants tmux "the tmux session helpers"; then
+    link bashrc.d/tmux.sh "$HOME/.bashrc.d/tmux.sh"
+fi
+
 # THE LOGIN PROFILE, where there is a uwsm to use it. This is what chooses the
 # compositor - it reads ~/.local/state/fd44-compositor and starts Hyprland or
 # niri through uwsm - so without it a machine has the configs for both and no way
