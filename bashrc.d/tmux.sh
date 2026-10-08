@@ -5,6 +5,7 @@
 #
 #   tls          what is running, and which session you are in
 #   ta [name]    attach to it - or switch, if you are already inside tmux
+#   tk [name]    kill one, with the name required if you are inside it
 #
 # WHY ta IS A FUNCTION AND NOT AN ALIAS. `tmux attach` fails from inside tmux:
 # nesting a client in its own session is almost never meant, and tmux says so
@@ -49,6 +50,28 @@ ta() {
     fi
 }
 
+# tk - kill a session.
+#
+# THE NAME IS REQUIRED WHEN YOU ARE INSIDE THE SESSION YOU WOULD BE KILLING.
+# `tmux kill-session` with no target kills the current one, which from inside
+# means the shell you typed it in disappears mid-command. That is occasionally
+# what someone wants and never what they expected, so it has to be said out
+# loud here.
+tk() {
+    local target="${1:-}"
+    if [ -z "$target" ]; then
+        if [ -n "${TMUX:-}" ]; then
+            printf 'name the session: tk %s would kill the one you are in\n' \
+                "$(tmux display-message -p '#S')" >&2
+            return 1
+        fi
+        echo "which one?" >&2
+        tmux list-sessions 2>/dev/null | sed 's/^/  /' >&2
+        return 1
+    fi
+    tmux kill-session -t "$target" && echo "killed $target"
+}
+
 # Completing on session names makes `ta <tab>` worth having at all.
 _ta_complete() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
@@ -57,3 +80,4 @@ _ta_complete() {
     mapfile -t COMPREPLY < <(compgen -W "$names" -- "$cur")
 }
 complete -F _ta_complete ta
+complete -F _ta_complete tk

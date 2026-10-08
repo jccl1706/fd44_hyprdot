@@ -217,6 +217,75 @@ def collapse(binds: list) -> list:
     return out
 
 
+def from_tmux() -> list:
+    """tmux's own keys, and the shell helpers that get you into a session.
+
+    READ, NOT LISTED. The binds come from tmux/tmux.conf in this repository -
+    the same file tmux itself reads - so a key renamed there is renamed here.
+    The shell helpers come from the usage block at the top of
+    bashrc.d/tmux.sh, which is the text their own file already carries:
+
+        #   tls          what is running, and which session you are in
+
+    A cheatsheet written by hand drifts from what it describes, and one that
+    names keys which do not exist is worse than having none. That rule is why
+    this file parses niri's config rather than enumerating it, and it applies
+    no less to tmux.
+
+    tmux's ~200 DEFAULT bindings are deliberately not included. They are not
+    what anyone needs reminding of, and they would bury the handful that this
+    configuration actually changes.
+    """
+    binds = []
+
+    conf = os.path.join(REPO, "tmux", "tmux.conf")
+    if os.path.isfile(conf):
+        prefix = "Ctrl+B"
+        for line in open(conf, encoding="utf-8", errors="replace"):
+            m = re.match(r"^\s*bind\s+(-n\s+)?(-r\s+)?(\S+)\s+(.+?)\s*$", line)
+            if not m:
+                continue
+            no_prefix, _repeat, key, action = m.groups()
+            # -n means "no prefix": the key works on its own. Anything else
+            # needs the prefix first, and saying so is most of the value.
+            shown = tmux_key(key) if no_prefix else f"{prefix} {tmux_key(key)}"
+            binds.append({"group": "tmux", "key": shown, "label": pretty_tmux(action)})
+
+    helpers = os.path.join(REPO, "bashrc.d", "tmux.sh")
+    if os.path.isfile(helpers):
+        for line in open(helpers, encoding="utf-8", errors="replace"):
+            if not line.startswith("#"):
+                break                      # the usage block is the header only
+            m = re.match(r"^#\s{3}(\S+)(?:\s+(\[[^\]]+\]))?\s{2,}(.+?)\s*$", line)
+            if m:
+                name, arg, label = m.groups()
+                binds.append({
+                    "group": "tmux in the shell",
+                    "key": f"{name} {arg}" if arg else name,
+                    "label": label,
+                })
+    return binds
+
+
+def tmux_key(key: str) -> str:
+    """M-Left -> Alt+Left, C-x -> Ctrl+X, the way the rest of the panel reads."""
+    out = key
+    for short, long in (("M-", "Alt+"), ("C-", "Ctrl+"), ("S-", "Shift+")):
+        out = out.replace(short, long)
+    head, _, tail = out.rpartition("+")
+    return f"{head}+{tail.capitalize()}" if head and len(tail) == 1 else out
+
+
+def pretty_tmux(action: str) -> str:
+    """`select-window -t :=3` -> "Window 3". Same job as pretty() for niri."""
+    action = action.strip()
+    m = re.match(r"select-window\s+-t\s+:=(\d+)", action)
+    if m:
+        return f"Window {m.group(1)}"
+    words = action.split()[0].replace("-", " ")
+    return words[:1].upper() + words[1:]
+
+
 def main() -> int:
     if os.environ.get("NIRI_SOCKET"):
         binds = from_niri()
@@ -224,7 +293,11 @@ def main() -> int:
         binds = from_hyprland()
     else:
         binds = from_niri() or from_hyprland()
-    json.dump(collapse(binds), sys.stdout, indent=1)
+    # tmux is not a compositor bind, so it is appended rather than collapsed
+    # with them - collapse() merges keys that run the same action, which is
+    # meaningless across two different programs.
+    binds = collapse(binds) + from_tmux()
+    json.dump(binds, sys.stdout, indent=1)
     sys.stdout.write("\n")
     return 0
 
