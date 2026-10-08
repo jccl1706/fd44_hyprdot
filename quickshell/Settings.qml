@@ -428,9 +428,18 @@ Singleton {
         // via link-dotfiles.sh, so writing a generated file there shows up as
         // an untracked change every time this runs.
         const dir = "$HOME/.local/state/fd44-hyprdot"
-        const body = "$lockTimeout  = " + lock + "\n$blankTimeout = " + blank + "\n"
+        // ONE ARGUMENT PER LINE, and the newlines in the FORMAT string.
+        // `printf '%s' 'a\nb'` writes a literal backslash-n: %s does not
+        // interpret escapes, so the first version of this produced a
+        // single-line file that hyprlang could not read. Keeping the values as
+        // separate arguments also keeps them in single quotes, which is what
+        // stops the shell eating the $ in $lockTimeout.
         idleProc.command = ["sh", "-c",
-            "mkdir -p " + dir + " && printf '%s' '" + body + "' > " + dir + "/idle-timeouts.conf"
+            "mkdir -p " + dir
+            + " && printf '%s\\n%s\\n'"
+            + " '$lockTimeout  = " + lock + "'"
+            + " '$blankTimeout = " + blank + "'"
+            + " > " + dir + "/idle-timeouts.conf"
             + (restart ? " && systemctl --user restart hypridle" : "")]
         idleProc.running = true
     }
