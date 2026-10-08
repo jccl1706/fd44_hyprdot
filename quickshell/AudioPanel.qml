@@ -36,7 +36,12 @@ DropPanel {
     // The input dropdown. Always starts closed.
     property bool inputsOpen: false
 
-    onOpening: root.inputsOpen = false
+    onOpening: {
+        root.inputsOpen = false
+        // Start the meter empty rather than showing the last two seconds of
+        // whatever was playing when the panel was last closed.
+        root.peaks = []
+    }
 
     // Esc backs out one level: the dropdown first, then the panel (DropPanel
     // closes on any Escape left unaccepted). Left/Right step the output
@@ -64,11 +69,63 @@ DropPanel {
     readonly property var sinks:   devices.filter(n => n.isSink)
     readonly property var sources: devices.filter(n => !n.isSink)
 
+    // THE APPLICATIONS PLAYING SOUND, which is the one thing this panel used
+    // to send you to pavucontrol for. Playback streams only: a stream that is
+    // recording is a different question and would put the microphone's clients
+    // in the output list.
+    // TWO STAGES, AND THE ORDER IS THE POINT. A node's `properties` are only
+    // populated once it is BOUND, so a filter on media.class cannot decide what
+    // to bind - it matched nothing, and the Apps list stayed empty while a
+    // stream was plainly playing. So: bind every stream, then read the class off
+    // the bound nodes.
+    readonly property var allStreams: Pipewire.nodes.values.filter(n => n.isStream)
+
+    // Playback only. A recording stream belongs to the microphone, not here -
+    // and quickshell's own peak monitor, which feeds the meter above, is one.
+    readonly property var streams: root.allStreams.filter(
+        n => (n.properties?.["media.class"] ?? "") === "Stream/Output/Audio")
+
+    function streamName(n): string {
+        if (!n) return ""
+        return n.properties["application.name"]
+            || n.properties["media.name"]
+            || n.description || n.name || "Audio"
+    }
+
+    function streamIcon(n): string {
+        return n ? (n.properties["application.icon-name"] || "") : ""
+    }
+
     // Volume and mute are only live on BOUND nodes. The two defaults are the
     // only ones whose levels are shown; the lists need nothing but names.
+    // The two defaults always, and the application streams only while the
+    // panel is open - binding a node costs a PipeWire subscription, and
+    // nothing reads a stream's volume while nobody is looking at it.
     PwObjectTracker {
         objects: [Pipewire.defaultAudioSink, Pipewire.defaultAudioSource]
+                 .concat(root.revealed ? root.allStreams : [])
     }
+
+    // The output's real level, for the meter. Only while open, for the same
+    // reason - this one wakes on every buffer.
+    PwNodePeakMonitor {
+        id: peak
+        node: Pipewire.defaultAudioSink
+        enabled: root.revealed
+    }
+
+    // A rolling window of the last ~2.4s at 50ms a sample.
+    property var peaks: []
+
+    Timer {
+        interval: 50
+        repeat: true
+        running: root.revealed
+        onTriggered: root.peaks = root.peaks
+            .concat([(Pipewire.defaultAudioSink?.audio?.muted ?? false) ? 0 : peak.peak])
+            .slice(-48)
+    }
+
 
     // Capped at 100%. Past that PipeWire amplifies in software and clips, and
     // the volume keys cap there too (`wpctl set-volume -l 1`).
@@ -128,6 +185,95 @@ DropPanel {
         id: content
         width: parent.width
 
+        // --- what is playing, and through what --------------------------------
+        //
+        // The device is named again in the list below, deliberately: there it is
+        // one of several things you could pick, here it is the answer to "where
+        // is the sound going". The meter beside it is what the list cannot say -
+        // whether anything is actually coming out.
+
+        Item {
+            width: parent.width
+            height: 76
+
+            Rectangle {
+                id: devTile
+                anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                width: 52
+                height: 52
+                radius: 17
+                color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.14)
+
+                Text {
+                    anchors.centerIn: parent
+                    text: root.deviceGlyph(Pipewire.defaultAudioSink)
+                    font.family: Theme.glyphFont
+                    font.pixelSize: 25
+                    color: (Pipewire.defaultAudioSink?.audio?.muted ?? false)
+                           ? Theme.dim : Theme.accent
+                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
+                }
+            }
+
+            Column {
+                anchors {
+                    left: devTile.right; leftMargin: 14
+                    right: parent.right
+                    verticalCenter: parent.verticalCenter
+                }
+                spacing: 4
+
+                Text {
+                    width: parent.width
+                    elide: Text.ElideRight
+                    text: root.title(Pipewire.defaultAudioSink)
+                    color: Theme.fg
+                    font.family: Theme.font
+                    font.pixelSize: 15
+                    font.weight: Theme.weightSemi
+                    font.letterSpacing: Theme.trackingTight
+                }
+
+                // The meter: 48 bars of the last ~2.4 seconds, oldest left,
+                // fading out with age so the present reads first.
+                Row {
+                    id: meter
+                    // WIDTH FROM THE COLUMN, and the bars divided out of it.
+                    // Fixed 3px bars at 3px spacing came to 288px in the 246
+                    // this panel has, so the meter ran out past the card's
+                    // right edge and off the screen.
+                    width: parent.width
+                    spacing: 2
+                    height: 26
+
+                    readonly property int bars: 48
+                    readonly property real barW: Math.max(1.5,
+                        (meter.width - (meter.bars - 1) * meter.spacing) / meter.bars)
+
+                    Repeater {
+                        model: meter.bars
+
+                        Rectangle {
+                            required property int index
+                            readonly property real v: root.peaks.length > index
+                                ? (root.peaks[root.peaks.length - meter.bars + index] ?? 0) : 0
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: meter.barW
+                            radius: width / 2
+                            // A floor of 2, so silence is a baseline rather
+                            // than nothing at all.
+                            height: Math.max(2, 24 * Math.min(1, v))
+                            // Toward danger near clipping, which is the one
+                            // thing a level meter exists to tell you.
+                            color: v > 0.85 ? Theme.danger : Theme.accent
+                            opacity: 0.3 + 0.7 * (index / (meter.bars - 1))
+                            Behavior on height { NumberAnimation { duration: 60 } }
+                        }
+                    }
+                }
+            }
+        }
+
         Repeater {
             model: [
                 { label: "Output", output: true },
@@ -186,185 +332,10 @@ DropPanel {
                 }
 
                 // --- level ----------------------------------------------------
-
-                Item {
+                VolumeRow {
                     width: parent.width
-                    height: 44
-
-                    // Mute toggle. The glyph shows the state it is IN, like
-                    // the bar's own indicators.
-                    Rectangle {
-                        id: muteBtn
-                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                        width: 32
-                        height: 32
-                        radius: width / 2
-
-                        // A red wash behind the red glyph while muted, so the
-                        // button reads as switched OFF rather than merely
-                        // recoloured.
-                        color: section.muted
-                               ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b,
-                                         muteArea.containsMouse ? 0.26 : 0.16)
-                               : muteArea.containsMouse
-                                 ? Theme.surfaceHigh
-                                 : Qt.rgba(Theme.surfaceHigh.r, Theme.surfaceHigh.g,
-                                           Theme.surfaceHigh.b, 0.6)
-                        Behavior on color { ColorAnimation { duration: Theme.animFast } }
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: section.output
-                                  ? (section.muted          ? "\u{F075F}"
-                                     : section.volume < 0.34 ? "\u{F057F}"
-                                     : section.volume < 0.67 ? "\u{F0580}"
-                                                             : "\u{F057E}")
-                                  : (section.muted ? "\u{F036D}" : "\u{F036C}")
-                            font.family: Theme.glyphFont
-                            font.pixelSize: 16
-                            // Red while muted, matching the bar's AudioButton.
-                            color: section.muted ? Theme.danger : Theme.fg
-                            Behavior on color { ColorAnimation { duration: Theme.animFast } }
-                        }
-
-                        MouseArea {
-                            id: muteArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.toggleMute(section.node)
-                        }
-                    }
-
-                    Item {
-                        id: slider
-                        anchors {
-                            left: muteBtn.right; leftMargin: 12
-                            right: pct.left;     rightMargin: 10
-                            verticalCenter: parent.verticalCenter
-                        }
-                        height: 24
-
-                        // THE KNOB IS NOT DRAWN FROM PIPEWIRE WHILE YOU DRAG IT.
-                        //
-                        // It used to be: every mouse move set the volume, and
-                        // the knob moved when PipeWire reported the new value
-                        // back. That round trip is asynchronous and the reports
-                        // arrive late and in bursts, so the knob lurched along
-                        // behind the pointer instead of sitting under it.
-                        //
-                        // Now the pointer owns the drawn value while pressed -
-                        // and for a moment after release, until PipeWire has
-                        // caught up - and the volume is sent on a steady tick
-                        // behind it.
-                        //
-                        // (The EVO4 used to cut out under that tick, because
-                        // each change was a USB request to its hardware mixer.
-                        // It uses software volume now - see wireplumber/.)
-                        readonly property bool held: dragArea.pressed || settle.running
-                        property real dragValue: 0
-                        property real lastSent: -1
-
-                        // Everything else - wheel, arrow keys, wpctl, another
-                        // app - glides instead of jumping.
-                        property real smoothed: Math.max(0, Math.min(1, section.volume))
-                        Behavior on smoothed {
-                            NumberAnimation { duration: Theme.animNormal; easing.type: Easing.OutCubic }
-                        }
-
-                        readonly property real shown: held ? dragValue : smoothed
-
-                        function send(): void {
-                            if (Math.abs(slider.dragValue - slider.lastSent) < 0.001) return
-                            slider.lastSent = slider.dragValue
-                            root.setVolume(section.node, slider.dragValue)
-                        }
-
-                        // ~30 updates a second: smooth to the ear, and not one
-                        // PipeWire param change per pointer event.
-                        Timer {
-                            id: sender
-                            interval: 33
-                            repeat: true
-                            running: dragArea.pressed
-                            onTriggered: slider.send()
-                        }
-
-                        Timer {
-                            id: settle
-                            interval: 300
-                        }
-
-                        Rectangle {
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: parent.width
-                            height: 4
-                            radius: 2
-                            color: Qt.rgba(Theme.dim.r, Theme.dim.g, Theme.dim.b, 0.4)
-
-                            // Ends at the knob's centre, not at value * width,
-                            // or the two part company by up to half a knob at
-                            // either end.
-                            Rectangle {
-                                height: parent.height
-                                radius: parent.radius
-                                width: knob.x + knob.width / 2
-                                color: section.muted ? Theme.dim : Theme.accent
-                            }
-                        }
-
-                        Rectangle {
-                            id: knob
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 14
-                            height: 14
-                            radius: width / 2
-                            x: slider.shown * (slider.width - width)
-                            color: section.muted ? Theme.dim : Theme.accent
-                            scale: dragArea.pressed || dragArea.containsMouse ? 1.2 : 1
-                            Behavior on scale { NumberAnimation { duration: Theme.animFast } }
-                        }
-
-                        MouseArea {
-                            id: dragArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            preventStealing: true
-                            cursorShape: Qt.PointingHandCursor
-
-                            function track(x: real): void {
-                                slider.dragValue = Math.max(0, Math.min(1,
-                                    (x - knob.width / 2) / (width - knob.width)))
-                            }
-
-                            onPressed: mouse => {
-                                settle.stop()
-                                track(mouse.x)
-                                slider.send()
-                            }
-                            onPositionChanged: mouse => { if (pressed) track(mouse.x) }
-                            onReleased: {
-                                slider.send()
-                                settle.restart()
-                            }
-                            onWheel: wheel => root.setVolume(section.node,
-                                section.volume + (wheel.angleDelta.y > 0 ? 0.05 : -0.05))
-                        }
-                    }
-
-                    Text {
-                        id: pct
-                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                        width: 40
-                        horizontalAlignment: Text.AlignRight
-                        text: section.muted ? "muted"
-                            : Math.round((slider.held ? slider.dragValue : section.volume) * 100) + "%"
-                        font.family: Theme.font
-                        font.weight: Theme.weightMedium
-                        font.pixelSize: Theme.fontSize
-                        font.features: { "tnum": 1 }
-                        color: section.muted ? Theme.dim : Theme.fg
-                    }
+                    node: section.node
+                    micStyle: !section.output
                 }
 
                 // --- dropdown (inputs) -----------------------------------------
@@ -584,5 +555,274 @@ DropPanel {
                 }
             }
         }
+        // --- applications ------------------------------------------------
+        //
+        // One row per playback stream - the thing this panel previously sent
+        // you to pavucontrol for. Hidden entirely when nothing is playing,
+        // because an empty "APPS" heading is a worse answer than no heading.
+
+        Item {
+            visible: root.streams.length > 0
+            width: parent.width
+            height: 17
+
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.width
+                height: 1
+                color: Theme.dim
+                opacity: 0.25
+            }
+        }
+
+        Text {
+            visible: root.streams.length > 0
+            leftPadding: 4
+            height: 20
+            verticalAlignment: Text.AlignVCenter
+            text: "Apps"
+            font.family: Theme.font
+            font.weight: Theme.weightSemi
+            font.pixelSize: Theme.fontSizeSmall
+            font.capitalization: Font.AllUppercase
+            font.letterSpacing: 0.8
+            color: Theme.dim
+        }
+
+        Repeater {
+            model: root.streams
+
+            Column {
+                id: appRow
+                required property var modelData
+                width: content.width
+
+                // The application's name above its slider rather than beside
+                // it: "Firefox" and "Chromium — YouTube" are not a column of
+                // similar widths, and squeezing them next to a slider either
+                // elides the useful half or steals the slider's travel.
+                Text {
+                    leftPadding: 44
+                    width: parent.width
+                    elide: Text.ElideRight
+                    text: root.streamName(appRow.modelData)
+                    color: Theme.fg
+                    font.family: Theme.font
+                    font.pixelSize: Theme.fontSizeSmall
+                    font.weight: Theme.weightMedium
+                }
+
+                VolumeRow {
+                    width: parent.width
+                    node: appRow.modelData
+                }
+            }
+        }
+
+        Item { width: 1; height: 6 }
     }
+
+    // --- one row of volume -------------------------------------------------
+    //
+    // EXTRACTED so the output, the input and every application stream share
+    // it. The drag handling below is the part worth not duplicating: the
+    // pointer owns the drawn value while held and the volume goes out on a
+    // tick behind it, and a second, simpler copy would lurch exactly the way
+    // this one was fixed not to.
+
+    component VolumeRow: Item {
+        id: row
+
+        // The node this row controls: an output, an input, or one
+        // application's stream. All three behave identically - a mute toggle,
+        // a slider, a percentage - which is why this is one component rather
+        // than three nearly identical blocks.
+        property var node
+
+        // Draw the microphone glyphs instead of the speaker ones.
+        property bool micStyle: false
+
+        readonly property real volume: row.node?.audio?.volume ?? 0
+        readonly property bool muted:  row.node?.audio?.muted ?? false
+
+            width: parent.width
+            height: 44
+
+            // Mute toggle. The glyph shows the state it is IN, like
+            // the bar's own indicators.
+            Rectangle {
+                id: muteBtn
+                anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                width: 32
+                height: 32
+                radius: width / 2
+
+                // A red wash behind the red glyph while muted, so the
+                // button reads as switched OFF rather than merely
+                // recoloured.
+                color: row.muted
+                       ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b,
+                                 muteArea.containsMouse ? 0.26 : 0.16)
+                       : muteArea.containsMouse
+                         ? Theme.surfaceHigh
+                         : Qt.rgba(Theme.surfaceHigh.r, Theme.surfaceHigh.g,
+                                   Theme.surfaceHigh.b, 0.6)
+                Behavior on color { ColorAnimation { duration: Theme.animFast } }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: !row.micStyle
+                          ? (row.muted          ? "\u{F075F}"
+                             : row.volume < 0.34 ? "\u{F057F}"
+                             : row.volume < 0.67 ? "\u{F0580}"
+                                                     : "\u{F057E}")
+                          : (row.muted ? "\u{F036D}" : "\u{F036C}")
+                    font.family: Theme.glyphFont
+                    font.pixelSize: 16
+                    // Red while muted, matching the bar's AudioButton.
+                    color: row.muted ? Theme.danger : Theme.fg
+                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
+                }
+
+                MouseArea {
+                    id: muteArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.toggleMute(row.node)
+                }
+            }
+
+            Item {
+                id: slider
+                anchors {
+                    left: muteBtn.right; leftMargin: 12
+                    right: pct.left;     rightMargin: 10
+                    verticalCenter: parent.verticalCenter
+                }
+                height: 24
+
+                // THE KNOB IS NOT DRAWN FROM PIPEWIRE WHILE YOU DRAG IT.
+                //
+                // It used to be: every mouse move set the volume, and
+                // the knob moved when PipeWire reported the new value
+                // back. That round trip is asynchronous and the reports
+                // arrive late and in bursts, so the knob lurched along
+                // behind the pointer instead of sitting under it.
+                //
+                // Now the pointer owns the drawn value while pressed -
+                // and for a moment after release, until PipeWire has
+                // caught up - and the volume is sent on a steady tick
+                // behind it.
+                //
+                // (The EVO4 used to cut out under that tick, because
+                // each change was a USB request to its hardware mixer.
+                // It uses software volume now - see wireplumber/.)
+                readonly property bool held: dragArea.pressed || settle.running
+                property real dragValue: 0
+                property real lastSent: -1
+
+                // Everything else - wheel, arrow keys, wpctl, another
+                // app - glides instead of jumping.
+                property real smoothed: Math.max(0, Math.min(1, row.volume))
+                Behavior on smoothed {
+                    NumberAnimation { duration: Theme.animNormal; easing.type: Easing.OutCubic }
+                }
+
+                readonly property real shown: held ? dragValue : smoothed
+
+                function send(): void {
+                    if (Math.abs(slider.dragValue - slider.lastSent) < 0.001) return
+                    slider.lastSent = slider.dragValue
+                    root.setVolume(row.node, slider.dragValue)
+                }
+
+                // ~30 updates a second: smooth to the ear, and not one
+                // PipeWire param change per pointer event.
+                Timer {
+                    id: sender
+                    interval: 33
+                    repeat: true
+                    running: dragArea.pressed
+                    onTriggered: slider.send()
+                }
+
+                Timer {
+                    id: settle
+                    interval: 300
+                }
+
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width
+                    height: 4
+                    radius: 2
+                    color: Qt.rgba(Theme.dim.r, Theme.dim.g, Theme.dim.b, 0.4)
+
+                    // Ends at the knob's centre, not at value * width,
+                    // or the two part company by up to half a knob at
+                    // either end.
+                    Rectangle {
+                        height: parent.height
+                        radius: parent.radius
+                        width: knob.x + knob.width / 2
+                        color: row.muted ? Theme.dim : Theme.accent
+                    }
+                }
+
+                Rectangle {
+                    id: knob
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 14
+                    height: 14
+                    radius: width / 2
+                    x: slider.shown * (slider.width - width)
+                    color: row.muted ? Theme.dim : Theme.accent
+                    scale: dragArea.pressed || dragArea.containsMouse ? 1.2 : 1
+                    Behavior on scale { NumberAnimation { duration: Theme.animFast } }
+                }
+
+                MouseArea {
+                    id: dragArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    preventStealing: true
+                    cursorShape: Qt.PointingHandCursor
+
+                    function track(x: real): void {
+                        slider.dragValue = Math.max(0, Math.min(1,
+                            (x - knob.width / 2) / (width - knob.width)))
+                    }
+
+                    onPressed: mouse => {
+                        settle.stop()
+                        track(mouse.x)
+                        slider.send()
+                    }
+                    onPositionChanged: mouse => { if (pressed) track(mouse.x) }
+                    onReleased: {
+                        slider.send()
+                        settle.restart()
+                    }
+                    onWheel: wheel => root.setVolume(row.node,
+                        row.volume + (wheel.angleDelta.y > 0 ? 0.05 : -0.05))
+                }
+            }
+
+            Text {
+                id: pct
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                width: 40
+                horizontalAlignment: Text.AlignRight
+                text: row.muted ? "muted"
+                    : Math.round((slider.held ? slider.dragValue : row.volume) * 100) + "%"
+                font.family: Theme.font
+                font.weight: Theme.weightMedium
+                font.pixelSize: Theme.fontSize
+                font.features: { "tnum": 1 }
+                color: row.muted ? Theme.dim : Theme.fg
+            }
+        }
+
+
 }
