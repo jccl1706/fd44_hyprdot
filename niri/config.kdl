@@ -93,9 +93,22 @@
 //
 // niri exports XCURSOR_THEME and XCURSOR_SIZE to clients from this block, so
 // naming it here covers GTK, Qt and XWayland as well as the compositor itself.
+//
+// SIZE 32, NOT 24, AND NOT AN ARBITRARY NUMBER. Adwaita's cursors are bitmaps
+// at fixed nominal sizes - 24, 30, 36, 48, 72, 96 - and XCursor picks the
+// nearest, scaling it if nothing matches. This output is scale 1.5, so the
+// size asked for here is multiplied by 1.5 to get the bitmap requested:
+//
+//     24 -> 36 physical   native, and what this started as
+//     28 -> 42 physical   NOT a size in the theme - interpolated, so softer
+//     32 -> 48 physical   native
+//
+// 32 is simply the next size up that still lands on a real bitmap. Changing
+// the scale means redoing that arithmetic; `xcursor-size * scale` has to be
+// one of the numbers above or the pointer goes slightly soft.
 cursor {
     xcursor-theme "Adwaita"
-    xcursor-size 24
+    xcursor-size 32
 }
 
 // Settings that influence how windows are positioned and sized.
