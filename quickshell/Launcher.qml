@@ -778,8 +778,12 @@ PanelWindow {
                 // Putting it on the ListView instead would need focus to move
                 // between the two, and then typing would stop working.
                 Keys.onEscapePressed: root.close()
-                Keys.onDownPressed:   root.move(1)
-                Keys.onUpPressed:     root.move(-1)
+                // Swapped against the index order, because the list draws
+                // bottom to top - see the note on verticalLayoutDirection.
+                // Pressing Up moves the highlight up the screen, which is a
+                // HIGHER index now.
+                Keys.onDownPressed:   root.move(-1)
+                Keys.onUpPressed:     root.move(1)
                 Keys.onReturnPressed: root.launch(root.results[root.selected])
                 Keys.onEnterPressed:  root.launch(root.results[root.selected])
                 Keys.onTabPressed:    root.move(1)
@@ -889,6 +893,18 @@ PanelWindow {
 
             clip: true
             model: root.results
+            // BOTTOM TO TOP, so the best match sits directly above the search
+            // row and the rest stack upwards away from it. With the input at
+            // the bottom of the card, a top-aligned list put the result you
+            // most likely want furthest from where you are looking and typing.
+            //
+            // THIS INVERTS WHAT THE ARROW KEYS MEAN ON SCREEN. Index 0 is now
+            // the BOTTOM row, so a higher index is further UP - and Up/Down
+            // below are swapped to match, or the highlight would travel
+            // opposite the key pressed. positionViewAtIndex still does the
+            // right thing: it works in indices, which have not changed.
+            verticalLayoutDirection: ListView.BottomToTop
+
             currentIndex: root.selected
 
             // Keeps the highlighted row on screen when navigating by keyboard.
