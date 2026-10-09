@@ -198,12 +198,25 @@ Singleton {
     }
 
     Timer {
-        interval: 10 * 1000
+        // SLOWS DOWN WHEN THERE IS NO ADAPTER RATHER THAN STOPPING.
+        //
+        // It used to stop outright - `running: !bt.answered || bt.present` -
+        // on the reasoning that a machine with no Bluetooth should not fork a
+        // process every ten seconds to be told so again. The reasoning holds;
+        // stopping does not. It made the answer PERMANENT, so a single poll
+        // that came back empty for any reason left the icon gone until
+        // quickshell restarted. bin/bluetooth.sh now reads presence from
+        // /sys/class/bluetooth, which removes the usual cause, but a latch
+        // that can only be cleared by a restart is the wrong shape regardless
+        // - and a USB dongle plugged in later is a real case it could never
+        // have handled.
+        //
+        // Five minutes costs one process per five minutes on a machine with no
+        // Bluetooth, which is the cost the old comment was avoiding, near
+        // enough.
+        interval: (bt.answered && !bt.present) ? 5 * 60 * 1000 : 10 * 1000
         repeat: true
-        // Once it is known there is no adapter, stop asking: that cannot change
-        // without plugging one in, and a machine without Bluetooth should not
-        // fork a process every ten seconds to be told so again.
-        running: !bt.answered || bt.present
+        running: true
         onTriggered: bt.check()
     }
 

@@ -72,8 +72,25 @@ cmd_status() {
     # No adapter at all - a desktop without a dongle - is not an error, it is a
     # machine with no Bluetooth, and the bar draws nothing. Same shape as
     # thermal.sh on a laptop with no discrete card.
-    if [[ -n "$(timeout 5 bluetoothctl list 2>/dev/null)" ]]; then
+    #
+    # ASKED OF THE KERNEL, NOT OF bluetoothctl. `bluetoothctl list` prints
+    # nothing both when there is no adapter and when the call simply does not
+    # get an answer - a busy daemon, a D-Bus hiccup, the 5s timeout above
+    # expiring - and those two are indistinguishable in its output. The bar
+    # LATCHES on the answer (Bluetooth.qml stops polling once told there is no
+    # adapter, so as not to fork a process every ten seconds forever on a
+    # machine that has none), which turns one bad answer into an icon that
+    # never comes back until quickshell restarts. That is how it presented on
+    # framework00: adapter up, service active, rfkill clear, and no icon.
+    #
+    # /sys/class/bluetooth/hci* is the kernel's own view. No daemon, no IPC, no
+    # timeout, nothing to be busy - it cannot answer wrongly.
+    if compgen -G "/sys/class/bluetooth/hci*" >/dev/null; then
         present="true"
+        # bluetoothctl is still the right tool for everything BELOW presence:
+        # powered, connected, names. Those are daemon state and have no kernel
+        # equivalent - and being wrong about them for ten seconds is a stale
+        # glyph, not a vanished one.
         timeout 5 bluetoothctl show 2>/dev/null | grep -q "Powered: yes" && powered="true"
     fi
 
