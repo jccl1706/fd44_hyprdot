@@ -138,11 +138,17 @@ DropPanel {
                 width: historyList.width
                 height: 54
 
+                // The same selection bar the other panels draw: rounded by 8
+                // and washed with Theme.surfaceHigh. It used to be a square
+                // Theme.fg at 6% opacity, which read as a different shape and
+                // a different colour from the rows in the network, audio,
+                // settings and bluetooth panels - the only one with hard
+                // corners.
                 Rectangle {
                     anchors.fill: parent
-                    color: Theme.fg
-                    opacity: rowHover.hovered ? 0.06 : 0
-                    Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+                    radius: 8
+                    color: rowHover.hovered ? Theme.surfaceHigh : "transparent"
+                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
                 }
 
                 HoverHandler { id: rowHover }

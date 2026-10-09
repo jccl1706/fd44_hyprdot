@@ -125,15 +125,15 @@ DropPanel {
                 readonly property bool connected: !!row.modelData.connected
                 readonly property bool busy: Bluetooth.busyMac === row.modelData.mac
 
-                // MEASURED FROM THE SPACE THESE SIT IN, not from panelWidth.
-                // DropPanel insets its content by card.pad on each side, so a
-                // row's parent is panelWidth - 28 wide, not panelWidth. Asking
-                // for panelWidth - 20 made every row 8px wider than the column
-                // holding it and pushed its right edge 18px past the panel,
-                // where the screen clipped it: the rows read as a selector bar
-                // that did not fit the panel it was in.
-                width: parent.width - 20
-                x: 10
+                // FULL WIDTH, as every other panel's rows are. NetworkList,
+                // AudioPanel and SettingsPanel all use `width: parent.width`
+                // with no x offset, so their selection bars span the panel's
+                // content and line up with its headings. These were inset by
+                // ten and measured from root.panelWidth, which is the panel's
+                // OUTER width - 28px wider than the column they sit in - so
+                // they were both narrower-looking and 18px too long, running
+                // off the panel's right edge.
+                width: parent.width
                 height: 46
                 radius: 8
                 // The same accent wash the network rows use for "this is the
@@ -202,15 +202,15 @@ DropPanel {
         Item { width: 1; height: 6 }
 
         Rectangle {
-            // MEASURED FROM THE SPACE THESE SIT IN, not from panelWidth.
-            // DropPanel insets its content by card.pad on each side, so a
-            // row's parent is panelWidth - 28 wide, not panelWidth. Asking
-            // for panelWidth - 20 made every row 8px wider than the column
-            // holding it and pushed its right edge 18px past the panel,
-            // where the screen clipped it: the rows read as a selector bar
-            // that did not fit the panel it was in.
-            width: parent.width - 20
-            x: 10
+            // FULL WIDTH, as every other panel's rows are. NetworkList,
+            // AudioPanel and SettingsPanel all use `width: parent.width`
+            // with no x offset, so their selection bars span the panel's
+            // content and line up with its headings. These were inset by
+            // ten and measured from root.panelWidth, which is the panel's
+            // OUTER width - 28px wider than the column they sit in - so
+            // they were both narrower-looking and 18px too long, running
+            // off the panel's right edge.
+            width: parent.width
             height: 40
             radius: 8
             visible: Bluetooth.powered
@@ -264,15 +264,15 @@ DropPanel {
                 required property var modelData
                 readonly property bool busy: Bluetooth.busyMac === found.modelData.mac
 
-                // MEASURED FROM THE SPACE THESE SIT IN, not from panelWidth.
-                // DropPanel insets its content by card.pad on each side, so a
-                // row's parent is panelWidth - 28 wide, not panelWidth. Asking
-                // for panelWidth - 20 made every row 8px wider than the column
-                // holding it and pushed its right edge 18px past the panel,
-                // where the screen clipped it: the rows read as a selector bar
-                // that did not fit the panel it was in.
-                width: parent.width - 20
-                x: 10
+                // FULL WIDTH, as every other panel's rows are. NetworkList,
+                // AudioPanel and SettingsPanel all use `width: parent.width`
+                // with no x offset, so their selection bars span the panel's
+                // content and line up with its headings. These were inset by
+                // ten and measured from root.panelWidth, which is the panel's
+                // OUTER width - 28px wider than the column they sit in - so
+                // they were both narrower-looking and 18px too long, running
+                // off the panel's right edge.
+                width: parent.width
                 height: 44
                 radius: 8
                 color: foundHover.hovered ? Theme.surfaceHigh : "transparent"
