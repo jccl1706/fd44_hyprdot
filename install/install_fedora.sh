@@ -2268,6 +2268,26 @@ if [[ -n "$dotfiles_repo" ]]; then
             warn "  repo has no hypr/ directory - keeping the stock config"
         fi
 
+        # AND THE SHELL PROFILE, for exactly the same reason. This script writes
+        # a real ~/.bash_profile a few hundred lines above - autologin needs one
+        # before any dotfiles exist - and link-dotfiles.sh then refuses to
+        # replace it, which is correct when a person runs it and wrong here,
+        # where we know what put it there. The first niri VM reported:
+        #
+        #   in the way  ~/.bash_profile is a real file - move it aside first
+        #   20 linked, 0 already right, 0 repointed, 6 skipped, 1 in the way
+        #
+        # The cost of leaving it is not obvious: the machine still starts a
+        # session, because the profile written here has the uwsm hook in it. But
+        # it is the INSTALLER'S profile, frozen at install time, and the
+        # repository's - the one that reads ~/.local/state/fd44-compositor and
+        # can therefore switch between Hyprland and niri - never arrives.
+        if [[ -f "$rootmnt/home/$username/Work/$dotdir/bash/bash_profile" ]]; then
+            run rm -f "$rootmnt/home/$username/.bash_profile"
+        elif (( ! DRY )); then
+            warn "  repo has no bash/bash_profile - keeping the one written here"
+        fi
+
         if [[ -x "$rootmnt/home/$username/Work/$dotdir/bin/link-dotfiles.sh" ]]; then
             # HOME explicitly, and XDG_CONFIG_HOME cleared. sudo keeps the
             # invoking user's HOME, and the script writes into $HOME/.config -
