@@ -73,6 +73,31 @@
     position x=1280 y=0
 }
 
+// THE POINTER, NAMED EXPLICITLY. niri's default is the theme called "default",
+// and whether that exists is a property of the DISTRIBUTION rather than of this
+// configuration:
+//
+//   Fedora   ships /usr/share/icons/default - an index.theme aliasing Adwaita
+//   NixOS    does not. Only Adwaita is installed, under that name.
+//
+// With nothing named "default", niri finds no theme and falls back to its own
+// built-in pointer, which does not follow the output scale - so on this
+// laptop's 2256x1504 panel at scale 1.5 the cursor draws at its unscaled size
+// and looks absurdly small. That is how it presented on framework00 the day it
+// was installed: not a scaling setting to hunt for, a theme that was not there.
+//
+// THE HYPRLAND SIDE ALREADY DOES THIS - hypr/autostart.lua sets XCURSOR_THEME
+// and XCURSOR_SIZE, with a long comment about clients resolving an unset theme
+// differently on either side of a surface edge. Same reasoning, same values;
+// this is the half that was missing.
+//
+// niri exports XCURSOR_THEME and XCURSOR_SIZE to clients from this block, so
+// naming it here covers GTK, Qt and XWayland as well as the compositor itself.
+cursor {
+    xcursor-theme "Adwaita"
+    xcursor-size 24
+}
+
 // Settings that influence how windows are positioned and sized.
 // Find more information on the wiki:
 // https://niri-wm.github.io/niri/Configuration:-Layout
