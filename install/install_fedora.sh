@@ -1947,14 +1947,26 @@ fi
 # graphical-session.target - without it the polkit agent and hypridle would
 # be enabled but never run, same reasoning as the Arch script.
 ###############################################################################
-# ALL OF THIS IS THE HYPRLAND PATH. Plasma logs in through SDDM and starts
-# its own session, so it needs no wayland-sessions entry written by hand, no
-# getty autologin and no uwsm hook in the shell profile. The body below is
-# left unindented so that what it writes stays diffable against the version
-# that ran on every machine built before this choice existed.
-if [[ "$desktop" == hyprland ]]; then
-log "Configuring the Hyprland session"
-if (( DRY )) || [[ ! -f "$rootmnt/usr/share/wayland-sessions/hyprland-uwsm.desktop" ]]; then
+# ALL OF THIS IS THE COMPOSITOR PATH - Hyprland OR niri. Plasma logs in
+# through SDDM and starts its own session, so it needs no getty autologin and
+# no uwsm hook in the shell profile. The body below is left unindented so that
+# what it writes stays diffable against the version that ran on every machine
+# built before this choice existed.
+#
+# IT USED TO SAY `== hyprland`, AND THAT WAS THE BUG THE FIRST niri VM FOUND.
+# The block does not end after the session entry a few lines down - it runs on
+# to the shell profile with the uwsm hook in it, some ninety lines below. So a
+# niri install wrote no profile at all: the machine autologged in on tty1,
+# started nothing, and sat at a shell with `uwsm check may-start` returning 1
+# because nothing had ever asked it to start anything.
+#
+# Only the hyprland-uwsm.desktop entry inside is Hyprland's, and it keeps its
+# own test - niri ships niri.desktop in its own package and needs nothing
+# written here.
+if compositor_desktop; then
+log "Configuring the ${desktop} session"
+if [[ "$desktop" == hyprland ]] \
+   && { (( DRY )) || [[ ! -f "$rootmnt/usr/share/wayland-sessions/hyprland-uwsm.desktop" ]]; }; then
     writefile 0644 "$rootmnt/usr/local/share/wayland-sessions/hyprland-uwsm.desktop" <<'EOF'
 [Desktop Entry]
 Name=Hyprland (uwsm-managed)
