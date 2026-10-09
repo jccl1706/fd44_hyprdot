@@ -45,7 +45,32 @@
 
 set -uo pipefail
 
-esc() { printf '%s' "${1//\\/\\\\}" | sed 's/"/\\"/g'; }
+# BLUETOOTHCTL COLOURS ITS OUTPUT, and that is not cosmetic here.
+#
+#     ^[[1;30mDevice 24:24:B7:03:62:B1 JULIO's Buds3 Pro^[[0m
+#
+# A raw ESC inside a JSON string is an invalid control character, so the name
+# above made this script's own output unparseable - JSON.parse threw in
+# Bluetooth.qml, the catch set present=false, and the icon vanished from the
+# bar. It only happened WITH A DEVICE CONNECTED, because that is when `name` is
+# non-empty, which is why it looked like the icon "kept disappearing" rather
+# than never working.
+strip_ansi() { sed -E $'s/\033\\[[0-9;]*[a-zA-Z]//g'; }
+
+# AND IT INTERLEAVES ITS EVENT STREAM with command output:
+#
+#     [^[[0;93mCHG^[[0m] Device 0C:95:05:19:FF:42 RSSI: 0xffffffc4 (-60)
+#
+# That is a notification about a device in range, not a listing. The loops
+# below read field 2 as the address, which on such a line is the literal word
+# "Device" - counted as a connected device, so `connected` drifted upwards as
+# events arrived. A line is only a listing if it starts with Device and the
+# next field is an address.
+is_mac() { [[ $1 =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]]; }
+
+# Quotes and backslashes for JSON, AND any control character - a device name is
+# whatever its maker typed, and one stray byte invalidates the whole object.
+esc() { printf '%s' "${1//\\/\\\\}" | sed -e 's/"/\\"/g' -e 's/[[:cntrl:]]//g'; }
 
 have() { command -v bluetoothctl >/dev/null 2>&1; }
 
@@ -54,12 +79,12 @@ have() { command -v bluetoothctl >/dev/null 2>&1; }
 # and the decimal in brackets is the one to read - 0x50 would be 80 anyway, but
 # not every device is that tidy.
 battery_of() { # mac
-    timeout 5 bluetoothctl info "$1" 2>/dev/null \
+    timeout 5 bluetoothctl info "$1" 2>/dev/null | strip_ansi \
         | sed -n 's/.*Battery Percentage:.*(\([0-9]\+\)).*/\1/p' | head -1
 }
 
 name_of() { # mac
-    timeout 5 bluetoothctl info "$1" 2>/dev/null \
+    timeout 5 bluetoothctl info "$1" 2>/dev/null | strip_ansi \
         | sed -n 's/^[[:space:]]*Name:[[:space:]]*//p' | head -1
 }
 
@@ -91,16 +116,19 @@ cmd_status() {
         # powered, connected, names. Those are daemon state and have no kernel
         # equivalent - and being wrong about them for ten seconds is a stale
         # glyph, not a vanished one.
-        timeout 5 bluetoothctl show 2>/dev/null | grep -q "Powered: yes" && powered="true"
+        timeout 5 bluetoothctl show 2>/dev/null | strip_ansi | grep -q "Powered: yes" && powered="true"
     fi
 
     # The FIRST connected device, because the bar shows one glyph. Two headsets
     # at once is possible and rare; the panel lists them all.
-    while read -r _ m rest; do
-        [[ -n $m ]] || continue
+    while read -r kw m rest; do
+        # A LISTING, not an event - see is_mac above. "[CHG] Device <mac> RSSI:"
+        # arrives on this stream too and used to be counted as a connection.
+        [[ $kw == Device ]] || continue
+        is_mac "$m" || continue
         connected=$(( connected + 1 ))
         if [[ -z $mac ]]; then mac="$m"; name="$rest"; fi
-    done < <(timeout 5 bluetoothctl devices Connected 2>/dev/null)
+    done < <(timeout 5 bluetoothctl devices Connected 2>/dev/null | strip_ansi)
 
     if [[ -n $mac ]]; then
         local b; b="$(battery_of "$mac")"
@@ -121,7 +149,7 @@ cmd_devices() {
     while read -r _ mac name; do
         [[ -n $mac ]] || continue
         conn=false; trusted=false; batt=-1
-        local info; info="$(timeout 5 bluetoothctl info "$mac" 2>/dev/null)"
+        local info; info="$(timeout 5 bluetoothctl info "$mac" 2>/dev/null | strip_ansi)"
         grep -q "Connected: yes" <<<"$info" && conn=true
         grep -q "Trusted: yes"   <<<"$info" && trusted=true
         local b; b="$(sed -n 's/.*Battery Percentage:.*(\([0-9]\+\)).*/\1/p' <<<"$info" | head -1)"
@@ -133,7 +161,7 @@ cmd_devices() {
         first=0
         printf '{"mac":"%s","name":"%s","connected":%s,"trusted":%s,"battery":%d,"icon":"%s"}' \
             "$(esc "$mac")" "$(esc "$name")" "$conn" "$trusted" "$batt" "$(esc "$icon")"
-    done < <(timeout 5 bluetoothctl devices Paired 2>/dev/null)
+    done < <(timeout 5 bluetoothctl devices Paired 2>/dev/null | strip_ansi)
     printf ']\n'
 }
 
@@ -177,7 +205,7 @@ cmd_discovered() {
     local want_all="${1:-named}" first=1 mac name paired icon info
     local -A is_paired=()
     while read -r _ mac _; do [[ -n $mac ]] && is_paired["$mac"]=1; done \
-        < <(timeout 5 bluetoothctl devices Paired 2>/dev/null)
+        < <(timeout 5 bluetoothctl devices Paired 2>/dev/null | strip_ansi)
     printf '['
     while read -r _ mac name; do
         [[ -n $mac ]] || continue
@@ -187,13 +215,13 @@ cmd_discovered() {
         if [[ $want_all != all && ( -z $name || $name == "${mac//:/-}" ) ]]; then
             continue
         fi
-        info="$(timeout 5 bluetoothctl info "$mac" 2>/dev/null)"
+        info="$(timeout 5 bluetoothctl info "$mac" 2>/dev/null | strip_ansi)"
         icon="$(sed -n 's/^[[:space:]]*Icon:[[:space:]]*//p' <<<"$info" | head -1)"
         (( first )) || printf ','
         first=0
         printf '{"mac":"%s","name":"%s","icon":"%s"}' \
             "$(esc "$mac")" "$(esc "$name")" "$(esc "$icon")"
-    done < <(timeout 5 bluetoothctl devices 2>/dev/null)
+    done < <(timeout 5 bluetoothctl devices 2>/dev/null | strip_ansi)
     printf ']\n'
 }
 
