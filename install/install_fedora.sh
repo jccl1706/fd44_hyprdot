@@ -2,7 +2,7 @@
 #
 # Guided Fedora 44 installer                               v1.14  2026-09-16
 #   Btrfs + subvolumes  |  systemd-boot (UEFI)  |  optional LUKS2+LVM  |  hibernation
-#   Hyprland + quickshell only  |  AMD (Framework 13)  |  laptop
+#   Hyprland, niri or KDE Plasma  |  AMD (Framework 13)  |  laptop
 #   No display manager: getty autologin + uwsm  |  Plymouth graphical boot
 #
 # Ported from install_arch_v3_3.sh. Same shape, same wizard/preflight/dry-run
@@ -352,7 +352,7 @@
 #   ./install_fedora.sh                 guided install (asks everything)
 #   ./install_fedora.sh --preflight     report on this machine, change nothing
 #   ./install_fedora.sh --check-repos   resolve every package name against the
-#                                             real repos (incl. the Hyprland COPR),
+#                                             real repos (incl. the quickshell COPR),
 #                                             change nothing, no root needed
 #   ./install_fedora.sh --dry-run       ask, then print every command, touch nothing
 #   ./install_fedora.sh --unattended    no prompts, use the config block below
@@ -360,6 +360,9 @@
 #   ./install_fedora.sh --desktop       no battery, no lid: machine=desktop,
 #                                             no disk swap, no encryption, zram on
 #   ./install_fedora.sh --dotfiles URL  clone this repo and link its configs
+#   ./install_fedora.sh --hyprland      pick the desktop without the wizard
+#   ./install_fedora.sh --niri          niri + quickshell, same autologin and bar
+#   ./install_fedora.sh --plasma        KDE Plasma with SDDM
 #
 # Recommended first run:  --check-repos, then --preflight, then --dry-run, then for real.
 # Run this from a Fedora live/rescue environment (Fedora Everything netinst
@@ -477,7 +480,14 @@ gpu_vendor=""                  # amd | intel   (empty = autodetect)
 #   plasma    KDE Plasma with SDDM. Not the full KDE suite - plasma-desktop
 #             and the handful of pieces a laptop actually needs. See the
 #             package list for what that costs.
-desktop="hyprland"             # hyprland | plasma
+desktop="hyprland"             # hyprland | niri | plasma
+
+# TRUE FOR THE COMPOSITOR DESKTOPS - Hyprland and niri - which are the same
+# machine in every way this script cares about: autologin on tty1, uwsm,
+# quickshell as the bar, no display manager, and quickshell out of the same
+# COPR. Only the compositor package and the session entry differ, so almost
+# every test that used to read `== hyprland` meant this instead.
+compositor_desktop() { [[ "$desktop" != plasma ]]; }
 # Login manager. Empty = sddm (Hyprland has no GNOME/KDE session to derive a
 # default from here, unlike the Arch script). sddm | greetd
 # Dotfiles git URL. Left blank the installer sets up autologin and Plymouth
@@ -617,6 +627,7 @@ while [[ $# -gt 0 ]]; do
         # way to build a Plasma machine without editing the script.
         --plasma)         desktop="plasma" ;;
         --hyprland)       desktop="hyprland" ;;
+        --niri)           desktop="niri" ;;
         --dotfiles)       dotfiles_repo="${2:?--dotfiles needs a git URL}"; shift ;;
         -h|--help)        awk 'NR>1 && /^#/ {print; next} NR>1 {exit}' "$0"; exit 0 ;;
         *)                die "unknown option: $1  (try --help)" ;;
@@ -811,8 +822,9 @@ wizard() {
         "Intel  - mesa, ANV Vulkan, iHD VAAPI|intel")"
 
     # ---- desktop -----------------------------------------------------------
-    desktop="$(menu "Desktop?" "$( [[ $desktop == hyprland ]] && echo 1 || echo 2 )" \
+    desktop="$(menu "Desktop?" "$( case $desktop in hyprland) echo 1 ;; niri) echo 2 ;; *) echo 3 ;; esac )" \
         "Hyprland + quickshell - autologin on tty1, no display manager|hyprland" \
+        "niri + quickshell    - scrolling tiling, same autologin and bar|niri" \
         "KDE Plasma - SDDM, ~2 GB installed|plasma")"
 
     # ---- dotfiles --------------------------------------------------------
@@ -1144,6 +1156,45 @@ plasmapacs=(
 )
 [[ "$desktop" == plasma ]] && depacs=("${plasmapacs[@]}")
 
+# NIRI: THE SAME DESKTOP WITH A DIFFERENT COMPOSITOR. Everything the Hyprland
+# list brings is wanted here too - quickshell, uwsm, the lock and idle daemons,
+# the clipboard and screenshot tools - so this edits that list rather than
+# replacing it, and the two cannot drift apart over a package neither
+# remembered to add.
+#
+# niri IS IN FEDORA'S OWN REPOSITORIES. The COPR is still needed, for
+# quickshell, which is not.
+#
+# XWAYLAND-SATELLITE IS NOT OPTIONAL. niri has no built-in Xwayland, so without
+# it every X11 application fails to start with nothing on screen to say why.
+#
+# THE PORTAL IS gnome AND gtk, NOT hyprland. xdg-desktop-portal-hyprland talks
+# to Hyprland's own IPC and does nothing here; on niri the gnome portal
+# provides screencast and screenshot and gtk provides the file chooser.
+#
+# hyprlock, hypridle AND hyprpolkitagent STAY. They are not Hyprland-only -
+# they speak the wlr protocols and the idle-notify protocol, and this laptop
+# runs all three under niri today.
+#
+# EXACT NAMES, NOT A PREFIX SUBSTITUTION. The obvious ${depacs[@]/#hyprland/niri}
+# also rewrites hyprland-guiutils into niri-guiutils, which does not exist - the
+# transaction then fails on a package nobody asked for. Caught here rather than
+# in the VM.
+if [[ "$desktop" == niri ]]; then
+    _niri=()
+    for _p in "${depacs[@]}"; do
+        case "$_p" in
+            hyprland)                    _niri+=(niri) ;;
+            # Hyprland's own GUI tools. Nothing on niri drives them.
+            hyprland-guiutils)           ;;
+            xdg-desktop-portal-hyprland) _niri+=(xdg-desktop-portal-gnome xdg-desktop-portal-gtk) ;;
+            *)                           _niri+=("$_p") ;;
+        esac
+    done
+    depacs=("${_niri[@]}" xwayland-satellite)
+    unset _niri _p
+fi
+
 # Plymouth: graphical boot splash, and a graphical LUKS passphrase prompt
 # instead of the bare text one. plymouth-system-theme pulls the bgrt theme,
 # which shows the firmware logo (on a Framework, the Framework logo).
@@ -1329,14 +1380,16 @@ preflight() {
     fi
     if [[ "$desktop" == plasma ]]; then
         printf '    Desktop    : KDE Plasma  (SDDM, ~2 GB installed)\n'
+    elif [[ "$desktop" == niri ]]; then
+        printf '    Desktop    : niri + quickshell  (autologin on tty1, no display manager)\n'
     else
         printf '    Desktop    : Hyprland + quickshell  (autologin on tty1, no display manager)\n'
     fi
     printf '    Dotfiles   : %s\n' "${dotfiles_repo:-none}"
     printf '    Apps       : %s, %s\n' "$browser" "$terminal"
     printf '    Host/user  : %s / %s\n' "$hostname" "$username"
-    [[ "$desktop" == hyprland ]] && \
-        printf '    Hyprland/quickshell source: COPR %s - VERIFY IT IS STILL MAINTAINED\n' "$hypr_copr"
+    compositor_desktop && \
+        printf '    quickshell source: COPR %s - VERIFY IT IS STILL MAINTAINED\n' "$hypr_copr"
 
     printf '\n    Layout:\n'
     printf '      %s  ESP %s, vfat, mounted at /boot  (also holds systemd-boot + BLS entries)\n' "$esppart" "$esp_size"
@@ -1681,7 +1734,7 @@ run dnf5 --installroot "$rootmnt" --releasever "$releasever" --use-host-config -
 # ONLY FOR HYPRLAND. Everything Plasma needs is in Fedora proper, so adding a
 # third-party repository to a Plasma machine would be taking on a maintenance
 # risk it gets nothing for.
-if [[ "$desktop" == hyprland ]]; then
+if compositor_desktop; then
 log "Adding the Hyprland/quickshell COPR ($hypr_copr)"
 writefile 0644 "$rootmnt/etc/yum.repos.d/_copr_${hypr_copr//\//-}.repo" <<EOF
 [copr:copr.fedorainfracloud.org:${hypr_copr%%/*}:${hypr_copr##*/}]
@@ -2057,10 +2110,10 @@ if uwsm check may-start -q; then
     _uwsm_state="${XDG_STATE_HOME:-$HOME/.local/state}"
     mkdir -p "$_uwsm_state"
     _uwsm_started=$SECONDS
-    uwsm start -e -D Hyprland hyprland.desktop >"$_uwsm_state/uwsm-start.log" 2>&1
+    uwsm start -e -D __UWSM_DESKTOP__ __UWSM_ENTRY__ >"$_uwsm_state/uwsm-start.log" 2>&1
     _uwsm_status=$?
     if (( SECONDS - _uwsm_started < 15 )); then
-        echo "Hyprland exited after $(( SECONDS - _uwsm_started ))s (status $_uwsm_status)."
+        echo "__UWSM_DESKTOP__ exited after $(( SECONDS - _uwsm_started ))s (status $_uwsm_status)."
         echo "See $_uwsm_state/uwsm-start.log"
     else
         exit 0
@@ -2068,6 +2121,29 @@ if uwsm check may-start -q; then
     unset _uwsm_state _uwsm_started _uwsm_status
 fi
 PROFILE
+
+# THE COMPOSITOR, SUBSTITUTED IN. The heredoc above is quoted so the shell
+# leaves $HOME and $SECONDS alone for the profile's own runtime; these two are
+# the only things that must be decided now, so they go in afterwards.
+_uwsm_desktop=Hyprland; _uwsm_entry=hyprland.desktop
+[[ "$desktop" == niri ]] && { _uwsm_desktop=niri; _uwsm_entry=niri.desktop; }
+run fchroot sed -i \
+    -e "s/__UWSM_DESKTOP__/$_uwsm_desktop/g" \
+    -e "s/__UWSM_ENTRY__/$_uwsm_entry/g" \
+    "/home/$username/.bash_profile"
+
+# AND THE CHOICE THE DOTFILES READ. bash/bash_profile in the repository - which
+# bin/link-dotfiles.sh puts in place of the file just written - starts whichever
+# compositor is named in this one-line state file, defaulting to Hyprland. So a
+# niri install that did not write it would come up in niri until the dotfiles
+# were linked and then silently switch back to Hyprland.
+if [[ "$desktop" == niri ]]; then
+    run fchroot install -d -o "$username" -g "$username" -m 0755 \
+        "/home/$username/.local" "/home/$username/.local/state"
+    printf 'niri\n' | run fchroot tee "/home/$username/.local/state/fd44-compositor" >/dev/null
+    run fchroot chown "$username:$username" "/home/$username/.local/state/fd44-compositor"
+fi
+
 run fchroot chown "$username:$username" "/home/$username/.bash_profile"
 fi
 
@@ -2373,7 +2449,7 @@ if [[ -f "$ROOT/etc/bluetooth/main.conf" ]]; then
     run fchroot sh -c 'grep -q "^AlwaysPairable" /etc/bluetooth/main.conf \
         || sed -i "/^\[General\]/a AlwaysPairable = true" /etc/bluetooth/main.conf'
 fi
-if [[ "$desktop" == hyprland ]]; then
+if compositor_desktop; then
     run fchroot systemctl --global enable hyprpolkitagent.service hypridle.service \
         || warn "could not enable one of the Hyprland user units"
 fi
@@ -2452,7 +2528,7 @@ if (( DRY )); then
   Encryption : $encrypt
   Swap       : $swap_size$( [[ -n "$zram_size" ]] && echo "   zram: $zram_size" )
   Machine    : $machine        CPU: $cpu_vendor        GPU: $gpu_vendor
-  Desktop    : $( [[ "$desktop" == plasma ]] && echo "KDE Plasma (SDDM)" || echo "Hyprland + quickshell (autologin on tty1, no display manager)" )
+  Desktop    : $( case "$desktop" in plasma) echo "KDE Plasma (SDDM)" ;; niri) echo "niri + quickshell (autologin on tty1, no display manager)" ;; *) echo "Hyprland + quickshell (autologin on tty1, no display manager)" ;; esac )
   Dotfiles   : ${dotfiles_repo:-none}
   Apps       : $browser, $terminal
   cmdline    : $cmdline
@@ -2517,10 +2593,10 @@ fi
 target_uid=""
 [[ -r "$rootmnt/etc/passwd" ]] && \
     target_uid="$(awk -F: -v u="$username" '$1==u{print $3}' "$rootmnt/etc/passwd" 2>/dev/null || true)"
-[[ "$desktop" == hyprland ]] && \
+compositor_desktop && \
     check "user owns their config dir" "[[ -n '$target_uid' && \$(stat -c %u '$rootmnt/home/$username/.config') == '$target_uid' ]]"
 check "autorelabel scheduled"          "[[ -f '$rootmnt/.autorelabel' ]]"
-[[ "$desktop" == hyprland ]] && \
+compositor_desktop && \
     check "quickshell installed"       "[[ -x '$rootmnt/usr/bin/quickshell' ]]"
 # The font download is the one step here that reaches the public internet at
 # install time and is allowed to fail without aborting, so it is the one most
@@ -2539,7 +2615,7 @@ check "serif + Liberation fonts installed" "[[ -f '$rootmnt/usr/share/fonts/goog
 check "Qt WebP image plugin (wallpaper, picker)" "[[ -f '$rootmnt/usr/lib64/qt6/plugins/imageformats/libqwebp.so' ]]"
 # Only on the Hyprland side. Plasma's whole login story IS a display manager,
 # and "sddm enabled" above is the check that matters there.
-[[ "$desktop" == hyprland ]] && \
+compositor_desktop && \
     check "no display manager"         "[[ ! -e '$rootmnt/etc/systemd/system/display-manager.service' ]]"
 # nwg-panel declares Supplements: hyprland, so it installs itself unless
 # excluded by name. Asserted rather than assumed: a weak dependency that
@@ -2567,7 +2643,7 @@ check "nwg-panel not installed"        "! fchroot rpm -q nwg-panel >/dev/null 2>
 if [[ "$machine" == laptop ]]; then
     check "powerprofilesctl imports"   "! fchroot powerprofilesctl get 2>&1 | grep -q ModuleNotFoundError"
 fi
-[[ "$desktop" == hyprland ]] && check "getty autologin drop-in"        "grep -q 'autologin $username' '$rootmnt/etc/systemd/system/getty@tty1.service.d/autologin.conf'"
+compositor_desktop && check "getty autologin drop-in"        "grep -q 'autologin $username' '$rootmnt/etc/systemd/system/getty@tty1.service.d/autologin.conf'"
 # Both halves of the power-button handover, because half of it is worse than
 # neither. logind reads the key straight from /dev/input, so if the drop-in is
 # missing the compositor's binding cannot win and the button silently powers
@@ -2583,7 +2659,7 @@ if [[ "$browser" == chromium && -n "$dotfiles_repo" ]]; then
     check "chromium policy dir is root's"    "[[ \$(stat -c %u '$rootmnt/etc/chromium/policies/managed' 2>/dev/null) == 0 ]]"
     check "chromium theme watcher enabled"   "[[ -L '$rootmnt/etc/systemd/system/multi-user.target.wants/fd44-chromium-theme.path' ]]"
 fi
-if [[ "$desktop" == hyprland ]]; then
+if compositor_desktop; then
     check "uwsm start hook in profile" "grep -q 'uwsm check may-start' '$rootmnt/home/$username/.bash_profile'"
     check "forced password change in profile" "grep -q 'password-changed' '$rootmnt/home/$username/.bash_profile'"
 else
@@ -2604,7 +2680,7 @@ fi
 # the `login -f` path that agetty --autologin uses, so the machine loops on
 # getty forever and never reaches a session. Guards against the expiry being
 # reintroduced as an apparently obvious hardening tweak.
-[[ "$desktop" == hyprland ]] && \
+compositor_desktop && \
     check "password NOT expired (breaks autologin)" "! grep -q '^$username:[^:]*:0:' '$rootmnt/etc/shadow'"
 # The machine boots by BLS entries through systemd-boot. grub arriving as a
 # weak dependency is how it got in before, and its kernel-install plugin is
@@ -2646,7 +2722,7 @@ cat <<EOF
   Swap       : $( [[ "$want_swap" == yes ]] && echo "UUID=$swap_uuid  ($swap_size on disk, hibernation enabled)" || echo "no disk swap" )
   zram       : $( [[ -n "$zram_size" ]] && echo "$zram_size  (compressed, used before disk swap)" || echo "none" )
   Machine    : $machine        CPU: $cpu_vendor        GPU: $gpu_vendor
-  Desktop    : $( [[ "$desktop" == plasma ]] && echo "KDE Plasma (SDDM)" || echo "Hyprland + quickshell (autologin on tty1, no display manager)" )
+  Desktop    : $( case "$desktop" in plasma) echo "KDE Plasma (SDDM)" ;; niri) echo "niri + quickshell (autologin on tty1, no display manager)" ;; *) echo "Hyprland + quickshell (autologin on tty1, no display manager)" ;; esac )
   Dotfiles   : ${dotfiles_repo:-none}
   Apps       : $browser, $terminal
   User       : $username  (sudo requires the password; root is locked)
@@ -2743,7 +2819,7 @@ fi )
 ${hibernate_hint}  First boot, before anything else:
     sudo dnf upgrade --refresh
 
-$( [[ "$desktop" == hyprland ]] && cat <<'COPRNOTE'
+$( compositor_desktop && cat <<'COPRNOTE'
   Hyprland/quickshell came from a third-party COPR - if it ever goes stale,
   "sudo dnf copr disable" it and swap in whatever COPR has taken over as the
   maintained one.
