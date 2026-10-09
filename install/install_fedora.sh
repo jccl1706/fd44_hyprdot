@@ -2543,7 +2543,13 @@ run fchroot systemctl enable "${services[@]}"
 #
 # `bluetoothctl pairable on` fixes it until the next boot; this is the form that
 # survives one.
-if [[ -f "$ROOT/etc/bluetooth/main.conf" ]]; then
+# $rootmnt, NOT $ROOT, which was never a variable in this script. It appeared
+# here once, in the commit that added the bondable fix, and `set -u` makes an
+# unset name fatal - so every install from that commit onward died on this
+# line, after the packages and before the logind drop-ins, the verification
+# pass and the summary. The machines built before it have the drop-ins; the
+# ones built after do not, and nothing said why.
+if [[ -f "$rootmnt/etc/bluetooth/main.conf" ]]; then
     run fchroot sh -c 'grep -q "^AlwaysPairable" /etc/bluetooth/main.conf \
         || sed -i "/^\[General\]/a AlwaysPairable = true" /etc/bluetooth/main.conf'
 fi
