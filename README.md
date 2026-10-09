@@ -2,7 +2,7 @@
 
 # fd44_hyprdot
 
-**Fedora 44 · Hyprland · Quickshell** — a complete desktop for the Framework 13 (AMD),
+**Fedora 44 · Hyprland or niri · Quickshell** — a complete desktop for the Framework 13 (AMD),
 including the installer that builds the machine from bare metal.
 
 <sub>
@@ -109,9 +109,16 @@ sudo bin/chromium-policy-setup.sh            # --remove takes it out again
 ## Install
 
 The installer builds the whole machine: Btrfs + systemd-boot, optional LUKS,
-Hyprland, quickshell, autologin, Plymouth. It asks for a dotfiles git URL —
-give it this repo and the result is this desktop, not a generic one. It also
-offers KDE Plasma instead of Hyprland; see **Plasma instead** below.
+a compositor, quickshell, autologin, Plymouth. It asks for a dotfiles git URL —
+give it this repo and the result is this desktop, not a generic one.
+
+It asks which desktop to build — **Hyprland**, **niri** or **KDE Plasma** — and
+they are alternatives; it never installs two. `--hyprland`, `--niri` and
+`--plasma` choose without the wizard. See **Which desktop** below.
+
+Run `--dry-run` first, always. It walks the whole script and **exits non-zero
+when it dies**, which is a five-second check that the thing is not broken
+before it touches a disk.
 
 ```sh
 # from a Fedora Workstation live ISO
@@ -159,16 +166,26 @@ thing that succeeds on the first attempt.
 | `fedora_chroot.sh` | fstab, identity, systemd-boot, the kernel, SELinux labels |
 | `fedora_desktop.sh` | runs on Fedora: RPM Fusion, NVIDIA, a minimal KDE |
 
-### Plasma instead
+### Which desktop
 
-The installer asks which desktop to build, and the two are alternatives — it
-never installs both.
+Three choices, and they are alternatives — the installer never builds two.
 
-| | Hyprland | KDE Plasma |
-|---|---|---|
-| Login | autologin on tty1, **no display manager** | SDDM |
-| Terminal | kitty | konsole |
-| Installed | the desktop this repo is for | **~2 GB, 412 packages** |
+| | Hyprland | niri | KDE Plasma |
+|---|---|---|---|
+| Login | autologin on tty1, **no display manager** | the same | SDDM |
+| Bar | quickshell | quickshell | Plasma's own |
+| Terminal | kitty | kitty | konsole |
+| Installed | the desktop this repo is for | what the Framework runs today | **~2 GB, 412 packages** |
+
+**Hyprland and niri are the same machine here** in everything but the
+compositor: the same autologin, the same uwsm session, the same quickshell bar,
+the same COPR. niri adds `xwayland-satellite` — niri has no built-in Xwayland,
+and without it every X11 application fails to start with nothing on screen to
+say why — and takes the gnome and gtk portals rather than Hyprland's own.
+
+Which one a machine starts is one line in `~/.local/state/fd44-compositor`,
+read by `bash/bash_profile`; the installer writes it, and changing it and
+logging out switches compositor.
 
 Plasma here is not the KDE suite. `plasma-desktop` and `plasma-workspace` with
 SDDM are already 333 packages and 1 GB on their own — Plasma is simply large —
@@ -246,6 +263,25 @@ sudo ./install_fedora.sh --unattended --yes --desktop --disk /dev/vda \
 `--desktop` matters in a VM even for testing laptop changes: it turns off
 encryption (the LUKS passphrase would be prompted for mid-install) and the 32G
 swap partition, which a 40G test disk cannot spare.
+
+Add `--niri` or `--plasma` to test a desktop other than Hyprland.
+
+**This is not optional diligence.** The first from-scratch run after niri was
+added found six bugs in one afternoon, each hiding the next — three of them in
+the Hyprland path too, and one (`$ROOT`, an unset name that `set -u` makes
+fatal) that had broken *every* install for weeks while still appearing to
+succeed. The installer stops with the system apparently installed and bootable,
+missing only whatever the last few hundred lines do.
+
+Two things make a failed run diagnosable, both added because they were missing
+when it mattered:
+
+- the install log is copied to **`/var/log/fd44/install.log`** on the target. It
+  used to live in the live environment's `/tmp` and die at the reboot, so a
+  partial install left no evidence at all.
+- `--dry-run` **exits non-zero when the script dies**. It had been exiting 1 for
+  weeks and nobody read the status; that alone would have caught `$ROOT` the day
+  it landed.
 
 ### On a machine the installer did not build
 

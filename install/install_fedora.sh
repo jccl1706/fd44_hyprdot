@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Guided Fedora 44 installer                               v1.14  2026-09-16
+# Guided Fedora 44 installer                               v1.16  2026-10-09
 #   Btrfs + subvolumes  |  systemd-boot (UEFI)  |  optional LUKS2+LVM  |  hibernation
 #   Hyprland, niri or KDE Plasma  |  AMD (Framework 13)  |  laptop
 #   No display manager: getty autologin + uwsm  |  Plymouth graphical boot
@@ -8,11 +8,75 @@
 # Ported from install_arch_v3_3.sh. Same shape, same wizard/preflight/dry-run
 # plumbing, same Btrfs subvolume scheme and hibernation/zram logic - but the
 # desktop question was gone for a long time: this script only ever installed
-# Hyprland with quickshell as the bar. Since v1.15 it asks, and offers KDE
-# Plasma as the alternative - still two choices rather than a menu of eight,
-# and still no GNOME, niri or waybar branch.
+# Hyprland with quickshell as the bar. v1.15 added KDE Plasma and v1.16 niri,
+# so it is three choices rather than a menu of eight - and still no GNOME and
+# no waybar branch.
 #
 # Changelog
+#   v1.16 niri, AND SIX BUGS THAT A FROM-SCRATCH INSTALL FOUND IN ONE
+#         AFTERNOON - three of which broke the Hyprland path too, and one of
+#         which had broken EVERY install since v1.15.
+#
+#         THE MACHINE THIS SCRIPT WAS WRITTEN FOR HAD BEEN RUNNING niri FOR
+#         WEEKS and the script could not reproduce it. niri is not a third
+#         architecture, which is why the change is small: Hyprland and niri are
+#         the same desktop here - autologin on tty1, uwsm, quickshell as the
+#         bar, no display manager, quickshell from the same COPR - and differ
+#         in the compositor package and the session entry. `compositor_desktop`
+#         names that pair, and ten of the eleven tests that read `== hyprland`
+#         turned out to mean it.
+#
+#         The package list is EDITED rather than duplicated, so the two cannot
+#         drift: niri replaces hyprland, xwayland-satellite is added because
+#         niri has no built-in Xwayland, the portal becomes gnome plus gtk, and
+#         hyprland-guiutils is dropped. hyprlock, hypridle and hyprpolkitagent
+#         stay - they are not Hyprland-only.
+#
+#         And ~/.local/state/fd44-compositor is written, because the repo's
+#         bash_profile starts whichever compositor it names and defaults to
+#         Hyprland: without it a niri install reverts the moment the dotfiles
+#         are linked.
+#
+#         THE SIX BUGS, each of which hid the next:
+#
+#         $ROOT WAS NEVER A VARIABLE. One use, assigned nowhere, and `set -u`
+#         makes that fatal - so every install since the bondable fix died at
+#         the bluetooth step, after the packages and before the logind
+#         drop-ins, the verification pass and the summary. Machines built
+#         before it have /etc/systemd/logind.conf.d; machines built after do
+#         not, and nothing said why. --dry-run had been exiting 1 the whole
+#         time; nobody was reading the status.
+#
+#         A UNIT WITHOUT WantedBy= KILLED THE LOOP THAT LINKS USER UNITS.
+#         `wanted=$(grep -m1 '^WantedBy=' ...)` fails under pipefail when a
+#         unit has none, and set -e kills the script ON THE ASSIGNMENT -
+#         before the else branch written for exactly that case.
+#         backup.service has no WantedBy because its timer starts it, and it
+#         sorts first in the glob.
+#
+#         LINK-DOTFILES' EXIT STATUS ENDED THE INSTALL. It returns 1 when
+#         something is "in the way", which is information, not a reason to
+#         stop a script running with the disk already partitioned.
+#
+#         THE INSTALLER'S OWN ~/.bash_profile BLOCKED THE REPO'S. The same
+#         conflict already solved for ~/.config/hypr: link-dotfiles refuses to
+#         replace a real file, which is right for a person and wrong here.
+#
+#         THE PATCHED TERMINAL FONT WAS NEVER INSTALLED BY ANYTHING. kitty and
+#         alacritty both name "NotoSansM Nerd Font"; only SymbolsNerdFont was
+#         installed, and it is not a substitute. Measured in the VM, the name
+#         resolved to Noto Sans - a PROPORTIONAL face.
+#
+#         hypr/ WAS SKIPPED ON A niri MACHINE. bin/link-dotfiles.sh keyed it
+#         on the Hyprland binary, but hypridle.conf and hyprlock.conf live
+#         there too and both programs run under niri - so the directory was
+#         skipped after this script had already removed the stock one.
+#
+#         AND THE INSTALL LOG NOW SURVIVES at /var/log/fd44/install.log. It
+#         lived in the live environment's /tmp and died at the reboot, so a
+#         partial install left no evidence at all - which is why the first
+#         three VM runs could not be diagnosed afterwards.
+#
 #   v1.15 A SECOND DESKTOP, and five bugs the testing for it uncovered - four
 #         of which were in the Hyprland path all along.
 #
