@@ -99,8 +99,22 @@ def zone_coordinates() -> tuple[float, float] | None:
     """Latitude and longitude for this machine's timezone, from tzdata."""
     zone = subprocess.run(["timedatectl", "show", "-p", "Timezone", "--value"],
                           capture_output=True, text=True).stdout.strip()
-    table = Path("/usr/share/zoneinfo/zone1970.tab")
-    if not zone or not table.exists():
+    # WHERE zone1970.tab LIVES DEPENDS ON THE DISTRIBUTION, and getting this
+    # wrong is silent: no location, no sunrise, and the service exits 2 with
+    # "set latitude and longitude" - which reads like the config is at fault
+    # when the config is fine.
+    #
+    #   /usr/share/zoneinfo/zone1970.tab   Fedora, Debian, Arch, Gentoo
+    #   /etc/zoneinfo/zone1970.tab         NixOS - a symlink into the store,
+    #                                      where the path carries a hash and so
+    #                                      cannot be hardcoded
+    #
+    # Found on framework00 the day it was installed: every other machine this
+    # repository builds is FHS, so the first NixOS one was the first to fail.
+    table = next((t for t in (Path("/usr/share/zoneinfo/zone1970.tab"),
+                              Path("/etc/zoneinfo/zone1970.tab"))
+                  if t.exists()), None)
+    if not zone or table is None:
         return None
     for line in table.read_text().splitlines():
         if line.startswith("#"):
