@@ -169,6 +169,13 @@ if have ollama || $force_all; then
     link bashrc.d/ollama-claude.sh "$HOME/.bashrc.d/ollama-claude.sh"
 fi
 
+# SSH_AUTH_SOCK for shells that started before the agent's socket unit did -
+# which on an autologin machine is most of them. Unconditional: it is four lines
+# of shell, it does nothing when the variable is already set, and the failure it
+# fixes ("Error connecting to agent") looks like a broken agent rather than a
+# missing variable.
+link bashrc.d/ssh-agent.sh "$HOME/.bashrc.d/ssh-agent.sh"
+
 # tmux helpers, wherever tmux is. `tls` lists sessions and `ta` gets back into
 # one - and `ta` has to be a function rather than an alias, because attaching
 # from inside tmux needs switch-client instead. Keyed on tmux: the file is
