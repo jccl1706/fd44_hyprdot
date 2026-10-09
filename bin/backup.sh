@@ -34,11 +34,26 @@
 # is rotting", and neither answers "the disk is gone". This is the third one,
 # and until 2026-09-24 this repository had no answer to it at all.
 #
-# WHAT IT COPIES, and why it is so little. Measured rather than guessed: this
-# home directory is 933 MB, of which ~/Work is four git checkouts that are all
-# pushed, ~/.local/share/claude is a program that reinstalls itself, and
-# Documents, Pictures, Videos, Music and Downloads are empty. What is left is
-# about 400 MB, and the part that would really hurt is 80 KB of keys.
+# WHAT IT COPIES, and why it is so little. Measured rather than guessed, and
+# re-measured on 2026-10-09 when the laptop was being readied for a reinstall:
+# this home directory is 3.0 GB, of which ~/.cache is 959 MB, ~/.local/share/
+# claude is 724 MB of downloaded program versions that reinstall themselves,
+# ~/.vscode/extensions is 256 MB the marketplace will hand back, and
+# ~/.config/Code is 143 MB of which 142 MB is cache. ~/Work is four git
+# checkouts that are all pushed - and two directories that are NOT repositories
+# at all, debian-xfce4 and t480-gentoo, which is reason enough on its own to
+# copy the lot. Documents, Videos, Music and Downloads are empty; Pictures is
+# not, and was added that day.
+#
+# What is left is a few hundred megabytes, and the part that would really hurt
+# is 148 KB of keys.
+#
+# WHAT THIS CANNOT REACH, and so is on you: /etc/NetworkManager/
+# system-connections. Wi-Fi passwords are root-owned and outside /home
+# entirely, so a restored account joins no network until one is typed in again.
+# Automating it would mean writing a PSK to a file to copy it, which is a worse
+# trade than remembering one password. `nmcli -s -g 802-11-wireless-security.psk
+# connection show <name>` prints it while the machine still runs.
 #
 # RESTIC, AND WHY THE DISK IS NOT ENCRYPTED. restic encrypts the repository
 # itself - contents, metadata and filenames - so the disk holding it needs no
@@ -138,6 +153,28 @@ includes() {
 
         # Which theme is current, and the rest of this desktop's own state.
         "$STATE_DIR"
+
+        # --- added 2026-10-09, while working out what a reinstall would cost ---
+        #
+        # EDITOR SETTINGS, AND NOT THE EDITOR. ~/.config/Code/User is 948 KB and
+        # holds settings.json, keybindings, snippets and globalStorage. The rest
+        # of ~/.config/Code is 142 MB of cache - CachedExtensionVSIXs alone is
+        # 113 MB - and ~/.vscode/extensions is a further 256 MB that the
+        # marketplace will hand back on demand.
+        "$HOME/.config/Code/User"
+
+        # ...but WHICH extensions, which is the part the marketplace cannot tell
+        # you. 2.5 KB naming all four, against 256 MB to keep the copies.
+        "$HOME/.vscode/extensions/extensions.json"
+
+        # Screenshots and whatever else has been put there. Small, and not
+        # anywhere else.
+        "$HOME/Pictures"
+
+        # The icon theme, tarred up before it was installed. Rebuilding it means
+        # finding the upstream again and re-running bin/icon-theme.sh; 18 MB
+        # means not having to.
+        "$HOME/reversal-icons-backup.tar.gz"
     )
     printf '%s\n' "${paths[@]}"
 }
@@ -747,8 +784,21 @@ unmount. Needs FUSE.
 | \`~/.config/gh\`, \`~/.config/copr\` | API tokens |
 | \`~/.claude\`, \`~/.claude.json\` | sessions, memory, settings |
 | \`~/.config/chromium\` | logins, cookies, bookmarks, history |
-| \`~/Work\` | git checkouts - also on GitHub, but not the uncommitted parts |
+| \`~/Work\` | git checkouts - also on GitHub, but not the uncommitted parts, and two directories that are not repositories at all |
+| \`~/.config/Code/User\` | editor settings, keybindings, snippets - NOT the 400 MB of extensions and cache |
+| \`~/.vscode/.../extensions.json\` | which extensions, which the marketplace cannot tell you |
+| \`~/Pictures\`, the icon tarball | not anywhere else |
 | shell config, desktop state | small, and what makes the machine yours |
+
+NOT HERE, AND YOU WILL NOTICE: **Wi-Fi passwords.**
+\`/etc/NetworkManager/system-connections\` is root-owned and outside \`/home\`, so
+a restored account joins no network until one is typed in again. Copying it
+would mean writing a PSK to a file, which is a worse trade than remembering one
+password. While the machine still runs:
+
+\`\`\`sh
+nmcli -s -g 802-11-wireless-security.psk connection show <name>
+\`\`\`
 
 The system itself is not here and does not need to be: it is rebuilt from
 <https://github.com/jccl1706/fd44_hyprdot>, which is what put this file here.
