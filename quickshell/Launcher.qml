@@ -736,7 +736,13 @@ PanelWindow {
 
         Item {
             id: searchRow
-            anchors { top: parent.top; left: parent.left; right: parent.right
+            // AT THE BOTTOM, above the hint line. The stack inside this card
+            // reads downwards as list -> tabs -> divider -> search -> hints,
+            // each anchored to the one BELOW it, so the whole thing grows
+            // upwards from a fixed input position. The card's height is
+            // chromeHeight plus the list's content either way, so nothing here
+            // changes how big it gets - only the order.
+            anchors { bottom: hints.top; left: parent.left; right: parent.right
                       margins: Theme.barPadding }
             height: 40
 
@@ -797,7 +803,7 @@ PanelWindow {
 
         Rectangle {
             id: divider
-            anchors { top: searchRow.bottom; topMargin: Theme.barPadding
+            anchors { bottom: searchRow.top; bottomMargin: Theme.barPadding
                       left: parent.left; right: parent.right }
             height: 1
             color: Theme.dim
@@ -813,7 +819,7 @@ PanelWindow {
         Row {
             id: tabs
             visible: root.tabsVisible
-            anchors { top: divider.bottom; topMargin: root.tabsVisible ? 8 : 0
+            anchors { bottom: divider.top; bottomMargin: root.tabsVisible ? 8 : 0
                       horizontalCenter: parent.horizontalCenter }
             height: root.tabsVisible ? 26 : 0
             spacing: 6
@@ -870,14 +876,15 @@ PanelWindow {
         ListView {
             id: list
             anchors {
-                top: tabs.bottom
+                top: parent.top
                 left: parent.left
                 right: parent.right
-                bottom: parent.bottom
+                bottom: tabs.top
                 margins: 6
-                // The card's last few pixels ARE the frame strip - keep rows
-                // out of them, or a row can appear to bleed into the border.
-                bottomMargin: 6 + BarStyle.frameRun
+                // The frame strip is at the card's BOTTOM, which the hint line
+                // now covers - so the list no longer needs to hold itself off
+                // it. When the tabs are hidden their height collapses to zero
+                // and this simply meets the divider instead.
             }
 
             clip: true
