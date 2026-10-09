@@ -126,4 +126,28 @@ Singleton {
         interval: 5 * 60 * 1000
         onTriggered: backups.check()
     }
+
+    // THE STATE FILE, WATCHED, because every timer above can miss.
+    //
+    // bin/backup.sh writes this the moment a run finishes, whoever started it.
+    // The timers only cover the cases they were written for: half-hourly, once
+    // at login, and five minutes after the BAR launches one. A backup run from
+    // a terminal is invisible to all three, and so is one from the bar that
+    // takes longer than five minutes to finish - the recheck fires once, does
+    // not repeat, and lands while the run is still going.
+    //
+    // Found on framework00 the day it was installed: four backups were taken
+    // from a shell and the pill went on saying "never" for half an hour, while
+    // `backup.sh json` reported never=false the whole time. The data was right
+    // and the bar was stale, which is the worst way for this to be wrong -
+    // "never" is the one reading that should make somebody act.
+    FileView {
+        path: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state"))
+              + "/fd44-hyprdot/backup-last"
+        watchChanges: true
+        // Missing until the first backup, which is exactly when `never` is the
+        // correct answer - not a condition to warn about.
+        printErrors: false
+        onFileChanged: { reload(); backups.check() }
+    }
 }
