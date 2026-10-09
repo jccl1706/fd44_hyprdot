@@ -125,7 +125,14 @@ DropPanel {
                 readonly property bool connected: !!row.modelData.connected
                 readonly property bool busy: Bluetooth.busyMac === row.modelData.mac
 
-                width: root.panelWidth - 20
+                // MEASURED FROM THE SPACE THESE SIT IN, not from panelWidth.
+                // DropPanel insets its content by card.pad on each side, so a
+                // row's parent is panelWidth - 28 wide, not panelWidth. Asking
+                // for panelWidth - 20 made every row 8px wider than the column
+                // holding it and pushed its right edge 18px past the panel,
+                // where the screen clipped it: the rows read as a selector bar
+                // that did not fit the panel it was in.
+                width: parent.width - 20
                 x: 10
                 height: 46
                 radius: 8
@@ -195,7 +202,14 @@ DropPanel {
         Item { width: 1; height: 6 }
 
         Rectangle {
-            width: root.panelWidth - 20
+            // MEASURED FROM THE SPACE THESE SIT IN, not from panelWidth.
+            // DropPanel insets its content by card.pad on each side, so a
+            // row's parent is panelWidth - 28 wide, not panelWidth. Asking
+            // for panelWidth - 20 made every row 8px wider than the column
+            // holding it and pushed its right edge 18px past the panel,
+            // where the screen clipped it: the rows read as a selector bar
+            // that did not fit the panel it was in.
+            width: parent.width - 20
             x: 10
             height: 40
             radius: 8
@@ -250,7 +264,14 @@ DropPanel {
                 required property var modelData
                 readonly property bool busy: Bluetooth.busyMac === found.modelData.mac
 
-                width: root.panelWidth - 20
+                // MEASURED FROM THE SPACE THESE SIT IN, not from panelWidth.
+                // DropPanel insets its content by card.pad on each side, so a
+                // row's parent is panelWidth - 28 wide, not panelWidth. Asking
+                // for panelWidth - 20 made every row 8px wider than the column
+                // holding it and pushed its right edge 18px past the panel,
+                // where the screen clipped it: the rows read as a selector bar
+                // that did not fit the panel it was in.
+                width: parent.width - 20
                 x: 10
                 height: 44
                 radius: 8
