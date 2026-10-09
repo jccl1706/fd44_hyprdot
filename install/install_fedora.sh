@@ -2331,7 +2331,20 @@ if [[ -n "$dotfiles_repo" ]]; then
                 # exist". There is no user session in a chroot to run
                 # `systemctl --user` against either, so create the WantedBy
                 # symlink directly - which is exactly what enabling does.
-                wanted=$(grep -m1 '^WantedBy=' "$unit" | cut -d= -f2 | tr -d '[:space:]')
+                # `|| wanted=""`, AND THIS IS THE WHOLE INSTALL HANGING ON IT.
+                # A unit with no WantedBy= makes grep exit 1; pipefail carries
+                # that to the pipeline and set -e kills the script ON THE
+                # ASSIGNMENT - before reaching the else branch written below
+                # for exactly this case. backup.service and daylight.service
+                # have no WantedBy because they are started by their timers,
+                # and backup.service sorts FIRST in this glob, so every install
+                # with a dotfiles repo died here: no fonts, no service enables,
+                # no logind drop-ins, no verification pass, no summary. Three
+                # VM installs in a row ended at this line while reporting
+                # nothing wrong, because the last thing printed was
+                # link-dotfiles' own cheerful summary.
+                wanted=$(grep -m1 '^WantedBy=' "$unit" | cut -d= -f2 | tr -d '[:space:]') \
+                    || wanted=""
                 if [[ -n $wanted ]]; then
                     run fchroot sudo -u "$username" mkdir -p \
                         "/home/$username/.config/systemd/user/$wanted.wants"
