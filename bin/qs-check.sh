@@ -55,9 +55,25 @@
 # exits 2 and says so rather than failing the commit.
 #
 # WHAT COUNTS AS FAILURE. "Configuration Loaded" must appear, and no WARN or
-# ERROR lines may - except the notification-server clash, which is not a fault
-# in the config: a second instance cannot own org.freedesktop.Notifications
-# while the real shell has it, and it says so every time.
+# ERROR lines may - except two that are not faults in the config:
+#
+#   the notification-server clash   a second instance cannot own
+#                                   org.freedesktop.Notifications while the
+#                                   real shell has it, and it says so every time
+#
+#   GlobalShortcut, under niri ONLY shell.qml's shortcuts speak
+#                                   hyprland_global_shortcuts_v1, which niri
+#                                   does not implement. On a niri machine the
+#                                   binds live in niri/config.kdl and call
+#                                   `qs ipc` instead. Under Hyprland the same
+#                                   warning would be a real fault, so it is
+#                                   filtered only for the compositor that
+#                                   cannot answer it. The same applies to
+#                                   quickshell's Hyprland module warning that
+#                                   HYPRLAND_INSTANCE_SIGNATURE is unset:
+#                                   Compositor.qml speaks to whichever
+#                                   compositor is running, and under niri that
+#                                   module simply has nothing to connect to.
 
 set -uo pipefail
 
@@ -94,7 +110,19 @@ log()   { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
 
 [[ -e $config ]] || { red "qs-check: no such config: $config"; exit 2; }
 command -v qs >/dev/null       || { red "qs-check: quickshell (qs) is not installed"; exit 2; }
-command -v Hyprland >/dev/null || { red "qs-check: Hyprland is not installed"; exit 2; }
+# WHICHEVER COMPOSITOR THIS MACHINE HAS. The check needs a real one to nest in
+# (see the header) and does not care which: it watches for a new Wayland socket
+# and loads the shell into it. Hyprland first, because that is what this was
+# written against and what most of these machines run; niri because framework00
+# has no Hyprland at all, and a check that cannot run on the machine you are
+# committing from is a check that stops being run.
+if command -v Hyprland >/dev/null; then
+    comp=hyprland
+elif command -v niri >/dev/null; then
+    comp=niri
+else
+    red "qs-check: neither Hyprland nor niri is installed"; exit 2
+fi
 
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 
@@ -181,7 +209,11 @@ trap cleanup EXIT INT TERM
 # An EMPTY config, deliberately: the repository's own hypr config would start
 # the autostart programs - a second quickshell among them - and this is a test
 # of the QML, not a second desktop session.
+# A configuration with nothing in it, so what is being tested is the SHELL and
+# not the compositor's own settings. Both compositors accept an empty file;
+# niri's is KDL and Hyprland's is its own syntax, but empty is empty.
 : > "$work/empty.conf"
+: > "$work/empty.kdl"
 
 # The sockets that exist BEFORE, so the new one can be told apart from the
 # session's own. Matching on mtime alone picked the live socket when the
@@ -204,8 +236,16 @@ fi
 
 save_session_env
 
-log "starting a nested compositor"
-Hyprland -c "$work/empty.conf" > "$work/hyprland.log" 2>&1 &
+log "starting a nested compositor ($comp)"
+if [[ $comp == hyprland ]]; then
+    Hyprland -c "$work/empty.conf" > "$work/comp.log" 2>&1 &
+else
+    # niri picks its winit backend automatically when WAYLAND_DISPLAY is set,
+    # which is the same nesting Hyprland does - a window inside the session
+    # rather than a headless surface. hypr/rules.lua hides Hyprland's; niri's
+    # is titled "niri" and lives for the ~2s of a run.
+    niri -c "$work/empty.kdl" > "$work/comp.log" 2>&1 &
+fi
 hl_pid=$!
 
 sock=""
@@ -218,14 +258,18 @@ for _ in $(seq 1 $((compositor_wait * 5))); do
     [[ -n $sock ]] && break
     kill -0 "$hl_pid" 2>/dev/null || {
         red "qs-check: the compositor exited early - this is not a config failure"
-        tail -5 "$work/hyprland.log" | sed 's/^/  /'
+        tail -5 "$work/comp.log" | sed 's/^/  /'
         exit 2
     }
     sleep 0.2
 done
 [[ -n $sock ]] || { red "qs-check: no new Wayland socket after ${compositor_wait}s"; exit 2; }
 
-sig="$(cd "$XDG_RUNTIME_DIR/hypr" && ls -t 2>/dev/null | head -1)"   # the one just created
+# Hyprland's alone: it is how hyprctl finds the instance, and niri has no
+# equivalent (its IPC socket is named in NIRI_SOCKET, which the shell does not
+# need to load). Empty under niri, and an empty variable is not exported below.
+sig=""
+[[ $comp == hyprland ]] && sig="$(cd "$XDG_RUNTIME_DIR/hypr" && ls -t 2>/dev/null | head -1)"
 log "compositor up on $sock"
 
 # --- load the config -----------------------------------------------------
@@ -272,6 +316,24 @@ plain() { sed 's/\x1b\[[0-9;]*m//g' "$work/qs.log"; }
 problems="$(plain | grep -aE 'WARN|ERROR' \
     | grep -avE 'service\.notifications: (Could not register notification server|Registration will be attempted)' \
     || true)"
+
+# AND UNDER niri, THE GLOBAL SHORTCUTS, for the same kind of reason: not a
+# fault in the config, but a protocol the compositor does not implement.
+#
+# GlobalShortcut in shell.qml speaks hyprland_global_shortcuts_v1, which is
+# Hyprland's. niri has no equivalent and says so once per shortcut - eight
+# identical pairs of lines on this shell. On a niri machine those binds are not
+# used at all: niri/config.kdl calls `qs ipc` instead, which is the documented
+# arrangement, so the components sit there inert.
+#
+# Filtered ONLY under niri. Under Hyprland the same warning would mean the
+# protocol really is missing, which is worth failing on.
+if [[ $comp == niri ]]; then
+    problems="$(printf '%s\n' "$problems" \
+        | grep -avE 'GlobalShortcut will not work|does not support hyprland_global_shortcuts_v1' \
+        | grep -avE 'HYPRLAND_INSTANCE_SIGNATURE is unset|Cannot connect to hyprland' \
+        || true)"
+fi
 
 if (( ! loaded )); then
     red "qs-check: the configuration did NOT load"
