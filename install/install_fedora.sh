@@ -2294,9 +2294,20 @@ if [[ -n "$dotfiles_repo" ]]; then
             # but XDG_CONFIG_HOME wins over HOME when it is set, which is
             # correct of the script and would send the links somewhere else
             # entirely if the installer's environment happened to carry one.
+            # ITS EXIT STATUS MUST NOT END THE INSTALL. link-dotfiles.sh
+            # returns 1 when something was "in the way" - a real file where a
+            # link should go - which is information, not a reason to stop a
+            # script running under `set -e` with the disk already partitioned
+            # and every package written. The first niri VM did exactly that:
+            # one blocked file (~/.bash_profile, since fixed above) aborted the
+            # run, so the fonts, the service enables, the logind drop-ins and
+            # the whole verification pass never happened, and the installer
+            # exited looking like it had finished.
             run fchroot sudo -u "$username" env -u XDG_CONFIG_HOME \
                 "HOME=/home/$username" \
-                "/home/$username/Work/$dotdir/bin/link-dotfiles.sh"
+                "/home/$username/Work/$dotdir/bin/link-dotfiles.sh" \
+                || { warn "  link-dotfiles.sh reported a problem - see its output above"
+                     warn "  continuing: the rest of the install still has to run"; }
         elif (( DRY )); then
             log "  (dry run: nothing was cloned, so bin/link-dotfiles.sh is not"
             log "   there - on a real run it would link ~/.config here)"
@@ -2450,6 +2461,48 @@ else
         warn "  so it needs no network at all."
     fi
     rm -rf "$nerdfont_tmp"
+fi
+
+###############################################################################
+# The PATCHED terminal font, which is a different font from the one above
+###############################################################################
+#
+# SYMBOLS NERD FONT IS NOT WHAT THE TERMINALS ASK FOR. kitty.conf and
+# alacritty.toml both name "NotoSansM Nerd Font" - Noto Sans Mono with the Nerd
+# Font glyphs patched into it - and nothing above installs a font by that name.
+# fontconfig then substitutes silently, kitty picks some other monospace face
+# and alacritty takes a proportional one, so a freshly installed machine comes
+# up in the wrong font and the tmux status bar falls apart. Reported from the
+# first niri VM as "missing the fonts".
+#
+# The two are not alternatives and neither replaces the other. The symbols face
+# is the LAST-RESORT fallback in fontconfig/99-nerd-fallback.conf, for icons in
+# applications that do their own fallback; this one is the terminal's actual
+# font. fonts/noto-sans-mono-nerd/README.md has the measurements - a
+# symbols-only face cannot fit the separator glyphs into a terminal cell.
+#
+# VENDORED ONLY, with no download fallback. Unlike the symbols font there is no
+# upstream tarball of just these two faces, and the repository carries them -
+# so an install without a dotfiles repo simply does not get them, which is the
+# same position it is already in for every other config the repo provides.
+if [[ -n "$dotfiles_repo" ]]; then
+    termfont_src="$rootmnt/home/$username/Work/$(basename "${dotfiles_repo%.git}")/fonts/noto-sans-mono-nerd"
+    termfont_dir="$rootmnt/usr/local/share/fonts/noto-sans-mono-nerd"
+    if [[ -d "$termfont_src" ]] || (( DRY )); then
+        log "Installing the patched terminal font (NotoSansM Nerd Font)"
+        run mkdir -p "$termfont_dir"
+        for _face in "$termfont_src"/NotoSansMNerdFont-*.ttf; do
+            [[ -f "$_face" ]] || continue
+            run install -m 0644 -o root -g root "$_face" "$termfont_dir/$(basename "$_face")"
+            log "  /usr/local/share/fonts/noto-sans-mono-nerd/$(basename "$_face")"
+        done
+        unset _face
+        run fchroot fc-cache -f /usr/local/share/fonts >/dev/null 2>&1 || true
+    else
+        warn "the dotfiles repo has no fonts/noto-sans-mono-nerd - kitty and alacritty"
+        warn "  name \"NotoSansM Nerd Font\" and will be given something else instead."
+        warn "  After first boot:  sudo bin/install-nerd-font.sh"
+    fi
 fi
 
 ###############################################################################
@@ -2739,6 +2792,28 @@ run install -m 600 "$logfile" "$rootmnt/var/log/fedora-install.log"
 hibernate_hint=""
 if [[ "$want_swap" == yes ]]; then
     hibernate_hint=$'  Confirm hibernation before you rely on it:\n    systemctl hibernate\n\n'
+fi
+
+###############################################################################
+# The log, onto the disk it describes
+###############################################################################
+#
+# THE LOG LIVES IN THE LIVE ENVIRONMENT'S /tmp AND DIES WITH IT. Every
+# question about an install that went wrong - which step stopped, what the
+# warning said, whether a font actually landed - is answered by that file, and
+# until now the only copy vanished at the reboot that follows. A VM install
+# that stopped somewhere after the dotfiles step could not be diagnosed at all
+# afterwards; the evidence had already gone.
+#
+# Copied rather than moved, and best-effort: a missing log is not a reason to
+# fail an install that has otherwise finished.
+if [[ -n "$logfile" && -f "$logfile" ]]; then
+    run install -d -m 0755 "$rootmnt/var/log/fd44"
+    if run install -m 0600 -o root -g root "$logfile" "$rootmnt/var/log/fd44/install.log"; then
+        log "Install log kept at /var/log/fd44/install.log"
+    else
+        warn "could not copy the install log into the target"
+    fi
 fi
 
 # UNQUOTED on purpose - the summary interpolates $target, $username and the
