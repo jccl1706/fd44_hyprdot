@@ -183,7 +183,22 @@ excludes() {
     # Caches inside the trees above. Chromium's are the large ones and are
     # rebuilt on first launch; restic would otherwise copy a few hundred
     # megabytes that mean nothing.
+    #
+    # AND CHROMIUM'S SINGLETON FILES, WHICH ARE WORSE THAN USELESS RESTORED.
+    # They are how one chromium finds another: SingletonLock is a symlink named
+    # <hostname>-<pid>, SingletonSocket points into /tmp. Restored onto a
+    # machine with a different hostname, chromium finds a lock it cannot verify
+    # is dead and refuses to start at all - "The profile appears to be in use
+    # by another process", exit 21, no window.
+    #
+    # Found on framework00: a lock reading `framework-14207`, written on the
+    # Fedora install this machine replaced and restored with the profile. The
+    # browser would not launch from the app launcher or a keybind, which looks
+    # like a launcher fault and is not one.
+    #
+    # They cost nothing to lose - chromium writes fresh ones per run.
     printf '%s\n' \
+        "$HOME/.config/chromium/Singleton*" \
         "$HOME/.config/chromium/*/Cache" \
         "$HOME/.config/chromium/*/Code Cache" \
         "$HOME/.config/chromium/*/GPUCache" \
