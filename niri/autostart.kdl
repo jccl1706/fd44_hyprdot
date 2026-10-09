@@ -60,10 +60,22 @@ spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/evo4-gain.sh"
 // the first rather than racing it.
 spawn-at-startup "sh" "-c" "kitty --app-id kitty-framework -e tmux new-session -A -s framework claude --resume 4c3c50be-ace6-48fa-a669-28809a94ba06"
 
-// THE SYSTEMD USER SERVICES ARE LEFT TO niri-session. hypr/autostart.lua starts
-// pipewire, wireplumber and hypridle itself, each guarded by `systemctl --user
-// is-enabled`, because uwsm's graphical-session.target does not cover them there.
-// niri-session binds graphical-session.target the same way, so a service enabled
-// for the user starts with the session and starting it again here would be a
-// second copy or a no-op. If any of them does not come up, that guard is the
-// thing to add back.
+// THE SYSTEMD USER SERVICES ARE MOSTLY LEFT TO niri-session, which binds
+// graphical-session.target the way uwsm does on the Hyprland side, so anything
+// ENABLED for the user starts with the session and starting it again here would
+// be a second copy or a no-op. pipewire and wireplumber come up that way.
+//
+// EXCEPT hypridle, AND THE REASON IS WRITTEN DOWN IN hypr/autostart.lua ALREADY:
+// nixpkgs ships hypridle.service with `preset: ignored`, so it is never enabled
+// and niri-session has nothing to start. The Hyprland side hit this on the
+// gaming desktop on 2026-09-24 - the unit sat "inactive (dead)" with no journal
+// entries and the screen never locked - and fixed it with the guarded fallback
+// below. This file assumed niri-session covered it and so did not carry the
+// fix, which is why framework00 woke from sleep unlocked: nothing was running
+// to answer logind's Lock signal.
+//
+// SAME GUARD, SAME ORDER. If the unit IS enabled somewhere, systemd owns it and
+// this does nothing; if a hypridle is already running, this does nothing; only
+// otherwise does it start one. hypridle is not a binary nixpkgs wraps, so its
+// comm is plain `hypridle` and one spelling is enough.
+spawn-at-startup "sh" "-c" "systemctl --user -q is-enabled hypridle.service 2>/dev/null || pgrep -x hypridle >/dev/null 2>&1 || hypridle &"
