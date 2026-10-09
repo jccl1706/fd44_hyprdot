@@ -2686,7 +2686,12 @@ if [[ "$desktop" == plasma ]]; then
     check "breeze-gtk (GTK apps themed)" "fchroot rpm -q breeze-gtk >/dev/null 2>&1"
     check "the four modules"           "fchroot rpm -q plasma-nm bluedevil kscreen plasma-pa >/dev/null 2>&1"
 else
-check "hyprland-uwsm session entry"    "[[ -f '$rootmnt/usr/share/wayland-sessions/hyprland-uwsm.desktop' || -f '$rootmnt/usr/local/share/wayland-sessions/hyprland-uwsm.desktop' ]]"
+[[ "$desktop" == hyprland ]] && \
+    check "hyprland-uwsm session entry"    "[[ -f '$rootmnt/usr/share/wayland-sessions/hyprland-uwsm.desktop' || -f '$rootmnt/usr/local/share/wayland-sessions/hyprland-uwsm.desktop' ]]"
+# niri ships niri.desktop in its own package, so there is nothing for this
+# script to write and nothing to check.
+[[ "$desktop" == niri ]] && \
+    check "niri session entry"         "[[ -f '$rootmnt/usr/share/wayland-sessions/niri.desktop' ]]"
 # Run this one INSIDE the chroot. When dotfiles are used, ~/.config/hypr is a
 # symlink to an absolute path that is only valid in the target - read from the
 # live system as $rootmnt/... it dangles and the check fails spuriously.
@@ -2764,8 +2769,12 @@ if [[ "$browser" == chromium && -n "$dotfiles_repo" ]]; then
     check "chromium theme watcher enabled"   "[[ -L '$rootmnt/etc/systemd/system/multi-user.target.wants/fd44-chromium-theme.path' ]]"
 fi
 if compositor_desktop; then
-    check "uwsm start hook in profile" "grep -q 'uwsm check may-start' '$rootmnt/home/$username/.bash_profile'"
-    check "forced password change in profile" "grep -q 'password-changed' '$rootmnt/home/$username/.bash_profile'"
+    # THROUGH THE CHROOT, because the profile is a SYMLINK once the dotfiles
+    # are linked - and it points at /home/<user>/Work/..., an absolute path
+    # that means nothing from outside. Grepping $rootmnt/... then fails on a
+    # perfectly correct install, which is what it did.
+    check "uwsm start hook in profile" "fchroot grep -q 'uwsm check may-start' '/home/$username/.bash_profile'"
+    check "forced password change in profile" "fchroot grep -q 'password-changed' '/home/$username/.bash_profile'"
 else
     # Plasma cannot gate on the shell profile, and cannot expire the password
     # either - SDDM refuses an expired one outright. The gate is an autostart

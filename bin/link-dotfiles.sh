@@ -124,12 +124,31 @@ wants() {
     return 1
 }
 
+# wants_any <what the link is for> <program> [program...]
+#
+# The same test for a directory that more than one program reads. hypr/ is the
+# case: it holds hypridle.conf and hyprlock.conf as well as hyprland.conf, and
+# hypridle and hyprlock are installed on niri machines that have no Hyprland at
+# all. Keyed on Hyprland alone, a niri-only install skipped the directory and
+# hypridle came up with no configuration - found on the first such machine
+# built from scratch.
+wants_any() {
+    local what="$1"; shift
+    local p
+    if $force_all; then return 0; fi
+    for p in "$@"; do have "$p" && return 0; done
+    note "skipped   $what - none of: $* (--all to link anyway)"
+    skipped=$((skipped + 1))
+    return 1
+}
+
 printf '\nlinking into %s\n\n' "${REPO/#$HOME/\~}"
 
 # The Hyprland desktop's own configuration. On a machine running something
 # else - the installer can build KDE Plasma instead - these are three symlinks
 # into a checkout that nothing ever reads.
-wants Hyprland  "hypr"       && link hypr       "$CONFIG/hypr"
+# hypridle and hyprlock read this directory too, and both run under niri.
+wants_any "hypr" Hyprland hypridle hyprlock && link hypr "$CONFIG/hypr"
 
 # THE WHOLE DIRECTORY, not niri/config.kdl on its own, and that is forced rather
 # than chosen: niri resolves a relative include against the directory the config
