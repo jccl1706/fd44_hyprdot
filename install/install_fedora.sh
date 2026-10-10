@@ -426,6 +426,9 @@
 #   ./install_fedora.sh --dotfiles URL  clone this repo and link its configs
 #   ./install_fedora.sh --hyprland      pick the desktop without the wizard
 #   ./install_fedora.sh --niri          niri + quickshell, same autologin and bar
+#   ./install_fedora.sh --swap none     no swap volume and no hibernation; takes
+#                                       a size too (--swap 32G). Only meaningful
+#                                       with --unattended, which skips the wizard
 #   ./install_fedora.sh --plasma        KDE Plasma with SDDM
 #
 # Recommended first run:  --check-repos, then --preflight, then --dry-run, then for real.
@@ -693,6 +696,20 @@ while [[ $# -gt 0 ]]; do
         --hyprland)       desktop="hyprland" ;;
         --niri)           desktop="niri" ;;
         --dotfiles)       dotfiles_repo="${2:?--dotfiles needs a git URL}"; shift ;;
+        # SAME REASON AS --plasma ABOVE: --unattended skips the wizard, and
+        # without this there is no way to decline swap except by editing the
+        # script. --desktop does set swap_size=none, but it also turns off
+        # encryption and the lid handling, which is wrong for a laptop.
+        #
+        # THE CASE THIS WAS WRITTEN FOR is the Framework 13 AMD: encrypted,
+        # with a lid and a battery, and deliberately WITHOUT hibernation -
+        # resuming from it is unreliable on that hardware, so a swap volume
+        # sized to RAM would be 54 GB spent on a feature that crashes. See the
+        # comment beside the swap prompt in the wizard.
+        #
+        #   --swap none    no swap volume, no resume=, no hibernation
+        #   --swap 32G     that much, which is what makes hibernation work
+        --swap)           swap_size="${2:?--swap needs a size or \"none\"}"; shift ;;
         -h|--help)        awk 'NR>1 && /^#/ {print; next} NR>1 {exit}' "$0"; exit 0 ;;
         *)                die "unknown option: $1  (try --help)" ;;
     esac
