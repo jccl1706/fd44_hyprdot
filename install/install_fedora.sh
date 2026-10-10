@@ -1014,6 +1014,19 @@ basepacs=(
     dnf5-plugins
     zstd tar
     glibc-langpack-en
+    # THE BACKUP TOOL, because every machine this script builds is meant to
+    # back itself up and none of the rest of that arrangement is enough on its
+    # own. link-dotfiles.sh links bin/backup.sh and its systemd units onto each
+    # one, and ~/.config/fd44-backup can be rebuilt from the disk UUIDs - but
+    # restic itself is not a dependency of anything else here, so a freshly
+    # installed machine had the script, the timer and the config and no tool.
+    #
+    # Found on framework 2026-10-10, on a machine whose whole job that hour was
+    # to receive a restore: `bin/backup.sh restore` could not run until restic
+    # was installed by hand. Same trap as shadow-utils and the SELinux policy
+    # above - something that used to be present because an earlier machine had
+    # it, rather than because this list asked for it.
+    restic
 )
 [[ "$encrypt" == yes ]] && basepacs+=(cryptsetup lvm2)
 [[ -n "$zram_size" ]] && basepacs+=(zram-generator-defaults)
