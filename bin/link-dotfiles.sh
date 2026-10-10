@@ -355,6 +355,51 @@ link systemd/backup.timer   "$CONFIG/systemd/user/backup.timer"
 link systemd/daylight.service "$CONFIG/systemd/user/daylight.service"
 link systemd/daylight.timer   "$CONFIG/systemd/user/daylight.timer"
 
+# --- units that are useless unless enabled ---------------------------------
+#
+# A LINKED UNIT IS NOT A RUNNING UNIT, and the difference has cost this
+# repository four separate afternoons:
+#
+#   hypridle      enabled by hand on Fedora, never on NixOS - the gaming
+#                 desktop went months without a lock screen, and framework
+#                 woke from sleep unlocked. Fixed in the compositor autostarts.
+#   ssh-agent     enabled by hand on the old Fedora install. A reinstall left
+#                 the agent not running at all, with ~/.bashrc pointing at a
+#                 socket that nothing was listening on.
+#   backup.timer  enabled by hand. A reinstalled machine had the script, the
+#                 units and the config, and nothing firing them.
+#
+# Every one of them presented as "it worked yesterday and does not today",
+# because the state that made it work lived in no checkout. These two are
+# enabled HERE so that stops being true. Each is guarded: already enabled is
+# left alone, and a unit that does not exist on this machine is skipped.
+#
+# NOT DONE HERE: sshd, which is a system service needing root, and
+# daylight.timer, which changes the desktop under you - see its note above.
+enable_unit() {
+    # $1 unit, $2 what it is for
+    systemctl --user list-unit-files "$1" >/dev/null 2>&1 || return 0
+    case "$(systemctl --user is-enabled "$1" 2>/dev/null)" in
+        enabled|enabled-runtime|static|indirect) return 0 ;;
+    esac
+    if $dry_run; then note "would enable $1 - $2"; return 0; fi
+    if systemctl --user enable --now "$1" >/dev/null 2>&1; then
+        note "enabled   $1 - $2"
+    fi
+}
+
+# The agent every one of these machines needs: the fd44 keys carry
+# passphrases, so without it every ssh and git push prompts. Socket-activated,
+# so enabling it costs nothing until something connects.
+enable_unit ssh-agent.socket "so ssh-add has an agent to talk to"
+
+# The backup, but ONLY once it has been pointed at a disk. Enabled before
+# that, it would wake daily to fail on a missing config - which is worse than
+# not running, because a timer that always fails is a timer nobody reads.
+if [ -s "${XDG_CONFIG_HOME:-$HOME/.config}/fd44-backup/config" ]; then
+    enable_unit backup.timer "the nightly backup, now that a disk is configured"
+fi
+
 printf '\n  %d linked, %d already right, %d repointed, %d skipped, %d in the way\n' \
     "$made" "$already" "$fixed" "$skipped" "$blocked"
 
@@ -375,10 +420,25 @@ if [ "$made" -gt 0 ] || [ "$fixed" -gt 0 ]; then
     bin/backup.sh setup      the copy that is not on this disk
     systemctl --user enable --now daylight.timer   wallpaper that follows the sun
     bin/icon-bridge.sh       so quickshell can see the icon theme at all
-    bin/starship-setup.sh    the two-line prompt
-    bin/icon-theme.sh        the Reversal icons the palettes ask for
+    bin/starship-setup.sh    the two-line prompt, fetched from upstream
+                             (starship is not a Fedora package)
     bin/gaming-setup.sh      MangoHud, gamemode and the Steam pieces
     bin/plasma-setup.sh      the Plasma settings that cannot be symlinked
+
+  THE ICON THEME IS NOT INSTALLED BY ANYTHING HERE. Reversal-grey is not a
+  Fedora package and this repository carries no script for it - the line that
+  used to sit above named bin/icon-theme.sh, which has never existed in this
+  tree or in its history. It comes from upstream:
+
+    https://github.com/yeyushengfan258/Reversal-icon-theme
+
+  extracted into ~/.local/share/icons, then:
+
+    gsettings set org.gnome.desktop.interface icon-theme 'Reversal-grey'
+    bin/icon-bridge.sh
+
+  On a machine restored from backup it arrives as
+  ~/reversal-icons-backup.tar.gz, which bin/backup.sh keeps for this reason.
 NEXT
 fi
 
