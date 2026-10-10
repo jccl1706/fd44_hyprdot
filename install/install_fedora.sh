@@ -1027,9 +1027,36 @@ basepacs=(
     # above - something that used to be present because an earlier machine had
     # it, rather than because this list asked for it.
     restic
+    # THE FIREWALL, which Fedora's own installs get from a comps group and an
+    # --installroot build from an explicit list does not. Every machine this
+    # script has ever built came up with NO PACKET FILTER AT ALL, and nothing
+    # said so, because an absent firewall looks exactly like a working one
+    # until somebody is on the same network as you.
+    #
+    # It is not theoretical: openssh-server arrives here as somebody else's
+    # dependency (this script never names it), Fedora's sshd defaults to
+    # PasswordAuthentication yes, and sshd on 0.0.0.0:22 behind nothing is a
+    # laptop's problem the moment it leaves the house. Found on framework
+    # 2026-10-10, on an install from this script, during an audit.
+    #
+    # Fedora's public zone permits ssh, so enabling this does not lock out a
+    # machine you administer remotely - which is the usual reason people leave
+    # it out and then forget.
+    firewalld
 )
 [[ "$encrypt" == yes ]] && basepacs+=(cryptsetup lvm2)
-[[ -n "$zram_size" ]] && basepacs+=(zram-generator-defaults)
+# ZRAM ALWAYS, not only when --swap asked for a size. The old condition read
+# `[[ -n "$zram_size" ]]`, and $zram_size is empty by default, so the ordinary
+# install - and every --swap none install, which is what a machine that must
+# not hibernate gets - came up with NO SWAP OF ANY KIND. Not a small swap: a
+# kernel with nowhere to put an anonymous page, which skips reclaim and goes
+# straight to killing something.
+#
+# framework was found this way on 2026-10-10: 54.7 GiB of RAM, zero swap
+# devices, zram module not even loaded, on a machine whose documented design
+# says zram is its only memory valve. A compressed valve in RAM costs nothing
+# until it is used and is wanted on every machine here, hibernation or not.
+basepacs+=(zram-generator-defaults)
 
 hwpacs=(
     # CHECK THIS ONE ON ANY NEW MACHINE. Fedora 44 split the iwlwifi blobs out
@@ -2616,7 +2643,10 @@ fi
 # Services
 ###############################################################################
 log "Enabling services"
-services=(NetworkManager bluetooth fstrim.timer systemd-timesyncd)
+# firewalld is here for the same reason it is in basepacs: installing a
+# firewall and not starting it leaves exactly the gap that installing no
+# firewall does.
+services=(NetworkManager bluetooth fstrim.timer systemd-timesyncd firewalld)
 [[ "$machine" == laptop ]] && services+=(power-profiles-daemon)
 # Plasma logs in through SDDM. The Hyprland side deliberately has no display
 # manager at all - see the autologin section below for why that is not an
@@ -2799,6 +2829,14 @@ target_uid=""
 compositor_desktop && \
     check "user owns their config dir" "[[ -n '$target_uid' && \$(stat -c %u '$rootmnt/home/$username/.config') == '$target_uid' ]]"
 check "autorelabel scheduled"          "[[ -f '$rootmnt/.autorelabel' ]]"
+# THESE TWO EXIST BECAUSE BOTH WERE ABSENT FOR MONTHS WITHOUT ANYBODY
+# NOTICING. A missing firewall and a missing swap device both present as
+# nothing at all - the machine boots, logs in and behaves - so neither shows
+# up until an audit or an OOM kill. Asserting them here is the only way the
+# next install cannot quietly lose them again.
+check "firewall installed"             "fchroot rpm -q firewalld >/dev/null 2>&1"
+check "firewall enabled"               "fchroot systemctl is-enabled firewalld >/dev/null 2>&1"
+check "zram configured"                "fchroot rpm -q zram-generator-defaults >/dev/null 2>&1"
 compositor_desktop && \
     check "quickshell installed"       "[[ -x '$rootmnt/usr/bin/quickshell' ]]"
 # The font download is the one step here that reaches the public internet at
