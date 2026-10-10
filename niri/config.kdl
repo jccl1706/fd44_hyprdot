@@ -355,60 +355,8 @@ animations {
         curve "ease-out-expo"
     }
     window-close {
-        duration-ms 200
+        duration-ms 100
         curve "ease-out-quad"
-
-        // THE CLOSING WINDOW SHRINKS, DRIFTS DOWN AND FADES. 200ms rather
-        // than the 100ms the other one-shots get, because nothing waits on a
-        // window that is already gone - this is the one animation here that
-        // can afford to be seen.
-        //
-        // THE INTERFACE IS NOT WHAT THE WIKI DOCUMENTS. niri's own
-        // Configuration:-Animations.md shows niri_tex_next and
-        // niri_geo_to_tex_next, but those exist only for window-resize: an
-        // open/close shader that names either gets "`niri_tex_next'
-        // undeclared" and is silently dropped. The real names here, read out
-        // of the uniform declarations in /usr/bin/niri, are niri_tex and
-        // niri_geo_to_tex. Verified by probing both and reading the GLSL
-        // compile errors in the journal.
-        //
-        // A shader that will not compile is not fatal: niri logs a warning
-        // and falls back to the default curve, which is also why a typo here
-        // shows up as "the animation stopped working" rather than as an
-        // error. To see them:
-        //     journalctl --user -u wayland-wm@niri.desktop.service -f
-        //
-        // And per the wiki's own warning, custom shaders have NO backwards
-        // compatibility guarantee - this one can break on a niri upgrade.
-        custom-shader r"
-            vec4 close_color(vec3 coords_geo, vec3 size_geo) {
-                float p = niri_clamped_progress;
-
-                // Shrink toward the centre. Sampling a WIDER area than we
-                // draw is what makes the image appear smaller.
-                float scale = 1.0 - 0.25 * p;
-
-                vec2 c = coords_geo.xy - vec2(0.5);
-                c /= scale;
-
-                // Drift downward. Sampling higher up draws the window lower,
-                // so this subtracts rather than adds.
-                c.y -= 0.12 * p;
-
-                c += vec2(0.5);
-
-                // Outside the window there is nothing to draw.
-                if (c.x < 0.0 || c.x > 1.0 || c.y < 0.0 || c.y > 1.0)
-                    return vec4(0.0);
-
-                vec3 tex_coords = niri_geo_to_tex * vec3(c, 1.0);
-                vec4 color = texture2D(niri_tex, tex_coords.st);
-
-                // niri works in premultiplied alpha, so scaling the whole
-                // vec4 fades the window correctly - rgb and a together.
-                return color * (1.0 - p);
-            }
-        "
     }
     screenshot-ui-open {
         duration-ms 120
