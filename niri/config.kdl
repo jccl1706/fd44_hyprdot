@@ -301,12 +301,71 @@ screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
 // Animation settings.
 // The wiki explains how to configure individual animations:
 // https://niri-wm.github.io/niri/Configuration:-Animations
+// FASTER THAN niri'S DEFAULTS, to match the feel the Hyprland side already
+// has: hypr/look.lua runs global at speed 3 on a "snappy" bezier and windows
+// on a spring. Left at stock, niri felt slower than the same desktop under
+// Hyprland, which is the sort of difference that makes one compositor feel
+// worse than the other for no reason anybody can name.
+//
+// HOW THESE NUMBERS WORK. A spring is stiffness, damping-ratio and epsilon:
+// stiffness is how hard it pulls, so HIGHER IS FASTER; damping-ratio 1.0 is
+// critically damped, meaning it arrives and stops without overshooting, and
+// below 1.0 it bounces. Every spring here stays at 1.0 - the aim is quick,
+// not springy. A duration animation is just milliseconds plus an easing
+// curve.
+//
+// niri 26.04's defaults, for comparison, since the point is the delta:
+//
+//     workspace-switch            stiffness 1000
+//     horizontal-view-movement    stiffness 800
+//     window-movement             stiffness 800
+//     window-resize               stiffness 800
+//     overview-open-close         stiffness 800
+//     window-open                 150ms
+//     window-close                150ms
+//     screenshot-ui-open          200ms
 animations {
     // Uncomment to turn off all animations.
     // off
 
-    // Slow down all animations by this factor. Values below 1 speed them up instead.
-    // slowdown 3.0
+    // THE MOVEMENTS, stiffened. These are the ones felt constantly - focusing
+    // a column, moving a window, switching workspace - so they are where
+    // "snappy" is actually decided.
+    workspace-switch {
+        spring damping-ratio=1.0 stiffness=1400 epsilon=0.0001
+    }
+    horizontal-view-movement {
+        spring damping-ratio=1.0 stiffness=1200 epsilon=0.0001
+    }
+    window-movement {
+        spring damping-ratio=1.0 stiffness=1200 epsilon=0.0001
+    }
+    window-resize {
+        spring damping-ratio=1.0 stiffness=1200 epsilon=0.0001
+    }
+    overview-open-close {
+        spring damping-ratio=1.0 stiffness=1100 epsilon=0.0001
+    }
+
+    // THE ONE-SHOTS, shortened. 150ms is not slow in isolation; it is slow
+    // when it sits between pressing a key and seeing the result, which is
+    // exactly where these two live.
+    window-open {
+        duration-ms 100
+        curve "ease-out-expo"
+    }
+    window-close {
+        duration-ms 100
+        curve "ease-out-quad"
+    }
+    screenshot-ui-open {
+        duration-ms 120
+        curve "ease-out-quad"
+    }
+
+    // LEFT ALONE: config-notification-open-close, which is the only animation
+    // here meant to be noticed rather than got through - it is how a broken
+    // config announces itself.
 }
 
 // Window rules let you adjust behavior for individual windows.
@@ -403,7 +462,6 @@ binds {
     // or do a four-finger swipe up on a touchpad.
     Mod+O repeat=false { toggle-overview; }
 
-    Mod+Q repeat=false { close-window; }
 
     Mod+Left  { focus-column-left; }
     Mod+Down  { focus-window-down; }
@@ -600,10 +658,21 @@ binds {
     Mod+V       { toggle-window-floating; }
     Mod+Shift+V { switch-focus-between-floating-and-tiling; }
 
-    // Toggle tabbed column display mode.
-    // Windows in this column will appear as vertical tabs,
-    // rather than stacked on top of each other.
-    Mod+W { toggle-column-tabbed-display; }
+    // CLOSE, ON Mod+W, because that is what the Hyprland side of this
+    // repository has always used - hypr/binds.lua binds Mod+W to
+    // window.close(). niri's own default is Mod+Q, which meant the same hands
+    // closed windows with a different key depending on which compositor was
+    // running. One repository, one key.
+    //
+    // repeat=false so that holding it does not walk through a stack of
+    // windows: closing is not a thing to autorepeat.
+    Mod+W repeat=false { close-window; }
+
+    // Toggle tabbed column display mode: windows in the column appear as
+    // vertical tabs rather than stacked. Moved off Mod+W when that became
+    // close; G for "group", which is what a tabbed column is, and the nearest
+    // free key with a mnemonic.
+    Mod+G { toggle-column-tabbed-display; }
 
     // Actions to switch layouts.
     // Note: if you uncomment these, make sure you do NOT have
