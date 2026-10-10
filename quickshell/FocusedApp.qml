@@ -50,12 +50,49 @@ Item {
     // So the window must ALSO be on the workspace being looked at. Both
     // halves are needed: the workspace alone would match every window on it,
     // and the history alone matches a window that is not here.
-    readonly property var focused: {
+    readonly property var focusedRaw: {
         const w = Compositor.focusedWindow
         if (!w) return null
         const here = Compositor.focusedWorkspaceId
         if (here === -1 || w.workspaceId !== here) return null
         return w
+    }
+
+    // AND IT MUST SURVIVE OUR OWN POPUPS, which is the second time a layer
+    // surface has blanked this icon. The note above is about hyprlock doing it
+    // on Hyprland; this is every panel in this shell doing it on niri.
+    //
+    // niri reports NO focused window at all while a layer surface holds the
+    // keyboard - the same fact NiriFocusGrab.qml depends on to know a panel
+    // still has focus. So opening the launcher, the power menu, the wallpaper
+    // or theme picker made `focusedWindow` null and the icon vanished, every
+    // time, returning when the panel closed. Measured on the running
+    // compositor: `kitty` focused, then NONE while a popup was up.
+    //
+    // The icon answers "which application am I in", and that does not change
+    // because a menu opened over it. So the last window seen focused is held.
+    property var lastFocused: null
+    onFocusedRawChanged: if (root.focusedRaw) root.lastFocused = root.focusedRaw
+
+    readonly property var focused: {
+        if (root.focusedRaw) return root.focusedRaw
+
+        // Nothing holds the keyboard. Either one of our own surfaces took it,
+        // or the workspace really is empty - and ONLY THE SECOND should clear
+        // the icon. That distinction is the whole bug documented above: an
+        // empty workspace must still blank it.
+        const here = Compositor.focusedWorkspaceId
+        if (here === -1) return null
+
+        const last = root.lastFocused
+        // A window remembered from another workspace is not this one's answer,
+        // so switching workspace while a panel is open does not drag an icon
+        // across with it.
+        if (!last || last.workspaceId !== here) return null
+
+        for (const w of Compositor.windows)
+            if (w.workspaceId === here) return last
+        return null
     }
 
     // WHAT THE EVENT SAID, WITHOUT WAITING TO BE TOLD AGAIN.
