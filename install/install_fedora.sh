@@ -1053,6 +1053,17 @@ basepacs=(
     # machine you administer remotely - which is the usual reason people leave
     # it out and then forget.
     firewalld
+    # openssh-server, BECAUSE THIS MACHINE IS INSTALLED AND RECOVERED OVER ssh.
+    # It was missing, and the symptom was a freshly installed laptop that
+    # answered ping and mDNS but refused port 22 - so the only way back in was
+    # its own keyboard. That is exactly the wrong moment to discover it: the
+    # installer itself is driven over ssh from another machine.
+    #
+    # NO FIREWALL RULE IS NEEDED. firewalld's default zones both already allow
+    # ssh (public allows ssh + mdns, FedoraWorkstation ssh + samba-client), so
+    # enabling the service is the whole job. Checked against the shipped zone
+    # definitions rather than assumed.
+    openssh-server
 )
 [[ "$encrypt" == yes ]] && basepacs+=(cryptsetup lvm2)
 # ZRAM ALWAYS, not only when --swap asked for a size. The old condition read
@@ -2678,7 +2689,7 @@ log "Enabling services"
 # firewalld is here for the same reason it is in basepacs: installing a
 # firewall and not starting it leaves exactly the gap that installing no
 # firewall does.
-services=(NetworkManager bluetooth fstrim.timer systemd-timesyncd firewalld)
+services=(NetworkManager bluetooth fstrim.timer systemd-timesyncd firewalld sshd)
 [[ "$machine" == laptop ]] && services+=(power-profiles-daemon)
 # Plasma logs in through SDDM. The Hyprland side deliberately has no display
 # manager at all - see the autologin section below for why that is not an
@@ -2868,6 +2879,8 @@ check "autorelabel scheduled"          "[[ -f '$rootmnt/.autorelabel' ]]"
 # next install cannot quietly lose them again.
 check "firewall installed"             "fchroot rpm -q firewalld >/dev/null 2>&1"
 check "firewall enabled"               "fchroot systemctl is-enabled firewalld >/dev/null 2>&1"
+check "sshd installed"                 "fchroot rpm -q openssh-server >/dev/null 2>&1"
+check "sshd enabled"                   "fchroot systemctl is-enabled sshd >/dev/null 2>&1"
 check "zram configured"                "fchroot rpm -q zram-generator-defaults >/dev/null 2>&1"
 compositor_desktop && \
     check "quickshell installed"       "[[ -x '$rootmnt/usr/bin/quickshell' ]]"
