@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =========================================================================
-# gtk-theme.sh - the GTK and icon themes Fedora does not package
+# gtk-theme.sh - the GTK, icon and cursor themes Fedora does not package
 # =========================================================================
 #
 # Usage:  bin/gtk-theme.sh            install anything missing (no root)
@@ -54,6 +54,7 @@ SHARE="${XDG_DATA_HOME:-$HOME/.local/share}"
 ITEMS=(
   "gtk|Nordic|$SHARE/themes|https://github.com/EliverLara/Nordic/releases/download/v2.2.0/Nordic.tar.xz|d162d694e13bec518636b193fbe84ccea44da9a81a89015c6713f6b258ee36d5"
   "icon|Nordzy-dark|$SHARE/icons|https://github.com/MolassesLover/Nordzy-icon/releases/download/1.8.7/Nordzy-dark.tar.gz|ad752b5ce70577408431734fc8004f928a00027a8fce6dd131ae2d0c3dc82069"
+  "cursor|Bibata-Modern-Classic|$SHARE/icons|https://github.com/ful1e5/Bibata_Cursor/releases/download/v2.0.7/Bibata-Modern-Classic.tar.xz|7d3495864e5bbef02f5e77de760b2905903b63c71495a78ef6306d19a3b556d8"
 )
 
 c_g=$'\033[1;32m'; c_y=$'\033[1;33m'; c_r=$'\033[1;31m'; c_d=$'\033[2m'; c_0=$'\033[0m'
@@ -76,6 +77,11 @@ marker() { # kind dir -> the file whose presence means "installed"
     case "$1" in
         gtk)  printf '%s/index.theme' "$2" ;;
         icon) printf '%s/index.theme' "$2" ;;
+        # A CURSOR THEME IS PROVED BY ITS cursors/ DIRECTORY, not index.theme.
+        # Bibata ships both, but an index.theme alone is what a half-extracted
+        # or wrong-variant download leaves behind, and a cursor theme without
+        # cursors/ resolves to nothing - the pointer silently stays Adwaita.
+        cursor) printf '%s/cursors' "$2" ;;
     esac
 }
 
@@ -83,7 +89,7 @@ if [[ $mode == status ]]; then
     printf '  %-20s %-22s %s\n' KIND NAME STATE
     for e in "${ITEMS[@]}"; do
         IFS='|' read -r kind name dest _ _ <<<"$e"
-        if [[ -f "$(marker "$kind" "$dest/$name")" ]]; then
+        if [[ -e "$(marker "$kind" "$dest/$name")" ]]; then
             printf '  %-20s %-22s present  %s\n' "$kind" "$name" "$(du -sh "$dest/$name" 2>/dev/null | cut -f1)"
         else
             printf '  %-20s %-22s MISSING  (would go in %s)\n' "$kind" "$name" "${dest/#$HOME/\~}"
@@ -117,7 +123,7 @@ TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 for e in "${ITEMS[@]}"; do
     IFS='|' read -r kind name dest url sha <<<"$e"
 
-    if [[ -f "$(marker "$kind" "$dest/$name")" ]] && ! $force; then
+    if [[ -e "$(marker "$kind" "$dest/$name")" ]] && ! $force; then
         printf '    %salready%s  %s\n' "$c_d" "$c_0" "$name"
         continue
     fi

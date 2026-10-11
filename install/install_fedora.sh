@@ -2992,6 +2992,11 @@ check "starship prompt installed"      "fchroot test -x /home/$username/.local/b
 check "Nordic GTK theme installed"     "fchroot test -f /home/$username/.local/share/themes/Nordic/gtk-4.0/gtk.css"
 [[ -n "$dotfiles_repo" ]] && \
 check "Nordzy icons installed"         "fchroot test -f /home/$username/.local/share/icons/Nordzy-dark/index.theme"
+# THE cursors/ DIRECTORY, NOT index.theme. A cursor theme without it resolves to
+# nothing and the pointer silently stays Adwaita, which looks like no change
+# rather than a missing theme.
+[[ -n "$dotfiles_repo" ]] && \
+check "Bibata cursor installed"        "fchroot test -d /home/$username/.local/share/icons/Bibata-Modern-Classic/cursors"
 check "zram configured"                "fchroot rpm -q zram-generator-defaults >/dev/null 2>&1"
 compositor_desktop && \
     check "quickshell installed"       "[[ -x '$rootmnt/usr/bin/quickshell' ]]"

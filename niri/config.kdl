@@ -107,7 +107,16 @@
 // the scale means redoing that arithmetic; `xcursor-size * scale` has to be
 // one of the numbers above or the pointer goes slightly soft.
 cursor {
-    xcursor-theme "Adwaita"
+    // Bibata-Modern-Classic, installed by bin/gtk-theme.sh - it is not a Fedora
+    // package, so it lives in ~/.local/share/icons and does not survive a
+    // reinstall on its own. If it is missing, clients fall back to Adwaita and
+    // the only symptom is a pointer that looks like the stock one, which is why
+    // the installer's verification checks for the cursors/ directory.
+    //
+    // niri exports XCURSOR_THEME and XCURSOR_SIZE to clients from this block, so
+    // this reaches Wayland-native apps. GTK apps read the gsettings value
+    // instead, which bin/theme.sh keeps in step.
+    xcursor-theme "Bibata-Modern-Classic"
     xcursor-size 32
 }
 
