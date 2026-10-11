@@ -53,7 +53,7 @@ SHARE="${XDG_DATA_HOME:-$HOME/.local/share}"
 # it is the top-level directory inside the tarball - verified, not guessed.
 ITEMS=(
   "gtk|Nordic|$SHARE/themes|https://github.com/EliverLara/Nordic/releases/download/v2.2.0/Nordic.tar.xz|d162d694e13bec518636b193fbe84ccea44da9a81a89015c6713f6b258ee36d5"
-  "icon|Nordzy-cyan-dark|$SHARE/icons|https://github.com/MolassesLover/Nordzy-icon/releases/download/1.8.7/Nordzy-cyan-dark.tar.gz|3f28fa9dac41c8662a26ae2f6d50ad34e7dd42e4cabb1b57b2291f3d7cf1878b"
+  "icon|Nordzy-dark|$SHARE/icons|https://github.com/MolassesLover/Nordzy-icon/releases/download/1.8.7/Nordzy-dark.tar.gz|ad752b5ce70577408431734fc8004f928a00027a8fce6dd131ae2d0c3dc82069"
 )
 
 c_g=$'\033[1;32m'; c_y=$'\033[1;33m'; c_r=$'\033[1;31m'; c_d=$'\033[2m'; c_0=$'\033[0m'

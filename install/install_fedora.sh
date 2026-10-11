@@ -2991,7 +2991,7 @@ check "starship prompt installed"      "fchroot test -x /home/$username/.local/b
 [[ -n "$dotfiles_repo" ]] && \
 check "Nordic GTK theme installed"     "fchroot test -f /home/$username/.local/share/themes/Nordic/gtk-4.0/gtk.css"
 [[ -n "$dotfiles_repo" ]] && \
-check "Nordzy icons installed"         "fchroot test -f /home/$username/.local/share/icons/Nordzy-cyan-dark/index.theme"
+check "Nordzy icons installed"         "fchroot test -f /home/$username/.local/share/icons/Nordzy-dark/index.theme"
 check "zram configured"                "fchroot rpm -q zram-generator-defaults >/dev/null 2>&1"
 compositor_desktop && \
     check "quickshell installed"       "[[ -x '$rootmnt/usr/bin/quickshell' ]]"
