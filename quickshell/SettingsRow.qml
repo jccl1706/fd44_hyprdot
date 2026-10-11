@@ -309,8 +309,8 @@ Item {
                     Rectangle {
                         required property var modelData
                         readonly property bool current: ThemeLibrary.isCurrent(modelData.name)
-                        height: 34
-                        width: chipContent.implicitWidth + 24
+                        height: 38
+                        width: chipContent.implicitWidth + 26
                         radius: 9
                         color: modelData.bg || Theme.bg
                         border.width: current ? 2 : 1
@@ -327,15 +327,26 @@ Item {
                             // one's - the point is to preview it, not to match.
                             Row {
                                 anchors.verticalCenter: parent.verticalCenter
-                                spacing: 3
+                                spacing: 4
                                 Repeater {
                                     model: [ modelData.surface || Theme.surface,
                                              modelData.accent  || Theme.accent,
                                              modelData.fg      || Theme.fg ]
                                     Rectangle {
                                         required property var modelData
-                                        width: 9; height: 9; radius: 4.5
+                                        // 13, not 9. At 9px the three swatches
+                                        // read as punctuation before the name
+                                        // rather than as the thing being chosen -
+                                        // and the colours are the whole point of
+                                        // the chip.
+                                        width: 13; height: 13; radius: 6.5
                                         color: modelData
+                                        // A hairline, so a swatch the same colour
+                                        // as the chip's background still has an
+                                        // edge: cream's surface against cream's
+                                        // bg would otherwise be an invisible dot.
+                                        border.width: 1
+                                        border.color: Qt.rgba(0, 0, 0, 0.18)
                                     }
                                 }
                             }
