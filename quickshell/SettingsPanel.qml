@@ -432,6 +432,26 @@ PanelWindow {
                     const s = root.sections[root.section]
                     if (!s) return []
                     const out = []
+                    if (s.section === "Bar") {
+                        // HOW MANY ARE OFF, because fifteen toggles is too many
+                        // to scan and the answer is usually "one or two". The
+                        // hidden chip only appears when something IS hidden -
+                        // a chip reading "hidden 0" is a line of furniture.
+                        //
+                        // Counted from the rows this page is already showing, so
+                        // it cannot disagree with them: a plugin the machine does
+                        // not have - the discrete GPU's thermal readout on this
+                        // laptop - is not available, so it is in neither count.
+                        let shown = 0, hid = 0
+                        for (const r of (s.rows || [])) {
+                            if (r.type !== "toggle") continue
+                            if (r.when && !r.when()) continue
+                            if (r.get && r.get()) shown++; else hid++
+                        }
+                        out.push({ k: "shown", v: String(shown) })
+                        if (hid > 0) out.push({ k: "hidden", v: String(hid) })
+                        return out
+                    }
                     if (s.section === "Appearance") {
                         // The names are the ones the libraries actually expose:
                         // currentCaption, not currentName, and barStyle is a raw

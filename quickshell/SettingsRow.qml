@@ -122,7 +122,17 @@ Item {
                 Text {
                     font.family: Theme.font
                     text: settingRow.row.label || ""
-                    color: Theme.fg
+                    // AN OFF TOGGLE DIMS ITS OWN LABEL, so a page of fifteen can
+                    // be read by scanning the left edge instead of the switches
+                    // on the right. The switch is the control; this is the state,
+                    // and the state is what you are looking for when you open
+                    // this page wondering what you turned off last week.
+                    //
+                    // Only toggles. A number or a picker has no off, and dimming
+                    // their labels would say something untrue about them.
+                    color: (settingRow.row.type === "toggle" && settingRow.value === false)
+                           ? Theme.dim : Theme.fg
+                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
                     font.pixelSize: Theme.fontSizeTitle
                     width: parent.width
                     elide: Text.ElideRight
