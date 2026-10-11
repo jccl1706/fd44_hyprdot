@@ -187,6 +187,14 @@ Singleton {
     // colour, which is not enough to read as hierarchy at a glance.
     readonly property int fontSizeTitle:  13
 
+    // Panel and section headings - "Settings", "Results", "October 2026", the
+    // name of the current audio sink. This existed before the token did: four
+    // places had written `font.pixelSize: 15` with a semibold weight beside it,
+    // in three different panels, none of them aware of the others. That is the
+    // size a heading wants here, so it is a token rather than a coincidence
+    // repeated four times.
+    readonly property int fontSizeHeading: 15
+
     // --- metrics ---------------------------------------------------------
     // 38, not 34. The pills the modules now sit in need room to breathe -
     // a 26px container in a 34px bar leaves 4px top and bottom, which reads

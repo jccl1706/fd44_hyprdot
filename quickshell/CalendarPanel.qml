@@ -212,7 +212,7 @@ DropPanel {
                                                            Locale.ShortFormat).toUpperCase()
                         color: Theme.accent
                         font.family: Theme.font
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.fontSizeSmall
                         font.weight: Theme.weightSemi
                         font.letterSpacing: 1
                     }
@@ -222,7 +222,7 @@ DropPanel {
                         text: root.today.getDate()
                         color: Theme.fg
                         font.family: Theme.font
-                        font.pixelSize: 26
+                        font.pixelSize: Theme.fontSizeDisplay
                         font.weight: Theme.weightSemi
                         font.letterSpacing: Theme.trackingTight
                         font.features: ({ "tnum": 1 })
@@ -272,7 +272,7 @@ DropPanel {
                       + " " + root.viewYear
                 color: root.hueMauve
                 font.family: Theme.font
-                font.pixelSize: 15
+                font.pixelSize: Theme.fontSizeHeading
                 font.weight: Theme.weightSemi
             }
 

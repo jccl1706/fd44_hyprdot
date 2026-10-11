@@ -103,7 +103,7 @@ Item {
             visible: settingRow.fromSection !== ""
             text: settingRow.fromSection
             color: Theme.dim
-            font.pixelSize: 10
+            font.pixelSize: Theme.fontSizeSmall
             font.capitalization: Font.AllUppercase
             font.letterSpacing: 0.6
         }
@@ -121,7 +121,7 @@ Item {
                     font.family: Theme.font
                     text: settingRow.row.label || ""
                     color: Theme.fg
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fontSizeTitle
                     width: parent.width
                     elide: Text.ElideRight
                 }
@@ -385,7 +385,7 @@ Item {
                 // noun needs.
                 text: settingRow.row.runLabel || "Run"
                 color: Theme.fg
-                font.pixelSize: 12
+                font.pixelSize: Theme.fontSize
             }
             MouseArea {
                 id: ma
@@ -441,7 +441,7 @@ Item {
                         anchors.centerIn: parent
                         text: modelData.label
                         color: parent.on ? Theme.bg : Theme.fg
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fontSize
                     }
                     MouseArea {
                         id: h
@@ -480,7 +480,7 @@ Item {
                 width: 46
                 horizontalAlignment: Text.AlignRight
                 color: Theme.fg
-                font.pixelSize: 12
+                font.pixelSize: Theme.fontSize
                 // Milliseconds are stored but seconds are what a person thinks
                 // in; days likewise read better than a bare number.
                 text: settingRow.row.type === "ms"
@@ -524,14 +524,14 @@ Item {
                 // a mode set by hand in monitors.lua, say.
                 text: parent.chosen ? parent.chosen.label : (settingRow.value || "-")
                 color: Theme.fg
-                font.pixelSize: 12
+                font.pixelSize: Theme.fontSize
             }
             Text {
                 font.family: Theme.font
                 anchors { right: parent.right; rightMargin: 9; verticalCenter: parent.verticalCenter }
                 text: settingRow.expanded ? "\u25B4" : "\u25BE"
                 color: Theme.dim
-                font.pixelSize: 10
+                font.pixelSize: Theme.fontSizeSmall
             }
             MouseArea {
                 id: hover
@@ -569,7 +569,7 @@ Item {
                         anchors.centerIn: parent
                         text: modelData.label
                         color: parent.on ? Theme.bg : Theme.fg
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fontSize
                     }
                     MouseArea {
                         id: mouse

@@ -233,7 +233,7 @@ PanelWindow {
                     font.family: Theme.font
                     text: "Settings"
                     color: Theme.fg
-                    font.pixelSize: 15
+                    font.pixelSize: Theme.fontSizeHeading
                     font.weight: Font.DemiBold
                     leftPadding: 10
                     bottomPadding: 10
@@ -265,7 +265,7 @@ PanelWindow {
                             Text {
                                 font.family: Theme.font
                                 text: modelData.section
-                                font.pixelSize: 13
+                                font.pixelSize: Theme.fontSizeTitle
                                 color: parent.parent.active ? Theme.bg : Theme.fg
                                 anchors.verticalCenter: parent.verticalCenter
                             }
@@ -321,7 +321,7 @@ PanelWindow {
                           right: parent.right; rightMargin: 10
                           verticalCenter: parent.verticalCenter }
                 color: Theme.fg
-                font.pixelSize: 13
+                font.pixelSize: Theme.fontSizeTitle
                 selectByMouse: true
                 selectionColor: Theme.accent
                 clip: true
@@ -384,7 +384,7 @@ PanelWindow {
             text: root.query !== "" ? "Results"
                 : (root.sections[root.section] ? root.sections[root.section].section : "")
             color: Theme.fg
-            font.pixelSize: 15
+            font.pixelSize: Theme.fontSizeHeading
             font.weight: Font.DemiBold
         }
 
@@ -451,7 +451,7 @@ PanelWindow {
                 text: root.query === "" ? "Nothing to configure here"
                                         : "No setting matches “" + root.query + "”"
                 color: Theme.dim
-                font.pixelSize: 13
+                font.pixelSize: Theme.fontSizeTitle
             }
         }
     }

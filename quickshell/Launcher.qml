@@ -851,7 +851,7 @@ PanelWindow {
                         id: label
                         anchors.centerIn: parent
                         text: parent.modelData.label
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fontSize
                         font.weight: parent.active ? Font.DemiBold : Font.Normal
                         color: parent.active ? Theme.bg : Theme.fg
                     }

@@ -276,7 +276,7 @@ DropPanel {
                     text: root.title(Pipewire.defaultAudioSink)
                     color: Theme.fg
                     font.family: Theme.font
-                    font.pixelSize: 15
+                    font.pixelSize: Theme.fontSizeHeading
                     font.weight: Theme.weightSemi
                     font.letterSpacing: Theme.trackingTight
                 }

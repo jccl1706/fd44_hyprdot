@@ -166,7 +166,7 @@ Item {
                     text: (entry.modelData.title || entry.modelData.id || "?")
                               .trim().charAt(0).toUpperCase()
                     font.family: Theme.font
-                    font.pixelSize: 12
+                    font.pixelSize: Theme.fontSize
                     font.weight: Theme.weightSemi
                     color: hover.hovered ? Theme.fg : Theme.pluginIcon
                 }
