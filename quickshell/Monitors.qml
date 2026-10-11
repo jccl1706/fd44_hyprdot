@@ -577,7 +577,11 @@ Singleton {
 
     function remember(monitor: var, scale: string, mode: string): void {
         const next = Object.assign({}, monitors.overrides)
-        next[monitor.description] = { scale: scale, mode: mode, internal: monitor.internal }
+        // THE CONNECTOR IS STORED AS WELL AS THE DESCRIPTION. niri matches an
+        // output block by connector name or by "Make Model Serial"; the
+        // description alone matches neither, so the name is what saveNiri needs.
+        next[monitor.description] = { scale: scale, mode: mode,
+                                      internal: monitor.internal, name: monitor.name }
         monitors.overrides = next
         monitors.save()
     }
@@ -675,7 +679,29 @@ Singleton {
                 + "// later settings override earlier ones, so these win.\n\n"
         for (const name of names) {
             const o = monitors.overrides[name]
-            out += 'output "' + name + '" {\n'
+            // MATCHED BY CONNECTOR, NOT BY DESCRIPTION, and this is the whole
+            // reason this file ever worked on Hyprland and never on niri.
+            //
+            // Hyprland matches a monitor rule by description. niri matches an
+            // output block by connector name - "eDP-1" - or by the full
+            // "Make Model Serial". This panel is BOE / 0x0BCA / no serial, so
+            // the description "BOE 0x0BCA" is neither of those: niri parsed the
+            // block, matched nothing, and applied nothing. Every scale this page
+            // wrote was silently ignored, and only the live `niri msg output`
+            // took effect - which does not survive a config reload. The symptom
+            // was a scale that changed and then came back.
+            //
+            // Verified both ways on this machine: output "BOE 0x0BCA" left the
+            // scale alone, output "eDP-1" applied it exactly.
+            //
+            // The live list is asked first so a reconnected output picks up its
+            // current connector; the stored name covers one that is unplugged,
+            // and the key itself is the last resort for an override saved before
+            // this field existed.
+            let connector = o.name || name
+            for (const m of monitors.list)
+                if (m.description === name) { connector = m.name; break }
+            out += 'output "' + connector + '" {\n'
             // Same word, same reason: niri's `mode` takes WIDTHxHEIGHT, so
             // "preferred" in this file makes the whole config fail to parse -
             // and because it is an included file, it takes niri's entire
