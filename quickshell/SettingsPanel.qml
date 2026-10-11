@@ -246,27 +246,41 @@ PanelWindow {
                         required property int index
                         readonly property bool active: root.query === "" && root.section === index
                         width: parent.width
-                        height: 34
-                        radius: 8
-                        color: active ? Theme.accent
+                        height: 36
+                        radius: 9
+                        // A TINT PLUS A RAIL, not a solid accent slab. The slab
+                        // inverted the label to Theme.bg, which made the selected
+                        // row the highest-contrast thing in the panel - louder
+                        // than the content it was selecting.
+                        color: active ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.16)
                                       : (hov.containsMouse ? Theme.surfaceHigh : "transparent")
                         Behavior on color { ColorAnimation { duration: Theme.animFast } }
 
+                        Rectangle {
+                            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                            width: 3
+                            height: parent.active ? 18 : 0
+                            radius: 2
+                            color: Theme.accent
+                            Behavior on height { NumberAnimation { duration: Theme.animFast } }
+                        }
+
                         Row {
-                            anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
+                            anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
                             spacing: 10
                             Text {
                                 text: modelData.icon || ""
                                 font.family: Theme.glyphFont
                                 font.pixelSize: 15
-                                color: parent.parent.active ? Theme.bg : Theme.dim
+                                color: parent.parent.active ? Theme.accent : Theme.dim
                                 anchors.verticalCenter: parent.verticalCenter
                             }
                             Text {
                                 font.family: Theme.font
                                 text: modelData.section
                                 font.pixelSize: Theme.fontSizeTitle
-                                color: parent.parent.active ? Theme.bg : Theme.fg
+                                color: parent.parent.active ? Theme.fg : Theme.dim
+                                font.weight: parent.parent.active ? Theme.weightSemi : Theme.weightMedium
                                 anchors.verticalCenter: parent.verticalCenter
                             }
                         }
@@ -385,12 +399,97 @@ PanelWindow {
                 : (root.sections[root.section] ? root.sections[root.section].section : "")
             color: Theme.fg
             font.pixelSize: Theme.fontSizeHeading
-            font.weight: Font.DemiBold
+            font.weight: Theme.weightSemi
+            font.letterSpacing: Theme.trackingTight
+        }
+
+        // A HAIRLINE UNDER THE HEADING. Without it the heading floated between
+        // the search field and the first card with nothing saying which it
+        // belonged to, which is the commonest reason a panel reads as a pile of
+        // parts rather than as sections.
+        // THE SECTION'S CURRENT STATE, AS CHIPS, under its heading. The rows
+        // below are controls - they show what you can change. This says what it
+        // is now, in one line, so the answer to "what am I running?" does not
+        // require reading five rows and inferring it from which tile is ringed.
+        //
+        // IT DOES NOT DUPLICATE THE ROWS: the rows own the choosing, this owns
+        // the stating. Where a section has nothing worth summarising it simply
+        // does not appear, rather than padding the page with a chip saying none.
+        Row {
+            id: pageChips
+            anchors { top: pageTitle.bottom; topMargin: 8 }
+            x: card.contentX
+            spacing: 6
+            visible: root.query === "" && chipRepeater.count > 0
+
+            Repeater {
+                id: chipRepeater
+                model: {
+                    if (root.query !== "") return []
+                    const s = root.sections[root.section]
+                    if (!s) return []
+                    const out = []
+                    if (s.section === "Appearance") {
+                        // The names are the ones the libraries actually expose:
+                        // currentCaption, not currentName, and barStyle is a raw
+                        // key that has to be turned back into the label the row
+                        // below shows - otherwise the chip says "pill" while the
+                        // button it describes says "Floating pill".
+                        const barLabels = { frame: "Frame", full: "Full width",
+                                            pill: "Floating pill", focus: "Focus" }
+                        out.push({ k: "theme",     v: ThemeLibrary.current || "" })
+                        out.push({ k: "bar",       v: barLabels[Settings.barStyle] || "" })
+                        out.push({ k: "wallpaper", v: WallpaperLibrary.currentCaption || "" })
+                    }
+                    return out.filter(c => c.v && c.v.length)
+                }
+                Rectangle {
+                    required property var modelData
+                    height: 24
+                    radius: 7
+                    width: chipRow.implicitWidth + 18
+                    color: Theme.surfaceHigh
+                    border.width: 1
+                    border.color: Theme.outline
+                    Row {
+                        id: chipRow
+                        anchors.centerIn: parent
+                        spacing: 6
+                        Text {
+                            font.family: Theme.font
+                            text: parent.parent.modelData.k
+                            color: Theme.dim
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.capitalization: Font.AllUppercase
+                            font.letterSpacing: 0.5
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            font.family: Theme.font
+                            text: parent.parent.modelData.v
+                            color: Theme.accent
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.weight: Theme.weightSemi
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            id: pageRule
+            anchors { top: pageChips.visible ? pageChips.bottom : pageTitle.bottom; topMargin: 9 }
+            x: card.contentX
+            width: card.contentWidth
+            height: 1
+            color: Theme.outline
+            opacity: 0.55
         }
 
         ListView {
             id: pane
-            anchors { top: pageTitle.bottom; bottom: parent.bottom
+            anchors { top: pageRule.bottom; bottom: parent.bottom
                       topMargin: 10; bottomMargin: 16 }
             x: card.contentX
             // A GUTTER FOR THE SCROLLBAR, always, not only when it is showing.

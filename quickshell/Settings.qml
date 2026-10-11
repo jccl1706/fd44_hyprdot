@@ -142,9 +142,12 @@ Singleton {
                 { label: "Wallpaper", type: "wallpapers",
                   help: WallpaperLibrary.files.count === 0
                       ? "nothing in wallpapers/"
-                      : (WallpaperLibrary.currentCaption || "none set")
-                        + " · " + WallpaperLibrary.files.count + " available"
-                          + " · click a neighbour to step to it",
+                      // NOT THE NAME. The chips under the section heading
+                      // already say which wallpaper is set; repeating it here
+                      // put the same fact on screen twice, six lines apart.
+                      // What this row still has to say is how many there are
+                      // and how the strip behaves.
+                      : WallpaperLibrary.files.count + " available · click a neighbour to step to it",
                   // A wide row with an action: the strip goes underneath, the
                   // button sits where every other row's control sits.
                   run: function() { settings.requestWallpaperPicker() },

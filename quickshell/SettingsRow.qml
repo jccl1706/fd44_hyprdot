@@ -67,7 +67,9 @@ Item {
     property bool last: true
     readonly property int boxRadius: 10
 
-    implicitHeight: body.implicitHeight + 22
+    // 18, not 22. With the help text now a size smaller and dimmer, the old
+    // padding left each row looking like a paragraph with a control beside it.
+    implicitHeight: body.implicitHeight + 18
     height: implicitHeight
 
     Rectangle {
@@ -125,14 +127,33 @@ Item {
                     width: parent.width
                     elide: Text.ElideRight
                 }
+                // HELP IS SUBORDINATE TO THE LABEL AND HAS TO LOOK IT. It was
+                // 12px against a 14px label in the same Theme.dim the label's own
+                // secondary text uses, wrapping to two and three lines - so a row
+                // read as a paragraph with a control parked beside it. A size
+                // down and capped at two lines puts the control back in charge of
+                // the row; the full text is still there on hover.
                 Text {
+                    id: helpText
                     font.family: Theme.font
                     visible: !!settingRow.row.help
                     text: settingRow.row.help || ""
                     color: Theme.dim
-                    font.pixelSize: 12
+                    opacity: 0.85
+                    font.pixelSize: Theme.fontSizeSmall
                     width: parent.width
                     wrapMode: Text.WordWrap
+                    // ONE LINE, NOT TWO. With the state chips above saying what is
+                    // selected, the help text no longer has to carry that job as
+                    // well - it only has to say what the control does, and the
+                    // first line does that in every row here. The rest is a hover
+                    // away and the page gets its vertical rhythm back.
+                    maximumLineCount: 1
+                    elide: Text.ElideRight
+                    ToolTip.visible: helpHover.hovered && helpText.truncated
+                    ToolTip.text: settingRow.row.help || ""
+                    ToolTip.delay: 400
+                    HoverHandler { id: helpHover }
                 }
             }
 
@@ -186,7 +207,13 @@ Item {
             // wallpaper is a smear of colour rather than a picture, which is
             // the failing this row was replacing rather than one to repeat at
             // a smaller scale.
-            readonly property int howMany: 4
+            // EIGHT SMALL ONES, NOT FOUR BIG ONES. Four tiles stretched across the
+            // full width came out ~175px wide and 145px tall, so this row alone was
+            // taller than the rest of the section together - and still showed four
+            // of sixty-three. Halving the tile doubles what is visible and gives
+            // the page back its proportions; a wallpaper is still recognisable at
+            // this size, which is the whole job a thumbnail has here.
+            readonly property int howMany: 8
             readonly property var shown: WallpaperLibrary.nearby(howMany)
             readonly property int gap: 6
             readonly property real tileWidth:
@@ -261,106 +288,84 @@ Item {
         id: themeStrip
         Item {
             readonly property var shown: ThemeLibrary.themes
-            readonly property int gap: 6
-            readonly property real tileWidth:
-                shown.length ? (width - gap * (shown.length - 1)) / shown.length : 0
+            readonly property int gap: 8
+            implicitHeight: 38
 
-            implicitHeight: Math.round(tileWidth * 9 / 16) + 18
-
+            // COLOUR CHIPS, NOT MINIATURE DESKTOPS. Each theme used to be a 16:9
+            // card drawing a little mock bar - a pill, an accent dot, a line - and
+            // stretched across the full width those came out about 200px wide and
+            // 130px tall, five of them, so choosing a theme took more of the panel
+            // than everything else in the section.
+            //
+            // The mock bar was also answering a question nobody asks. You do not
+            // pick a theme by how its bar is shaped; you pick it by its colours.
+            // So each chip is the theme's own background with its surface, accent
+            // and foreground beside the name - the three values that actually
+            // differ - and the whole row fits on one line at a third the height.
             Row {
                 spacing: parent.gap
                 Repeater {
                     model: parent.parent.shown
-
-                    Column {
+                    Rectangle {
                         required property var modelData
                         readonly property bool current: ThemeLibrary.isCurrent(modelData.name)
-                        spacing: 4
+                        height: 34
+                        width: chipContent.implicitWidth + 24
+                        radius: 9
+                        color: modelData.bg || Theme.bg
+                        border.width: current ? 2 : 1
+                        border.color: current ? Theme.accent : (modelData.outline || Theme.outline)
+                        Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
 
-                        Rectangle {
-                            id: swatch
-                            width: Math.floor(parent.parent.parent.tileWidth)
-                            height: Math.round(width * 9 / 16)
-                            radius: 6
-                            color: modelData.bg || Theme.bg
-                            clip: true
+                        Row {
+                            id: chipContent
+                            anchors.centerIn: parent
+                            spacing: 8
 
-                            // The bar, in miniature: a pill of the theme's own
-                            // surface with its accent on it. Proportions are the
-                            // real ones scaled down - a pill about two thirds of
-                            // the width, sitting a little below the top edge.
-                            Rectangle {
-                                width: parent.width * 0.66
-                                height: Math.max(6, parent.height * 0.26)
-                                radius: height / 2
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                y: Math.round(parent.height * 0.17)
-                                color: modelData.surfaceTop || modelData.surface || Theme.surface
-                                border.width: 1
-                                border.color: modelData.outline || Theme.outline
-
-                                Rectangle {
-                                    width: parent.height * 0.5
-                                    height: width
-                                    radius: width / 2
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    anchors.right: parent.right
-                                    anchors.rightMargin: parent.height * 0.25
-                                    color: modelData.accent || Theme.accent
+                            // The three values a palette is actually judged on,
+                            // drawn in the theme's own colours rather than this
+                            // one's - the point is to preview it, not to match.
+                            Row {
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 3
+                                Repeater {
+                                    model: [ modelData.surface || Theme.surface,
+                                             modelData.accent  || Theme.accent,
+                                             modelData.fg      || Theme.fg ]
+                                    Rectangle {
+                                        required property var modelData
+                                        width: 9; height: 9; radius: 4.5
+                                        color: modelData
+                                    }
                                 }
                             }
 
-                            // A line of "text" in the theme's foreground, so a
-                            // palette whose fg barely differs from its bg - the
-                            // one failure that matters - is visible here.
-                            Rectangle {
-                                width: parent.width * 0.4
-                                height: Math.max(2, parent.height * 0.07)
-                                radius: height / 2
-                                x: Math.round(parent.width * 0.17)
-                                y: Math.round(parent.height * 0.62)
+                            Text {
+                                font.family: Theme.font
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: modelData.name
+                                // The theme's own foreground, so the chip reads as
+                                // a sample of the theme rather than as a label on
+                                // top of one.
                                 color: modelData.fg || Theme.fg
-                                opacity: 0.7
-                            }
-
-                            Rectangle {
-                                anchors.fill: parent
-                                radius: parent.radius
-                                color: "transparent"
-                                border.width: parent.parent.current ? 3
-                                            : themeHover.containsMouse ? 2 : 0
-                                border.color: parent.parent.current ? Theme.accent : Theme.fg
-                                Behavior on border.width { NumberAnimation { duration: Theme.animFast } }
-                            }
-
-                            MouseArea {
-                                id: themeHover
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: ThemeLibrary.choose(parent.parent.modelData.name)
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.weight: parent.parent.parent.current ? Theme.weightSemi
+                                                                          : Theme.weightMedium
                             }
                         }
 
-                        // The name under the tile. A swatch alone cannot say
-                        // "Latte" rather than "Cream", and those two are a pale
-                        // surface with a dark foreground either way.
-                        Text {
-                            width: swatch.width
-                            horizontalAlignment: Text.AlignHCenter
-                            elide: Text.ElideRight
-                            text: modelData.name
-                            color: parent.current ? Theme.accent : Theme.dim
-                            font.family: Theme.font
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.weight: parent.current ? Theme.weightSemi : Theme.weightNormal
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: ThemeLibrary.choose(parent.modelData.name)
                         }
                     }
                 }
             }
 
-            // A palette added since the shell started should appear without a
-            // restart, and opening this page is the moment to notice.
+            // Themes are files on disk and one can appear between restarts;
+            // opening this page is the moment to notice.
             Component.onCompleted: ThemeLibrary.rescan()
         }
     }
