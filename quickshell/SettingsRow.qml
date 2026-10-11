@@ -207,13 +207,13 @@ Item {
             // wallpaper is a smear of colour rather than a picture, which is
             // the failing this row was replacing rather than one to repeat at
             // a smaller scale.
-            // EIGHT SMALL ONES, NOT FOUR BIG ONES. Four tiles stretched across the
-            // full width came out ~175px wide and 145px tall, so this row alone was
-            // taller than the rest of the section together - and still showed four
-            // of sixty-three. Halving the tile doubles what is visible and gives
-            // the page back its proportions; a wallpaper is still recognisable at
-            // this size, which is the whole job a thumbnail has here.
-            readonly property int howMany: 8
+            // SIX, BETWEEN THE TWO EXTREMES EITHER SIDE OF IT. Four tiles stretched
+            // across the full width came out ~175x145 each, so that one row was
+            // taller than the rest of the section together while showing four of
+            // sixty-three. Eight fixed the proportions and went too far the other
+            // way: at that size the darker wallpapers stopped being tellable
+            // apart, which is the one thing a thumbnail has to do.
+            readonly property int howMany: 6
             readonly property var shown: WallpaperLibrary.nearby(howMany)
             readonly property int gap: 6
             readonly property real tileWidth:
