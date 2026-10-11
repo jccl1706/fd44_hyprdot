@@ -311,14 +311,46 @@ fi
 
 plain() { sed 's/\x1b\[[0-9;]*m//g' "$work/qs.log"; }
 
-# Not a fault in the config: the live shell owns the notification bus name, so
-# a second instance cannot, and says so. Anything else is worth reading.
-problems="$(plain | grep -aE 'WARN|ERROR' \
-    | grep -avE 'service\.notifications: (Could not register notification server|Registration will be attempted)' \
-    || true)"
+# --- what is a fault and what is merely the harness ----------------------
+#
+# EVERY SUPPRESSED LINE IS COUNTED AND NAMED, which is the point of doing it
+# this way. The two exceptions below used to be bare greps in a pipeline: they
+# worked, but a filtered warning left no trace, so the run printed nothing about
+# eight GlobalShortcut lines it had just thrown away. That is indistinguishable
+# from a clean run, and it trains you to believe a silence that was never
+# earned. Worse, when this shell grew warnings that were ALSO benign - the
+# nested compositor having no outputs, Qt failing on an icon theme's SVG - the
+# habit became "run it and ignore the noise", and a real warning would have gone
+# past unread among them. It nearly did, several times, in the session that
+# produced this.
+#
+# So: a line matching nothing here FAILS the check. A line matching something
+# here is suppressed, counted, and the reason printed. Adding an entry is
+# deliberate and leaves a record in the output, rather than a pipeline growing
+# another `grep -v`.
+#
+# pattern@@why - @@ because the patterns themselves contain | for alternation.
+known=(
+    # The live shell already owns org.freedesktop.Notifications; a second
+    # instance cannot, and says so every single time.
+    'service\.notifications: (Could not register notification server|Registration will be attempted)@@the live shell already owns the notification bus name'
 
-# AND UNDER niri, THE GLOBAL SHORTCUTS, for the same kind of reason: not a
-# fault in the config, but a protocol the compositor does not implement.
+    # Monitors.qml asks the compositor for its outputs. The nested one is a
+    # throwaway with no real display attached and answers with something that is
+    # not JSON. Against the live compositor this same code populates the Display
+    # page correctly, which is the proof that the parser is fine and the harness
+    # is the odd one out.
+    'monitors: the compositor gave something that is not JSON@@the nested compositor has no outputs to describe'
+
+    # Qt's SVG renderer is not librsvg and does not implement all of SVG: the
+    # icon themes in ~/.local/share/icons use pattern and filter references it
+    # cannot resolve. Nothing in this repository can fix an upstream icon, and
+    # it has no bearing on whether the configuration is correct.
+    '(qt\.svg|qt\.svg\.draw):@@an icon theme SVG that Qt cannot render'
+)
+
+# AND UNDER niri, THE GLOBAL SHORTCUTS: not a fault in the config, but a
+# protocol the compositor does not implement.
 #
 # GlobalShortcut in shell.qml speaks hyprland_global_shortcuts_v1, which is
 # Hyprland's. niri has no equivalent and says so once per shortcut - eight
@@ -326,14 +358,37 @@ problems="$(plain | grep -aE 'WARN|ERROR' \
 # used at all: niri/config.kdl calls `qs ipc` instead, which is the documented
 # arrangement, so the components sit there inert.
 #
-# Filtered ONLY under niri. Under Hyprland the same warning would mean the
-# protocol really is missing, which is worth failing on.
+# ONLY under niri. Under Hyprland the same warning would mean the protocol
+# really is missing, which is worth failing on.
 if [[ $comp == niri ]]; then
-    problems="$(printf '%s\n' "$problems" \
-        | grep -avE 'GlobalShortcut will not work|does not support hyprland_global_shortcuts_v1' \
-        | grep -avE 'HYPRLAND_INSTANCE_SIGNATURE is unset|Cannot connect to hyprland' \
-        || true)"
+    known+=(
+        'GlobalShortcut will not work|does not support hyprland_global_shortcuts_v1@@niri does not implement hyprland_global_shortcuts_v1'
+        'HYPRLAND_INSTANCE_SIGNATURE is unset|Cannot connect to hyprland@@the Hyprland module has no Hyprland to talk to'
+    )
 fi
+
+problems="$(plain | grep -aE 'WARN|ERROR' || true)"
+
+suppressed=()
+for entry in "${known[@]}"; do
+    pat="${entry%%@@*}"
+    why="${entry#*@@}"
+    n="$(printf '%s\n' "$problems" | grep -acE "$pat" 2>/dev/null || true)"
+    (( ${n:-0} == 0 )) && continue
+    suppressed+=("$(printf '%4s  %s' "${n}x" "$why")")
+    problems="$(printf '%s\n' "$problems" | grep -avE "$pat" || true)"
+done
+# grep on an empty string still yields one empty line, which would read as a
+# problem with no text in it.
+problems="$(printf '%s\n' "$problems" | grep -av '^[[:space:]]*$' || true)"
+
+# Printed on success as well as failure. A check that says what it ignored is
+# one whose silence means something.
+show_suppressed() {
+    (( ${#suppressed[@]} )) || return 0
+    printf '\033[2m    known and ignored:\033[0m\n'
+    printf '\033[2m    %s\033[0m\n' "${suppressed[@]}"
+}
 
 if (( ! loaded )); then
     red "qs-check: the configuration did NOT load"
@@ -346,6 +401,7 @@ fi
 if [[ -n $problems ]]; then
     red "qs-check: it loaded, but complained"
     printf '%s\n' "$problems" | head -20 | sed 's/^/  /'
+    show_suppressed
     exit 1
 fi
 
@@ -357,4 +413,5 @@ if (( status != 124 )); then
     exit 1
 fi
 
+show_suppressed
 green "qs-check: $config loads clean"
