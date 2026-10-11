@@ -2492,6 +2492,25 @@ if [[ -n "$dotfiles_repo" ]]; then
                 "/home/$username/Work/$dotdir/bin/starship-setup.sh" \
                 || { warn "  starship-setup.sh failed - the machine has bash's default prompt"
                      warn "  run it by hand later: bin/starship-setup.sh"; }
+
+            # THE GTK AND ICON THEMES THE DEFAULT PALETTE NAMES. theme.sh
+            # defaults to nord, and nord is the one palette with a GTK theme of
+            # its own - Nordic, which is what reaches Nautilus and GTK app
+            # chrome. Neither Nordic nor Nordzy is a Fedora package and both
+            # Nordzy COPRs are dead, so bin/gtk-theme.sh fetches pinned,
+            # checksummed releases into ~/.local/share.
+            #
+            # ABOUT 92 MB OVER THE NETWORK, which is why it is here and not in
+            # the package list - and guarded like starship for the same reason:
+            # theme.sh falls back to Adwaita-dark with a message when they are
+            # absent, so a failed download is an unthemed Nautilus rather than a
+            # failed install, and aborting under `set -e` would skip the fonts,
+            # the service enables and the whole verification pass.
+            run fchroot sudo -u "$username" env -u XDG_CONFIG_HOME \
+                "HOME=/home/$username" \
+                "/home/$username/Work/$dotdir/bin/gtk-theme.sh" \
+                || { warn "  gtk-theme.sh failed - GTK apps will use Adwaita, not Nordic"
+                     warn "  run it by hand later: bin/gtk-theme.sh"; }
         elif (( DRY )); then
             log "  (dry run: nothing was cloned, so link-dotfiles.sh and starship-setup.sh"
             log "   are not there - on a real run they would link ~/.config and install"
@@ -2969,6 +2988,10 @@ if [[ ! -s "$rootmnt/home/$username/.ssh/authorized_keys" ]]; then
 fi
 [[ -n "$dotfiles_repo" ]] && \
 check "starship prompt installed"      "fchroot test -x /home/$username/.local/bin/starship"
+[[ -n "$dotfiles_repo" ]] && \
+check "Nordic GTK theme installed"     "fchroot test -f /home/$username/.local/share/themes/Nordic/gtk-4.0/gtk.css"
+[[ -n "$dotfiles_repo" ]] && \
+check "Nordzy icons installed"         "fchroot test -f /home/$username/.local/share/icons/Nordzy-cyan-dark/index.theme"
 check "zram configured"                "fchroot rpm -q zram-generator-defaults >/dev/null 2>&1"
 compositor_desktop && \
     check "quickshell installed"       "[[ -x '$rootmnt/usr/bin/quickshell' ]]"

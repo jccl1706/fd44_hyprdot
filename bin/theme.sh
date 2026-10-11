@@ -86,7 +86,13 @@ state_file="$state_dir/theme"
 # change notification that a rewritten file does.
 active_file="$state_dir/theme-active.conf"
 
-default_theme="dark"
+# The theme a machine with no state file gets - a fresh install, or the first
+# run after ~/.local/state is cleared. nord rather than dark since it is the
+# only palette with a GTK theme of its own: Nordic reaches Nautilus and GTK app
+# chrome, where every other palette falls back to Adwaita-dark and accepts the
+# near-miss. install_fedora.sh runs bin/gtk-theme.sh so this is true from first
+# boot rather than after somebody remembers.
+default_theme="nord"
 
 die() { printf 'theme: %s\n' "$*" >&2; exit 1; }
 
