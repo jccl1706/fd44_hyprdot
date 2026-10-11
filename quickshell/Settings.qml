@@ -561,6 +561,16 @@ Singleton {
         interval: 500
         onTriggered: {
             if (!settings.dirty) return
+            // THIS LIST IS THE ONE THING A NEW SETTING HAS TO BE ADDED TO, and
+            // forgetting it fails silently in the most convincing way: the
+            // slider moves, the value sticks for the rest of the session, and
+            // nothing is written - so whatever reads the file keeps using its
+            // own default and the setting looks like it does not work.
+            //
+            // LOADING IS GENERIC AND SAVING IS NOT, which is why this is easy to
+            // miss. onLoaded walks whatever keys the file has and assigns any
+            // that match a property; this writes a fixed list, deliberately, so
+            // that a computed or transient property cannot leak into the file.
             file.setText(JSON.stringify({
                 notifyLowMs: settings.notifyLowMs,
                 notifyNormalMs: settings.notifyNormalMs,
@@ -569,7 +579,9 @@ Singleton {
                 frecencyHalfLifeDays: settings.frecencyHalfLifeDays,
                 lockMinutes: settings.lockMinutes,
                 barStyle: settings.barStyle,
-                barStylePrev: settings.barStylePrev
+                barStylePrev: settings.barStylePrev,
+                brightnessOnAc: settings.brightnessOnAc,
+                brightnessOnBattery: settings.brightnessOnBattery
             }, null, 1))
             settings.dirty = false
         }
