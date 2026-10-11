@@ -747,6 +747,18 @@ ShellRoot {
     }
 
     IpcHandler {
+        target: "shot"
+
+        // bin/qs-shot.sh asks for this between opening a panel and running
+        // grim, so a screenshot is cropped to what is actually on screen
+        // rather than to coordinates someone typed.
+        function rect(): string {
+            const r = shell.openPanelRect()
+            return r === "" ? "none" : r
+        }
+    }
+
+    IpcHandler {
         target: "osd"
 
         function volume(): void {
@@ -787,6 +799,47 @@ ShellRoot {
         // when another is opened, so two sit on screen at once.
         claudePanelVariants
     ]
+
+    // EVERY PANEL GROUP, FOR THE SCREENSHOT HELPER ONLY.
+    //
+    // Deliberately a separate list from barPanelGroups, which exists so that
+    // opening one bar panel closes the others and must contain exactly the
+    // panels that share that exclusivity. This one is "everything that can be
+    // on screen and is worth photographing", including the three that are not
+    // bar panels at all - settings, the wallpaper picker, the theme picker.
+    //
+    // Merging the two would be the obvious tidy and would be wrong: adding a
+    // panel here must not silently enrol it in mutual exclusion, and the note
+    // on barPanelGroups says what happens when that list is wrong.
+    readonly property var allPanelGroups: shell.barPanelGroups.concat([
+        settingsVariants, wallpaperVariants, themePickerVariants, keybindsVariants
+    ])
+
+    // The open panel's rectangle, in grim's format, or "" when none is open.
+    // First visible wins: only one of these is ever on screen at a time, which
+    // is what barPanelGroups enforces.
+    // IN grim's OWN FORMAT, "X,Y WxH", because the only caller pipes it
+    // straight there and that string is easy to get subtly wrong by hand -
+    // WxH written with a comma, logical against physical pixels. Every panel
+    // screenshot in the session that prompted this was framed by guessing
+    // coordinates and re-cropping until it looked right.
+    function openPanelRect(): string {
+        for (let g = 0; g < shell.allPanelGroups.length; g++) {
+            const instances = shell.allPanelGroups[g].instances
+            for (let i = 0; i < instances.length; i++) {
+                const p = instances[i]
+                if (!p || !p.visible) continue
+                const t = p.shotTarget
+                // A panel with no shotTarget is not a bug here: it is one
+                // nobody has needed to photograph yet.
+                if (!t || !(t.width > 0) || !(t.height > 0)) continue
+                const o = t.mapToGlobal(0, 0)
+                return Math.round(o.x) + "," + Math.round(o.y) + " "
+                     + Math.round(t.width) + "x" + Math.round(t.height)
+            }
+        }
+        return ""
+    }
 
     // The bar on a given screen. The panels list it in their Hyprland focus
     // grab so that a click on a bar glyph still reaches the bar while one of

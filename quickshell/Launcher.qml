@@ -30,6 +30,14 @@ import QtQuick
 PanelWindow {
     id: root
 
+    // WHAT A SCREENSHOT OF THIS PANEL SHOULD CONTAIN - see bin/qs-shot.sh.
+    //
+    // Every one of these windows is anchored to all four edges so it can place
+    // its contents freely, which means the WINDOW's geometry is the whole
+    // output and describes nothing. This names the item that is actually the
+    // panel, and shell.qml maps it to the screen.
+    readonly property Item shotTarget: card
+
     // Variants sets this - one launcher per monitor, same as the Bar.
     required property var modelData
     screen: modelData

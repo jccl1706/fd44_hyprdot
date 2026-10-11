@@ -48,6 +48,15 @@ PanelWindow {
     // Visible width of the card. It is frameThickness wider in fact - see card.
     property int panelWidth: 340
 
+
+    // WHAT A SCREENSHOT OF THIS PANEL SHOULD CONTAIN - see bin/qs-shot.sh.
+    //
+    // Every one of these windows is anchored to all four edges so it can place
+    // its contents freely, which means the WINDOW's geometry is the whole
+    // output and describes nothing. This names the item that is actually the
+    // panel, and shell.qml maps it to the screen.
+    readonly property Item shotTarget: card
+
     // Children declared inside a DropPanel land in the card, below the pad.
     default property alias content: body.data
 
