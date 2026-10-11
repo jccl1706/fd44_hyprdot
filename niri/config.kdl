@@ -104,15 +104,16 @@
 //     32 -> 48 physical   native
 //
 // THE ARITHMETIC IS size * 2, NOT size * scale, and this comment used to say
-// otherwise. Measured from niri's own log: with xcursor-size 28 on a scale-1.5
+// otherwise. Measured from niri's own log: with xcursor-size 32 on a scale-1.5
 // output it asked for `default@64`, not @48 - niri rounds a fractional scale up
 // to the next integer and renders the pointer at 2x. So the number that has to
 // exist in the theme is double xcursor-size.
 //
 // Bibata ships 16 20 22 24 28 32 40 48 56 64 72 80 88 96, so of the sizes near
 // this one 24 (->48), 28 (->56) and 32 (->64) are real while 22 (->44) is not
-// and would render soft. 28 is the current choice: one step below the 32 that
-// came from Adwaita, whose sizes are 24 30 36 48 72 96 and quite different.
+// and would render soft. 24 is the current choice (-> 48). The 32 it started at
+// came from Adwaita, whose sizes are 24 30 36 48 72 96 - so the number did not
+// carry any meaning across the change of theme.
 cursor {
     // Bibata-Modern-Classic, installed by bin/gtk-theme.sh - it is not a Fedora
     // package, so it lives in ~/.local/share/icons and does not survive a
@@ -124,7 +125,7 @@ cursor {
     // this reaches Wayland-native apps. GTK apps read the gsettings value
     // instead, which bin/theme.sh keeps in step.
     xcursor-theme "Bibata-Modern-Classic"
-    xcursor-size 28
+    xcursor-size 24
 }
 
 // Settings that influence how windows are positioned and sized.
