@@ -2482,7 +2482,8 @@ if [[ -n "$dotfiles_repo" ]]; then
                      warn "  run it by hand later: bin/starship-setup.sh"; }
         elif (( DRY )); then
             log "  (dry run: nothing was cloned, so link-dotfiles.sh and starship-setup.sh"
-            log "   there - on a real run it would link ~/.config here)"
+            log "   are not there - on a real run they would link ~/.config and install"
+            log "   the prompt at this point)"
         else
             warn "  repo has no bin/link-dotfiles.sh - no dotfiles were linked"
         fi
