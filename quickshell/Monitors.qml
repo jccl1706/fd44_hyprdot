@@ -517,9 +517,22 @@ Singleton {
     function apply(monitor: var, scale: string, mode: string): void {
         if (Compositor.onNiri) {
             const bare = String(mode).replace(/Hz$/i, "")
-            applier.command = ["sh", "-c",
-                'niri msg output "$1" scale "$2" && niri msg output "$1" mode "$3"',
-                "sh", monitor.name, scale, bare]
+            // "preferred" IS A HYPRLAND WORD AND NIRI REJECTS IT:
+            //
+            //   invalid value 'preferred' for '<MODE>': no 'x' separator found
+            //
+            // currentModeOf() returns it whenever no mode has been chosen,
+            // which is the normal case - so every scale change on niri ran a
+            // second command that failed. The scale went through first, so the
+            // symptom was a display that resized and an error beside it.
+            //
+            // Omitting the mode is what "preferred" means here: niri keeps the
+            // mode it already picked, which is the preferred one.
+            applier.command = bare && bare !== "preferred"
+                ? ["sh", "-c",
+                   'niri msg output "$1" scale "$2" && niri msg output "$1" mode "$3"',
+                   "sh", monitor.name, scale, bare]
+                : ["niri", "msg", "output", monitor.name, "scale", scale]
         } else {
             applier.command = ["hyprctl", "eval", monitors.rule(monitor, scale, mode)]
         }
@@ -663,7 +676,12 @@ Singleton {
         for (const name of names) {
             const o = monitors.overrides[name]
             out += 'output "' + name + '" {\n'
-            if (o.mode) out += '    mode "' + String(o.mode).replace(/Hz$/i, "") + '"\n'
+            // Same word, same reason: niri's `mode` takes WIDTHxHEIGHT, so
+            // "preferred" in this file makes the whole config fail to parse -
+            // and because it is an included file, it takes niri's entire
+            // config down with it, not just this block.
+            if (o.mode && o.mode !== "preferred")
+                out += '    mode "' + String(o.mode).replace(/Hz$/i, "") + '"\n'
             out += "    scale " + o.scale + "\n"
                  + "}\n\n"
         }
