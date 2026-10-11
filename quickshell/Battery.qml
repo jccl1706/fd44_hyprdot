@@ -440,7 +440,23 @@ Singleton {
     // degrades this to what it was before rather than breaking it.
     Process {
         running: true
-        command: ["udevadm", "monitor", "--udev", "--subsystem-match=power_supply"]
+        // THROUGH setpriv, BECAUSE THE SHELL IS KILLED WITH SIGKILL.
+        //
+        // bin/qs-restart.sh uses `kill -KILL` deliberately - the note there
+        // explains that a normal exit can segfault on quickshell 0.3.1 and
+        // leave two shells running - and a process that is SIGKILLed cleans up
+        // nothing. This is the shell's first long-lived child, so it is the
+        // first that can be orphaned: two of them were already reparented to
+        // init after two restarts, and left alone that is one stray udevadm per
+        // restart, for ever.
+        //
+        // --pdeathsig has the KERNEL signal the child when its parent dies,
+        // which is the only mechanism that survives a parent that was given no
+        // chance to tidy up. Verified rather than assumed: a parent killed with
+        // SIGKILL does take the child with it, and the first attempt at
+        // measuring this was wrong and said otherwise.
+        command: ["setpriv", "--pdeathsig", "TERM",
+                  "udevadm", "monitor", "--udev", "--subsystem-match=power_supply"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: chargerSettle.restart()
