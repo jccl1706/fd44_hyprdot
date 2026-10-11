@@ -110,6 +110,7 @@ if [[ $mode == remove ]]; then
         IFS='|' read -r kind name dest _ _ <<<"$e"
         if [[ -d "$dest/$name" ]]; then
             rm -rf "${dest:?}/$name" && say "removed $name"
+            [[ -L "$HOME/.icons/$name" ]] && rm -f "$HOME/.icons/$name" && say "  and its ~/.icons link"
         fi
     done
     echo
@@ -153,6 +154,27 @@ with tarfile.open(sys.argv[1]) as t:
     rm -rf "${dest:?}/$name"
     cp -a "$TMP/x-$name/$name" "$dest/"
     printf '    installed %s (%s)\n' "${dest/#$HOME/\~}/$name" "$(du -sh "$dest/$name" | cut -f1)"
+
+    # AND LINKED INTO ~/.icons, FOR CURSORS ONLY, BECAUSE XCURSOR DOES NOT LOOK
+    # IN ~/.local/share/icons. The libxcursor search path - which the xcursor
+    # crate niri uses follows too - is ~/.icons, /usr/share/icons,
+    # /usr/share/pixmaps and a few X11 legacy directories. The XDG data
+    # directory is NOT among them, so a cursor theme installed the modern,
+    # correct way is invisible to the compositor.
+    #
+    # The symptom is silence rather than an error anywhere the user looks: the
+    # pointer simply stays Adwaita. niri says so in its own log and nowhere
+    # else:
+    #
+    #   WARN niri::cursor: error loading xcursor default@64: no default icon
+    #
+    # GTK and the icon spec want ~/.local/share/icons, so the theme stays there
+    # and ~/.icons gets a symlink: one copy on disk, both lookups satisfied.
+    if [[ $kind == cursor ]]; then
+        mkdir -p "$HOME/.icons"
+        ln -sfn "$dest/$name" "$HOME/.icons/$name"
+        printf '    linked    ~/.icons/%s  (xcursor does not search ~/.local/share/icons)\n' "$name"
+    fi
 
     # GTK4 WITHOUT THIS IS THE WHOLE POINT FOR NAUTILUS, so say so when a theme
     # cannot do it rather than leaving it to be noticed later.
