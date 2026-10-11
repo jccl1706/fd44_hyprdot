@@ -60,10 +60,11 @@ DropPanel {
                 Text {
                     font.family: Theme.font
                     text: "THIS " + ClaudeUsage.blockHours + "-HOUR BLOCK"
-                    color: Theme.dim
+                    color: root.tint(Theme.dim, 0.95)
                     font.pixelSize: Theme.fontSizeSmall
+                    font.weight: Theme.weightSemi
                     font.capitalization: Font.AllUppercase
-                    font.letterSpacing: 0.6
+                    font.letterSpacing: 0.8
                 }
 
                 // THE BIG NUMBER STAYS IN NORMAL FLOW AND THE WORD ALIGNS TO
@@ -82,7 +83,11 @@ DropPanel {
                               ? ClaudeUsage.human(ClaudeUsage.blockBilled) : "—"
                         color: Theme.fg
                         font.pixelSize: Theme.fontSizeDisplay
-                        font.weight: Theme.weightLight
+                        // SEMIBOLD, NOT LIGHT. A light 27px number is elegant in
+                        // a card that has nothing else in it; this one sits above
+                        // three more cards of figures and was the quietest thing
+                        // on a panel it is supposed to lead.
+                        font.weight: Theme.weightSemi
                         font.letterSpacing: Theme.trackingTight
                     }
                     Text {
@@ -124,10 +129,11 @@ DropPanel {
                 font.family: Theme.font
                 anchors { top: parent.top; left: parent.left; topMargin: 10; leftMargin: 16 }
                 text: "LAST " + (ClaudeUsage.recent || []).length + " BLOCKS"
-                color: Theme.dim
+                color: root.tint(Theme.dim, 0.95)
                 font.pixelSize: Theme.fontSizeSmall
+                font.weight: Theme.weightSemi
                 font.capitalization: Font.AllUppercase
-                font.letterSpacing: 0.6
+                font.letterSpacing: 0.8
             }
 
             Row {
@@ -194,8 +200,9 @@ DropPanel {
                             font.family: Theme.font
                             anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                             text: parent.modelData.k
-                            color: Theme.dim
+                            color: Theme.fg
                             font.pixelSize: Theme.fontSize
+                            font.weight: Theme.weightMedium
                         }
                         Row {
                             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
@@ -213,7 +220,7 @@ DropPanel {
                                 text: parent.parent.modelData.v
                                 color: Theme.fg
                                 font.pixelSize: Theme.fontSize
-                                font.weight: Theme.weightSemi
+                                font.weight: Theme.weightBold
                             }
                         }
                     }
@@ -240,10 +247,11 @@ DropPanel {
                 Text {
                     font.family: Theme.font
                     text: "BY MODEL, ALL TIME"
-                    color: Theme.dim
+                    color: root.tint(Theme.dim, 0.95)
                     font.pixelSize: Theme.fontSizeSmall
+                    font.weight: Theme.weightSemi
                     font.capitalization: Font.AllUppercase
-                    font.letterSpacing: 0.6
+                    font.letterSpacing: 0.8
                 }
 
                 Repeater {
@@ -267,6 +275,7 @@ DropPanel {
                             text: ClaudeUsage.human(parent.modelData.billed)
                             color: Theme.fg
                             font.pixelSize: Theme.fontSizeSmall
+                            font.weight: Theme.weightSemi
                         }
                     }
                 }
