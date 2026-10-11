@@ -416,6 +416,52 @@ Singleton {
         battery.checkWarnings()
     }
 
+    // THE CHARGER IS AN EVENT, NOT SOMETHING TO POLL FOR.
+    //
+    // The timer below is right for the battery LEVEL, which drifts, and wrong
+    // for the charger, which is instant and discrete. Ten seconds of being
+    // wrong about the level means showing 71% when it is 70%. Ten seconds of
+    // being wrong about the charger means the bar shows a battery that is
+    // discharging while it is plugged in - and worse, anything that asks
+    // "which power state am I in" gets an answer that was true ten seconds
+    // ago. That bit for real: a brightness key pressed just after plugging in
+    // filed its level against the state the machine had just left, writing the
+    // AC brightness into the battery setting. Settings.qml had to stop
+    // consulting this and go read /sys itself.
+    //
+    // THE SAME EVENT SOURCE power-mode.sh WATCHES, and for the same reasons
+    // given there: udevadm monitor is event-driven rather than a poll and works
+    // unprivileged. A plug or unplug emits SEVERAL power_supply events - ACAD
+    // plus each USB-C port's ucsi-source-psy device - so the burst is collapsed
+    // into one refresh rather than one per line.
+    //
+    // THE POLL STAYS. It is what keeps the level current, and it is also the
+    // backstop if udevadm is missing or its monitor dies: losing the events
+    // degrades this to what it was before rather than breaking it.
+    Process {
+        running: true
+        command: ["udevadm", "monitor", "--udev", "--subsystem-match=power_supply"]
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: chargerSettle.restart()
+        }
+    }
+
+    Timer {
+        id: chargerSettle
+        interval: 120
+        onTriggered: {
+            for (let i = 0; i < mains.count; i++) {
+                const m = mains.objectAt(i)
+                if (m) m.reload()
+            }
+            for (let i = 0; i < packs.count; i++) {
+                const p = packs.objectAt(i)
+                if (p) p.reload()
+            }
+        }
+    }
+
     // Ten seconds. A battery does not move faster than that, and the point
     // of reading files rather than running a program is that this costs
     // nothing worth measuring.
