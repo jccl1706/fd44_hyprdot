@@ -433,9 +433,11 @@ binds {
     //     Mod+Return   kitty          (the terminal that IS installed)
     //     Mod+Space    qs ipc call launcher toggle   (quickshell's Launcher)
     //
-    // Only the lock had no replacement at all - there was no way to lock the
-    // screen from the keyboard, though hyprlock was installed and wired to
-    // hypridle for the idle case.
+    // The lock is kept, as a DIRECT KEY rather than a missing capability:
+    // Mod+M already opens quickshell's power menu, whose "Lock" entry fires on
+    // the first press (PowerMenu.qml marks it danger:false for exactly that
+    // reason, unlike logout/reboot/shutdown which need the armed second
+    // press). This is one keystroke instead of menu-then-click.
     //
     // IT GOES THROUGH loginctl, NOT STRAIGHT TO hyprlock. hypridle's lock_cmd
     // is `pidof hyprlock || systemd-run --user --scope ... hyprlock`: it
