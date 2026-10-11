@@ -130,7 +130,7 @@ Item {
                     visible: !!settingRow.row.help
                     text: settingRow.row.help || ""
                     color: Theme.dim
-                    font.pixelSize: 11
+                    font.pixelSize: 12
                     width: parent.width
                     wrapMode: Text.WordWrap
                 }

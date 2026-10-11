@@ -173,19 +173,19 @@ Singleton {
     readonly property real trackingTight: -0.3   // >= 16px
     readonly property real trackingLoose:  0.15  // <= 10px
 
-    readonly property int fontSize:      12   // default bar text
-    readonly property int fontSizeSmall: 10   // workspace numbers, subtitles
-    readonly property int fontSizeClock: 16
+    readonly property int fontSize:      13   // default bar text
+    readonly property int fontSizeSmall: 11   // workspace numbers, subtitles
+    readonly property int fontSizeClock: 17
 
     // Display size: captions and titles that sit on their own rather than in
     // a panel. Large enough that a light weight still reads, which is the
     // whole reason to have a weight axis.
-    readonly property int fontSizeDisplay: 26
+    readonly property int fontSizeDisplay: 27
 
-    // List-row titles. Deliberately 3px clear of fontSizeSmall: at 11 against
-    // 10 the only thing separating a title from its subtitle was weight and
+    // List-row titles. Deliberately 3px clear of fontSizeSmall: at 12 against
+    // 11 the only thing separating a title from its subtitle was weight and
     // colour, which is not enough to read as hierarchy at a glance.
-    readonly property int fontSizeTitle:  13
+    readonly property int fontSizeTitle:  14
 
     // Panel and section headings - "Settings", "Results", "October 2026", the
     // name of the current audio sink. This existed before the token did: four
@@ -193,7 +193,7 @@ Singleton {
     // in three different panels, none of them aware of the others. That is the
     // size a heading wants here, so it is a token rather than a coincidence
     // repeated four times.
-    readonly property int fontSizeHeading: 15
+    readonly property int fontSizeHeading: 16
 
     // --- metrics ---------------------------------------------------------
     // 38, not 34. The pills the modules now sit in need room to breathe -

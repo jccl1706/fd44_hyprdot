@@ -151,7 +151,7 @@ DropPanel {
                         text: Battery.ready ? Battery.percent + "%" : "--"
                         color: Theme.fg
                         font.family: Theme.font
-                        font.pixelSize: 21
+                        font.pixelSize: 22
                         font.weight: Theme.weightSemi
                         font.letterSpacing: Theme.trackingTight
                         // Fixed-width figures, so the ring does not twitch as
@@ -188,7 +188,7 @@ DropPanel {
                     text: root.bigLine
                     color: Theme.fg
                     font.family: Theme.font
-                    font.pixelSize: 19
+                    font.pixelSize: 20
                     font.weight: Theme.weightSemi
                     font.letterSpacing: Theme.trackingTight
                 }

@@ -238,7 +238,7 @@ DropPanel {
                     text: Qt.formatDate(root.today, "dddd")
                     color: Theme.fg
                     font.family: Theme.font
-                    font.pixelSize: 18
+                    font.pixelSize: 19
                     font.weight: Theme.weightSemi
                     font.letterSpacing: Theme.trackingTight
                 }
