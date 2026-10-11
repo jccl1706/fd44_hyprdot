@@ -425,10 +425,24 @@ binds {
     // shows a list of important hotkeys.
     Mod+Shift+Slash { show-hotkey-overlay; }
 
-    // Suggested binds for running programs: terminal, app launcher, screen locker.
-    Mod+T hotkey-overlay-title="Open a Terminal: alacritty" { spawn "alacritty"; }
-    Mod+D hotkey-overlay-title="Run an Application: fuzzel" { spawn "fuzzel"; }
-    Super+Alt+L hotkey-overlay-title="Lock the Screen: swaylock" { spawn "swaylock"; }
+    // THESE WERE niri's OWN SUGGESTED BINDS AND ALL THREE WERE DEAD KEYS:
+    // alacritty, fuzzel and swaylock are not installed and never were. The
+    // real equivalents already exist in binds.kdl, which is included after
+    // this file and wins:
+    //
+    //     Mod+Return   kitty          (the terminal that IS installed)
+    //     Mod+Space    qs ipc call launcher toggle   (quickshell's Launcher)
+    //
+    // Only the lock had no replacement at all - there was no way to lock the
+    // screen from the keyboard, though hyprlock was installed and wired to
+    // hypridle for the idle case.
+    //
+    // IT GOES THROUGH loginctl, NOT STRAIGHT TO hyprlock. hypridle's lock_cmd
+    // is `pidof hyprlock || systemd-run --user --scope ... hyprlock`: it
+    // guards against a second instance and puts the locker in its own systemd
+    // scope. Spawning hyprlock directly bypasses both, and a second hyprlock
+    // on top of the first is a black screen that no password dismisses.
+    Super+Alt+L hotkey-overlay-title="Lock the Screen" { spawn "loginctl" "lock-session"; }
 
     // Use spawn-sh to run a shell command. Do this if you need pipes, multiple commands, etc.
     // Note: the entire command goes as a single argument. It's passed verbatim to `sh -c`.

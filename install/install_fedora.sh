@@ -1068,6 +1068,15 @@ basepacs=(
 # until it is used and is wanted on every machine here, hibernation or not.
 basepacs+=(zram-generator-defaults)
 
+# tmux, WHICH THE DOTFILES SPAWN AT LOGIN AND NOTHING INSTALLED. niri's
+# apps.kdl runs `kitty --app-id kitty-framework -e tmux new-session -A -s
+# framework` as the startup terminal. Without tmux that window opens and closes
+# again immediately - which looks like kitty failing, or the compositor
+# dropping the window, and not like a missing package. Found by listing every
+# binary the niri config spawns and checking each against what dnf is told to
+# install.
+basepacs+=(tmux)
+
 hwpacs=(
     # CHECK THIS ONE ON ANY NEW MACHINE. Fedora 44 split the iwlwifi blobs out
     # of linux-firmware, and each op_mode is now its own package that nothing
