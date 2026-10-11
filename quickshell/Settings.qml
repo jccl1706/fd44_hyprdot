@@ -601,9 +601,9 @@ Singleton {
             onStreamFinished: {
                 const n = text.trim().split(/\s+/).map(parseFloat)
                 if (n.length < 3 || !(n[1] > 0)) return
-                // The fourth root, because backlight.sh sets through
-                // `brightnessctl -e4`. Same conversion as Osd.qml.
-                const pct = Math.round(Math.pow(n[0] / n[1], 0.25) * 100)
+                // Inverted with the curve backlight.sh actually used - see
+                // Backlight.qml, which is the only copy of that exponent.
+                const pct = Backlight.perceivedPct(n[0], n[1])
                 if (!(pct >= 1 && pct <= 100)) return
                 settings.setValue(n[2] === 1 ? "brightnessOnAc"
                                              : "brightnessOnBattery", pct)

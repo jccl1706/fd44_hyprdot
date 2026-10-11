@@ -146,7 +146,7 @@ Item {
         const cur = parseFloat(brightnessFile.text())
         const max = parseFloat(maxBrightnessFile.text())
         if (isNaN(cur) || isNaN(max) || max <= 0) return 0
-        return Math.pow(cur / max, 0.25)
+        return Backlight.perceived(cur, max)
     }
 
     // What the bar should currently display.
