@@ -372,7 +372,24 @@ Singleton {
         // set" rather than by a preset that happens to land on the same
         // number - which is how monitors.lua's hand-measured scale stays
         // visible and selectable on its own machine.
-        offer(now, "As set")
+        // THE SCALE THE PANEL IS ACTUALLY ON, NOT THE SNAPPED ONE. This offered
+        // snap(current), and currentOption() below compares against the raw
+        // value - so on any output running a scale that snap() moves, the two
+        // disagreed and NOTHING was selected: three buttons, none of them lit,
+        // and a subtitle saying "a scale with no preset".
+        //
+        // THE SNAPPING IS A HYPRLAND RULE AND NIRI DOES NOT SHARE IT.
+        // validScales() keeps only scales where the logical size comes out
+        // whole, which is what Hyprland requires. This Framework panel is
+        // 2256x1504 on niri at scale 1.5 - and 1504/1.5 is not whole, so 1.5 is
+        // not in that list and snapped to 1.5667. The scale was legal, in use,
+        // and reported as impossible.
+        //
+        // Smaller and Larger still come from the valid list, because those are
+        // scales this code is proposing and they should be ones the compositor
+        // will certainly take. What is already set needs no such permission: it
+        // is a fact, and the row's job is to show it.
+        offer(current, "As set")
 
         // The density target, where the panel's own figures can be believed,
         // and only when it beats what the panel is already on. On the
