@@ -123,11 +123,30 @@ Item {
         path: root.backlightPath ? root.backlightPath + "/max_brightness" : ""
     }
 
+    // PERCEIVED, NOT RAW, BECAUSE EVERYTHING THAT SETS BRIGHTNESS IS PERCEIVED.
+    //
+    // This read cur/max straight out of sysfs, which is the linear register
+    // value. But bin/backlight.sh - which the brightness keys, power-mode.sh
+    // and the Display page's two sliders all go through - uses
+    // `brightnessctl -e4`, a quartic curve that tracks what the eye sees. So
+    // three things set on one scale and this reported on another, and they
+    // could never agree:
+    //
+    //     set 25%  ->  showed 0%      (0.25^4 = 0.4%)
+    //     set 50%  ->  showed 6%      (0.50^4 = 6.3%)
+    //     set 75%  ->  showed 32%     (0.75^4 = 31.6%)
+    //
+    // The fourth root puts it back on the same scale as the controls: press a
+    // brightness key and the OSD now shows the number that key just set.
+    //
+    // IT ALSO MAKES THE BAR HONEST. A bar at half length now means half the
+    // brightness you perceive, rather than half of a register value whose
+    // bottom half is nearly all the same black.
     readonly property real brightness: {
         const cur = parseFloat(brightnessFile.text())
         const max = parseFloat(maxBrightnessFile.text())
         if (isNaN(cur) || isNaN(max) || max <= 0) return 0
-        return cur / max
+        return Math.pow(cur / max, 0.25)
     }
 
     // What the bar should currently display.
