@@ -193,7 +193,20 @@ Singleton {
     function available(id: string): bool {
         if (id === "couch")   return Couch.available
         // No battery on the desktop, so the plugin simply is not there.
-        if (id === "battery") return Battery.present
+        // NOT JUST `present`, WHICH IS FALSE BEFORE THE PROBE HAS RUN AS WELL
+        // AS ON A MACHINE WITH NO BATTERY. Battery.present is dirs.length > 0,
+        // and dirs is filled by a Process that globs /sys/class/power_supply -
+        // so for the span between the shell starting and that returning, a
+        // laptop looks exactly like a desktop and the icon is dropped from the
+        // pill. The binding does recover when the probe lands (measured: absent
+        // at 2s with the probe artificially slowed, back at 9s), which is why
+        // this reads as a flicker at every restart rather than a missing plugin.
+        //
+        // Battery.qml already draws the distinction this needs and says so in
+        // its own comment - "we have not looked yet" is not an answer - it just
+        // was not asked here. Unknown keeps the slot; only a probe that has run
+        // and found nothing takes it away.
+        if (id === "battery") return !Battery.probed || Battery.present
         return true
     }
 
