@@ -2764,6 +2764,47 @@ HandlePowerKey=ignore
 HandlePowerKeyLongPress=poweroff
 EOF
 
+# ssh: KEYS ONLY, NO PASSWORDS.
+#
+# A DROP-IN RATHER THAN AN EDIT of sshd_config, because ssh takes the FIRST
+# value it sees for a keyword and Fedora's sshd_config includes
+# sshd_config.d/*.conf before its own settings. So the drop-in wins, and a
+# package update that rewrites sshd_config cannot quietly undo it.
+#
+# READ THE WARNING BELOW BEFORE A FRESH INSTALL. This machine has no
+# authorized_keys until somebody puts one there, and with passwords refused
+# there is NO WAY IN OVER ssh until that happens at the keyboard. That is the
+# right end state and an awkward beginning: the key on the machine this was
+# built from was installed BY ssh-copy-id, which needs exactly the password
+# authentication being turned off here. The verification pass below says so
+# out loud rather than leaving it to be discovered.
+#
+# To bootstrap, at the console, one of:
+#   ssh-import-id-gh <user>                      (if published on GitHub)
+#   mkdir -p ~/.ssh && nano ~/.ssh/authorized_keys   (paste it)
+# or temporarily: sudo rm /etc/ssh/sshd_config.d/50-no-passwords.conf
+writefile 0644 "$rootmnt/etc/ssh/sshd_config.d/50-no-passwords.conf" <<'EOF'
+# Installed by install_fedora.sh. Keys only.
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+EOF
+
+# LLMNR off, mDNS kept.
+#
+# systemd-resolved turns LLMNR on by default, which listens on 0.0.0.0:5355 and
+# answers broadcast name queries - a well-known spoofing vector on any network
+# you do not own, and nothing here uses it.
+#
+# mDNS IS DELIBERATELY LEFT ON. It is what makes <hostname>.local resolve, which
+# is how these machines are found when DHCP moves them - this one was located
+# that way after its address changed mid-install. Turning both off together is
+# the easy mistake.
+writefile 0644 "$rootmnt/etc/systemd/resolved.conf.d/50-no-llmnr.conf" <<'EOF'
+# Installed by install_fedora.sh.
+[Resolve]
+LLMNR=no
+EOF
+
 # Chromium theming: a root service writes the policy, the user only asks.
 #
 # bin/theme.sh colours the browser to match the desktop theme through an
@@ -2903,6 +2944,17 @@ check "firewall installed"             "fchroot rpm -q firewalld >/dev/null 2>&1
 check "firewall enabled"               "fchroot systemctl is-enabled firewalld >/dev/null 2>&1"
 check "sshd installed"                 "fchroot rpm -q openssh-server >/dev/null 2>&1"
 check "sshd enabled"                   "fchroot systemctl is-enabled sshd >/dev/null 2>&1"
+check "ssh refuses passwords"          "grep -q '^PasswordAuthentication no' '$rootmnt/etc/ssh/sshd_config.d/50-no-passwords.conf'"
+check "LLMNR disabled"                 "grep -q '^LLMNR=no' '$rootmnt/etc/systemd/resolved.conf.d/50-no-llmnr.conf'"
+check "mDNS left alone"                "! grep -rq '^MulticastDNS=no' '$rootmnt/etc/systemd/resolved.conf.d/' 2>/dev/null"
+# NOT A CHECK BUT A WARNING, and the most important line in this section on a
+# fresh machine: keys only, and no keys yet.
+if [[ ! -s "$rootmnt/home/$username/.ssh/authorized_keys" ]]; then
+    warn "ssh accepts KEYS ONLY and /home/$username/.ssh/authorized_keys is empty"
+    warn "  -> there is no way in over ssh until you add a key AT THE KEYBOARD"
+    warn "  -> ssh-import-id-gh <user>, or paste into ~/.ssh/authorized_keys"
+    warn "  -> or remove /etc/ssh/sshd_config.d/50-no-passwords.conf to allow passwords again"
+fi
 [[ -n "$dotfiles_repo" ]] && \
 check "starship prompt installed"      "fchroot test -x /home/$username/.local/bin/starship"
 check "zram configured"                "fchroot rpm -q zram-generator-defaults >/dev/null 2>&1"
