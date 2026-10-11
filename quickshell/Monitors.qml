@@ -417,10 +417,26 @@ Singleton {
                 offer(best, "Standard")
         }
 
-        // One usable step either side.
+        // One step either side, FROM WHAT THE PANEL CAN ACTUALLY DO rather than
+        // from a list of round numbers.
+        //
+        // This walked roundScales - 1, 1.25, 1.5, 1.75, 2, ... - and snapped each
+        // to a scale the panel supports. On a 2256x1504 panel that collapses
+        // badly: 1.25 snaps to 1.175 and 1.5 snaps to 1.5667, so from 1.5667 the
+        // only step down offered was 1.175, and the next one after that was 1.
+        // Two presses from the default landed on the floor and "Smaller"
+        // disappeared, which is what it was reported as. 1.3333 and 1.6 are both
+        // valid on this panel and neither was ever offered, because no round
+        // number happens to land on them.
+        //
+        // validScales() is that list - every scale where the logical size comes
+        // out whole - so the neighbours are now the real ones either side.
+        // minStep still applies: a step has to be at least 8% away to be worth
+        // a button, which keeps 1.5667 and 1.6 from both appearing as though
+        // they were different sizes.
+        const ladder = ks.map(k => k / 120)
         let below = null, above = null
-        for (const candidate of monitors.roundScales) {
-            const scale = snap(candidate)
+        for (const scale of ladder) {
             if (scale <= now / monitors.minStep && (below === null || scale > below)) below = scale
             if (scale >= now * monitors.minStep && (above === null || scale < above)) above = scale
         }
