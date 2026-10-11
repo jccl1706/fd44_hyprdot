@@ -58,7 +58,15 @@ spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/evo4-gain.sh"
 // `claude` with no arguments. Two instances resuming one id at once is worth
 // avoiding - this one is attached to a tmux session, so a second login finds
 // the first rather than racing it.
-spawn-at-startup "sh" "-c" "kitty --app-id kitty-framework -e tmux new-session -A -s framework claude --resume 4c3c50be-ace6-48fa-a669-28809a94ba06"
+// AND IT FALLS BACK TO A SHELL, which it did not before. If claude is not
+// installed - as on a fresh install, where nothing installs it - or the
+// conversation id no longer resolves, it was the tmux session's ONLY command:
+// it failed, the session died with it, and kitty closed immediately. The
+// symptom is a login with no terminal at all, which reads as "tmux is not
+// spawning" and not as a missing program. Now claude is tried and the shell
+// runs afterwards regardless, so the window and the tmux session always
+// survive.
+spawn-at-startup "sh" "-c" "kitty --app-id kitty-framework -e tmux new-session -A -s framework sh -c 'command -v claude >/dev/null 2>&1 && claude --resume 4c3c50be-ace6-48fa-a669-28809a94ba06; exec \"$SHELL\" -l'"
 
 // THE SYSTEMD USER SERVICES ARE MOSTLY LEFT TO niri-session, which binds
 // graphical-session.target the way uwsm does on the Hyprland side, so anything
