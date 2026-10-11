@@ -58,8 +58,15 @@ except Exception:
     printf '%s%%' "${v:-$2}"
 }
 
-BATTERY_BRIGHTNESS=$(read_setting brightnessOnBattery 50)
-AC_BRIGHTNESS=$(read_setting brightnessOnAc 100)
+# READ IN apply(), NOT HERE. These two lines used to sit at the top level, so
+# `watch` - which runs for the whole session as a user service - read the file
+# ONCE at startup and used those numbers for every power event afterwards.
+# Moving a slider changed the file and nothing else: the charger kept applying
+# whatever had been stored when the service last started, or the defaults below
+# if the keys did not exist yet, and the brightness never matched the slider.
+#
+# A power event happens a few times a day. Reading two numbers then costs
+# nothing, and it is the only way a setting changed at 19:00 applies at 19:01.
 
 log() { printf '[power-mode] %s\n' "$*"; }
 
@@ -88,9 +95,11 @@ on_ac() {
 apply() {
     local profile brightness source
     if on_ac; then
-        profile=$AC_PROFILE; brightness=$AC_BRIGHTNESS; source=AC
+        profile=$AC_PROFILE; source=AC
+        brightness=$(read_setting brightnessOnAc 100)
     else
-        profile=$BATTERY_PROFILE; brightness=$BATTERY_BRIGHTNESS; source=battery
+        profile=$BATTERY_PROFILE; source=battery
+        brightness=$(read_setting brightnessOnBattery 50)
     fi
 
     # Only set the profile if it differs, so replugging does not spam the
