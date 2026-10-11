@@ -1163,6 +1163,18 @@ depacs=(
     hyprland-guiutils
     wl-clipboard cliphist grim slurp
     nautilus gvfs file-roller xdg-user-dirs
+    # papirus-icon-theme, WHICH EVERY THEME NAMES AND NOTHING INSTALLED. All five
+    # themes/*.conf set icon_theme=Papirus-Dark or Papirus-Light; theme.sh checks
+    # whether the named theme is present and falls back to Adwaita WITH A MESSAGE,
+    # so this was not broken - just never themed. The machine built from this
+    # installer came up with Adwaita icons while every palette asked for Papirus.
+    #
+    # The README said a bin/icon-theme.sh installed it, with three commands for
+    # running it. THAT SCRIPT HAS NEVER EXISTED in this tree or in its history,
+    # which bin/link-dotfiles.sh already said in a comment nobody reads while the
+    # README said otherwise where everybody does. Papirus is a plain Fedora
+    # package, so the fix is one name here rather than a script to write.
+    papirus-icon-theme
     # RAR, which nothing else here can open. file-roller drives `unar`/`lsar`
     # when they are present, so this is also what makes "Extract Here" work on
     # a .rar in Nautilus - and `unar file.rar` from a terminal.

@@ -54,20 +54,24 @@ what a config file is:
 
 Adding a third theme means adding a file. Nothing else changes.
 
-**Icons** are [Reversal](https://github.com/yeyushengfan258/Reversal-icon-theme)
-(GPL-3.0): grey folders on dark, purple on cream, named by each theme's
-`icon_theme` key, and the launcher's app icons too. It is opt-in - the desktop
-is complete without it, and until it is installed GTK apps keep Adwaita's icons:
+**Icons** are [Papirus](https://github.com/PapirusDevelopmentTeam/papirus-icon-theme)
+(GPL-3.0), named by each theme's `icon_theme` key - `Papirus-Dark` on the dark
+palettes, `Papirus-Light` on cream and latte. It is a plain Fedora package and
+`install_fedora.sh` installs it:
 
 ```sh
-bin/icon-theme.sh            # ~275 MB on disk in ~/.local/share/icons, no root
-bin/icon-theme.sh --status   # what the themes want vs what is installed
-bin/icon-theme.sh --remove
+sudo dnf install papirus-icon-theme
 ```
 
-It installs the colour sets the theme files name, from a pinned upstream
-commit, so changing a theme's `icon_theme` and running it again is the whole
-job of switching colours.
+`theme.sh` checks the named theme is present and **falls back to Adwaita with a
+message** when it is not, so a machine without it is merely unthemed rather than
+broken.
+
+This section used to describe [Reversal](https://github.com/yeyushengfan258/Reversal-icon-theme)
+installed by a `bin/icon-theme.sh`, with three commands for running it. The
+themes were moved to Papirus and **that script has never existed in this tree
+or in its history** - see the note in `bin/link-dotfiles.sh`. The commands were
+documentation for something unrunnable.
 
 **Chromium** reads policy only from `/etc`, and that directory stays root's: a
 theme switch writes just a colour and light/dark to `~/.local/state`, and a small
@@ -463,11 +467,11 @@ quickshell/      the shell itself, QML
                    knows nothing about any particular setting, so adding one is
                    a single entry there
 
-themes/          dark.conf, cream.conf — one file per palette
+themes/          one file per palette: dark, cream, catppuccin, catppuccin-latte, nord
 fonts/           Symbols Nerd Font, vendored (MIT)
 wallpapers/      resized, webp
 bin/             link-dotfiles.sh — point ~/.config at this checkout; run it after a reinstall
-                 theme.sh · wallpaper.sh · power-mode.sh · idle-action.sh · icon-theme.sh
+                 theme.sh · wallpaper.sh · power-mode.sh · idle-action.sh
                  qs-restart.sh — restart quickshell safely (one instance, verified)
                  game-dnd.sh — silence notifications while a game runs; GameMode's
                    start and end hooks call it
@@ -947,7 +951,6 @@ Take the ones that machine wants:
 ```sh
 cd ~/Work/fd44_hyprdot
 bin/starship-setup.sh        # the two-line prompt, per user, no sudo
-bin/icon-theme.sh            # the Reversal icons the palettes ask for
 sudo bin/gaming-setup.sh     # Steam, GameMode, MangoHud, the nodatacow library
 sudo bin/cooling-setup.sh    # CoolerControl and the saved fan curves
 bin/install-nerd-font.sh     # only where the font is not already packaged
