@@ -3139,9 +3139,14 @@ else cat <<'HYPR'
   \$terminal-style variable (or its Lua equivalent) needs updating in
   whichever config file is actually present." )
 
-  NO NOTIFICATION DAEMON IS INSTALLED either - apps that send desktop
-  notifications will silently do nothing until you install one (mako,
-  dunst, swaync, ...) or quickshell grows one in its config.
+  NOTIFICATIONS ARE SERVED BY quickshell, not by a separate daemon. Its
+  NotificationService.qml claims org.freedesktop.Notifications on the session
+  bus and Notifications.qml draws them, so there is deliberately no dunst or
+  mako here. Verified on a real install: that bus name is owned by the qs process.
+
+  THAT DEPENDS ON THE DOTFILES. Without --dotfiles there is no quickshell
+  config, nothing claims the name, and desktop notifications silently do
+  nothing - install a daemon (mako, dunst, swaync) or clone the dotfiles.
 
   If uwsm crashes with a Python ModuleNotFoundError the first time you
   start a session, that is a real gap in the COPR's uwsm packaging (it has
