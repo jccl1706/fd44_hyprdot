@@ -55,7 +55,7 @@ DropPanel {
                 id: block
                 anchors { left: parent.left; right: parent.right; leftMargin: 16
                           rightMargin: 16; verticalCenter: parent.verticalCenter }
-                spacing: 3
+                spacing: 5
 
                 Text {
                     font.family: Theme.font
@@ -66,11 +66,18 @@ DropPanel {
                     font.letterSpacing: 0.6
                 }
 
+                // THE BIG NUMBER STAYS IN NORMAL FLOW AND THE WORD ALIGNS TO
+                // IT, not the other way round. Anchoring the number's baseline
+                // to its neighbour took it out of the Row's layout, so the Row
+                // sized itself to the 13px word while the 27px number overflowed
+                // upward - straight through the heading above it. An anchored
+                // child contributes nothing to implicit height, and the only
+                // visible symptom is two pieces of text on top of each other.
                 Row {
                     spacing: 8
                     Text {
+                        id: bigNumber
                         font.family: Theme.font
-                        anchors.baseline: parent.children[1].baseline
                         text: ClaudeUsage.ready
                               ? ClaudeUsage.human(ClaudeUsage.blockBilled) : "—"
                         color: Theme.fg
@@ -80,6 +87,7 @@ DropPanel {
                     }
                     Text {
                         font.family: Theme.font
+                        anchors.baseline: bigNumber.baseline
                         text: "billed"
                         color: Theme.dim
                         font.pixelSize: Theme.fontSize
