@@ -343,20 +343,44 @@ Singleton {
     //
     // A plugin this machine cannot draw at all is left out by `when` - there
     // is no couch button to switch off on a machine with no television.
+    // GROUPED BY WHERE THEY SIT IN THE BAR, which this already knew and threw
+    // away. The loop has always walked BarLayout.zones, but every toggle came
+    // out into one flat list of fifteen - so the page could not answer "which
+    // of these is the thing on the right?" without going and looking at the
+    // bar. The zone is the only grouping these plugins have, and it is the one
+    // the eye is going to use.
+    //
+    // Only the FIRST row of a zone carries the label; SettingsRow draws it as a
+    // small header above itself. Empty zones produce nothing rather than a
+    // heading with no rows under it - left and centerLeft are empty by default.
+    readonly property var zoneLabels: ({
+        // BOTH CENTRE ZONES SAY WHICH THEY ARE. centerRight was labelled just
+        // "Centre", which read fine while centerLeft was empty and became a
+        // riddle the moment it was not: two groups, one called "Centre left"
+        // and one called "Centre", with no way to tell whether the second was
+        // the other half or the whole thing.
+        left: "Left", centerLeft: "Centre left",
+        centerRight: "Centre right", right: "Right"
+    })
+
     readonly property var barRows: {
         const out = []
-        for (const z of BarLayout.zones)
+        for (const z of BarLayout.zones) {
+            let firstInZone = true
             for (const id of BarLayout.current[z]) {
                 const m = BarLayout.meta[id]
                 if (!m) continue
                 out.push({
                     label: m.label, help: m.help, type: "toggle",
+                    group: firstInZone ? (settings.zoneLabels[z] || z) : "",
                     when: function() { return BarLayout.available(id) },
                     get:  function() { return BarLayout.enabled(id) },
                     set:  function(v) { BarLayout.setEnabled(id, v) }
                 })
+                firstInZone = false
             }
-        out.push({ label: "Reset layout", type: "action",
+        }
+        out.push({ label: "Reset layout", type: "action", group: "Layout",
                    help: "defaults restored and every plugin shown again · drag in the bar to rearrange",
                    run: function() { BarLayout.reset() } })
         return out

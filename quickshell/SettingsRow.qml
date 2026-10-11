@@ -143,12 +143,15 @@ Item {
                     font.pixelSize: Theme.fontSizeSmall
                     width: parent.width
                     wrapMode: Text.WordWrap
-                    // ONE LINE, NOT TWO. With the state chips above saying what is
-                    // selected, the help text no longer has to carry that job as
-                    // well - it only has to say what the control does, and the
-                    // first line does that in every row here. The rest is a hover
-                    // away and the page gets its vertical rhythm back.
-                    maximumLineCount: 1
+                    // TWO LINES, AFTER ONE TURNED OUT TO BE A LIE ABOUT THE DATA.
+                    // One line is plenty in Appearance, where the help says what
+                    // a control does. The Bar section's help says what you LOSE
+                    // by hiding a plugin - "Hidden, there is no other way to
+                    // switch it on" - and that is the half that got cut, in
+                    // almost every row, mid-sentence. A help text truncated
+                    // before its warning is worse than none, because the row
+                    // still looks explained.
+                    maximumLineCount: 2
                     elide: Text.ElideRight
                     ToolTip.visible: helpHover.hovered && helpText.truncated
                     ToolTip.text: settingRow.row.help || ""

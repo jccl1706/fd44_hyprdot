@@ -162,7 +162,10 @@ PanelWindow {
     readonly property var visibleRows: {
         if (root.query === "") {
             const s = root.sections[root.section]
-            return s ? s.rows.map(r => ({ row: r, from: "" })) : []
+            // r.group is the in-section grouping (the bar's zones); search
+            // overrides it below with the section name, which is what the
+            // header means there.
+            return s ? s.rows.map(r => ({ row: r, from: r.group || "" })) : []
         }
         const out = []
         for (const s of root.sections)
