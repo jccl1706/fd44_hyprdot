@@ -56,15 +56,25 @@ Singleton {
     readonly property int margin: floating ? Theme.barFloatMargin : 0
 
     // BIGGER PILLS WHEN THEY ARE THE WHOLE BAR. Framed, a pill is a group
-    // marked out on a strip and Theme.barHeight's 38 sets the scale, so 26 is
-    // a pill with 6px of bar showing above and below it. Floating, the strip
-    // is invisible and the pill IS the bar - at 26 it reads as a thin sliver
-    // with a lot of wallpaper round it rather than as the shell's main
-    // control. The extra 10 of height and 8 of padding is what puts it back
-    // in proportion to the gap it now sits in - 36 and 18 against the framed
-    // 26 and 10. It was tried at 32 and 14 first and still read as thin.
-    readonly property int pillHeight:  Theme.pillHeight  + (floating ? 10 : 0)
-    readonly property int pillPadding: Theme.pillPadding + (floating ? 8  : 0)
+    // marked out on a strip and Theme.barHeight sets the scale, so 26 is a pill
+    // with a few px of bar showing above and below it. Floating, the strip is
+    // invisible and the pill IS the bar - at 26 it reads as a thin sliver with
+    // a lot of wallpaper round it rather than as the shell's main control.
+    //
+    // The bonus has been raised twice and the whole series is kept, because
+    // each step only looks obvious once the one before it is on screen:
+    //
+    //   +6/+4   -> 32 and 14   still read as thin
+    //   +10/+8  -> 36 and 18   in proportion, but still a framed pill with air
+    //   +14/+12 -> 40 and 22   the current one
+    //
+    // The last step also pays off the type going up a pixel: the container had
+    // not followed its contents.
+    //
+    // barBottom derives from this, so the reserved zone grows with the pills and
+    // tiled windows keep sitting below the gap rather than under it.
+    readonly property int pillHeight:  Theme.pillHeight  + (floating ? 14 : 0)
+    readonly property int pillPadding: Theme.pillPadding + (floating ? 12 : 0)
 
     // WHERE THE CHROME BELOW THE BAR STARTS. This is the bar window's full
     // height, which is also its exclusive zone, so a panel's top edge lands
