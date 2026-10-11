@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# =========================================================================
+# 50-wifi-wired-exclusive - wifi off while a cable is in, back on when it goes
+# =========================================================================
+#
+# A NetworkManager dispatcher script. NM hands it two arguments: the kernel
+# interface something happened on, and what happened.
+#
+# INSTALLED AS A SYMLINK INTO no-wait.d, AND THAT IS NOT CLEANLINESS. Ordinary
+# dispatcher scripts run one at a time and NetworkManager WAITS for each to
+# finish. This one calls nmcli, which asks NetworkManager a question over
+# D-Bus - so a synchronous run has the script waiting on NM while NM waits on
+# the script. NetworkManager-dispatcher(8) provides the way out: a script that
+# is a symlink pointing inside dispatcher.d/no-wait.d/ "runs immediately,
+# without waiting for the termination of previous scripts, and in parallel".
+# bin/wifi-wired-setup.sh installs it that way; nothing else here is safe.
+#
+# IT DECIDES FROM THE CURRENT STATE, NOT FROM THE EVENT, and that is also from
+# the man page: "once a script is queued, it will always be run, even if a
+# later event renders it obsolete. (Eg, if an interface goes up, and then back
+# down again quickly, it is possible that one or more "up" scripts will be run
+# after the interface has gone down.)" A script that trusted its own argument
+# would, on a cable reseated quickly, end with the wifi off and no cable. So
+# the event is only a reason to LOOK; the answer comes from what nmcli says is
+# connected at the moment the script actually runs. Flapping then converges.
+#
+# ONLY WIRED EVENTS TRIGGER IT, so that turning the wifi off or on by hand is
+# not immediately undone - a radio toggle is not an interface event, so this
+# never sees it and never fights you for it.
+
+set -uo pipefail
+
+iface="${1:-}"
+action="${2:-}"
+
+# The escape hatch, so this can be switched off without being uninstalled -
+# handy when you want both radios up at once for a transfer.
+[[ -e /etc/NetworkManager/wifi-wired-exclusive.off ]] && exit 0
+
+# --- which events are worth looking at ----------------------------------------
+#
+# ONLY ONE TEST ON THE TRIGGERING INTERFACE, and the obvious second one was a
+# bug. An earlier version also required /sys/class/net/$iface/device to exist,
+# to keep docker's veth pairs from turning the radio off. But A USB NIC THAT
+# HAS BEEN UNPLUGGED NO LONGER EXISTS IN SYSFS - by the time the `down` event
+# reaches this script the whole directory is gone - so that test threw away
+# precisely the event the wifi needed to come back, leaving the radio off with
+# no cable. Logged once as `wifi off (... wired=yes)` and then silence.
+#
+# It is not needed anyway: this script does not trust the interface it was
+# handed for anything except "something changed, go and look". The hardware
+# tests that matter are in the state scan below, where a veth calling itself
+# ethernet is actually filtered out. A spurious trigger from a container is
+# harmless - it recomputes the same answer and the no-op check at the bottom
+# swallows it.
+#
+# The wifi exclusion stays, because that one does not fight removal: a radio
+# this script turned off must not look like a reason to turn it back on, and a
+# wifi interface is not hot-unplugged.
+[[ -n "$iface" ]]                         || exit 0
+[[ -d "/sys/class/net/$iface/wireless" ]] && exit 0
+
+# NO FILTER ON THE ACTION EITHER, for the same reason as above: guessing which
+# action string carries the news is how the removal case got missed once
+# already. A yanked USB NIC does not arrive as a tidy `down` - NetworkManager
+# logs it as
+#
+#     state change: activated -> unmanaged (managed-type: 'removed')
+#
+# and a filter of up|down is a bet on the vocabulary rather than a reading of
+# the state. Every action is now a reason to look, and the no-op check at the
+# bottom means the frequent ones (dhcp4-change and friends) cost two nmcli
+# calls and change nothing. That is cheap, and being right on the event that
+# matters is worth more than skipping the ones that do not.
+
+# --- what is actually connected right now? ------------------------------------
+wired=no
+while IFS=: read -r dev typ state _; do
+    [[ "$typ" == ethernet && "$state" == connected ]] || continue
+    # The same two hardware tests, because nmcli calls a veth "ethernet" too.
+    [[ -e "/sys/class/net/$dev/device" ]]     || continue
+    [[ -d "/sys/class/net/$dev/wireless" ]]   && continue
+    wired=yes
+    break
+done < <(nmcli -t -f DEVICE,TYPE,STATE device 2>/dev/null)
+
+[[ "$wired" == yes ]] && want=off || want=on
+
+# Only move it if it is not already there: NM emits several events per cable,
+# and acting on each would fill the journal and churn the radio for nothing.
+now="$(nmcli -t radio wifi 2>/dev/null)"
+case "$now:$want" in
+    disabled:off|enabled:on) exit 0 ;;
+esac
+
+nmcli radio wifi "$want" >/dev/null 2>&1 \
+    && logger -t wifi-wired-exclusive "wifi $want ($iface $action, wired=$wired)"
