@@ -756,6 +756,16 @@ ShellRoot {
             const r = shell.openPanelRect()
             return r === "" ? "none" : r
         }
+
+        // The bar is always on screen, so it cannot be found by looking for
+        // what is visible the way rect() does - it would answer with the bar
+        // every time and never with the panel that was just opened.
+        function bar(): string {
+            const bars = barVariants.instances
+            for (let i = 0; i < bars.length; i++)
+                if (bars[i] && bars[i].shotRect) return bars[i].shotRect
+            return "none"
+        }
     }
 
     IpcHandler {

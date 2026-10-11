@@ -48,6 +48,15 @@ PanelWindow {
     // surface is placed on.
     screen: modelData
 
+    // WHERE THE BAR IS, for bin/qs-shot.sh. Unlike the drop panels - whose
+    // window is the whole output so that they can place a card inside it -
+    // this window IS the bar, so its own size is the answer and there is no
+    // item to map. The screen's origin matters on a second monitor, where the
+    // bar's window starts at that output's x rather than at zero.
+    readonly property string shotRect:
+        Math.round(modelData.x) + "," + Math.round(modelData.y) + " "
+        + Math.round(width) + "x" + Math.round(height)
+
     // PanelWindow is a layer-shell surface. Anchoring to three edges is what
     // makes it span the full width: left+right pins both sides, so the width
     // follows the monitor instead of being a fixed number.

@@ -82,13 +82,16 @@ case "${1}" in
         exit 0
         ;;
     --bar)
-        # The bar is not a DropPanel and has no card to map; its height is
-        # whatever BarStyle makes it and the width is the output's.
-        w=$(grim - 2>/dev/null | python3 -I -c '
-import struct, sys
-d = sys.stdin.buffer.read(33)
-print(struct.unpack(">I", d[16:20])[0] if d[:8] == b"\x89PNG\r\n\x1a\n" else 1920)' 2>/dev/null || echo 1920)
-        shoot "0,0 ${w}x64" bar
+        # ASKED, NOT MEASURED. This used to read the output's width out of the
+        # first bytes of `grim -`, which broke in a way worth remembering: grim
+        # is killed by SIGPIPE when the reader stops after 33 bytes, and under
+        # `set -o pipefail` that failed the whole pipeline, so the `|| echo`
+        # fallback ran AS WELL as the successful parse and the width came out
+        # as two lines. The bar knows its own geometry, including the insets a
+        # floating pill leaves at the edges, so it is simply asked.
+        geo="$(qs ipc call shot bar 2>/dev/null)"
+        [[ -n $geo && $geo != none ]] || die "the bar did not report a rectangle"
+        shoot "$geo" bar
         exit 0
         ;;
 esac
