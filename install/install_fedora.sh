@@ -993,6 +993,16 @@ basepacs=(
     NetworkManager NetworkManager-wifi
     iproute
     sudo nano vim-enhanced git
+    # gh, BECAUSE ~/.gitconfig DEPENDS ON IT AND THE BACKUP RESTORES THAT FILE.
+    # It sets `helper = !gh auth git-credential` for github.com and
+    # gist.github.com, so on a machine without gh every https push fails at the
+    # credential step with nothing that names the real cause.
+    #
+    # That happened here on 2026-10-10: a freshly installed machine restored its
+    # gitconfig, could not push, and the remotes were switched to ssh by hand to
+    # work around a missing package. Same shape as restic below - the
+    # configuration came back from the backup and the tool it needs did not.
+    gh
     # shadow-utils provides useradd/usermod/groupadd/chpasswd. It is NOT pulled
     # in by anything else in this list: until v1.9 it arrived only as an sddm
     # dependency, so removing the display manager silently took it with it and
