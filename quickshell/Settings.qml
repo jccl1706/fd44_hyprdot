@@ -573,22 +573,40 @@ Singleton {
         brightnessRead.running = true
     }
 
+    // THE CHARGER IS READ HERE, NOT TAKEN FROM Battery.onAc, and the two reads
+    // are one command so they describe the same instant.
+    //
+    // Battery reloads its files on a 10 SECOND TIMER. That is fine for a bar
+    // glyph and wrong for this: plug the charger in and press a brightness key
+    // within those ten seconds and the level would be filed against the state
+    // the machine just left - the AC brightness written into the battery
+    // setting, which power-mode.sh would then apply the next time you unplugged.
+    // A rare sequence, but it corrupts a stored value rather than just showing
+    // a stale one, and it would be unexplainable afterwards.
+    //
+    // Mains is identified by type rather than by name: ACAD on this board, AC
+    // or ADP1 elsewhere, and a laptop can have more than one - any one of them
+    // online counts.
     Process {
         id: brightnessRead
         command: ["sh", "-c",
                   'p="$(\"$1\" path)" || exit 0; [ -n "$p" ] || exit 0; '
-                  + 'cat "$p/brightness" "$p/max_brightness"',
+                  + 'cat "$p/brightness" "$p/max_brightness" || exit 0; '
+                  + 'ac=0; for s in /sys/class/power_supply/*/; do '
+                  + '[ "$(cat "$s/type" 2>/dev/null)" = Mains ] && '
+                  + '[ "$(cat "$s/online" 2>/dev/null)" = 1 ] && ac=1; done; '
+                  + 'echo "$ac"',
                   "sh", Quickshell.env("HOME") + "/Work/fd44_hyprdot/bin/backlight.sh"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const n = text.trim().split(/\s+/).map(parseFloat)
-                if (n.length < 2 || !(n[1] > 0)) return
+                if (n.length < 3 || !(n[1] > 0)) return
                 // The fourth root, because backlight.sh sets through
                 // `brightnessctl -e4`. Same conversion as Osd.qml.
                 const pct = Math.round(Math.pow(n[0] / n[1], 0.25) * 100)
                 if (!(pct >= 1 && pct <= 100)) return
-                settings.setValue(Battery.onAc ? "brightnessOnAc"
-                                               : "brightnessOnBattery", pct)
+                settings.setValue(n[2] === 1 ? "brightnessOnAc"
+                                             : "brightnessOnBattery", pct)
             }
         }
     }
