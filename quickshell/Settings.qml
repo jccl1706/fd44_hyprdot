@@ -60,6 +60,35 @@ Singleton {
     // screen, "full" is that same strip with no border beside it - a plain
     // full-width bar - and "pill" lets them float on the wallpaper with a gap
     // all round.
+    // What bin/power-mode.sh sets the backlight to when the charger goes in or
+    // comes out. Percentages of the panel's range - what brightnessctl takes
+    // and what the two brightness keybinds step.
+    //
+    // THE SAME DEFAULTS LIVE IN power-mode.sh AND HAVE TO. That script runs
+    // from a udev rule, on a machine whose settings file may not exist yet, so
+    // it cannot depend on this one ever having been written.
+    property int brightnessOnBattery: 50
+    property int brightnessOnAc: 100
+
+    // IS THERE A BACKLIGHT AT ALL. Osd.qml answers this for itself but is one
+    // instance per screen rather than a singleton, so it cannot be asked from
+    // here. bin/backlight.sh prints the device it found and nothing at all on a
+    // machine with none - the desktop - which is the whole test.
+    property bool hasBacklight: false
+    property bool backlightProbed: false
+
+    Process {
+        running: true
+        command: [Quickshell.env("HOME") + "/Work/fd44_hyprdot/bin/backlight.sh",
+                  "device"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                settings.hasBacklight = text.trim().length > 0
+                settings.backlightProbed = true
+            }
+        }
+    }
+
     property string barStyle: "frame"   // "frame" | "full" | "pill" | "focus"
 
     // WHAT FOCUS GOES BACK TO. Focus mode hides everything on the bar except
@@ -295,6 +324,28 @@ Singleton {
                     get: function() { return monitor.currentRefresh },
                     set: function(v) { Monitors.setRefresh(monitor, v) }
                 })
+        }
+
+        // THE TWO BACKLIGHT LEVELS, after the per-screen rows. Only on a
+        // machine with a backlight: bin/backlight.sh finds one in
+        // /sys/class/backlight and comes back empty on the desktop, where a
+        // slider for a panel nobody can dim would be a control for hardware
+        // that is not there - the rule the rest of this schema follows.
+        // Unknown is not an answer, the same distinction the battery plugin
+        // draws: before the probe lands this machine looks like one with no
+        // panel, and two rows that appear a moment late are better than two
+        // that flicker in on a desktop which will never use them.
+        if (!settings.backlightProbed || settings.hasBacklight) {
+            out.push({
+                key: "brightnessOnAc", label: "Brightness on AC",
+                type: "pct", min: 10, max: 100, step: 5,
+                help: "set when the charger goes in"
+            })
+            out.push({
+                key: "brightnessOnBattery", label: "Brightness on battery",
+                type: "pct", min: 10, max: 100, step: 5,
+                help: "set when it comes out · bin/power-mode.sh applies both"
+            })
         }
         return out
     }

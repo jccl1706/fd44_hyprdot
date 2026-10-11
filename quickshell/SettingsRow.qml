@@ -183,7 +183,7 @@ Item {
                         case "toggle":  return toggleSwitch
                         case "select":  return segmented
                         case "menu":    return menuButton
-                        default:        return numberSlider     // "ms", "min", "days"
+                        default:        return numberSlider     // "ms", "min", "pct", days
                     }
                 }
             }
@@ -558,10 +558,15 @@ Item {
                 font.pixelSize: Theme.fontSize
                 // Milliseconds are stored but seconds are what a person thinks
                 // in; days likewise read better than a bare number.
+                // The fallthrough was "d" for days, which made every future
+                // slider a number of days until someone noticed. A percentage
+                // reads as one now; anything still unlabelled is days.
                 text: settingRow.row.type === "ms"
                         ? (sl.value / 1000).toFixed(sl.value % 1000 ? 1 : 0) + "s"
                       : settingRow.row.type === "min"
                         ? sl.value.toFixed(0) + " min"
+                      : settingRow.row.type === "pct"
+                        ? sl.value.toFixed(0) + "%"
                         : sl.value.toFixed(0) + "d"
             }
         }

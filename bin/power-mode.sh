@@ -25,10 +25,41 @@ set -u
 BACKLIGHT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/backlight.sh"
 
 BATTERY_PROFILE=power-saver
-BATTERY_BRIGHTNESS=50%
-
 AC_PROFILE=balanced
-AC_BRIGHTNESS=100%
+
+# THE TWO BRIGHTNESS LEVELS ARE SETTINGS, NOT CONSTANTS. They were 50% and
+# 100% written here, which is the right default and the wrong place to have to
+# go to change it - the Display page in the shell's settings panel now writes
+# them, and this reads whatever is there.
+#
+# READ WITH python3, NOT grep. The file is JSON and a regex over JSON is a bug
+# waiting for the day someone adds a key whose name contains another key's.
+# python3 is already a hard dependency of this repo (bin/updates.py,
+# bin/daylight.py), so this costs nothing new.
+#
+# THE DEFAULTS ARE HERE, NOT ONLY IN THE SHELL. This script runs from a udev
+# rule and must work on a machine whose settings file does not exist yet, has
+# been hand-edited into nonsense, or belongs to a user who has never opened the
+# panel. Anything unreadable falls back to the values that were hardcoded.
+SETTINGS="${XDG_STATE_HOME:-$HOME/.local/state}/fd44-hyprdot/settings.json"
+
+read_setting() {  # key default
+    local v
+    v=$(python3 -c '
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        v = json.load(f).get(sys.argv[2])
+    # Only a number in 1-100 is an answer; anything else falls through.
+    print(int(v) if isinstance(v, (int, float)) and 1 <= v <= 100 else "")
+except Exception:
+    print("")
+' "$SETTINGS" "$1" 2>/dev/null)
+    printf '%s%%' "${v:-$2}"
+}
+
+BATTERY_BRIGHTNESS=$(read_setting brightnessOnBattery 50)
+AC_BRIGHTNESS=$(read_setting brightnessOnAc 100)
 
 log() { printf '[power-mode] %s\n' "$*"; }
 
