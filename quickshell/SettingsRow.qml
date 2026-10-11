@@ -497,6 +497,52 @@ Item {
                 stepSize: settingRow.row.step || 1
                 snapMode: Slider.SnapAlways
                 value: settingRow.value === undefined ? from : settingRow.value
+
+                // STYLED, BECAUSE AN UNSTYLED Slider IS NOT NEUTRAL - IT IS BLUE.
+                // QtQuick Controls' default style paints its groove and handle in
+                // its own stock blue, so this one control sat there in a colour no
+                // palette on this machine contains, through every theme. Every
+                // other widget in the panel was already drawn by hand, which is
+                // why it was the only thing that never changed.
+                // AND THE SLIDER NEEDS A HEIGHT OF ITS OWN once these replace
+                // the defaults. A Slider takes its implicit size from its
+                // background and handle; two Rectangles with no implicit size
+                // gave it zero, and the control vanished - the row kept its
+                // label, its help and its value and simply had no slider in it.
+                height: 20
+
+                background: Rectangle {
+                    x: sl.leftPadding
+                    y: sl.topPadding + sl.availableHeight / 2 - height / 2
+                    implicitWidth: 170
+                    implicitHeight: 4
+                    width: sl.availableWidth
+                    height: 4
+                    radius: 2
+                    color: Theme.surfaceHigh
+                    // The filled part, which is the value - so it takes the
+                    // accent, the colour this bar uses for "the live one".
+                    Rectangle {
+                        width: sl.visualPosition * parent.width
+                        height: parent.height
+                        radius: parent.radius
+                        color: Theme.accent
+                    }
+                }
+
+                handle: Rectangle {
+                    x: sl.leftPadding + sl.visualPosition * (sl.availableWidth - width)
+                    y: sl.topPadding + sl.availableHeight / 2 - height / 2
+                    implicitWidth: 16
+                    implicitHeight: 16
+                    width: 16
+                    height: 16
+                    radius: 8
+                    color: sl.pressed ? Theme.surfaceHigh : Theme.surface
+                    border.width: 2
+                    border.color: Theme.accent
+                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
+                }
                 // COMMIT ON RELEASE, not on every pixel. Dragging a slider
                 // bound straight to the store would write the settings file
                 // dozens of times per drag and, for the notification timeouts,
