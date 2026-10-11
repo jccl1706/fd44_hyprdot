@@ -2458,7 +2458,20 @@ if [[ -n "$dotfiles_repo" ]]; then
         # Any user units the repo ships get linked and enabled.
         if [[ -d "$rootmnt/home/$username/Work/$dotdir/systemd" ]]; then
             run fchroot sudo -u "$username" mkdir -p "/home/$username/.config/systemd/user"
-            for unit in "$rootmnt/home/$username/Work/$dotdir/systemd/"*.service; do
+            # *.timer AS WELL AS *.service, AND THE TIMERS ARE THE POINT.
+            # This globbed only *.service, so backup.timer and daylight.timer
+            # were linked by link-dotfiles but never enabled - no
+            # default.target.wants entry, nothing to start them. The install
+            # then WARNED about backup.service having no WantedBy=, which is
+            # correct and harmless (its timer starts it) and reads like the
+            # explanation for the thing that was actually broken.
+            #
+            # The consequence was silent and specific: NO AUTOMATIC BACKUPS.
+            # restic was installed, backup.sh was in place, the unit files were
+            # all there, and nothing would ever have run them. That is only
+            # discovered when a backup is needed.
+            for unit in "$rootmnt/home/$username/Work/$dotdir/systemd/"*.service \
+                        "$rootmnt/home/$username/Work/$dotdir/systemd/"*.timer; do
                 [[ -e "$unit" ]] || continue
                 u="$(basename "$unit")"
                 run fchroot sudo -u "$username" ln -sf \
