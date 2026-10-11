@@ -487,8 +487,13 @@ binds {
     // Example brightness key mappings for brightnessctl.
     // You can use regular spawn with multiple arguments too (to avoid going through "sh"),
     // but you need to manually put each argument in separate "" quotes.
-    XF86MonBrightnessUp allow-when-locked=true { spawn "brightnessctl" "--class=backlight" "set" "+10%"; }
-    XF86MonBrightnessDown allow-when-locked=true { spawn "brightnessctl" "--class=backlight" "set" "10%-"; }
+    // NOT HERE. niri's own suggested brightness binds used to sit on these two
+    // keys, calling brightnessctl directly with a LINEAR +10%. apps.kdl is
+    // included after this file and binds the same keys to bin/backlight.sh,
+    // which uses the quartic curve everything else here uses and tells the OSD
+    // afterwards - so these were overridden and dead. Left in place they read
+    // as the live binding, and the next person to wonder why brightness jumps
+    // oddly would start here.
 
     // Open/close the Overview: a zoomed-out view of workspaces and windows.
     // You can also move the mouse into the top-left hot corner,

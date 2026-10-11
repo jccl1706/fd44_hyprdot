@@ -755,6 +755,10 @@ ShellRoot {
 
         function brightness(): void {
             shell.showOsd("brightness")
+            // The keybind calls this after backlight.sh has already moved the
+            // screen, so it is also the moment to record what it moved to - see
+            // the note on noteBrightnessChanged().
+            Settings.noteBrightnessChanged()
         }
     }
 

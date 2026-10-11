@@ -555,6 +555,44 @@ Singleton {
 
     Process { id: backlight }
 
+    // THE BRIGHTNESS KEYS WRITE THE SETTING TOO, which is what makes the slider
+    // agree with the screen.
+    //
+    // These two are "the brightness to use in this power state", and the keys
+    // are how that brightness is usually chosen - so a key press IS a change to
+    // the setting for whichever state the machine is in. Without this the
+    // slider showed a stored number while the screen was on another, the keys
+    // moved one and not the other, and power-mode.sh would later undo whatever
+    // the keys had done. One value, kept in step.
+    //
+    // POLLING WOULD NOT WORK. /sys/class/backlight emits no usable inotify
+    // events - the note at the top of Osd.qml says so, and it is why the OSD is
+    // told by the key rather than watching. The same keybind already calls
+    // `qs ipc call osd brightness`; that call now comes here as well.
+    function noteBrightnessChanged(): void {
+        brightnessRead.running = true
+    }
+
+    Process {
+        id: brightnessRead
+        command: ["sh", "-c",
+                  'p="$(\"$1\" path)" || exit 0; [ -n "$p" ] || exit 0; '
+                  + 'cat "$p/brightness" "$p/max_brightness"',
+                  "sh", Quickshell.env("HOME") + "/Work/fd44_hyprdot/bin/backlight.sh"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const n = text.trim().split(/\s+/).map(parseFloat)
+                if (n.length < 2 || !(n[1] > 0)) return
+                // The fourth root, because backlight.sh sets through
+                // `brightnessctl -e4`. Same conversion as Osd.qml.
+                const pct = Math.round(Math.pow(n[0] / n[1], 0.25) * 100)
+                if (!(pct >= 1 && pct <= 100)) return
+                settings.setValue(Battery.onAc ? "brightnessOnAc"
+                                               : "brightnessOnBattery", pct)
+            }
+        }
+    }
+
     function setValue(key: string, v): void {
         if (settings[key] === undefined) {
             console.warn("Settings: no such key", key)
