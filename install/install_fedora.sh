@@ -2459,8 +2459,29 @@ if [[ -n "$dotfiles_repo" ]]; then
                 "/home/$username/Work/$dotdir/bin/link-dotfiles.sh" \
                 || { warn "  link-dotfiles.sh reported a problem - see its output above"
                      warn "  continuing: the rest of the install still has to run"; }
+
+            # THE STARSHIP PROMPT, which this installer deliberately did not
+            # carry. bin/starship-setup.sh still says "WHY NOT THE INSTALLER: a
+            # prompt is taste, not a fix" - that argument was sound and has been
+            # overruled on purpose, because a fresh machine arriving without the
+            # prompt every other machine has is a thing to remember by hand at
+            # exactly the moment there is a long list of other things.
+            #
+            # Fedora does not package starship and the COPR that does lags, so
+            # the script fetches a pinned, checksummed musl build into
+            # ~/.local/bin - see its header. That means it NEEDS NETWORK, which
+            # is why it is guarded the same way link-dotfiles is: a prompt that
+            # fails to download is a worse prompt, not a failed install, and
+            # aborting here under `set -e` would skip the fonts, the service
+            # enables and the entire verification pass with the disk already
+            # written.
+            run fchroot sudo -u "$username" env -u XDG_CONFIG_HOME \
+                "HOME=/home/$username" \
+                "/home/$username/Work/$dotdir/bin/starship-setup.sh" \
+                || { warn "  starship-setup.sh failed - the machine has bash's default prompt"
+                     warn "  run it by hand later: bin/starship-setup.sh"; }
         elif (( DRY )); then
-            log "  (dry run: nothing was cloned, so bin/link-dotfiles.sh is not"
+            log "  (dry run: nothing was cloned, so link-dotfiles.sh and starship-setup.sh"
             log "   there - on a real run it would link ~/.config here)"
         else
             warn "  repo has no bin/link-dotfiles.sh - no dotfiles were linked"
@@ -2881,6 +2902,8 @@ check "firewall installed"             "fchroot rpm -q firewalld >/dev/null 2>&1
 check "firewall enabled"               "fchroot systemctl is-enabled firewalld >/dev/null 2>&1"
 check "sshd installed"                 "fchroot rpm -q openssh-server >/dev/null 2>&1"
 check "sshd enabled"                   "fchroot systemctl is-enabled sshd >/dev/null 2>&1"
+[[ -n "$dotfiles_repo" ]] && \
+check "starship prompt installed"      "fchroot test -x /home/$username/.local/bin/starship"
 check "zram configured"                "fchroot rpm -q zram-generator-defaults >/dev/null 2>&1"
 compositor_desktop && \
     check "quickshell installed"       "[[ -x '$rootmnt/usr/bin/quickshell' ]]"
