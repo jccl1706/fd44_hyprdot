@@ -336,15 +336,23 @@ Singleton {
         // panel, and two rows that appear a moment late are better than two
         // that flicker in on a desktop which will never use them.
         if (!settings.backlightProbed || settings.hasBacklight) {
+            // NOT `key:` ROWS. A key row stores and nothing else; these have to
+            // store AND, when they are the live one, move the backlight now.
             out.push({
-                key: "brightnessOnAc", label: "Brightness on AC",
+                label: "Brightness on AC",
                 type: "pct", min: 10, max: 100, step: 5,
-                help: "set when the charger goes in"
+                get: function() { return Settings.brightnessOnAc },
+                set: function(v) { Settings.setBrightness(true, v) },
+                help: Battery.onAc ? "applies now · the charger is in"
+                                   : "stored for when the charger goes in"
             })
             out.push({
-                key: "brightnessOnBattery", label: "Brightness on battery",
+                label: "Brightness on battery",
                 type: "pct", min: 10, max: 100, step: 5,
-                help: "set when it comes out · bin/power-mode.sh applies both"
+                get: function() { return Settings.brightnessOnBattery },
+                set: function(v) { Settings.setBrightness(false, v) },
+                help: Battery.onAc ? "stored for when the charger comes out"
+                                   : "applies now · running on battery"
             })
         }
         return out
@@ -523,6 +531,29 @@ Singleton {
     }
 
     Component.onCompleted: settings.applyIdleTimeouts(false)
+
+    // A BRIGHTNESS SLIDER SHOULD MOVE THE BRIGHTNESS. These two started as
+    // pure preferences - stored, and applied by power-mode.sh the next time the
+    // charger moved - which meant dragging one did nothing you could see and
+    // read as broken. It was reported that way.
+    //
+    // ONLY THE ONE FOR THE STATE YOU ARE IN APPLIES. On battery, the battery
+    // slider is the live setting and dragging it is the same as dragging a
+    // brightness control; the AC slider is a preference for later and must not
+    // yank the screen to a value for a state the machine is not in. Which is
+    // which flips with the charger, so the test is made at the moment of the
+    // drag rather than baked into the row.
+    function setBrightness(onAc: bool, v: int): void {
+        settings.setValue(onAc ? "brightnessOnAc" : "brightnessOnBattery", v)
+        if (Battery.onAc === onAc) {
+            backlight.command = [Quickshell.env("HOME")
+                                 + "/Work/fd44_hyprdot/bin/backlight.sh",
+                                 "set", v + "%"]
+            backlight.running = true
+        }
+    }
+
+    Process { id: backlight }
 
     function setValue(key: string, v): void {
         if (settings[key] === undefined) {
