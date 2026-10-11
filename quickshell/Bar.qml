@@ -30,6 +30,7 @@ PanelWindow {
     signal bluetoothRequested(real x)
     signal notificationsRequested(real x)
     signal batteryRequested(real x)
+    signal claudeRequested(real x)
     signal clockRequested(real x)
     signal notesRequested(real x)
 
@@ -91,6 +92,7 @@ PanelWindow {
     Component { id: updatesPlugin; UpdatesButton {} }
     Component { id: backupPlugin; BackupButton {} }
     Component { id: unitsPlugin;  UnitsButton {} }
+    Component { id: claudePlugin; ClaudeButton {} }
     Component { id: thermalPlugin; ThermalButton {} }
 
     // The tray is the one plugin that is not a 22x22 button: it is however
@@ -134,6 +136,7 @@ PanelWindow {
         case "updates":     return updatesPlugin
         case "backup":      return backupPlugin
         case "units":       return unitsPlugin
+        case "claude":      return claudePlugin
         case "thermal":     return thermalPlugin
         case "tray":        return trayPlugin
         case "placeholder": return placeholderPlugin
@@ -152,6 +155,7 @@ PanelWindow {
         else if (id === "bluetooth")           root.bluetoothRequested(x)
         else if (id === "notify")              root.notificationsRequested(x)
         else if (id === "battery")             root.batteryRequested(x)
+        else if (id === "claude")              root.claudeRequested(x)
         else if (id === "notes")               root.notesRequested(x)
         else if (id === "theme" && slot.item)  slot.item.activate()
         else if (id === "caffeine")            Caffeine.toggle()

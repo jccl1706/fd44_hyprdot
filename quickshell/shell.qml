@@ -89,6 +89,11 @@ ShellRoot {
                 if (!p.revealed) shell.closeBarPanels(bar.modelData, p)
                 p.toggle(x)
             })
+            onClaudeRequested: x => shell.eachClaudePanel(p => {
+                if (p.modelData !== bar.modelData) return
+                if (!p.revealed) shell.closeBarPanels(bar.modelData, p)
+                p.toggle(x)
+            })
             onClockRequested: x => shell.eachCalendar(p => {
                 if (p.modelData !== bar.modelData) return
                 if (!p.revealed) shell.closeBarPanels(bar.modelData, p)
@@ -241,6 +246,16 @@ ShellRoot {
         id: batteryPanelVariants
         model: Quickshell.screens
         BatteryPanel {
+            barWindow: shell.barFor(modelData)
+        }
+    }
+
+    // One per screen, like every other bar panel: the pill exists on each, so
+    // the panel it opens has to as well.
+    Variants {
+        id: claudePanelVariants
+        model: Quickshell.screens
+        ClaudePanel {
             barWindow: shell.barFor(modelData)
         }
     }
@@ -511,6 +526,35 @@ ShellRoot {
         function open(): void  { Backups.open() }
     }
 
+    // Claude Code's token usage. `toggle` so the panel can be bound to a key
+    // like every other one, and `status` so the same figures are available to
+    // a script or a prompt without opening anything.
+    IpcHandler {
+        target: "claude"
+
+        function toggle(): void {
+            shell.eachClaudePanel(p => {
+                if (!p.revealed) shell.closeBarPanels(p.modelData, p)
+                // NOT 0. DropPanel.place() reads this as where the glyph is and
+                // picks a side from it; 0 means "hard against the left frame",
+                // which pins the card to the frame and runs it the width of the
+                // screen. The plugin lives in the right pill, so opening from a
+                // keybind should land where opening by click lands.
+                const w = p.barWindow ? p.barWindow.width : 0
+                p.toggle(w > 0 ? w - 120 : 0)
+            })
+        }
+        function scan(): void { ClaudeUsage.refresh() }
+        function status(): string {
+            if (!ClaudeUsage.ready) return "not scanned yet"
+            return ClaudeUsage.human(ClaudeUsage.blockBilled) + " billed this "
+                 + ClaudeUsage.blockHours + "h block, "
+                 + ClaudeUsage.blockMessages + " messages, resets in "
+                 + ClaudeUsage.remaining()
+                 + " · today " + ClaudeUsage.human(ClaudeUsage.todayBilled)
+        }
+    }
+
     // The movable plugins' arrangement (BarLayout.qml).
     IpcHandler {
         target: "bar"
@@ -734,7 +778,10 @@ ShellRoot {
     readonly property var barPanelGroups: [
         audioVariants, networkVariants, bluetoothVariants, notifyPanelVariants,
         batteryPanelVariants, calendarVariants, notesVariants,
-        trayMenuVariants, powerVariants, launcherVariants
+        trayMenuVariants, powerVariants, launcherVariants,
+        // A panel missing from this list opens fine and then refuses to close
+        // when another is opened, so two sit on screen at once.
+        claudePanelVariants
     ]
 
     // The bar on a given screen. The panels list it in their Hyprland focus
@@ -809,6 +856,13 @@ ShellRoot {
 
     function eachBatteryPanel(fn): void {
         const instances = batteryPanelVariants.instances
+        for (let i = 0; i < instances.length; i++) {
+            if (instances[i]) fn(instances[i])
+        }
+    }
+
+    function eachClaudePanel(fn): void {
+        const instances = claudePanelVariants.instances
         for (let i = 0; i < instances.length; i++) {
             if (instances[i]) fn(instances[i])
         }

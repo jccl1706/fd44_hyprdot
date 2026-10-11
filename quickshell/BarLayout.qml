@@ -58,7 +58,7 @@ Singleton {
         left: [],
         centerLeft: [],
         centerRight: ["theme", "caffeine", "updates", "backup", "units", "thermal"],
-        right: ["tray", "notes", "notify", "bluetooth", "network", "audio", "battery", "couch", "power"]
+        right: ["tray", "notes", "notify", "claude", "bluetooth", "network", "audio", "battery", "couch", "power"]
     })
 
     // THE HUMAN NAME AND THE COST OF HIDING, per plugin. Here rather than in
@@ -70,6 +70,8 @@ Singleton {
     readonly property var meta: ({
         theme:    { label: "Theme toggle",
                     help: "one click between dark and cream. Hidden, the theme is still on the Appearance page and in bin/theme.sh" },
+        claude: { label: "Claude usage",
+                  help: "tokens Claude Code has spent, counted from its own transcripts in ~/.claude. Hidden, the same figures are in bin/claude-usage.py show" },
         caffeine: { label: "Caffeine",
                     help: "holds off the idle lock. Hidden, there is no other way to switch it on" },
         thermal:  { label: "Graphics temperature",
