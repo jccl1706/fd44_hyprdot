@@ -40,6 +40,31 @@
 // together - half a behaviour, which is worse than none. Add
 // `open-on-workspace "5"` to this block if you want the client pinned anyway;
 // the workspaces are named in niri/workspaces.kdl.
+// --- file choosers float ----------------------------------------------------
+//
+// A save dialog is a dialog. Tiled, it takes half the screen and shoves the
+// window that asked for it aside, which is the opposite of what a transient
+// chooser is for.
+//
+// MATCHED BY app-id AND title, BECAUSE niri HAS NO "IS A DIALOG" TEST. Its
+// window rules match app-id, title, layer, namespace and a handful of states -
+// nothing about transients or window type. Checked in the wiki, not assumed.
+//
+// THE DIALOG IS NAUTILUS. GTK apps here go through xdg-desktop-portal, whose
+// GNOME backend implements the file chooser, so every portal save/open window
+// reports app-id org.gnome.Nautilus whatever asked for it - which is why the
+// app-id alone cannot be the rule: it would float the file manager too.
+//
+// The title test is what separates them: a real Nautilus window is titled after
+// the folder it is showing, while a chooser is titled by the asking
+// application - "Save clipboard entry" from bin/clipboard.sh, "Open File" from
+// most others. A folder genuinely named "Save ..." would be caught; that is the
+// cost, and it is small.
+window-rule {
+    match app-id=r#"^org\.gnome\.Nautilus$"# title=r#"^(Save|Open|Select)\b"#
+    open-floating true
+}
+
 window-rule {
     match app-id=r#"^steam$"#
     open-floating true
