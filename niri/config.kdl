@@ -501,11 +501,9 @@ binds {
     Mod+O repeat=false { toggle-overview; }
 
 
-    Mod+Left  { focus-column-left; }
-    Mod+Down  { focus-window-down; }
-    Mod+Up    { focus-window-up; }
-    Mod+Right { focus-column-right; }
-    Mod+H     { focus-column-left; }
+    // THE ARROWS ARE IN apps.kdl, which is included after this file and binds
+    // them to the same four actions. These were duplicates, not alternatives.
+
     Mod+J     { focus-window-down; }
     Mod+K     { focus-window-up; }
     Mod+L     { focus-column-right; }
@@ -615,16 +613,10 @@ binds {
     //
     // For example, with 2 workspaces + 1 empty, indices 3, 4, 5 and so on
     // will all refer to the 3rd workspace.
-    Mod+1 { focus-workspace 1; }
-    Mod+2 { focus-workspace 2; }
-    Mod+3 { focus-workspace 3; }
-    Mod+4 { focus-workspace 4; }
-    Mod+5 { focus-workspace 5; }
-    Mod+6 { focus-workspace 6; }
-    Mod+7 { focus-workspace 7; }
-    Mod+8 { focus-workspace 8; }
-    Mod+9 { focus-workspace 9; }
-    Mod+Ctrl+1 { move-column-to-workspace 1; }
+    // WORKSPACES 1-9 ARE IN binds.kdl, by NAME rather than by index, and that
+    // file is included after this one. Identical behaviour, so nothing changed
+    // when these stopped being read - which is exactly why they sat here.
+
     Mod+Ctrl+2 { move-column-to-workspace 2; }
     Mod+Ctrl+3 { move-column-to-workspace 3; }
     Mod+Ctrl+4 { move-column-to-workspace 4; }
@@ -643,8 +635,7 @@ binds {
     // The following binds move the focused window in and out of a column.
     // If the window is alone, they will consume it into the nearby column to the side.
     // If the window is already in a column, they will expel it out.
-    Mod+BracketLeft  { consume-or-expel-window-left; }
-    Mod+BracketRight { consume-or-expel-window-right; }
+    // consume-or-expel IS IN apps.kdl, same keys, same actions.
 
     // Consume one window from the right to the bottom of the focused column.
     Mod+Comma  { consume-window-into-column; }
@@ -693,8 +684,8 @@ binds {
     Mod+Shift+Equal { set-window-height "+10%"; }
 
     // Move the focused window between the floating and the tiling layout.
-    Mod+V       { toggle-window-floating; }
-    Mod+Shift+V { switch-focus-between-floating-and-tiling; }
+    // Mod+V is in apps.kdl.
+
 
     // CLOSE, ON Mod+W, because that is what the Hyprland side of this
     // repository has always used - hypr/binds.lua binds Mod+W to
@@ -704,7 +695,7 @@ binds {
     //
     // repeat=false so that holding it does not walk through a stack of
     // windows: closing is not a thing to autorepeat.
-    Mod+W repeat=false { close-window; }
+    // Mod+W is in apps.kdl.
 
     // Toggle tabbed column display mode: windows in the column appear as
     // vertical tabs rather than stacked. Moved off Mod+W when that became

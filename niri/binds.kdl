@@ -27,17 +27,25 @@
 // allow-when-locked=true - same intent, different spelling.
 
 binds {
+    // EVERY BIND HERE CARRIES A hotkey-overlay-title, and that is not decoration.
+    //
+    // Without one, niri lists the bind in its overlay as the bare command it
+    // runs - eleven of these read as "Spawn qs" and nothing else, which is the
+    // least useful thing a cheatsheet could say about the launcher, the
+    // wallpaper picker and the power menu. The overlay is where someone looks
+    // to find out what a key does; a row that names the binary is a row that
+    // answers a question nobody asked.
     // --- the panels -------------------------------------------------------
-    Mod+Space       { spawn "qs" "ipc" "call" "launcher" "toggle"; }
-    Mod+Comma       { spawn "qs" "ipc" "call" "wallpaper" "toggle"; }
-    Mod+Period      { spawn "qs" "ipc" "call" "theme" "toggle"; }
-    Mod+Shift+Comma { spawn "qs" "ipc" "call" "settings" "toggle"; }
-    Mod+Z           { spawn "qs" "ipc" "call" "focus" "toggle"; }
-    Mod+M           { spawn "qs" "ipc" "call" "power" "toggle"; }
+    Mod+Space       hotkey-overlay-title="Launcher" { spawn "qs" "ipc" "call" "launcher" "toggle"; }
+    Mod+Comma       hotkey-overlay-title="Wallpaper picker" { spawn "qs" "ipc" "call" "wallpaper" "toggle"; }
+    Mod+Period      hotkey-overlay-title="Theme picker" { spawn "qs" "ipc" "call" "theme" "toggle"; }
+    Mod+Shift+Comma hotkey-overlay-title="Settings" { spawn "qs" "ipc" "call" "settings" "toggle"; }
+    Mod+Z           hotkey-overlay-title="Focus mode: hide all but the clock" { spawn "qs" "ipc" "call" "focus" "toggle"; }
+    Mod+M           hotkey-overlay-title="Power menu" { spawn "qs" "ipc" "call" "power" "toggle"; }
 
     // The laptop's own power button opens the menu rather than acting, which is
     // the same choice hypr/binds.lua makes.
-    XF86PowerOff    { spawn "qs" "ipc" "call" "power" "toggle"; }
+    XF86PowerOff    hotkey-overlay-title="Power menu" { spawn "qs" "ipc" "call" "power" "toggle"; }
 
     // THE CHEATSHEET, replacing niri's own overlay on its own key. niri binds
     // Mod+Shift+Slash to show-hotkey-overlay in its default config; this comes
@@ -47,10 +55,10 @@ binds {
     Mod+Shift+Slash hotkey-overlay-title="This cheatsheet" { spawn "qs" "ipc" "call" "keybinds" "toggle"; }
 
     // --- media, which must work with the screen locked --------------------
-    XF86AudioPlay  allow-when-locked=true { spawn "qs" "ipc" "call" "media" "toggle"; }
-    XF86AudioPause allow-when-locked=true { spawn "qs" "ipc" "call" "media" "toggle"; }
-    XF86AudioNext  allow-when-locked=true { spawn "qs" "ipc" "call" "media" "next"; }
-    XF86AudioPrev  allow-when-locked=true { spawn "qs" "ipc" "call" "media" "previous"; }
+    XF86AudioPlay  allow-when-locked=true hotkey-overlay-title="Play or pause" { spawn "qs" "ipc" "call" "media" "toggle"; }
+    XF86AudioPause allow-when-locked=true hotkey-overlay-title="Play or pause" { spawn "qs" "ipc" "call" "media" "toggle"; }
+    XF86AudioNext  allow-when-locked=true hotkey-overlay-title="Next track" { spawn "qs" "ipc" "call" "media" "next"; }
+    XF86AudioPrev  allow-when-locked=true hotkey-overlay-title="Previous track" { spawn "qs" "ipc" "call" "media" "previous"; }
 
     // --- workspaces, BY NAME ---------------------------------------------
     //
