@@ -166,6 +166,8 @@ game:
 1. **The repository password.** It is in `~/.config/fd44-backup/password` on a
    machine that may not exist when you need it. A safe, a paper note, a password
    manager on a phone — anywhere that survives the machine.
+   [Changing it](key-rotation.md) is cheap and does not re-encrypt anything, so
+   a password that is too short is worth fixing rather than living with.
 2. **Which disks** carry the repositories (their UUIDs).
 3. **The LUKS passphrase** for any encrypted root, *and a header backup*, which
    is not the same thing: a damaged header cannot be opened by any passphrase.
