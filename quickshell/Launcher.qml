@@ -1118,7 +1118,17 @@ PanelWindow {
 
             Text {
                 anchors { left: parent.left; leftMargin: 18; top: parent.top; topMargin: 8 }
-                text: root.results.length === 0 ? ""
+                // ZERO SAYS SO. This was blank at zero, so typing something
+                // that matches nothing left the panel sitting there with your
+                // text in it and no other change: no way to tell whether it
+                // was still searching, whether the launcher had broken, or
+                // whether there simply is no such application.
+                //
+                // Only once there IS a query, though. An empty launcher has no
+                // results either, and "nothing matches" before a key is pressed
+                // would be answering a question nobody asked.
+                text: root.query !== "" && root.results.length === 0 ? "nothing matches"
+                    : root.results.length === 0 ? ""
                     : root.results.length === 1 ? "1 result"
                                                 : root.results.length + " results"
                 color: Theme.dim
@@ -1131,7 +1141,15 @@ PanelWindow {
                 anchors { right: parent.right; rightMargin: 18; top: parent.top; topMargin: 8 }
                 // Glyphs rather than the words: three keys named in full is a
                 // sentence, and this is a legend.
-                text: "\u2191\u2193 select    \u21b5 open    esc close"
+                //
+                // AND IT ONLY LISTS KEYS THAT WOULD DO SOMETHING. With no
+                // results there is nothing to select and nothing to open, and a
+                // legend offering both is telling you to press keys that cannot
+                // work - which reads as the panel being broken rather than the
+                // search being empty. Escape always applies.
+                text: root.results.length === 0
+                    ? "esc close"
+                    : "\u2191\u2193 select    \u21b5 open    esc close"
                 color: Theme.dim
                 font.family: Theme.font
                 font.pixelSize: Theme.fontSizeSmall
