@@ -67,6 +67,26 @@ binds {
     Mod+BracketLeft  { consume-or-expel-window-left; }
     Mod+BracketRight { consume-or-expel-window-right; }
 
+    // THE ONE-WAY VERSIONS, which the combined pair above cannot express.
+    //
+    // consume-or-expel decides for you: with a window beside the column it
+    // pulls it in, and with the column already holding the focused window it
+    // pushes it out. That is the right default and it is why those two keys
+    // exist - but it means there is no way to say "pull the next window in"
+    // when the obvious reading is "push this one out", and vice versa.
+    //
+    // niri binds these to Mod+Comma and Mod+Period. binds.kdl takes both for
+    // the wallpaper and theme pickers and is included later, so they were
+    // shadowed - found by sweeping every bind rather than by missing them,
+    // which is how a lost capability usually stays lost.
+    //
+    // Mod+Alt KEEPS niri's OWN LETTERS. The comma and the full stop are where
+    // they would be in an unmodified niri, one modifier along, so muscle memory
+    // from the documentation still lands somewhere sensible. Mod+Shift+brackets
+    // was the alternative and says nothing about which direction is which.
+    Mod+Alt+Comma  hotkey-overlay-title="Pull the next window into this column" { consume-window-into-column; }
+    Mod+Alt+Period hotkey-overlay-title="Push this window out of the column"    { expel-window-from-column; }
+
     // Mod+A was `fit all`, which sized the layout to fit every window. niri has
     // no equivalent - the strip is not meant to fit on screen. expand-column-to-
     // available-width is the closest useful thing: give this column the room
