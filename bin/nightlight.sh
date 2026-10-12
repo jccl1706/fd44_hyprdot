@@ -322,10 +322,23 @@ print(ep(vals["sunrise"]), ep(vals["sunset"]))
 # right. A minute is far finer than the eye needs for a half-hour fade and costs
 # one D-Bus write.
 ramp_loop() {
+    # RE-READ EVERY TICK. NIGHT_TEMP is captured once when the script starts,
+    # and this loop runs inside that same long-lived process - so using it here
+    # pinned the loop to whatever the setting was when the service began, and
+    # every adjustment was quietly undone within the minute: the slider moved
+    # the screen, and then the loop put it back.
+    #
+    # The same mistake as power-mode.sh reading its levels once at startup.
+    # A loop that outlives a setting has to go and look at it.
+    #
+    # TWENTY SECONDS, NOT SIXTY. Nothing here is expensive - a file read and a
+    # D-Bus write - and sixty seconds is long enough that a stale value looks
+    # like a bug rather than a lag.
     while :; do
+        NIGHT_TEMP="$(night_temp)"
         if always_on; then relay_set "$NIGHT_TEMP"
         else relay_set "$(target_temp)"; fi
-        sleep 60
+        sleep 20
     done
 }
 
