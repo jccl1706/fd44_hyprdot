@@ -88,6 +88,7 @@ PanelWindow {
     // One component per BarLayout id. A new plugin needs a component here,
     // a branch in activate(), and an entry in BarLayout.defaults.
 
+    Component { id: compositorPlugin; CompositorMark {} }
     Component { id: audioPlugin;   AudioButton {} }
     Component { id: networkPlugin; NetworkButton {} }
     Component { id: bluetoothPlugin; BluetoothButton {} }
@@ -132,6 +133,7 @@ PanelWindow {
 
     function componentFor(id: string): var {
         switch (id) {
+        case "compositor":  return compositorPlugin
         case "audio":       return audioPlugin
         case "network":     return networkPlugin
         case "bluetooth":   return bluetoothPlugin

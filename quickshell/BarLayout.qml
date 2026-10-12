@@ -58,7 +58,7 @@ Singleton {
         left: [],
         centerLeft: [],
         centerRight: ["theme", "caffeine", "updates", "backup", "units", "thermal"],
-        right: ["tray", "notes", "notify", "claude", "bluetooth", "network", "audio", "battery", "couch", "power"]
+        right: ["tray", "notes", "notify", "claude", "bluetooth", "network", "audio", "battery", "couch", "power", "compositor"]
     })
 
     // THE HUMAN NAME AND THE COST OF HIDING, per plugin. Here rather than in
@@ -98,6 +98,8 @@ Singleton {
                     help: "charge and time remaining. The low-battery warnings still arrive when hidden" },
         couch:    { label: "Couch mode",
                     help: "moves the session to the television" },
+        compositor: { label: "Compositor mark",
+                    help: "which compositor is drawing this session - niri's mark, or nothing where there is no vendored one. Decoration: it does nothing when clicked" },
         power:    { label: "Power",
                     help: "log out, reboot and shut down, each behind a second click" }
     })
@@ -226,6 +228,11 @@ Singleton {
         // moment later. Thermals already drew that distinction and was simply
         // never asked.
         if (id === "thermal") return !Thermals.answered || Thermals.present
+
+        // Only niri has a vendored mark. On Hyprland the slot would draw
+        // nothing, so it is not offered as a toggle either - the same rule as
+        // the thermal plugin above.
+        if (id === "compositor") return Compositor.backend === "niri"
 
         return true
     }
