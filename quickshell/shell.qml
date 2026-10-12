@@ -797,6 +797,17 @@ ShellRoot {
         function toggle(): void { shell.toggleFocused(clipboardVariants.instances) }
         function open(): void   { shell.openFocused(clipboardVariants.instances)   }
         function close(): void  { shell.closeAll(clipboardVariants.instances)      }
+
+        // The row actions, so a script can do what the panel's buttons do -
+        // and so the panel's own error path can be exercised without a pointer,
+        // which is how the "no message on failure" report was finally
+        // reproduced end to end.
+        //
+        // They open the panel first: acting on an invisible panel would leave
+        // the result - the path copied, or the error - with nowhere to appear.
+        function save(id: string): void   { shell.clipboardAct("save", id)   }
+        function saveas(id: string): void { shell.clipboardAct("saveas", id) }
+        function put(id: string): void    { shell.clipboardAct("copy", id)   }
     }
 
     IpcHandler {
@@ -878,6 +889,12 @@ ShellRoot {
         settingsVariants, wallpaperVariants, themePickerVariants, keybindsVariants,
         clipboardVariants
     ])
+
+    function clipboardAct(verb: string, id: string): void {
+        shell.openFocused(clipboardVariants.instances)
+        const one = shell.focusedOne(clipboardVariants.instances)
+        if (one) one.act(verb, id)
+    }
 
     // The open panel's rectangle, in grim's format, or "" when none is open.
     // First visible wins: only one of these is ever on screen at a time, which

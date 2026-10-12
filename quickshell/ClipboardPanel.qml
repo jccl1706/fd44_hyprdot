@@ -62,39 +62,25 @@ DropPanel {
         }
     }
 
+    // EVERY DECISION IN onExited, READING THE COLLECTORS' .text - which is how
+    // Tray.qml does it and the reason this works at all. The first version put
+    // the logic in stdout's and stderr's own onStreamFinished handlers, and the
+    // error never appeared: those fire independently of the exit, in no
+    // guaranteed order relative to it, so the exit handler could clear what the
+    // stderr handler had just set. The exit code is the only thing that knows
+    // whether it worked.
     Process {
         id: actor
+        stdout: StdioCollector { id: actorOut }
+        stderr: StdioCollector { id: actorErr }
 
-        // STDERR IS READ, NOT DISCARDED. Without this the panel knew only what
-        // the script printed on stdout, so a save into a directory the user
-        // cannot write to reported "saved · path copied" and put a filename
-        // that does not exist on the clipboard. The script now exits non-zero
-        // and says why; this is the half that shows it.
-        stderr: StdioCollector {
-            onStreamFinished: {
-                const msg = String(text).trim().replace(/^clipboard:\s*/, "")
-                if (msg !== "") root.error = msg
-            }
-        }
-
-        // The exit status decides, not the presence of output: a cancelled
-        // save-as exits 1 with nothing on either stream, and that is not an
-        // error to show.
         onExited: (code, status) => {
-            if (code === 0) root.error = ""
-            root.refresh()
-        }
-
-        stdout: StdioCollector {
-            onStreamFinished: {
-                // `save` prints the path it wrote. Putting that on the
-                // clipboard is the whole point: the next thing you do with a
-                // saved image is name it to something, and typing a timestamped
-                // path by hand is how you get it wrong.
-                // A cancelled dialog prints nothing and exits 1, which is
-                // not an error - it is the user saying no. Nothing is written,
-                // the note stays empty, and the list is left as it was.
-                const out = String(text).trim()
+            if (code === 0) {
+                root.error = ""
+                // `save` and `saveas` print the path they wrote. Putting it on
+                // the clipboard is the point: the next thing anyone does with a
+                // saved image is type its name at something.
+                const out = String(actorOut.text).trim()
                 if (out.startsWith("/")) {
                     saver.command = ["sh", "-c", 'printf %s "$1" | wl-copy', "sh", out]
                     saver.running = true
@@ -102,10 +88,18 @@ DropPanel {
                 } else {
                     root.note = ""
                 }
-                root.refresh()
+            } else {
+                // A CANCELLED DIALOG LOOKS EXACTLY LIKE THIS except that stderr
+                // is empty: zenity exits 1 and says nothing, which is the user
+                // declining rather than anything going wrong.
+                root.note = ""
+                root.error = String(actorErr.text).trim()
+                                   .replace(/^clipboard:\s*/, "")
             }
+            root.refresh()
         }
     }
+
     Process { id: saver }
 
     Column {
