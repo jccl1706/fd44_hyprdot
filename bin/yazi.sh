@@ -91,6 +91,8 @@ if [[ $mode == status ]]; then
         printf '  %-14s %s\n' installed "not here"
     fi
     printf '  %-14s %s\n' "would go in" "${DEST/#$HOME/\~}"
+    printf '  %-14s %s\n' "file(1)" \
+        "$(command -v file >/dev/null 2>&1 && echo present || echo 'MISSING - previews will not work')"
     printf '\n  %sImage previews also need allow-passthrough in tmux/tmux.conf.%s\n' "$c_d" "$c_0"
     exit 0
 fi
@@ -152,6 +154,26 @@ for b in "${BINS[@]}"; do
     install -m 0755 "$src" "$DEST/$b"
     printf '    installed %s\n' "${DEST/#$HOME/\~}/$b"
 done
+
+# WITHOUT `file`, YAZI PREVIEWS NOTHING, and says nothing about why.
+#
+# It decides what a file IS by shelling out to `file --mime-type` - the string
+# is in the binary - and with that missing every entry has no known type, so
+# the image previewer is never reached and the pane stays empty. Not an error,
+# not a message: just a file manager that appears not to do the one thing it
+# was installed for. That is exactly what happened here, and `file` is absent
+# on a minimal Fedora rather than being some exotic dependency.
+#
+# A WARNING AND NOT A FAILURE. yazi is perfectly usable for moving around
+# without it, this script cannot install it without root, and a tool that
+# refuses to finish over something the user can fix in one command is worse
+# than one that says so plainly.
+if ! command -v file >/dev/null 2>&1; then
+    warn "\`file\` is not installed, and without it yazi previews NOTHING"
+    printf '    yazi asks `file --mime-type` what each entry is. With no answer,\n'
+    printf '    nothing is recognised as an image and the preview pane stays empty.\n'
+    printf '      %ssudo dnf install file%s\n\n' "$c_g" "$c_0"
+fi
 
 cat <<NEXT
 
