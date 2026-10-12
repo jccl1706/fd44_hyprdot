@@ -73,6 +73,9 @@ Singleton {
     // worse than one that waits to be told, and this one is visible from across
     // the room.
     property bool nightLight: false
+    // Kelvin at the night end of the ramp. The day end is fixed at 6500, the
+    // panel's native white, so that "day" means no change at all.
+    property int nightLightTemp: 4000
 
     property int brightnessOnBattery: 50
     property int brightnessOnAc: 100
@@ -253,6 +256,26 @@ Singleton {
                   help: "warms the screen after sunset and cools it after "
                       + "sunrise, from this machine's own location · off, it "
                       + "never touches the colour" },
+
+                // DIRECTLY UNDER THE TOGGLE IT BELONGS TO, and shown whether
+                // or not that toggle is on: a control that comes and goes makes
+                // the page jump, and the number is worth setting before you
+                // switch the thing on.
+                //
+                // NOT A `key:` ROW, for the same reason the toggle is not -
+                // wlsunset reads the temperature once when it starts, so this
+                // has to store the value AND restart the service.
+                //
+                // 2500 to 6000: below 2500 is the deep amber that prompted
+                // this, and 6500 is the day temperature, which at night would
+                // mean the feature does nothing at all.
+                { label: "Night light warmth", type: "k",
+                  min: 2500, max: 6000, step: 100,
+                  get: function() { return Settings.nightLightTemp },
+                  set: function(v) { Settings.setNightLightTemp(v) },
+                  help: "how warm the screen goes after sunset · lower is "
+                      + "warmer · 4000K is the default, 2500K is strongly "
+                      + "orange" },
 
                 { key: "osdHideMs", label: "OSD hide delay",
                   type: "ms", min: 500, max: 5000, step: 250,
@@ -642,6 +665,19 @@ Singleton {
         nightLightProc.running = true
     }
 
+    // CHANGING THE NUMBER HAS TO RESTART wlsunset, which reads the temperature
+    // once at startup - the same shape as setNightLight above, and the reason
+    // neither is a plain `key:` row. Storing the value alone would leave the
+    // screen exactly as warm as it was until the next login.
+    function setNightLightTemp(k: int): void {
+        settings.setValue("nightLightTemp", k)
+        if (!settings.nightLight) return      // nothing running to restart
+        nightLightProc.command = [Quickshell.env("HOME")
+                                  + "/Work/fd44_hyprdot/bin/nightlight.sh", "apply"]
+        nightLightProc.running = true
+    }
+
+
     Process { id: nightLightProc }
 
     function setValue(key: string, v): void {
@@ -702,7 +738,8 @@ Singleton {
                 barStylePrev: settings.barStylePrev,
                 brightnessOnAc: settings.brightnessOnAc,
                 brightnessOnBattery: settings.brightnessOnBattery,
-                nightLight: settings.nightLight
+                nightLight: settings.nightLight,
+                nightLightTemp: settings.nightLightTemp
             }, null, 1))
             settings.dirty = false
         }

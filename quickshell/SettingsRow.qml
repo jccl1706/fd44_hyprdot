@@ -582,6 +582,8 @@ Item {
                         ? sl.value.toFixed(0) + " min"
                       : settingRow.row.type === "pct"
                         ? sl.value.toFixed(0) + "%"
+                      : settingRow.row.type === "k"
+                        ? sl.value.toFixed(0) + "K"
                         : sl.value.toFixed(0) + "d"
             }
         }

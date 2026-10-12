@@ -42,7 +42,31 @@ UNIT=fd44-nightlight
 # version of normal. 4000 is a clear warm shift without the orange cast that
 # makes photographs unusable; it is the value most people stop at.
 DAY_TEMP=6500
-NIGHT_TEMP=4000
+
+# THE NIGHT END IS A SETTING, not a constant: 4000K is a reasonable default and
+# not a universal one - how warm is too warm depends on the panel and the room,
+# and the only way to find yours is to move it and look. The slider on the
+# Desktop page writes nightLightTemp; this is the fallback when it has never
+# been touched.
+NIGHT_TEMP_DEFAULT=4000
+
+night_temp() {
+    python3 -I -c '
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        v = json.load(f).get("nightLightTemp")
+    # Clamped to what wlsunset will accept and what is useful: below 1500 the
+    # screen is unreadable, and above the day temperature it would COOL the
+    # screen at night, which is the opposite of the feature.
+    print(int(v) if isinstance(v, (int, float)) and 1500 <= v <= 6500
+          else sys.argv[2])
+except Exception:
+    print(sys.argv[2])
+' "$SETTINGS" "$NIGHT_TEMP_DEFAULT" 2>/dev/null || printf '%s' "$NIGHT_TEMP_DEFAULT"
+}
+
+NIGHT_TEMP="$(night_temp)"
 
 c_g=$'\033[1;32m'; c_y=$'\033[1;33m'; c_r=$'\033[1;31m'; c_0=$'\033[0m'
 say()  { printf '%s==>%s %s\n' "$c_g" "$c_0" "$*"; }
