@@ -353,6 +353,26 @@ case "${1:-status}" in
     start|apply)
         if setting_on; then start_it; else stop_it >/dev/null; fi
         ;;
+    set)
+        # set <kelvin> - put that temperature on the screen RIGHT NOW and do
+        # nothing else: no unit restart, no settings write, no schedule change.
+        #
+        # THIS IS WHAT THE SLIDER CALLS WHILE YOU DRAG IT. `apply` is the honest
+        # way to change the temperature - it rereads the setting and restarts
+        # the schedule - but restarting a unit takes long enough to feel like
+        # lag, and a slider that answers a moment after you let go is a slider
+        # that feels broken.
+        #
+        # The ramp loop re-asserts the right value on its next tick, so this
+        # cannot drift: it is a preview of a value that is about to be stored,
+        # not a second source of truth.
+        have_relay || { warn "set needs wl-gammarelay-rs"; exit 1; }
+        [[ ${2:-} =~ ^[0-9]+$ ]] || { warn "set needs a temperature"; exit 2; }
+        relay_up || exit 1
+        relay_set "$2"
+        exit 0
+        ;;
+
     ramp)
         # The service body on the relay path. Not for typing: `start` runs it.
         ramp_loop

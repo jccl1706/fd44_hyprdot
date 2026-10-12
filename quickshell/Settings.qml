@@ -275,6 +275,9 @@ Singleton {
                   min: 2500, max: 6000, step: 100,
                   get: function() { return Settings.nightLightTemp },
                   set: function(v) { Settings.setNightLightTemp(v) },
+                  // Called on every step while the handle is held, so the
+                  // screen follows the mouse instead of waiting for it.
+                  live: function(v) { Settings.liveNightLightTemp(v) },
                   help: "how warm the screen goes after sunset · lower is "
                       + "warmer · 4000K is the default, 2500K is strongly "
                       + "orange" },
@@ -731,6 +734,39 @@ Singleton {
 
 
     Process { id: nightLightProc }
+    Process { id: nightLightLive }
+
+    // THE DRAG PATH, AND IT IS A DIFFERENT COMMAND FOR A REASON. `apply`
+    // rereads the setting and restarts the schedule unit, which measures 168ms
+    // - fine once, far too slow to follow a mouse. `set` writes the D-Bus
+    // property and returns, which measures 30ms.
+    //
+    // Nothing is stored here. The release commits the value through
+    // setNightLightTemp as before, and the ramp loop re-asserts it on its next
+    // tick, so this cannot become a second source of truth.
+    property int pendingTemp: 0
+    function liveNightLightTemp(k: int): void {
+        if (!settings.nightLight) return
+        settings.pendingTemp = k
+        nightLightThrottle.start()        // start, not restart: see below
+    }
+
+    // A THROTTLE, NOT A DEBOUNCE. restart() would push the deadline back on
+    // every step and the screen would move only once the handle stopped, which
+    // is the behaviour being complained about. start() on an already-running
+    // timer does nothing, so this fires every 60ms with whatever the latest
+    // value is - the screen follows continuously and at most sixteen processes
+    // are spawned a second.
+    Timer {
+        id: nightLightThrottle
+        interval: 60
+        onTriggered: {
+            nightLightLive.command = [Quickshell.env("HOME")
+                                      + "/Work/fd44_hyprdot/bin/nightlight.sh",
+                                      "set", String(settings.pendingTemp)]
+            nightLightLive.running = true
+        }
+    }
 
     // 150ms: enough to coalesce a flurry, too short to notice. It was 700 when
     // every change cost a white flash and the goal was to have as few as

@@ -562,6 +562,18 @@ Item {
                 // bound straight to the store would write the settings file
                 // dozens of times per drag and, for the notification timeouts,
                 // re-time every toast on screen while you dragged.
+                // LIVE WHILE DRAGGING, WHERE THE ROW ASKS FOR IT. Most rows
+                // here set something that is cheap to store and invisible until
+                // it matters, so committing on release is right and avoids a
+                // write per pixel. A row that changes the screen itself - the
+                // night light warmth - is the opposite: watching it move IS how
+                // you choose a value, and a number that only arrives when you
+                // let go makes every attempt a guess.
+                //
+                // `live` is a fast path the row provides; `commit` on release is
+                // still what stores the value.
+                onValueChanged: if (pressed && settingRow.row.live)
+                                    settingRow.row.live(value)
                 onPressedChanged: if (!pressed) settingRow.commit(value)
             }
             Text {
