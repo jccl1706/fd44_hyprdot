@@ -125,9 +125,18 @@ binds {
     // --- between monitors -------------------------------------------------
     //
     // niri binds these to Mod+Shift+arrows, which the four lines above claim
-    // for moving a window - so focus-monitor was shadowed and unreachable. On
-    // this laptop that cost nothing; on the gaming desktop, which has two
-    // screens, it left no way at all to move focus from one to the other.
+    // for moving a window, so the ARROW form of focus-monitor was shadowed.
+    //
+    // THE CAPABILITY WAS NEVER LOST, and the commit that added these said it
+    // was. config.kdl also binds Mod+Shift+H/J/K/L to the same four actions and
+    // nothing shadows those, so focus-monitor has always been reachable by the
+    // vim keys. The sweep that found this compares KEYS, not ACTIONS: it can
+    // say "this key no longer does what niri intended" and cannot say "nothing
+    // does it any more", and the difference was read past.
+    //
+    // These stay because the arrow and vim forms are offered side by side
+    // throughout - Mod+H and Mod+Left both focus the column to the left - so
+    // restoring the arrow half completes a pattern rather than duplicating one.
     //
     // Mod+Alt+arrows because they were the only arrow combination still free:
     // Mod, Mod+Shift and Mod+Ctrl are all taken by column and workspace
