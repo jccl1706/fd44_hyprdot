@@ -8,6 +8,7 @@
 #         bin/nightlight.sh toggle    flip the setting and apply
 #         bin/nightlight.sh status    what it is doing and why
 #         bin/nightlight.sh apply     re-read the setting and obey it
+#         bin/nightlight.sh preview K  show K kelvin for a few seconds
 #
 # OFF BY DEFAULT. A shell that changes the colour of your screen without being
 # asked is worse than one that waits to be told; the toggle is on the Desktop
@@ -141,6 +142,34 @@ case "${1:-status}" in
     start|apply)
         if setting_on; then start_it; else stop_it >/dev/null; fi
         ;;
+    preview)
+        # preview <kelvin> [seconds] - hold that temperature, then go back.
+        #
+        # BECAUSE THE SLIDER IS OTHERWISE INVISIBLE. It sets the NIGHT end of
+        # the ramp, and most of the time you are setting it in daylight -
+        # wlsunset is correctly sitting at 6500K and nothing you do to the
+        # number changes the screen until sunset, hours away. A control whose
+        # effect you cannot see is one you cannot judge, and "too orange" is
+        # exactly the judgement this needs.
+        #
+        # THE SERVICE IS STOPPED FIRST: two wlsunset instances fight over one
+        # gamma ramp and the winner is whichever wrote last.
+        k="${2:-$NIGHT_TEMP}"; secs="${3:-4}"
+        [[ $k =~ ^[0-9]+$ ]] || { warn "preview needs kelvin"; exit 2; }
+        (( k >= 1500 && k <= 6500 )) || { warn "preview: $k outside 1500-6500"; exit 2; }
+        read -r lat lon <<<"$(coordinates)"
+        stop_it >/dev/null
+        # -T and -t one apart pins it: wlsunset wants a range, and a range of
+        # one degree is a constant. timeout sends SIGTERM and wlsunset restores
+        # the ramp on it, so an interrupted preview cannot leave the screen
+        # orange.
+        timeout "$secs" wlsunset -T $(( k + 1 )) -t "$k" \
+            -l "${lat:-0}" -L "${lon:-0}" >/dev/null 2>&1
+        # `apply`, not `start`: previewing with night light switched off must
+        # leave it switched off.
+        if setting_on; then start_it >/dev/null; fi
+        ;;
+
     stop)
         set_setting false; stop_it
         ;;

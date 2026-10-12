@@ -671,9 +671,18 @@ Singleton {
     // screen exactly as warm as it was until the next login.
     function setNightLightTemp(k: int): void {
         settings.setValue("nightLightTemp", k)
-        if (!settings.nightLight) return      // nothing running to restart
+        // SHOWN, NOT JUST STORED. This sets the NIGHT end of the ramp, and you
+        // are usually setting it in daylight - wlsunset is correctly at 6500K
+        // and the number you just chose does nothing to the screen until
+        // sunset. The slider looked broken for exactly that reason.
+        //
+        // `preview` holds the chosen temperature for a few seconds and then
+        // returns to the schedule, so the control answers while your hand is
+        // still on it. It obeys the toggle: with night light off it previews
+        // and leaves it off.
         nightLightProc.command = [Quickshell.env("HOME")
-                                  + "/Work/fd44_hyprdot/bin/nightlight.sh", "apply"]
+                                  + "/Work/fd44_hyprdot/bin/nightlight.sh",
+                                  "preview", String(k), "3"]
         nightLightProc.running = true
     }
 
