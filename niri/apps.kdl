@@ -86,6 +86,27 @@ binds {
     Mod+Shift+Up    { move-window-up; }
     Mod+Shift+Down  { move-window-down; }
 
+    // --- between monitors -------------------------------------------------
+    //
+    // niri binds these to Mod+Shift+arrows, which the four lines above claim
+    // for moving a window - so focus-monitor was shadowed and unreachable. On
+    // this laptop that cost nothing; on the gaming desktop, which has two
+    // screens, it left no way at all to move focus from one to the other.
+    //
+    // Mod+Alt+arrows because they were the only arrow combination still free:
+    // Mod, Mod+Shift and Mod+Ctrl are all taken by column and workspace
+    // motion. Mod+Alt is otherwise used only by Super+Alt+L and Super+Alt+S in
+    // config.kdl - written with Super rather than Mod, which is the same key
+    // and worth knowing, because a grep for "Mod+Alt" finds neither.
+    //
+    // HARMLESS WHERE THERE IS ONE MONITOR. niri simply has nowhere to move the
+    // focus to, so the bind does nothing rather than erroring - which is why
+    // this lives here and not in a per-machine file.
+    Mod+Alt+Left  hotkey-overlay-title="Focus the monitor to the left"  { focus-monitor-left; }
+    Mod+Alt+Right hotkey-overlay-title="Focus the monitor to the right" { focus-monitor-right; }
+    Mod+Alt+Up    hotkey-overlay-title="Focus the monitor above"        { focus-monitor-up; }
+    Mod+Alt+Down  hotkey-overlay-title="Focus the monitor below"        { focus-monitor-down; }
+
     // DROPPED, with the reason, so nobody hunts for them:
     //   Mod+P              Hyprland's pseudo-tiling. niri has no such mode.
     //   Mod+Escape         a submap for passthrough. niri has no submaps; the
