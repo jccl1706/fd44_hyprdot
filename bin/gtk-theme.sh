@@ -183,6 +183,58 @@ with tarfile.open(sys.argv[1]) as t:
     fi
 done
 
+# ----------------------------------------------------------------------------
+# Nordzy's Pictures and Videos folders are the wrong colour, and it is a typo
+# ----------------------------------------------------------------------------
+#
+# Every folder icon in this theme draws its emblem - the page, the arrow, the
+# note, the "A" - as  fill="#81a1c1", Nord frost blue. Two do not:
+# folder-images.svg and folder-videos.svg draw theirs as
+#
+#     <path class="ColorScheme-Text" color="#363636" opacity=".15" .../>
+#
+# `color` in SVG only sets what `currentColor` resolves to; IT PAINTS NOTHING
+# BY ITSELF. There is no fill on the path and no .ColorScheme-Text rule
+# anywhere in the file, so it falls back to the default fill, which is black.
+# Those two emblems render as a black wash at 15% while every other folder gets
+# a clear blue symbol - which is exactly how it was noticed: Pictures and Videos
+# looked heavier and darker than everything beside them in Nautilus.
+#
+# folder-pictures.svg is a symlink to folder-images.svg, so patching one fixes
+# both names.
+#
+# PATCHED HERE RATHER THAN REPORTED AND WAITED FOR, because the theme is pinned:
+# the version installed above is the version that will be installed for ever
+# until someone changes the checksum, so an upstream fix would never arrive on
+# its own anyway.
+#
+# IT CHECKS BEFORE IT WRITES. If the pattern is not there - a different version,
+# or upstream fixed it - nothing is touched and nothing is said. The patch must
+# never be the reason a future update appears to install and then look wrong.
+fix_nordzy_emblems() {
+    local dir="$SHARE/icons/Nordzy-dark/places/scalable" n f
+    [[ -d $dir ]] || return 0
+    for n in folder-images.svg folder-videos.svg; do
+        f="$dir/$n"
+        [[ -f $f ]] || continue
+        grep -q 'class="ColorScheme-Text" d=' "$f" 2>/dev/null || continue
+        python3 -I - "$f" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1]); t = p.read_text()
+old = '<path class="ColorScheme-Text"'
+if t.count(old) == 1:
+    t = t.replace(old, '<path fill="#81a1c1"', 1)
+    t = t.replace(' color="#363636" opacity=".15"', '', 1)
+    p.write_text(t)
+PY
+        printf '    recoloured %s (its emblem was painting black, not Nord blue)\n' "$n"
+    done
+    command -v gtk-update-icon-cache >/dev/null 2>&1 \
+        && gtk-update-icon-cache -qf "$SHARE/icons/Nordzy-dark" 2>/dev/null || true
+}
+
+fix_nordzy_emblems
+
 cat <<'NEXT'
 
   Installed under ~/.local/share and unmanaged by dnf, so a reinstall loses
