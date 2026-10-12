@@ -713,6 +713,18 @@ Singleton {
         // it should stay - previewing then reverting to the same value would
         // be a flicker for nothing. On the schedule there is nothing to see
         // until sunset, so a few seconds of it is the only honest feedback.
+        // NOTHING AT ALL WHEN NIGHT LIGHT IS OFF. Previewing then would flash
+        // the screen warm and back for a feature that is switched off, which is
+        // the opposite of what "off" promises - and is most of the "weird
+        // behaviour" this slider was reported for. The value is stored and
+        // waits for the toggle.
+        if (!settings.nightLight) return
+
+        // HELD: APPLY IT AND LEAVE IT. SCHEDULED: SHOW IT AND GO BACK.
+        // With the temperature held there is something to see at once and it
+        // should stay; previewing a value only to return to that same value
+        // would be a flicker for nothing. On the schedule there is nothing to
+        // see until sunset, so a few seconds of it is the only honest feedback.
         nightLightProc.command = settings.nightLightAlways
             ? [Quickshell.env("HOME") + "/Work/fd44_hyprdot/bin/nightlight.sh", "apply"]
             : [Quickshell.env("HOME") + "/Work/fd44_hyprdot/bin/nightlight.sh",

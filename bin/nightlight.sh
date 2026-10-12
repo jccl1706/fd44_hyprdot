@@ -136,7 +136,22 @@ start_it() {
         warn "could not get coordinates from daylight.py - is the timezone set?"
         return 1
     }
-    systemctl --user stop "$UNIT" 2>/dev/null
+    # KILLED, NOT STOPPED, WHEN ONE IS ALREADY RUNNING. wlsunset restores the
+    # gamma ramp on SIGTERM, so a graceful stop followed by a start flashes the
+    # screen white and then back to warm - which is precisely the "flashes
+    # orange and white" seen while dragging the warmth slider, since every
+    # release restarts the service.
+    #
+    # SIGKILL leaves the ramp exactly where it was, and the new instance
+    # overwrites it a moment later. The handover is then invisible.
+    #
+    # The risk is the opposite one - a dead instance leaving the screen warm
+    # with nothing running - so a failed start resets the ramp explicitly below
+    # rather than leaving it stranded.
+    if running; then
+        systemctl --user kill -s KILL "$UNIT" 2>/dev/null
+        systemctl --user stop "$UNIT" 2>/dev/null
+    fi
     # --collect so a failed run does not linger in the unit list.
     # PINNED BY GIVING BOTH ENDS THE SAME VALUE. wlsunset wants a range and
     # a day/night pair; one degree apart is a constant, and the sun arithmetic
@@ -147,12 +162,29 @@ start_it() {
     systemd-run --user --collect --unit="$UNIT" \
         --description="Night light (wlsunset), driven by bin/nightlight.sh" \
         wlsunset -l "$lat" -L "$lon" -t "$lo" -T "$hi" >/dev/null 2>&1 \
-        || { warn "could not start $UNIT"; return 1; }
+        || {
+            warn "could not start $UNIT"
+            # The kill above left whatever ramp was in place; with nothing
+            # running to own it, put it back.
+            reset_gamma
+            return 1
+        }
     if always_on; then
         say "night light on  (${NIGHT_TEMP}K, held all day)"
     else
         say "night light on  ($lat, $lon · ${NIGHT_TEMP}K at night, ${DAY_TEMP}K by day)"
     fi
+}
+
+# Clear any gamma ramp left behind. wlsunset does this itself on SIGTERM; this
+# is for the paths that killed it instead, or that never had it running.
+reset_gamma() {
+    command -v wlsunset >/dev/null 2>&1 || return 0
+    # A one-shot instance at the day temperature, killed as soon as it has
+    # applied it: there is no "reset" verb, and this is the shape the project's
+    # own README suggests for undoing a ramp.
+    timeout 1 wlsunset -T "$DAY_TEMP" -t $(( DAY_TEMP - 1 )) \
+        -S 00:00 -s 23:59 >/dev/null 2>&1 || true
 }
 
 stop_it() {
@@ -183,7 +215,13 @@ case "${1:-status}" in
         [[ $k =~ ^[0-9]+$ ]] || { warn "preview needs kelvin"; exit 2; }
         (( k >= 1500 && k <= 6500 )) || { warn "preview: $k outside 1500-6500"; exit 2; }
         read -r lat lon <<<"$(coordinates)"
-        stop_it >/dev/null
+        # KILLED, not stopped, for the reason given in start_it: a graceful stop
+        # restores the ramp to white first, and a preview that begins with a
+        # white flash is the thing being complained about.
+        if running; then
+            systemctl --user kill -s KILL "$UNIT" 2>/dev/null
+            systemctl --user stop "$UNIT" 2>/dev/null
+        fi
         # -T and -t one apart pins it: wlsunset wants a range, and a range of
         # one degree is a constant. timeout sends SIGTERM and wlsunset restores
         # the ramp on it, so an interrupted preview cannot leave the screen
