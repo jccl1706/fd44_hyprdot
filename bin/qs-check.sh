@@ -78,7 +78,9 @@
 set -uo pipefail
 
 # Where the repository is, from this script's own location.
-src="${BASH_SOURCE[0]:-}"
+# Resolved through any symlink: ~/.local/bin/qs-check is a link to this file,
+# and the parent of the LINK's directory is ~/.local, not the repository.
+src="$(readlink -f "${BASH_SOURCE[0]:-}" 2>/dev/null || true)"
 if [[ -n $src && -e $src ]]; then
     root="$(cd "$(dirname "$src")/.." && pwd)"
 else

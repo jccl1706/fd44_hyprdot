@@ -37,7 +37,14 @@
 
 set -uo pipefail
 
-root="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
+# THE SCRIPT'S OWN LOCATION, THROUGH ANY SYMLINK. ~/.local/bin/qs-shot is a
+# link to this file, and dirname of the LINK is ~/.local/bin, whose parent is
+# ~/.local - so the repository was looked for in ~/.local/quickshell and the
+# only symptom was a grep complaining about a path nobody wrote. readlink -f
+# resolves to the real file first, which is the whole difference between a
+# script that works on PATH and one that works only from its own directory.
+self="$(readlink -f "${BASH_SOURCE[0]:-$0}")"
+root="$(cd "$(dirname "$self")/.." && pwd)"
 out_dir="${QS_SHOT_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/fd44-shots}"
 
 c_r=$'\033[1;31m'; c_d=$'\033[2m'; c_0=$'\033[0m'

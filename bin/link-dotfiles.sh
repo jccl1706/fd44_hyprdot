@@ -321,6 +321,18 @@ fi
 # XDG_DATA_HOME, and it is the literal path systemd puts on the user PATH.
 link bin/browser.sh "$HOME/.local/bin/fd44-browser"
 
+# THE TWO TOOLS YOU TYPE RATHER THAN CALL, on PATH for the same reason the
+# browser shim is. Everything else in bin/ is run by a unit, a keybind or the
+# shell itself and is found by its full path; these two are run BY HAND, while
+# working on the configuration, from whatever directory you happen to be in -
+# and `bin/qs-shot.sh` from anywhere but the repository root is a file-not-found
+# with nothing to suggest where it went.
+#
+# Without the .sh, because that is the half nobody wants to type and it is not
+# part of what the command is.
+link bin/qs-check.sh "$HOME/.local/bin/qs-check"
+link bin/qs-shot.sh  "$HOME/.local/bin/qs-shot"
+
 # Web apps: desktop entries for sites that are better without a browser
 # around them. They go under DATA rather than CONFIG - XDG puts application
 # entries in ~/.local/share/applications - and the launcher picks them up
