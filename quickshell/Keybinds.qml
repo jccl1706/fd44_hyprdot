@@ -82,6 +82,20 @@ PanelWindow {
         if (q === "") return root.groups
         const out = []
         for (const g of root.groups) {
+            // A GROUP NAME MATCHES THE WHOLE GROUP. Searching "tmux" returned
+            // exactly one row before this - the single bind with the word in
+            // its description - while sixteen binds sit under two headings
+            // called "tmux" and "tmux in the shell". The headings are on the
+            // screen and are the obvious thing to type.
+            //
+            // So a name match takes the group entire, and only otherwise is
+            // each bind tested. "windows", "volume", "media" all behave the
+            // way the headings suggest.
+            if (String(g.name).toLowerCase().indexOf(q) !== -1) {
+                out.push(g)
+                continue
+            }
+
             // MATCHED AGAINST WHAT THE ROW SHOWS, not only against what the
             // config says. The key is stored as "Mod+Shift+C" and drawn as
             // "Super+Shift+C" - the same replace() the Text below does - so a
