@@ -1,0 +1,25 @@
+# =========================================================================
+# swappy - the annotation window bin/screenshot.sh opens
+# =========================================================================
+#
+# SAVES WHERE EVERY OTHER SHOT GOES. swappy's own default is ~/Desktop, which
+# does not exist on this machine, so an annotated capture saved with Ctrl+S
+# landed nowhere findable - it creates the directory and you never think to
+# look there. These are the same directory and the same name pattern that
+# bin/screenshot.sh uses, so an annotated shot sorts beside the plain one it
+# came from.
+#
+# THE PANEL STARTS OPEN. swappy hides its toolbar by default and the window is
+# then a picture with no visible way to draw on it; the keyboard shortcuts work
+# but nothing says so.
+
+[Default]
+save_dir=$HOME/Pictures/Screenshots
+save_filename_format=Screenshot-%Y%m%d-%H%M%S-edited.png
+show_panel=true
+line_size=5
+text_size=20
+text_font=sans-serif
+paint_mode=brush
+early_exit=false
+fill_shape=false

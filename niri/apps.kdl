@@ -217,4 +217,21 @@ binds {
     Print hotkey-overlay-title="Screenshot: this screen" { spawn-sh "$HOME/.config/fd44/bin/screenshot.sh screen"; }
     Mod+Shift+P hotkey-overlay-title="Screenshot: a region" { spawn-sh "$HOME/.config/fd44/bin/screenshot.sh region"; }
     Mod+Ctrl+P hotkey-overlay-title="Screenshot: this window" { spawn-sh "$HOME/.config/fd44/bin/screenshot.sh window"; }
+
+    // --- and the two that go through swappy ---------------------------------
+    //
+    // DRAW CAPTURES STRAIGHT INTO THE ANNOTATOR and never writes the plain
+    // version: grim pipes into swappy, so when you already know you are going
+    // to mark something up there is no untouched file left behind to decide
+    // about afterwards.
+    //
+    // EDIT TAKES THE LAST SHOT, which is the one you just looked at in the
+    // toast and then wished you had circled something in. With no argument it
+    // picks the newest file in the directory, so it needs nothing selected and
+    // nothing typed.
+    //
+    // swappy saves with Ctrl+S into the same directory as everything else -
+    // see swappy/config, which exists because its own default is ~/Desktop.
+    Mod+Alt+P hotkey-overlay-title="Screenshot: a region, annotated" { spawn-sh "$HOME/.config/fd44/bin/screenshot.sh draw"; }
+    Mod+Shift+Alt+P hotkey-overlay-title="Screenshot: annotate the last one" { spawn-sh "$HOME/.config/fd44/bin/screenshot.sh edit"; }
 }

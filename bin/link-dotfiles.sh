@@ -159,6 +159,9 @@ wants_any "hypr" Hyprland hypridle hyprlock && link hypr "$CONFIG/hypr"
 wants niri      "niri"       && link niri       "$CONFIG/niri"
 wants quickshell "quickshell" && link quickshell "$CONFIG/quickshell"
 wants kitty     "kitty"      && link kitty      "$CONFIG/kitty"
+# swappy saves into ~/Desktop unless told otherwise, which on these machines is
+# a directory that does not exist until it makes one. See swappy/config.
+wants swappy    "swappy"     && link swappy     "$CONFIG/swappy"
 wants alacritty "alacritty"  && link alacritty  "$CONFIG/alacritty"
 
 # CLAUDE CODE AGAINST A LOCAL OLLAMA, where there is an ollama. A shell function

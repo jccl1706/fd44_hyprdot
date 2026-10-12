@@ -6,6 +6,8 @@
 # Usage:  bin/screenshot.sh region    drag a rectangle
 #         bin/screenshot.sh screen    the focused output, whole
 #         bin/screenshot.sh window    the focused window, cropped to it
+#         bin/screenshot.sh draw      a region, straight into the annotator
+#         bin/screenshot.sh edit [f]  annotate a file, or the last shot taken
 #
 # THE OLD BINDS WERE FIRE AND FORGET. `grim -g "$(slurp)" - | wl-copy` put an
 # image on the clipboard and said nothing whatever, so there was no way to tell
@@ -88,8 +90,34 @@ print(f"{int(pos[0])},{int(pos[1])} {int(size[0])}x{int(size[1])}")' 2>/dev/null
     [[ -n $geo ]] || die "no focused window"
     grim -g "$geo" "$out" || die "grim failed on $geo"
     ;;
+draw|edit)
+    # STRAIGHT INTO swappy, WITHOUT SAVING FIRST. `draw` is for when you already
+    # know you are going to mark the thing up - a plain capture followed by
+    # opening it is two steps and leaves an unannotated file behind that you
+    # then have to decide about.
+    #
+    # swappy writes the result itself, with Ctrl+S, into the directory
+    # swappy/config names - the same one as everything here - so this script
+    # does not name the output and does not notify. The window IS the feedback.
+    command -v swappy >/dev/null 2>&1 || die "swappy is not installed"
+    rm -f "$out"                     # no plain copy is kept for these
+
+    if [[ $mode == edit ]]; then
+        # With no argument, the most recent shot: "annotate what I just took"
+        # is the thing you actually want after looking at the toast.
+        src="${2:-$(ls -t "$DIR"/*.png 2>/dev/null | head -1)}"
+        [[ -n $src && -f $src ]] || die "nothing to edit in $DIR"
+        exec swappy -f "$src"
+    fi
+
+    geo="$(slurp 2>/dev/null)" || exit 0
+    [[ -n $geo ]] || exit 0
+    # grim TO A PIPE AND swappy FROM ONE, so the unannotated capture never
+    # reaches the disk at all.
+    exec sh -c 'grim -g "$1" - | swappy -f -' sh "$geo"
+    ;;
 *)
-    die "unknown mode: $mode (region, screen, window)"
+    die "unknown mode: $mode (region, screen, window, draw, edit)"
     ;;
 esac
 
