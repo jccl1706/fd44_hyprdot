@@ -614,6 +614,15 @@ ShellRoot {
         function open(): void   { shell.openFocused(settingsVariants.instances)   }
         function close(): void  { shell.closeAll(settingsVariants.instances)      }
 
+        // `qs ipc call settings search brightness` - open it and search.
+        // NOT `query`, which bin/qs-shot.sh would then prefer over `page` for
+        // this panel and break `qs-shot.sh settings Bar`.
+        function search(text: string): void {
+            shell.openFocused(settingsVariants.instances)
+            const one = shell.focusedOne(settingsVariants.instances)
+            if (one) one.setQuery(text)
+        }
+
         // `qs ipc call settings page Notifications` - open on a named page.
         //
         // NOT `show`: `show` is also an `qs ipc` subcommand, and the CLI

@@ -75,6 +75,15 @@ PanelWindow {
     // is what makes search worth having in a panel with a sidebar.
     property string query: ""
 
+    // SET THE SEARCH FROM OUTSIDE, the same as Launcher.setQuery and for the
+    // same reason: searching is a state this panel can only reach by typing,
+    // and a script cannot type. It is a different layout from any page - every
+    // result carries the section it came from - so it is the one most likely to
+    // be changed without ever being looked at.
+    function setQuery(q: string): void {
+        searchField.text = q
+    }
+
     readonly property int sidebarWidth: 190
 
     // AS WIDE AS ITS CONTENTS NEED, and no wider.

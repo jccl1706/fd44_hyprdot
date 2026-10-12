@@ -69,7 +69,21 @@ Item {
 
     // 18, not 22. With the help text now a size smaller and dimmer, the old
     // padding left each row looking like a paragraph with a control beside it.
-    implicitHeight: body.implicitHeight + 18
+    // A GROUP HEADING NEEDS AIR ABOVE IT OR IT DOES NOT GROUP.
+    //
+    // The zone labels on the Bar page - CENTRE LEFT, CENTRE RIGHT, RIGHT - sat
+    // with the same gap above them as between two rows inside a group, so the
+    // three groups were legible but did not separate: you could read where one
+    // began only by reading the label, which is the thing a heading is supposed
+    // to save you from doing.
+    //
+    // ABOVE, NOT AROUND. The extra height is pushed entirely over the heading
+    // by offsetting the body's centre, so the heading stays tight to the rows
+    // it introduces rather than floating midway between two groups and
+    // belonging to neither.
+    readonly property int groupGap: settingRow.fromSection !== "" ? 12 : 0
+
+    implicitHeight: body.implicitHeight + 18 + groupGap
     height: implicitHeight
 
     Rectangle {
@@ -95,7 +109,8 @@ Item {
     Column {
         id: body
         anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter
-                  leftMargin: 14; rightMargin: 14 }
+                  leftMargin: 14; rightMargin: 14
+                  verticalCenterOffset: settingRow.groupGap / 2 }
         spacing: 3
 
         // When searching, say which section a hit came from - otherwise a
