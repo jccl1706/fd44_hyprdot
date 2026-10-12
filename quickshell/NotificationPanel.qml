@@ -135,8 +135,30 @@ DropPanel {
                 required property var modelData
                 required property int index
 
+                // A ROW OPENS WHEN TAPPED, because otherwise the text is gone.
+                //
+                // Both lines below are capped at one line and elided, so a long
+                // notification was truncated in the toast - three lines, then
+                // "..." - and truncated harder here, to one. There was nowhere
+                // the rest of it could be read. A notification daemon that
+                // silently discards the message is worse than one that is ugly
+                // about showing it.
+                //
+                // CLOSED BY DEFAULT, because the list's job is "what have I
+                // missed" and twenty wrapped paragraphs do not answer it. One
+                // tap for the one that matters.
+                property bool expanded: false
+
                 width: historyList.width
-                height: 54
+                // The closed height is fixed; open, it follows the text.
+                //
+                // FROM THE COLUMN'S implicitHeight, not from the body Text's y
+                // plus its height: the texts sit in a Column anchored to this
+                // row's vertical centre, so their y is measured inside that
+                // Column and means nothing out here.
+                height: expanded ? Math.max(54, textColumn.implicitHeight + 22) : 54
+                Behavior on height { NumberAnimation { duration: Theme.animNormal
+                                                       easing.type: Easing.OutCubic } }
 
                 // The same selection bar the other panels draw: rounded by 8
                 // and washed with Theme.surfaceHigh. It used to be a square
@@ -153,6 +175,10 @@ DropPanel {
 
                 HoverHandler { id: rowHover }
 
+                // Tap anywhere on the row. The dismiss and clear controls are
+                // elsewhere, so there is nothing here for this to steal.
+                TapHandler { onTapped: row.expanded = !row.expanded }
+
                 Rectangle {
                     id: dot
                     anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
@@ -161,6 +187,7 @@ DropPanel {
                 }
 
                 Column {
+                    id: textColumn
                     anchors {
                         left: dot.right; leftMargin: 10
                         right: stamp.left; rightMargin: 10
@@ -175,18 +202,24 @@ DropPanel {
                         font.family: Theme.font
                         font.pixelSize: Theme.fontSize
                         font.weight: Theme.weightMedium
-                        elide: Text.ElideRight
-                        maximumLineCount: 1
+                        elide: row.expanded ? Text.ElideNone : Text.ElideRight
+                        wrapMode: row.expanded ? Text.WordWrap : Text.NoWrap
+                        maximumLineCount: row.expanded ? 6 : 1
                     }
 
                     Text {
+                        id: body
                         width: parent.width
                         text: row.modelData.body
                         color: Theme.dim
                         font.family: Theme.font
                         font.pixelSize: Theme.fontSizeSmall
-                        elide: Text.ElideRight
-                        maximumLineCount: 1
+                        elide: row.expanded ? Text.ElideNone : Text.ElideRight
+                        wrapMode: row.expanded ? Text.WordWrap : Text.NoWrap
+                        // A CAP EVEN WHEN OPEN. An application may send a
+                        // kilobyte; twenty-four lines is already more than this
+                        // panel should become for one entry.
+                        maximumLineCount: row.expanded ? 24 : 1
                         visible: text !== ""
                     }
                 }
