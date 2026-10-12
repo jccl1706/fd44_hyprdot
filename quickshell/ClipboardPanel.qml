@@ -21,6 +21,7 @@
 import Quickshell
 import Quickshell.Io
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 
 DropPanel {
@@ -164,95 +165,138 @@ DropPanel {
             color: Theme.outline; opacity: 0.6
         }
 
-        Repeater {
-            model: root.entries.slice(0, 12)
+        // SIX ROWS, THEN IT SCROLLS. This was a Repeater sliced to the twelve
+        // most recent: bounded, so the panel never ran off the screen, but
+        // twelve 44px rows is 528px of list above a header and a footer, which
+        // is most of a 940px display for a thing you opened to glance at. The
+        // other thirteen entries were simply unreachable.
+        //
+        // Six is the height that stopped looking like a wall. The rest are a
+        // scroll away rather than gone, so "25 kept" in the header is now true
+        // of what you can actually get at.
+        ListView {
+            id: rows
 
-            Item {
-                required property var modelData
-                width: parent.width
-                height: 44
+            width: parent.width
+            visible: root.entries.length > 0
+            // 44 is the row height below; the list is exactly six of them, or
+            // less when there are fewer, so a short history draws no empty gap.
+            height: visible ? Math.min(contentHeight, 6 * 44) : 0
 
-                Rectangle {
-                    anchors.fill: parent
-                    anchors.margins: -4
-                    radius: 8
-                    color: hover.hovered ? Theme.surfaceHigh : "transparent"
-                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            // No drag on a list that fits: one you can pull when there is
+            // nowhere to pull it to feels broken. Same rule as the history
+            // list in NotificationPanel.
+            interactive: contentHeight > height
+
+            model: root.entries
+
+            // The same thin handle as SettingsPanel, asked for directly rather
+            // than left to AsNeeded, which keeps it on screen for a list whose
+            // rows all fit - furniture, which the note there is right about.
+            ScrollBar.vertical: ScrollBar {
+                id: rowScroll
+                policy: rows.contentHeight > rows.height ? ScrollBar.AlwaysOn
+                                                         : ScrollBar.AlwaysOff
+                width: 10
+                background: null
+                contentItem: Rectangle {
+                    implicitWidth: 5
+                    radius: 3
+                    color: Theme.dim
+                    opacity: rowScroll.pressed ? 0.75
+                           : (rowScroll.hovered ? 0.55 : 0.3)
+                    Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
                 }
-                HoverHandler { id: hover }
+            }
 
-                // A whole-row tap copies it back, which is what you came for.
-                TapHandler { onTapped: root.act("copy", parent.modelData.id) }
+            delegate: Item {
+                    required property var modelData
+                    width: parent.width
+                    height: 44
 
-                RowLayout {
-                    anchors { left: parent.left; right: parent.right
-                              verticalCenter: parent.verticalCenter }
-                    spacing: 10
-
-                    // An image says so with a glyph rather than a thumbnail: a
-                    // thumbnail means decoding every entry on open, and the
-                    // dimensions beside it are what tells them apart anyway.
-                    Text {
-                        text: parent.parent.modelData.kind === "image"
-                              ? "\u{F02E9}" : "\u{F0219}"
-                        font.family: Theme.glyphFont
-                        font.pixelSize: 16
-                        color: parent.parent.modelData.kind === "image"
-                               ? Theme.accent : Theme.dim
-                        Layout.preferredWidth: 20
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.margins: -4
+                        radius: 8
+                        color: hover.hovered ? Theme.surfaceHigh : "transparent"
+                        Behavior on color { ColorAnimation { duration: Theme.animFast } }
                     }
+                    HoverHandler { id: hover }
 
-                    Text {
-                        text: parent.parent.modelData.preview
-                        color: Theme.fg
-                        font.family: Theme.font
-                        font.pixelSize: Theme.fontSize
-                        elide: Text.ElideRight
-                        maximumLineCount: 1
-                        Layout.fillWidth: true
-                    }
+                    // A whole-row tap copies it back, which is what you came for.
+                    TapHandler { onTapped: root.act("copy", parent.modelData.id) }
 
-                    // Shown on hover only. Three controls on every row of twelve
-                    // is a wall of glyphs; the row itself is the common action
-                    // and these are the other two.
-                    Row {
-                        spacing: 4
-                        opacity: hover.hovered ? 1 : 0
-                        Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+                    RowLayout {
+                        anchors { left: parent.left; right: parent.right
+                                  verticalCenter: parent.verticalCenter }
+                        spacing: 10
 
-                        Repeater {
-                            // Save where it belongs, save where you say, forget.
-                            // The automatic one first because it is the common
-                            // case: most of the time the answer is "Pictures"
-                            // and being asked would be the annoyance.
-                            model: [
-                                { g: "\u{F0193}", verb: "save",   tip: "save it" },
-                                { g: "\u{F0256}", verb: "saveas", tip: "save as…" },
-                                { g: "\u{F01B4}", verb: "delete", tip: "forget this" }
-                            ]
-                            Rectangle {
-                                required property var modelData
-                                width: 24; height: 24; radius: 6
-                                color: btnHover.hovered ? Theme.surface : "transparent"
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: parent.modelData.g
-                                    font.family: Theme.glyphFont
-                                    font.pixelSize: 13
-                                    color: btnHover.hovered ? Theme.fg : Theme.dim
-                                }
-                                HoverHandler { id: btnHover }
-                                TapHandler {
-                                    onTapped: {
-                                        root.act(parent.modelData.verb,
-                                                 parent.parent.parent.parent.modelData.id)
+                        // An image says so with a glyph rather than a thumbnail: a
+                        // thumbnail means decoding every entry on open, and the
+                        // dimensions beside it are what tells them apart anyway.
+                        Text {
+                            text: parent.parent.modelData.kind === "image"
+                                  ? "\u{F02E9}" : "\u{F0219}"
+                            font.family: Theme.glyphFont
+                            font.pixelSize: 16
+                            color: parent.parent.modelData.kind === "image"
+                                   ? Theme.accent : Theme.dim
+                            Layout.preferredWidth: 20
+                        }
+
+                        Text {
+                            text: parent.parent.modelData.preview
+                            color: Theme.fg
+                            font.family: Theme.font
+                            font.pixelSize: Theme.fontSize
+                            elide: Text.ElideRight
+                            maximumLineCount: 1
+                            Layout.fillWidth: true
+                        }
+
+                        // Shown on hover only. Three controls on every row of twelve
+                        // is a wall of glyphs; the row itself is the common action
+                        // and these are the other two.
+                        Row {
+                            spacing: 4
+                            opacity: hover.hovered ? 1 : 0
+                            Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+
+                            Repeater {
+                                // Save where it belongs, save where you say, forget.
+                                // The automatic one first because it is the common
+                                // case: most of the time the answer is "Pictures"
+                                // and being asked would be the annoyance.
+                                model: [
+                                    { g: "\u{F0193}", verb: "save",   tip: "save it" },
+                                    { g: "\u{F0256}", verb: "saveas", tip: "save as…" },
+                                    { g: "\u{F01B4}", verb: "delete", tip: "forget this" }
+                                ]
+                                Rectangle {
+                                    required property var modelData
+                                    width: 24; height: 24; radius: 6
+                                    color: btnHover.hovered ? Theme.surface : "transparent"
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: parent.modelData.g
+                                        font.family: Theme.glyphFont
+                                        font.pixelSize: 13
+                                        color: btnHover.hovered ? Theme.fg : Theme.dim
+                                    }
+                                    HoverHandler { id: btnHover }
+                                    TapHandler {
+                                        onTapped: {
+                                            root.act(parent.modelData.verb,
+                                                     parent.parent.parent.parent.modelData.id)
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-            }
         }
 
         Text {

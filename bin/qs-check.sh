@@ -349,6 +349,13 @@ known=(
     # cannot resolve. Nothing in this repository can fix an upstream icon, and
     # it has no bearing on whether the configuration is correct.
     '(qt\.svg|qt\.svg\.draw):@@an icon theme SVG that Qt cannot render'
+    # Shipped by the swappy package, not by anything here: its Exec line escapes
+    # $ as \$ inside a quoted sh -c, which Quickshell's desktop entry parser
+    # objects to and the spec does not allow. Nothing in this shell reads it -
+    # the warning arrives because the launcher indexes every .desktop on the
+    # machine - and it appeared the day swappy was installed for the screenshot
+    # annotator.
+    'Illegal escape sequence in desktop entry exec string@@a packaged .desktop file with a malformed Exec'
 )
 
 # AND UNDER niri, THE GLOBAL SHORTCUTS: not a fault in the config, but a
