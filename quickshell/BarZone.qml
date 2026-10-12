@@ -25,6 +25,12 @@ Item {
     // BarLayout zone name.
     required property string name
 
+    // THE HOVER LEAN, OPT-IN PER ZONE. Logo.qml does this at the far left and
+    // it reads well there, so the right pill asked for the same. It is a
+    // property rather than a check on `name` so that turning it on for the
+    // centre pill later is one word in Bar.qml and not an edit here.
+    property bool lift: false
+
     // The ids to draw, placeholder included.
     required property var ids
 
@@ -115,6 +121,41 @@ Item {
                 // never come back. The update box was invisible with seven
                 // packages waiting for exactly this reason.
                 visible: item ? item.implicitWidth > 0 : true
+
+                // THE SAME POP Logo.qml USES, on the wrapper rather than inside
+                // each plugin - one place, every plugin, including any added
+                // later without them knowing about it.
+                //
+                // SMALLER THAN THE LOGO'S 1.18. That mark sits alone with space
+                // around it; these sit in a row ten pixels apart, and at 1.18 a
+                // hovered glyph grows into its neighbours. 1.12 is as far as it
+                // goes before they touch.
+                //
+                // `scale` IS A TRANSFORM, so the Row's layout never changes:
+                // the pill does not widen and the icons either side do not
+                // shift as the pointer crosses. That matters more here than on
+                // the logo, because a moving row under a pointer that is
+                // travelling toward a particular glyph is how you click the
+                // wrong one.
+                //
+                // ITS OWN HoverHandler, WHICH IS SAFE BECAUSE HoverHandler IS
+                // PASSIVE. The plugins do not expose whether they are hovered -
+                // each keeps a private HoverHandler for its own tint - and
+                // adding a property to every one of them to publish it would be
+                // a change to ten files for a wrapper's benefit. A HoverHandler
+                // here tracks the pointer without consuming the press, so the
+                // TapHandlers and MouseAreas underneath still open their panels.
+                // A MouseArea here would NOT be safe: that one grabs clicks.
+                HoverHandler { id: lift }
+
+                scale: zone.lift && lift.hovered ? 1.12 : 1.0
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: Theme.animNormal
+                        easing.type: Easing.OutBack
+                        easing.overshoot: 2.2
+                    }
+                }
             }
         }
     }

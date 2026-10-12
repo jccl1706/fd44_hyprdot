@@ -596,6 +596,8 @@ PanelWindow {
                 BarZone {
                     id: rightZone
                     name: "right"
+                    // The hover lean, as on the distro mark at the other end.
+                    lift: true
                     ids: root.viewLayout.right
                     componentFor: root.componentFor
                     anchors.centerIn: parent
