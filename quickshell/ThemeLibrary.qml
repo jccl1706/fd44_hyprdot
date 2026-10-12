@@ -47,7 +47,12 @@ Singleton {
     // the file the script writes rather than by being told.
     function choose(name: string): void {
         if (!name || name === library.current) return
-        setter.command = ["sh", "-c", library.script + " set '" + name + "'"]
+        // As in Bluetooth.act: the name goes in as an argument rather than
+        // being spliced into the command with quotes around it. Theme names
+        // come from this repository's own themes/*.conf filenames today, so
+        // nothing hostile can be in one - but that is a fact about where the
+        // list comes from, not a property of this line.
+        setter.command = ["sh", "-c", library.script + ' set "$1"', "sh", name]
         setter.running = true
     }
 

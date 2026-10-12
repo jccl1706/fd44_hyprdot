@@ -102,7 +102,23 @@ Singleton {
     function act(verb: string, arg: string): void {
         if (actor.running) return
         bt.busyMac = (verb === "connect" || verb === "disconnect") ? arg : ""
-        actor.command = ["sh", "-c", bt.script + " " + verb + " '" + arg + "'"]
+        // THE ARGUMENTS GO IN AS ARGUMENTS, not spliced into the script.
+        //
+        // This read `script + " " + verb + " '" + arg + "'"` - a value wrapped
+        // in single quotes inside a shell string, with nothing escaping a quote
+        // in the value itself. It is not exploitable today because `arg` is
+        // always a MAC address, parsed as field two of `bluetoothctl devices`,
+        // and "on"/"off" for the scan verb - neither can contain a quote.
+        //
+        // IT IS ONE CALLER AWAY FROM BEING EXPLOITABLE, though, and bluetooth
+        // device names - which are chosen by the other device, not by us - are
+        // exactly the sort of thing someone would reasonably pass here later.
+        // The JSON `esc` in bluetooth.sh escapes for JSON, not for a shell.
+        //
+        // "$1" "$2" with the values after the script is the same pattern
+        // Tray.qml already uses, and it cannot be escaped from whatever the
+        // value contains.
+        actor.command = ["sh", "-c", bt.script + ' "$1" "$2"', "sh", verb, arg]
         actor.running = true
     }
 
