@@ -53,32 +53,6 @@ Singleton {
     // How long the volume/brightness OSD stays after the last keypress.
     property int  osdHideMs: 1500
 
-    // TWO SHAPES FOR THE BAR, and the only thing it changes is whether the
-    // bar paints a background and whether Frame.qml draws the other three
-    // edges. Everything inside is the same three rounded regions either way -
-    // "frame" puts them on an opaque strip welded to a border round the
-    // screen, "full" is that same strip with no border beside it - a plain
-    // full-width bar - and "pill" lets them float on the wallpaper with a gap
-    // all round.
-    // What bin/power-mode.sh sets the backlight to when the charger goes in or
-    // comes out. Percentages of the panel's range - what brightnessctl takes
-    // and what the two brightness keybinds step.
-    //
-    // THE SAME DEFAULTS LIVE IN power-mode.sh AND HAVE TO. That script runs
-    // from a udev rule, on a machine whose settings file may not exist yet, so
-    // it cannot depend on this one ever having been written.
-    // Night light, applied by bin/nightlight.sh through wlsunset.
-    //
-    // OFF BY DEFAULT. A shell that warms your screen without being asked is
-    // worse than one that waits to be told, and this one is visible from across
-    // the room.
-    property bool nightLight: false
-    // Kelvin at the night end of the ramp. The day end is fixed at 6500, the
-    // panel's native white, so that "day" means no change at all.
-    property int nightLightTemp: 4000
-    // Hold that temperature all day instead of ramping with the sun.
-    property bool nightLightAlways: false
-
     property int brightnessOnBattery: 50
     property int brightnessOnAc: 100
 
@@ -250,56 +224,6 @@ Singleton {
             section: "Desktop",
             icon: "\u{F0493}",                       // cog
             rows: [
-                // NOT A `key:` ROW, because flipping the value is only half
-                // the job - wlsunset has to be started or stopped to match it.
-                { label: "Night light", type: "toggle",
-                  get: function() { return Settings.nightLight },
-                  set: function(v) { Settings.setNightLight(v) },
-                  help: "warms the screen after sunset and cools it after "
-                      + "sunrise, from this machine's own location · off, it "
-                      + "never touches the colour" },
-
-                // DIRECTLY UNDER THE TOGGLE IT BELONGS TO, and shown whether
-                // or not that toggle is on: a control that comes and goes makes
-                // the page jump, and the number is worth setting before you
-                // switch the thing on.
-                //
-                // NOT A `key:` ROW, for the same reason the toggle is not -
-                // wlsunset reads the temperature once when it starts, so this
-                // has to store the value AND restart the service.
-                //
-                // 2500 to 6000: below 2500 is the deep amber that prompted
-                // this, and 6500 is the day temperature, which at night would
-                // mean the feature does nothing at all.
-                { label: "Night light warmth", type: "k",
-                  min: 2500, max: 6000, step: 100,
-                  get: function() { return Settings.nightLightTemp },
-                  set: function(v) { Settings.setNightLightTemp(v) },
-                  // Called on every step while the handle is held, so the
-                  // screen follows the mouse instead of waiting for it.
-                  live: function(v) { Settings.liveNightLightTemp(v) },
-                  help: "how warm the screen goes after sunset · lower is "
-                      + "warmer · 4000K is the default, 2500K is strongly "
-                      + "orange" },
-
-                // THE SCHEDULE IS THE DEFAULT AND THIS IS THE OTHER WANT.
-                // "Warm my screen now" is not something a sunset schedule can
-                // answer: set a temperature at noon and nothing happens for
-                // eight hours, which reads as a broken control however correct
-                // it is. Held, the warmth slider takes effect the moment you
-                // let go of it.
-                { label: "Keep it on all day", type: "toggle",
-                  get: function() { return Settings.nightLightAlways },
-                  set: function(v) { Settings.setNightLightAlways(v) },
-                  // "night light" IS IN THE HELP ON PURPOSE. The settings
-                  // search reads label and help, and this row's label has
-                  // neither word in it - so searching "night", which is what
-                  // anyone looking for this feature types, found the other two
-                  // rows and not the one that turns it on now.
-                  help: "hold the night light warmth above at all hours instead "
-                      + "of ramping with the sun · off, it only warms after "
-                      + "sunset" },
-
                 { key: "osdHideMs", label: "OSD hide delay",
                   type: "ms", min: 500, max: 5000, step: 250,
                   help: "the volume and brightness popup" },
@@ -679,121 +603,6 @@ Singleton {
         }
     }
 
-    // Writing the setting is not enough: wlsunset has to be started or
-    // stopped to match it. The script is the one place that knows how.
-    function setNightLight(on: bool): void {
-        settings.setValue("nightLight", on)
-        nightLightProc.command = [Quickshell.env("HOME")
-                                  + "/Work/fd44_hyprdot/bin/nightlight.sh", "apply"]
-        nightLightProc.running = true
-    }
-
-    // CHANGING THE NUMBER HAS TO RESTART wlsunset, which reads the temperature
-    // once at startup - the same shape as setNightLight above, and the reason
-    // neither is a plain `key:` row. Storing the value alone would leave the
-    // screen exactly as warm as it was until the next login.
-
-    function setNightLightAlways(on: bool): void {
-        settings.setValue("nightLightAlways", on)
-        nightLightProc.command = [Quickshell.env("HOME")
-                                  + "/Work/fd44_hyprdot/bin/nightlight.sh", "apply"]
-        nightLightProc.running = true
-    }
-
-    function setNightLightTemp(k: int): void {
-        settings.setValue("nightLightTemp", k)
-        // SHOWN, NOT JUST STORED. This sets the NIGHT end of the ramp, and you
-        // are usually setting it in daylight - wlsunset is correctly at 6500K
-        // and the number you just chose does nothing to the screen until
-        // sunset. The slider looked broken for exactly that reason.
-        //
-        // `preview` holds the chosen temperature for a few seconds and then
-        // returns to the schedule, so the control answers while your hand is
-        // still on it. It obeys the toggle: with night light off it previews
-        // and leaves it off.
-        // HELD: APPLY IT AND LEAVE IT. SCHEDULED: SHOW IT AND GO BACK.
-        // With the temperature held there is something to see immediately and
-        // it should stay - previewing then reverting to the same value would
-        // be a flicker for nothing. On the schedule there is nothing to see
-        // until sunset, so a few seconds of it is the only honest feedback.
-        // NOTHING AT ALL WHEN NIGHT LIGHT IS OFF. Previewing then would flash
-        // the screen warm and back for a feature that is switched off, which is
-        // the opposite of what "off" promises - and is most of the "weird
-        // behaviour" this slider was reported for. The value is stored and
-        // waits for the toggle.
-        if (!settings.nightLight) return
-
-        // DEBOUNCED ONLY LIGHTLY NOW. This used to collapse a run of changes
-        // into one because every change restarted wlsunset and every restart
-        // flashed the screen white. With wl-gammarelay-rs the temperature is a
-        // D-Bus write to a daemon that never goes away, so a change costs
-        // nothing and the only reason to wait at all is to avoid running the
-        // script once per pixel of slider travel.
-        nightLightApply.restart()
-    }
-
-
-    Process { id: nightLightProc }
-    Process { id: nightLightLive }
-
-    // THE DRAG PATH, AND IT IS A DIFFERENT COMMAND FOR A REASON. `apply`
-    // rereads the setting and restarts the schedule unit, which measures 168ms
-    // - fine once, far too slow to follow a mouse. `set` writes the D-Bus
-    // property and returns, which measures 30ms.
-    //
-    // Nothing is stored here. The release commits the value through
-    // setNightLightTemp as before, and the ramp loop re-asserts it on its next
-    // tick, so this cannot become a second source of truth.
-    property int pendingTemp: 0
-    function liveNightLightTemp(k: int): void {
-        if (!settings.nightLight) return
-        settings.pendingTemp = k
-        nightLightThrottle.start()        // start, not restart: see below
-    }
-
-    // A THROTTLE, NOT A DEBOUNCE. restart() would push the deadline back on
-    // every step and the screen would move only once the handle stopped, which
-    // is the behaviour being complained about. start() on an already-running
-    // timer does nothing, so this fires every 60ms with whatever the latest
-    // value is - the screen follows continuously and at most sixteen processes
-    // are spawned a second.
-    Timer {
-        id: nightLightThrottle
-        interval: 60
-        onTriggered: {
-            nightLightLive.command = [Quickshell.env("HOME")
-                                      + "/Work/fd44_hyprdot/bin/nightlight.sh",
-                                      "set", String(settings.pendingTemp)]
-            nightLightLive.running = true
-        }
-    }
-
-    // 150ms: enough to coalesce a flurry, too short to notice. It was 700 when
-    // every change cost a white flash and the goal was to have as few as
-    // possible; now the goal is for the slider to answer while you are looking
-    // at it.
-    Timer {
-        id: nightLightApply
-        interval: 150
-        onTriggered: {
-            if (!settings.nightLight) return
-            nightLightProc.command = [Quickshell.env("HOME")
-                                      + "/Work/fd44_hyprdot/bin/nightlight.sh", "apply"]
-            nightLightProc.running = true
-        }
-    }
-
-    function setValue(key: string, v): void {
-        if (settings[key] === undefined) {
-            console.warn("Settings: no such key", key)
-            return
-        }
-        if (settings[key] === v) return
-        settings[key] = v
-        settings.dirty = true
-        saveTimer.restart()
-    }
-
     // Back to the defaults above, which are the shell's original behaviour.
     function resetAll(): void {
         settings.notifyLowMs = 5000
@@ -840,10 +649,7 @@ Singleton {
                 barStyle: settings.barStyle,
                 barStylePrev: settings.barStylePrev,
                 brightnessOnAc: settings.brightnessOnAc,
-                brightnessOnBattery: settings.brightnessOnBattery,
-                nightLight: settings.nightLight,
-                nightLightTemp: settings.nightLightTemp,
-                nightLightAlways: settings.nightLightAlways
+                brightnessOnBattery: settings.brightnessOnBattery
             }, null, 1))
             settings.dirty = false
         }
