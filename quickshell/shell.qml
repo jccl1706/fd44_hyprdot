@@ -104,6 +104,11 @@ ShellRoot {
                 if (!p.revealed) shell.closeBarPanels(bar.modelData, p)
                 p.toggle(x)
             })
+            onClipboardRequested: x => shell.eachClipboard(p => {
+                if (p.modelData !== bar.modelData) return
+                if (!p.revealed) shell.closeBarPanels(bar.modelData, p)
+                p.toggle(x)
+            })
             onTrayMenuRequested: (x, item) => shell.eachTrayMenu(p => {
                 if (p.modelData !== bar.modelData) return
                 // Re-pointing an open menu at a different icon should show the
@@ -966,6 +971,13 @@ ShellRoot {
 
     function eachBar(fn): void {
         const instances = barVariants.instances
+        for (let i = 0; i < instances.length; i++) {
+            if (instances[i]) fn(instances[i])
+        }
+    }
+
+    function eachClipboard(fn): void {
+        const instances = clipboardVariants.instances
         for (let i = 0; i < instances.length; i++) {
             if (instances[i]) fn(instances[i])
         }

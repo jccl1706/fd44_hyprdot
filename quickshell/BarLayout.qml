@@ -58,7 +58,7 @@ Singleton {
         left: [],
         centerLeft: [],
         centerRight: ["theme", "caffeine", "updates", "backup", "units", "thermal"],
-        right: ["tray", "notes", "notify", "claude", "bluetooth", "network", "audio", "battery", "couch", "power", "compositor"]
+        right: ["tray", "notes", "clipboard", "notify", "claude", "bluetooth", "network", "audio", "battery", "couch", "power", "compositor"]
     })
 
     // THE HUMAN NAME AND THE COST OF HIDING, per plugin. Here rather than in
@@ -86,6 +86,8 @@ Singleton {
                     help: "icons from applications that publish one - Steam, Discord, Nextcloud. Empty until such a program runs, and hidden it takes away the only way to reach their menus" },
         notes:    { label: "Notes",
                     help: "the scratch pad. Hidden, what you wrote is kept but cannot be opened" },
+        clipboard:{ label: "Clipboard history",
+                    help: "what you have copied, and the panel that pastes or saves it. The only plugin with a keybind of its own - Mod+Shift+C opens it either way" },
         notify:   { label: "Notifications",
                     help: "the history panel and the unread count. Toasts still appear either way" },
         network:  { label: "Network",

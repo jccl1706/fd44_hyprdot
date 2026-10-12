@@ -33,6 +33,7 @@ PanelWindow {
     signal claudeRequested(real x)
     signal clockRequested(real x)
     signal notesRequested(real x)
+    signal clipboardRequested(real x)
 
     // Unlike the others this carries WHICH tray item was clicked as well as
     // where: one menu panel serves every icon, because the applications come
@@ -99,6 +100,7 @@ PanelWindow {
     Component { id: notifyPlugin;  NotifyButton {} }
     Component { id: batteryPlugin; BatteryButton {} }
     Component { id: notesPlugin;   NotesButton {} }
+    Component { id: clipboardPlugin; ClipboardButton {} }
     Component { id: updatesPlugin; UpdatesButton {} }
     Component { id: backupPlugin; BackupButton {} }
     Component { id: unitsPlugin;  UnitsButton {} }
@@ -144,6 +146,7 @@ PanelWindow {
         case "notify":      return notifyPlugin
         case "battery":     return batteryPlugin
         case "notes":       return notesPlugin
+        case "clipboard":   return clipboardPlugin
         case "updates":     return updatesPlugin
         case "backup":      return backupPlugin
         case "units":       return unitsPlugin
@@ -168,6 +171,7 @@ PanelWindow {
         else if (id === "battery")             root.batteryRequested(x)
         else if (id === "claude")              root.claudeRequested(x)
         else if (id === "notes")               root.notesRequested(x)
+        else if (id === "clipboard")           root.clipboardRequested(x)
         else if (id === "theme" && slot.item)  slot.item.activate()
         else if (id === "caffeine")            Caffeine.toggle()
         // Opens a terminal rather than a panel of ours, so there is no x to
