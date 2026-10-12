@@ -33,6 +33,11 @@ spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/wallpaper.sh thumbs"
 // says so and exits rather than failing the startup.
 spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/nightlight.sh apply"
 
+// The clipboard watchers. TWO of them, text and image - wl-paste --watch only
+// follows the type it was asked for, so one alone silently misses half of what
+// you copy. The script is idempotent: it does nothing if they are already up.
+spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/clipboard.sh watch"
+
 // The palette. KNOWN GAP: theme.sh is one of the scripts that calls hyprctl, so
 // parts of it will fail under niri until that is ported. It is left in rather
 // than dropped, because the parts that set GTK, kitty and quickshell colours do

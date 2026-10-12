@@ -197,6 +197,18 @@ ShellRoot {
         Keybinds {}
     }
 
+    Variants {
+        id: clipboardVariants
+        model: Quickshell.screens
+        // modelData and screen come from DropPanel, which declares them
+        // itself - redeclaring `required property var modelData` here shadows
+        // the base's and leaves the base's uninitialised, which is what
+        // "Required property modelData was not initialized" meant.
+        ClipboardPanel {
+            barWindow: shell.barFor(modelData)
+        }
+    }
+
     // Volume and device selection, sliding down out of the bar's top-right
     // corner. Opened from the speaker glyph in the bar.
     Variants {
@@ -780,6 +792,14 @@ ShellRoot {
     }
 
     IpcHandler {
+        target: "clipboard"
+
+        function toggle(): void { shell.toggleFocused(clipboardVariants.instances) }
+        function open(): void   { shell.openFocused(clipboardVariants.instances)   }
+        function close(): void  { shell.closeAll(clipboardVariants.instances)      }
+    }
+
+    IpcHandler {
         target: "shot"
 
         // bin/qs-shot.sh asks for this between opening a panel and running
@@ -840,7 +860,7 @@ ShellRoot {
         trayMenuVariants, powerVariants, launcherVariants,
         // A panel missing from this list opens fine and then refuses to close
         // when another is opened, so two sit on screen at once.
-        claudePanelVariants
+        claudePanelVariants, clipboardVariants
     ]
 
     // EVERY PANEL GROUP, FOR THE SCREENSHOT HELPER ONLY.
@@ -855,7 +875,8 @@ ShellRoot {
     // panel here must not silently enrol it in mutual exclusion, and the note
     // on barPanelGroups says what happens when that list is wrong.
     readonly property var allPanelGroups: shell.barPanelGroups.concat([
-        settingsVariants, wallpaperVariants, themePickerVariants, keybindsVariants
+        settingsVariants, wallpaperVariants, themePickerVariants, keybindsVariants,
+        clipboardVariants
     ])
 
     // The open panel's rectangle, in grim's format, or "" when none is open.
