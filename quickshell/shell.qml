@@ -719,7 +719,23 @@ ShellRoot {
             NotificationService.setDnd(on)
             return "dnd=" + NotificationService.doNotDisturb
         }
-        function panel(): void        { shell.toggleFocused(notifyPanelVariants.instances) }
+        // `panel` IS KEPT AND `toggle` IS ADDED BESIDE IT, rather than renamed.
+        //
+        // Every other panel in this shell opens with toggle/open/close; this one
+        // had only `panel`, which is why bin/qs-shot.sh refused it - the tool
+        // found the inconsistency before anyone did. A script that can drive
+        // thirteen panels and not the fourteenth is the kind of gap that gets
+        // worked around rather than fixed.
+        //
+        // The old name stays because it is in muscle memory and possibly in a
+        // script somewhere; `toggle` is simply what the other thirteen answer
+        // to. open and close join it, since "show the notifications" and "hide
+        // them" are things a script wants to say without knowing the current
+        // state - the same reason toggle was the wrong verb for bin/qs-shot.sh.
+        function panel(): void  { shell.toggleFocused(notifyPanelVariants.instances) }
+        function toggle(): void { shell.toggleFocused(notifyPanelVariants.instances) }
+        function open(): void   { shell.openFocused(notifyPanelVariants.instances)   }
+        function close(): void  { shell.closeAll(notifyPanelVariants.instances)      }
         function dismissAll(): void   { NotificationService.dismissAll() }
         function clearHistory(): void { NotificationService.clearHistory() }
     }

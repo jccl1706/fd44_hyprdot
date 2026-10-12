@@ -477,7 +477,16 @@ DropPanel {
             Text {
                 anchors { right: parent.right; rightMargin: 4
                           verticalCenter: rateRow.verticalCenter }
-                text: "last 60s"
+                // WHAT IS ACTUALLY ON THE GRAPH, not what it holds when full.
+                //
+                // This said "last 60s" always, while the samples behind it are
+                // collected ONLY WHILE THE PANEL IS OPEN - so on opening there
+                // are none, and after five seconds there are five. The label
+                // promised a minute of history that the panel had no way to
+                // have.
+                text: root.rates.length < 2 ? "waiting"
+                    : root.rates.length >= 60 ? "last 60s"
+                    : "last " + root.rates.length + "s"
                 color: Theme.dim
                 font.family: Theme.font
                 font.pixelSize: Theme.fontSizeSmall
@@ -505,7 +514,20 @@ DropPanel {
                     let max = 16 * 1024
                     for (const p of pts) max = Math.max(max, p.rx, p.tx)
 
-                    const X = i => graph.width - (pts.length - 1 - i) * (graph.width / 59)
+                    // THE AXIS FITS THE SAMPLES THERE ARE, not the sixty it
+                    // would hold. Dividing by a fixed 59 pinned each sample to
+                    // its slot in a minute-long window, so five samples drew a
+                    // stub in the rightmost 8% of the frame with the rest
+                    // empty - which read as a broken graph rather than a new
+                    // one, every single time the panel was opened.
+                    //
+                    // The alternative was sampling in the background so the
+                    // window is always full. That buys a correct-looking graph
+                    // with a 1Hz wakeup that never stops, in a shell where
+                    // nothing else polls forever - the wrong price for a
+                    // decoration you see when you open one panel.
+                    const span = Math.max(1, pts.length - 1)
+                    const X = i => graph.width - (span - i) * (graph.width / span)
                     const Y = v => graph.height - 1 - (graph.height - 2) * (v / max)
 
                     function trace(key, colour, fillAlpha) {
