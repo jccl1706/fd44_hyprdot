@@ -69,6 +69,21 @@ except Exception:
 
 NIGHT_TEMP="$(night_temp)"
 
+# ALWAYS ON, OR ON A SCHEDULE. The schedule is the default and the point of the
+# feature, but "warm my screen now" is a different want that the schedule simply
+# cannot answer: set the temperature at noon and nothing happens for eight
+# hours, which reads as a broken control no matter how correct it is.
+always_on() {
+    python3 -I -c '
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        print("yes" if json.load(f).get("nightLightAlways") is True else "no")
+except Exception:
+    print("no")
+' "$SETTINGS" 2>/dev/null | grep -q yes
+}
+
 c_g=$'\033[1;32m'; c_y=$'\033[1;33m'; c_r=$'\033[1;31m'; c_0=$'\033[0m'
 say()  { printf '%s==>%s %s\n' "$c_g" "$c_0" "$*"; }
 warn() { printf '%s==>%s %s\n' "$c_y" "$c_0" "$*" >&2; }
@@ -123,11 +138,21 @@ start_it() {
     }
     systemctl --user stop "$UNIT" 2>/dev/null
     # --collect so a failed run does not linger in the unit list.
+    # PINNED BY GIVING BOTH ENDS THE SAME VALUE. wlsunset wants a range and
+    # a day/night pair; one degree apart is a constant, and the sun arithmetic
+    # then has nothing left to change. No second code path, no second tool.
+    local lo="$NIGHT_TEMP" hi="$DAY_TEMP"
+    if always_on; then hi=$(( NIGHT_TEMP + 1 )); fi
+
     systemd-run --user --collect --unit="$UNIT" \
         --description="Night light (wlsunset), driven by bin/nightlight.sh" \
-        wlsunset -l "$lat" -L "$lon" -t "$NIGHT_TEMP" -T "$DAY_TEMP" >/dev/null 2>&1 \
+        wlsunset -l "$lat" -L "$lon" -t "$lo" -T "$hi" >/dev/null 2>&1 \
         || { warn "could not start $UNIT"; return 1; }
-    say "night light on  ($lat, $lon · ${NIGHT_TEMP}K at night, ${DAY_TEMP}K by day)"
+    if always_on; then
+        say "night light on  (${NIGHT_TEMP}K, held all day)"
+    else
+        say "night light on  ($lat, $lon · ${NIGHT_TEMP}K at night, ${DAY_TEMP}K by day)"
+    fi
 }
 
 stop_it() {
@@ -183,7 +208,12 @@ case "${1:-status}" in
         printf '  %-12s %s\n' wlsunset "$(command -v wlsunset >/dev/null && echo installed || echo 'NOT INSTALLED')"
         read -r lat lon <<<"$(coordinates)"
         printf '  %-12s %s\n' location "${lat:-?}, ${lon:-?}"
-        printf '  %-12s %sK night / %sK day\n' range "$NIGHT_TEMP" "$DAY_TEMP"
+        if always_on; then
+            printf '  %-12s %s\n' mode "held at ${NIGHT_TEMP}K all day"
+        else
+            printf '  %-12s %s\n' mode "on a schedule"
+            printf '  %-12s %sK night / %sK day\n' range "$NIGHT_TEMP" "$DAY_TEMP"
+        fi
         ;;
     *)
         printf 'nightlight: unknown command: %s\n' "$1" >&2

@@ -76,6 +76,8 @@ Singleton {
     // Kelvin at the night end of the ramp. The day end is fixed at 6500, the
     // panel's native white, so that "day" means no change at all.
     property int nightLightTemp: 4000
+    // Hold that temperature all day instead of ramping with the sun.
+    property bool nightLightAlways: false
 
     property int brightnessOnBattery: 50
     property int brightnessOnAc: 100
@@ -276,6 +278,24 @@ Singleton {
                   help: "how warm the screen goes after sunset · lower is "
                       + "warmer · 4000K is the default, 2500K is strongly "
                       + "orange" },
+
+                // THE SCHEDULE IS THE DEFAULT AND THIS IS THE OTHER WANT.
+                // "Warm my screen now" is not something a sunset schedule can
+                // answer: set a temperature at noon and nothing happens for
+                // eight hours, which reads as a broken control however correct
+                // it is. Held, the warmth slider takes effect the moment you
+                // let go of it.
+                { label: "Keep it on all day", type: "toggle",
+                  get: function() { return Settings.nightLightAlways },
+                  set: function(v) { Settings.setNightLightAlways(v) },
+                  // "night light" IS IN THE HELP ON PURPOSE. The settings
+                  // search reads label and help, and this row's label has
+                  // neither word in it - so searching "night", which is what
+                  // anyone looking for this feature types, found the other two
+                  // rows and not the one that turns it on now.
+                  help: "hold the night light warmth above at all hours instead "
+                      + "of ramping with the sun · off, it only warms after "
+                      + "sunset" },
 
                 { key: "osdHideMs", label: "OSD hide delay",
                   type: "ms", min: 500, max: 5000, step: 250,
@@ -669,6 +689,14 @@ Singleton {
     // once at startup - the same shape as setNightLight above, and the reason
     // neither is a plain `key:` row. Storing the value alone would leave the
     // screen exactly as warm as it was until the next login.
+
+    function setNightLightAlways(on: bool): void {
+        settings.setValue("nightLightAlways", on)
+        nightLightProc.command = [Quickshell.env("HOME")
+                                  + "/Work/fd44_hyprdot/bin/nightlight.sh", "apply"]
+        nightLightProc.running = true
+    }
+
     function setNightLightTemp(k: int): void {
         settings.setValue("nightLightTemp", k)
         // SHOWN, NOT JUST STORED. This sets the NIGHT end of the ramp, and you
@@ -680,9 +708,15 @@ Singleton {
         // returns to the schedule, so the control answers while your hand is
         // still on it. It obeys the toggle: with night light off it previews
         // and leaves it off.
-        nightLightProc.command = [Quickshell.env("HOME")
-                                  + "/Work/fd44_hyprdot/bin/nightlight.sh",
-                                  "preview", String(k), "3"]
+        // HELD: APPLY IT AND LEAVE IT. SCHEDULED: SHOW IT AND GO BACK.
+        // With the temperature held there is something to see immediately and
+        // it should stay - previewing then reverting to the same value would
+        // be a flicker for nothing. On the schedule there is nothing to see
+        // until sunset, so a few seconds of it is the only honest feedback.
+        nightLightProc.command = settings.nightLightAlways
+            ? [Quickshell.env("HOME") + "/Work/fd44_hyprdot/bin/nightlight.sh", "apply"]
+            : [Quickshell.env("HOME") + "/Work/fd44_hyprdot/bin/nightlight.sh",
+               "preview", String(k), "3"]
         nightLightProc.running = true
     }
 
@@ -748,7 +782,8 @@ Singleton {
                 brightnessOnAc: settings.brightnessOnAc,
                 brightnessOnBattery: settings.brightnessOnBattery,
                 nightLight: settings.nightLight,
-                nightLightTemp: settings.nightLightTemp
+                nightLightTemp: settings.nightLightTemp,
+                nightLightAlways: settings.nightLightAlways
             }, null, 1))
             settings.dirty = false
         }
