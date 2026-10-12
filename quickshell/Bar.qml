@@ -533,6 +533,11 @@ PanelWindow {
                     BarZone {
                         id: centerLeftZone
                         name: "centerLeft"
+                        // The hover lean, on both halves of the clock pill and
+                        // the right one. Not on "left", which holds nothing on
+                        // either machine - turning it on there would be a
+                        // setting with no effect to discover later.
+                        lift: true
                         ids: root.viewLayout.centerLeft
                         componentFor: root.componentFor
                         gapSide: "trail"
@@ -558,6 +563,7 @@ PanelWindow {
                     BarZone {
                         id: centerRightZone
                         name: "centerRight"
+                        lift: true
                         ids: root.viewLayout.centerRight
                         componentFor: root.componentFor
                         gapSide: "lead"
