@@ -34,6 +34,21 @@ APP="Screenshot"
 
 die() { printf 'screenshot: %s\n' "$*" >&2; exit 1; }
 
+# WHAT THIS NEEDS, SAID ONCE AND PLAINLY. These are wlroots tools: grim and
+# slurp talk wlr-screencopy and wlr-layer-shell, which niri implements and KWin
+# does not. The dotfiles are shared with a Plasma machine, where this script is
+# on the path through ~/.config/fd44/bin and will never work - so it should say
+# which tool is missing and what to use instead, rather than failing somewhere
+# in the middle with "grim failed" or no output at all.
+need() {
+    command -v "$1" >/dev/null 2>&1 && return 0
+    printf 'screenshot: %s is not installed.\n' "$1" >&2
+    printf '  This needs the wlroots screenshot tools, which work under niri\n' >&2
+    printf '  and not under KDE/KWin. On Plasma use Spectacle instead.\n' >&2
+    printf '  On a niri machine: sudo dnf install %s\n' "$2" >&2
+    exit 1
+}
+
 note() {
     # -h string:image-path: is what makes the toast show the capture itself
     # rather than a generic icon. -i is set to the same file for daemons that
@@ -56,6 +71,22 @@ note() {
 }
 
 mode="${1:-region}"
+
+# Checked before anything is captured or any directory is made, so a machine
+# that cannot do this at all says so immediately and leaves no empty folder
+# behind. `edit` is exempt: it only opens a file that already exists.
+if [[ $mode != edit ]]; then
+    need grim grim
+    case "$mode" in
+        region|draw) need slurp slurp ;;
+    esac
+    # niri is how `screen` names the output and `window` finds its geometry.
+    # `screen` survives without it - plain grim composites every monitor, which
+    # is wrong on two but is still a picture - so only `window` insists.
+    [[ $mode == window ]] && { command -v niri >/dev/null 2>&1 \
+        || die "window mode needs niri to find the focused window's geometry"; }
+fi
+
 mkdir -p "$DIR" || die "cannot create $DIR"
 out="$DIR/Screenshot-$(date +%Y%m%d-%H%M%S).png"
 
@@ -126,7 +157,14 @@ esac
 # The clipboard copy is backgrounded and detached: wl-copy must stay alive to
 # serve the selection, so waiting for it here would hang the bind for as long as
 # the image is on the clipboard.
-( wl-copy --type image/png < "$out" & ) 2>/dev/null
+# NOT FATAL IF wl-copy IS MISSING: the file is already written, and losing the
+# clipboard copy is not a reason to call a successful capture a failure.
+if command -v wl-copy >/dev/null 2>&1; then
+    ( wl-copy --type image/png < "$out" & ) 2>/dev/null
+    copied=" · copied"
+else
+    copied=""
+fi
 
 size="$(du -h "$out" | cut -f1)"
 # THE DIMENSIONS COME OUT OF THE PNG HEADER, not from ImageMagick, which is
@@ -139,5 +177,7 @@ with open(sys.argv[1], "rb") as f:
     h = f.read(24)
 if len(h) == 24 and h[:8] == b"\x89PNG\r\n\x1a\n":
     print("%dx%d" % struct.unpack(">II", h[16:24]))' "$out" 2>/dev/null || echo "")"
-note "$out" "Screenshot saved" "${dim:+$dim · }$size · copied"
+if command -v notify-send >/dev/null 2>&1; then
+    note "$out" "Screenshot saved" "${dim:+$dim · }$size$copied"
+fi
 printf '%s\n' "$out"

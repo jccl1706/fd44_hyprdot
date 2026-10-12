@@ -56,6 +56,10 @@ CLIP_PICS="${FD44_CLIP_PICTURES:-$pics/clips}"
 CLIP_DOCS="${FD44_CLIP_DOCUMENTS:-$docs/clips}"
 
 die() { printf 'clipboard: %s\n' "$*" >&2; exit 1; }
+# BEFORE ANY SUBCOMMAND, so every one of them fails the same way rather than
+# half working. These dotfiles are shared with a Plasma machine where this
+# script is on the path and cliphist is not installed: it should say so in one
+# line instead of printing an empty history as though nothing had been copied.
 command -v cliphist >/dev/null 2>&1 || die "cliphist is not installed (sudo dnf install cliphist)"
 
 case "${1:-status}" in
@@ -115,6 +119,10 @@ json.dump(out, sys.stdout)
 
 copy)
     [[ -n ${2:-} ]] || die "copy needs an id"
+    # The one tool this subcommand needs that the top-level check does not
+    # cover. cliphist is guarded up there for every subcommand; wl-copy is only
+    # wanted here and by `watch`.
+    command -v wl-copy >/dev/null 2>&1 || die "wl-copy is not installed (wl-clipboard)"
     # decode writes the ORIGINAL bytes, so an image goes back as an image.
     # PIPED, SO THE EXIT STATUS IS wl-copy's, NOT cliphist's - an entry that has
     # since been dropped would otherwise put an empty clipboard up and call it
