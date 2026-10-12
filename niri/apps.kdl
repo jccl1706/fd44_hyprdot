@@ -56,6 +56,22 @@ binds {
     // --- windows ----------------------------------------------------------
     Mod+W { close-window; }
     Mod+F { fullscreen-window; }
+
+    // MAXIMIZE IS NOT FULLSCREEN, which is why both are worth having. niri
+    // binds maximize-column to Mod+F; this configuration took that key for
+    // fullscreen-window to match the Hyprland binds it was ported from, so
+    // maximize was shadowed and unreachable.
+    //
+    //   fullscreen-window   the window covers the output - the bar goes with
+    //                       everything else, which is what you want for a video
+    //                       and not what you want while working
+    //   maximize-column     the column grows to the full working area and STOPS
+    //                       AT THE BAR, so the clock, the tray and the battery
+    //                       are still there
+    //
+    // Mod+Alt+F, following the pair above it: the action niri puts on a key
+    // this configuration has taken, one modifier along, keeping the letter.
+    Mod+Alt+F hotkey-overlay-title="Maximize the column, keeping the bar" { maximize-column; }
     Mod+V { toggle-window-floating; }
 
     // Mod+J was `colresize +1` on Hyprland. niri's nearest is cycling the
