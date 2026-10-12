@@ -136,22 +136,23 @@ start_it() {
         warn "could not get coordinates from daylight.py - is the timezone set?"
         return 1
     }
-    # KILLED, NOT STOPPED, WHEN ONE IS ALREADY RUNNING. wlsunset restores the
-    # gamma ramp on SIGTERM, so a graceful stop followed by a start flashes the
-    # screen white and then back to warm - which is precisely the "flashes
-    # orange and white" seen while dragging the warmth slider, since every
-    # release restarts the service.
+    # A PLAIN STOP. Killing instead was tried, on the theory that wlsunset
+    # restoring the ramp on SIGTERM was what flashed the screen white between
+    # temperatures. It is not: NIRI DROPS THE GAMMA RAMP WHEN THE CLIENT GOES,
+    # however it goes, which the comment in stop_it below had already recorded.
+    # Overlapping a second instance before killing the first was tried too, and
+    # the flash survived that as well.
     #
-    # SIGKILL leaves the ramp exactly where it was, and the new instance
-    # overwrites it a moment later. The handover is then invisible.
+    # So the flash is not something this script can avoid. wlsunset sets its
+    # temperature once at startup - no signal, no socket, no D-Bus - so every
+    # change of temperature is a new process, and every new process is a moment
+    # with no gamma client, which niri paints as normal white.
     #
-    # The risk is the opposite one - a dead instance leaving the screen warm
-    # with nothing running - so a failed start resets the ramp explicitly below
-    # rather than leaving it stranded.
-    if running; then
-        systemctl --user kill -s KILL "$UNIT" 2>/dev/null
-        systemctl --user stop "$UNIT" 2>/dev/null
-    fi
+    # The real fix is a daemon that takes a new temperature while running, like
+    # wl-gammarelay-rs. It is not packaged for Fedora 44 and there is no cargo
+    # here to build it, so this stays as it is and the UI stops asking for
+    # changes it cannot make smoothly - see Settings.qml.
+    systemctl --user stop "$UNIT" 2>/dev/null
     # --collect so a failed run does not linger in the unit list.
     # PINNED BY GIVING BOTH ENDS THE SAME VALUE. wlsunset wants a range and
     # a day/night pair; one degree apart is a constant, and the sun arithmetic
@@ -215,13 +216,7 @@ case "${1:-status}" in
         [[ $k =~ ^[0-9]+$ ]] || { warn "preview needs kelvin"; exit 2; }
         (( k >= 1500 && k <= 6500 )) || { warn "preview: $k outside 1500-6500"; exit 2; }
         read -r lat lon <<<"$(coordinates)"
-        # KILLED, not stopped, for the reason given in start_it: a graceful stop
-        # restores the ramp to white first, and a preview that begins with a
-        # white flash is the thing being complained about.
-        if running; then
-            systemctl --user kill -s KILL "$UNIT" 2>/dev/null
-            systemctl --user stop "$UNIT" 2>/dev/null
-        fi
+        stop_it >/dev/null
         # -T and -t one apart pins it: wlsunset wants a range, and a range of
         # one degree is a constant. timeout sends SIGTERM and wlsunset restores
         # the ramp on it, so an interrupted preview cannot leave the screen
