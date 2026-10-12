@@ -269,15 +269,25 @@ PanelWindow {
                                 font.pixelSize: Theme.fontSize
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
-                                // 190, TUNED AGAINST THE SETTINGS PANEL. The
-                                // card comes out 1096 wide where that one is
-                                // 1102, so the two largest surfaces in this
-                                // shell are the same size - which is what
-                                // "proportionate" means here, rather than a
-                                // number that felt right. Wider stops the
-                                // wrapping but walks back toward the full-width
-                                // card this was: 240 gives 1222, 290 gives 1354.
-                                Layout.maximumWidth: 190
+                                // 240: THE WIDEST THAT STILL COSTS NO HEIGHT.
+                                //
+                                // Measured, all of them. 190 gives a 1096-wide
+                                // card - the same width as the settings panel,
+                                // which is tidy - but several labels wrap onto a
+                                // second line and the rows go ragged, and the
+                                // extra lines push the card to 728 tall. 240
+                                // gives 1222x696: wider, but almost nothing
+                                // wraps, so it is also SHORTER. 290 was the
+                                // uncapped behaviour at 1354, which is the
+                                // full-width card this started as.
+                                //
+                                // The cap stays rather than being removed, and
+                                // that is the point: without it one
+                                // fifty-six-character sentence in tmux.sh sets
+                                // the width of a column, so the panel grows
+                                // whenever someone edits a comment in a shell
+                                // file. 240 is a bound, not a layout.
+                                Layout.maximumWidth: 240
                             }
                         }
                     }
