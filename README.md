@@ -955,7 +955,6 @@ sudo bin/gaming-setup.sh     # Steam, GameMode, MangoHud, the nodatacow library
 sudo bin/cooling-setup.sh    # CoolerControl and the saved fan curves
 bin/install-nerd-font.sh     # only where the font is not already packaged
 bin/gtk-theme.sh             # Nordic, Nordzy icons, Bibata cursors
-bin/yazi.sh                  # the file manager with image previews
 ```
 
 **`gaming-setup.sh` must run before Steam's first launch.** It marks the Steam
