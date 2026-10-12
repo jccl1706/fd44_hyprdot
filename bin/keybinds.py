@@ -293,10 +293,18 @@ def main() -> int:
         binds = from_hyprland()
     else:
         binds = from_niri() or from_hyprland()
-    # tmux is not a compositor bind, so it is appended rather than collapsed
-    # with them - collapse() merges keys that run the same action, which is
-    # meaningless across two different programs.
-    binds = collapse(binds) + from_tmux()
+    # COLLAPSED SEPARATELY, NOT TOGETHER. tmux is not a compositor bind, and
+    # running the two lists through collapse() as one would let the last niri
+    # bind fold into the first tmux one - a merge across two different programs,
+    # which is meaningless.
+    #
+    # But tmux has a numbered run of its own - Alt+1 through Alt+9, one per
+    # window - and leaving it uncollapsed made the tmux group twenty-five rows:
+    # taller than a column of this cheatsheet is allowed to be, so it overflowed
+    # the card and its last column was drawn clipped off the right edge. The
+    # earlier version only had niri's numbered run to worry about, so appending
+    # tmux raw was invisible until tmux grew keys.
+    binds = collapse(binds) + collapse(from_tmux())
     json.dump(binds, sys.stdout, indent=1)
     sys.stdout.write("\n")
     return 0

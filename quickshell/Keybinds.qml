@@ -234,15 +234,50 @@ PanelWindow {
                                 font.family: Theme.font
                                 font.pixelSize: Theme.fontSize
                                 font.weight: Font.Medium
-                                Layout.minimumWidth: 158
+                                // 132 LINES THE LABELS UP WITHOUT SETTING THE
+                                // WIDTH. It is a minimum, not a cap: the few
+                                // long key names - XF86AudioRaiseVolume is
+                                // twenty characters - push past it and widen
+                                // their own column, which is correct. What it
+                                // must not do is reserve that much for every
+                                // row, which at 158 it did.
+                                Layout.minimumWidth: 132
                             }
 
+                            // THE LABEL IS CAPPED AND WRAPS, SO PROSE CANNOT
+                            // SET THE CARD'S WIDTH.
+                            //
+                            // These strings are not written for this panel. The
+                            // compositor ones are hotkey-overlay titles and the
+                            // shell ones are read straight out of
+                            // bashrc.d/tmux.sh's header - "attach to it - or
+                            // switch, if you are already inside tmux" is a
+                            // sentence in a file that explains itself, and it is
+                            // fifty-six characters. Uncapped, the single longest
+                            // line in sixty-eight set the width of its column,
+                            // and the card came out 1378px wide on a 1410px
+                            // screen: a cheatsheet the size of the desktop.
+                            //
+                            // WRAPPED RATHER THAN ELIDED. Eliding would hide the
+                            // end of exactly the entries that needed explaining,
+                            // and the only thing wrong with them is that they
+                            // are long, not that they are unimportant.
                             Text {
                                 text: modelData.label
                                 color: Theme.dim
                                 font.family: Theme.font
                                 font.pixelSize: Theme.fontSize
+                                wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
+                                // 190, TUNED AGAINST THE SETTINGS PANEL. The
+                                // card comes out 1096 wide where that one is
+                                // 1102, so the two largest surfaces in this
+                                // shell are the same size - which is what
+                                // "proportionate" means here, rather than a
+                                // number that felt right. Wider stops the
+                                // wrapping but walks back toward the full-width
+                                // card this was: 240 gives 1222, 290 gives 1354.
+                                Layout.maximumWidth: 190
                             }
                         }
                     }
