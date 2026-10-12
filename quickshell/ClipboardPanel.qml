@@ -264,5 +264,70 @@ DropPanel {
             font.family: Theme.font
             font.pixelSize: Theme.fontSizeSmall
         }
+
+        Rectangle {
+            width: parent.width
+            height: 1
+            color: Theme.outline
+            visible: root.entries.length > 0
+        }
+
+        // --- clear the lot ----------------------------------------------
+        //
+        // ARM THEN FIRE, WHICH NotificationPanel'S "Clear history" DOES NOT,
+        // and the difference is what each one throws away. Clearing
+        // notifications discards things you have already seen; this discards
+        // everything you have copied today, with no undo and nothing on disk
+        // to recover it from. ArmedButton reserves the idiom for actions that
+        // end the session - this does not end the session, but it is not
+        // harmless to press by accident either, which is the actual test.
+        //
+        // The confirmation stays on the control that started it, so the second
+        // tap is where the first one was, and it says how many entries are
+        // about to go: "clear 14 entries" is a different decision from
+        // "clear 1".
+        //
+        // Four seconds to disarm, matching ArmedButton, so nothing is left
+        // armed behind you.
+        Item {
+            width: parent.width
+            height: 40
+            visible: root.entries.length > 0
+
+            property bool armed: false
+
+            Timer {
+                id: disarm
+                interval: 4000
+                onTriggered: parent.armed = false
+            }
+
+            Text {
+                anchors.centerIn: parent
+                text: parent.armed
+                      ? "tap again to clear " + root.entries.length
+                        + (root.entries.length === 1 ? " entry" : " entries")
+                      : "Clear history"
+                color: parent.armed ? Theme.danger
+                     : clearHover.hovered ? Theme.fg : Theme.dim
+                font.family: Theme.font
+                font.pixelSize: Theme.fontSize
+                Behavior on color { ColorAnimation { duration: Theme.animFast } }
+            }
+
+            HoverHandler { id: clearHover; cursorShape: Qt.PointingHandCursor }
+            TapHandler {
+                onTapped: {
+                    if (!parent.armed) {
+                        parent.armed = true
+                        disarm.restart()
+                        return
+                    }
+                    parent.armed = false
+                    disarm.stop()
+                    root.act("wipe", "")
+                }
+            }
+        }
     }
 }
