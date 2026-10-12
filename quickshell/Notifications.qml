@@ -123,6 +123,7 @@ PanelWindow {
                 summary:  model.summary
                 body:     model.body
                 appName:  model.appName
+                image:    model.image
                 urgency:  model.urgency
                 duration: model.duration
 

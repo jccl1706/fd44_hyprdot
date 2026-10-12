@@ -198,11 +198,23 @@ binds {
     // --- screenshots ------------------------------------------------------
     //
     // niri HAS its own screenshot actions, and these use grim and slurp anyway,
-    // because the Hyprland binds do: the same three behaviours, the same
-    // clipboard, and the same file name pattern in Pictures. Changing to niri's
-    // built-ins would change where things land and what ends up on the
-    // clipboard, which is not a port.
-    Print hotkey-overlay-title="Screenshot: whole screen to clipboard" { spawn-sh "grim - | wl-copy"; }
-    Mod+Shift+P hotkey-overlay-title="Screenshot: region to clipboard" { spawn-sh "grim -g \"$(slurp)\" - | wl-copy"; }
-    Mod+Ctrl+P hotkey-overlay-title="Screenshot: region to a file" { spawn-sh "grim -g \"$(slurp)\" \"$HOME/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png\""; }
+    // because the Hyprland binds did: the same behaviours and the same
+    // clipboard. Changing to niri's built-ins would change where things land
+    // and what ends up on the clipboard, which is not a port.
+    //
+    // ALL THREE GO THROUGH bin/screenshot.sh NOW, and what changed is that they
+    // answer. The old binds were `grim ... | wl-copy` and said nothing at all,
+    // so a capture and a missed selection looked identical until you pasted
+    // somewhere to find out; two of the three also threw the image away, and
+    // the third wrote a file without ever naming it.
+    //
+    // Every one of them now keeps the file AND copies it, and shows a toast
+    // with the capture in it - which is the only way to see that slurp caught
+    // the rectangle you meant. Clicking the toast opens the file.
+    //
+    // THE REGION BIND KEEPS Mod+Shift+P. It is the one that gets used, the
+    // muscle memory is years old, and it is the behaviour that changed least.
+    Print hotkey-overlay-title="Screenshot: this screen" { spawn-sh "$HOME/.config/fd44/bin/screenshot.sh screen"; }
+    Mod+Shift+P hotkey-overlay-title="Screenshot: a region" { spawn-sh "$HOME/.config/fd44/bin/screenshot.sh region"; }
+    Mod+Ctrl+P hotkey-overlay-title="Screenshot: this window" { spawn-sh "$HOME/.config/fd44/bin/screenshot.sh window"; }
 }
