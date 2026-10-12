@@ -204,12 +204,23 @@ Item {
             visible: list.wifiDevice !== null
             width: parent.width
 
+            // THE HEADER CARRIES THREE THINGS AND THEY ARE NOT ALL OPTIONAL
+            // TOGETHER. The label, the radio switch and the rescan button lived
+            // in one row gated on `showSwitch`, so the settings page - which
+            // sets showSwitch false because it has a Wi-Fi toggle of its own a
+            // row above - lost the rescan button with them.
+            //
+            // The cost was invisible until someone waited: the page DOES scan
+            // on open, but for the seconds before results arrive it shows the
+            // connected network alone, with no spinner to say why and no way to
+            // ask again. The bar's panel has both, from this same component.
             Item {
-                visible: list.showSwitch
+                visible: list.showSwitch || Networking.wifiEnabled
                 height: visible ? 28 : 0
                 width: parent.width
 
                 Text {
+                    visible: list.showSwitch
                     anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                     leftPadding: 4
                     text: "Wi-Fi"
@@ -227,6 +238,7 @@ Item {
                     id: wifiSwitch
                     anchors { right: parent.right; rightMargin: 4
                               verticalCenter: parent.verticalCenter }
+                    visible: list.showSwitch
                     checked: Networking.wifiEnabled
                     interactive: Networking.wifiHardwareEnabled
                     onToggled: Networking.wifiEnabled = !Networking.wifiEnabled

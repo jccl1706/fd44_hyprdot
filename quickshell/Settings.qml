@@ -225,6 +225,11 @@ Singleton {
                   type: "days", min: 1, max: 60, step: 1,
                   help: "how quickly a launch stops counting. Lower follows this week, higher remembers longer" },
                 { label: "Clear launch history", type: "action",
+                  // runLabel, because the generic "Run" belongs on something
+                  // that runs. The button repeats the row's own verb so the
+                  // pair reads as a sentence - "Clear launch history / Clear" -
+                  // rather than offering to execute a program.
+                  runLabel: "Clear",
                   help: "the launcher goes back to alphabetical",
                   run: function() { LauncherFrecency.clear() } }
             ]
@@ -440,6 +445,7 @@ Singleton {
             }
         }
         out.push({ label: "Reset layout", type: "action", group: "Layout",
+                   runLabel: "Reset",
                    help: "defaults restored and every plugin shown again · drag in the bar to rearrange",
                    run: function() { BarLayout.reset() } })
         return out
