@@ -99,6 +99,33 @@ Item {
     implicitWidth: 22
     implicitHeight: 22
 
+    // IT LEANS IN WHEN THE POINTER ARRIVES. A mark is the one thing on this bar
+    // that carries no information, so it is also the one thing that can move
+    // without meaning something - everything else here changes only to report a
+    // change in the system, and an idle animation would be a lie in that
+    // vocabulary.
+    //
+    // A POP, NOT A SPIN AND NOT A LOOP. A rotating logo reads as a spinner -
+    // "something is working" - which is exactly the wrong message from a static
+    // mark, and a loop that runs the whole time the pointer rests there is a
+    // thing that keeps moving in the corner of your eye while you are reading
+    // the clock beside it. This overshoots once and settles.
+    //
+    // ON `scale`, WHICH IS A TRANSFORM AND NOT A SIZE. It changes nothing in
+    // the layout, so the pill does not breathe in and out around it and the
+    // glyphs to the right do not shift by a pixel as the pointer crosses.
+    scale: mouse.containsMouse ? 1.18 : 1.0
+    Behavior on scale {
+        NumberAnimation {
+            duration: Theme.animNormal
+            // OutBack overshoots and comes back, which is what makes it read as
+            // a lean rather than a resize. OutCubic - this file's usual easing -
+            // is correct for a panel sliding and lifeless on a 22px mark.
+            easing.type: Easing.OutBack
+            easing.overshoot: 2.2
+        }
+    }
+
     Image {
         id: img
         anchors.centerIn: parent
