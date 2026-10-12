@@ -27,6 +27,12 @@ spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/icon-bridge.sh >/dev/nul
 spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/wallpaper.sh restore"
 spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/wallpaper.sh thumbs"
 
+// Night light, if it is switched on. `apply` reads the setting and does
+// nothing when it is off, so this line is safe on a machine that has never
+// enabled it - and on one that has no wlsunset installed, where the script
+// says so and exits rather than failing the startup.
+spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/nightlight.sh apply"
+
 // The palette. KNOWN GAP: theme.sh is one of the scripts that calls hyprctl, so
 // parts of it will fail under niri until that is ported. It is left in rather
 // than dropped, because the parts that set GTK, kitty and quickshell colours do

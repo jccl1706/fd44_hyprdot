@@ -67,6 +67,13 @@ Singleton {
     // THE SAME DEFAULTS LIVE IN power-mode.sh AND HAVE TO. That script runs
     // from a udev rule, on a machine whose settings file may not exist yet, so
     // it cannot depend on this one ever having been written.
+    // Night light, applied by bin/nightlight.sh through wlsunset.
+    //
+    // OFF BY DEFAULT. A shell that warms your screen without being asked is
+    // worse than one that waits to be told, and this one is visible from across
+    // the room.
+    property bool nightLight: false
+
     property int brightnessOnBattery: 50
     property int brightnessOnAc: 100
 
@@ -238,6 +245,15 @@ Singleton {
             section: "Desktop",
             icon: "\u{F0493}",                       // cog
             rows: [
+                // NOT A `key:` ROW, because flipping the value is only half
+                // the job - wlsunset has to be started or stopped to match it.
+                { label: "Night light", type: "toggle",
+                  get: function() { return Settings.nightLight },
+                  set: function(v) { Settings.setNightLight(v) },
+                  help: "warms the screen after sunset and cools it after "
+                      + "sunrise, from this machine's own location · off, it "
+                      + "never touches the colour" },
+
                 { key: "osdHideMs", label: "OSD hide delay",
                   type: "ms", min: 500, max: 5000, step: 250,
                   help: "the volume and brightness popup" },
@@ -617,6 +633,17 @@ Singleton {
         }
     }
 
+    // Writing the setting is not enough: wlsunset has to be started or
+    // stopped to match it. The script is the one place that knows how.
+    function setNightLight(on: bool): void {
+        settings.setValue("nightLight", on)
+        nightLightProc.command = [Quickshell.env("HOME")
+                                  + "/Work/fd44_hyprdot/bin/nightlight.sh", "apply"]
+        nightLightProc.running = true
+    }
+
+    Process { id: nightLightProc }
+
     function setValue(key: string, v): void {
         if (settings[key] === undefined) {
             console.warn("Settings: no such key", key)
@@ -674,7 +701,8 @@ Singleton {
                 barStyle: settings.barStyle,
                 barStylePrev: settings.barStylePrev,
                 brightnessOnAc: settings.brightnessOnAc,
-                brightnessOnBattery: settings.brightnessOnBattery
+                brightnessOnBattery: settings.brightnessOnBattery,
+                nightLight: settings.nightLight
             }, null, 1))
             settings.dirty = false
         }

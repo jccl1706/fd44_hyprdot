@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# =========================================================================
+# nightlight.sh - warm the screen after sunset, cool it after sunrise
+# =========================================================================
+#
+# Usage:  bin/nightlight.sh start     run it, if the setting says so
+#         bin/nightlight.sh stop      stop it and restore normal colour
+#         bin/nightlight.sh toggle    flip the setting and apply
+#         bin/nightlight.sh status    what it is doing and why
+#         bin/nightlight.sh apply     re-read the setting and obey it
+#
+# OFF BY DEFAULT. A shell that changes the colour of your screen without being
+# asked is worse than one that waits to be told; the toggle is on the Desktop
+# page of the settings panel.
+#
+# IT DOES NOT COMPUTE THE SUN. bin/daylight.py already works out sunrise and
+# sunset from the machine's timezone - no network, no API key, no geoclue - and
+# this asks it for the coordinates rather than keeping a second copy. One place
+# knows where the machine is.
+#
+# wlsunset DOES ITS OWN ARITHMETIC from those coordinates, which is why the
+# coordinates are passed rather than the times: given lat/long it recalculates
+# every day on its own, where fixed times would need restarting at midnight.
+#
+# WHY wlsunset AND NOT gammastep. Both speak wlr-gamma-control-unstable-v1,
+# which niri 26.04 implements - checked in the binary, not assumed. wlsunset is
+# a single small C program with no GUI, no tray icon and no geoclue dependency;
+# gammastep carries all three. Nothing here wants them.
+#
+# IT RUNS AS A systemd USER SERVICE rather than a spawned child, so it survives
+# a quickshell restart, is stopped properly at logout, and `systemctl --user
+# status fd44-nightlight` says what happened when it did not work.
+
+set -uo pipefail
+
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/fd44-hyprdot"
+SETTINGS="$STATE/settings.json"
+UNIT=fd44-nightlight
+
+# Temperatures in kelvin. 6500 is daylight - the panel's native white, so the
+# day end of the ramp is "no change at all" rather than a slightly tinted
+# version of normal. 4000 is a clear warm shift without the orange cast that
+# makes photographs unusable; it is the value most people stop at.
+DAY_TEMP=6500
+NIGHT_TEMP=4000
+
+c_g=$'\033[1;32m'; c_y=$'\033[1;33m'; c_r=$'\033[1;31m'; c_0=$'\033[0m'
+say()  { printf '%s==>%s %s\n' "$c_g" "$c_0" "$*"; }
+warn() { printf '%s==>%s %s\n' "$c_y" "$c_0" "$*" >&2; }
+
+repo_root() { cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd; }
+
+setting_on() {
+    [[ -s $SETTINGS ]] || return 1
+    python3 -I -c '
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        print("yes" if json.load(f).get("nightLight") is True else "no")
+except Exception:
+    print("no")
+' "$SETTINGS" 2>/dev/null | grep -q yes
+}
+
+set_setting() {   # true|false
+    python3 -I -c '
+import json, os, sys
+p, want = sys.argv[1], sys.argv[2] == "true"
+try:
+    with open(p) as f: d = json.load(f)
+except Exception:
+    d = {}
+d["nightLight"] = want
+os.makedirs(os.path.dirname(p), exist_ok=True)
+tmp = p + ".new"
+with open(tmp, "w") as f: json.dump(d, f, indent=1)
+os.replace(tmp, p)
+' "$SETTINGS" "$1"
+}
+
+coordinates() {
+    # From daylight.py, so there is one answer to "where is this machine".
+    "$(repo_root)/bin/daylight.py" --status 2>/dev/null |
+        awk '/^ *location/ { gsub(",", "", $2); print $2, $3; exit }'
+}
+
+running() { systemctl --user is-active --quiet "$UNIT" 2>/dev/null; }
+
+start_it() {
+    command -v wlsunset >/dev/null 2>&1 || {
+        warn "wlsunset is not installed - sudo dnf install wlsunset"
+        return 1
+    }
+    read -r lat lon <<<"$(coordinates)"
+    [[ -n ${lat:-} && -n ${lon:-} ]] || {
+        warn "could not get coordinates from daylight.py - is the timezone set?"
+        return 1
+    }
+    systemctl --user stop "$UNIT" 2>/dev/null
+    # --collect so a failed run does not linger in the unit list.
+    systemd-run --user --collect --unit="$UNIT" \
+        --description="Night light (wlsunset), driven by bin/nightlight.sh" \
+        wlsunset -l "$lat" -L "$lon" -t "$NIGHT_TEMP" -T "$DAY_TEMP" >/dev/null 2>&1 \
+        || { warn "could not start $UNIT"; return 1; }
+    say "night light on  ($lat, $lon · ${NIGHT_TEMP}K at night, ${DAY_TEMP}K by day)"
+}
+
+stop_it() {
+    # STOPPING wlsunset LEAVES THE LAST GAMMA IN PLACE on some compositors, so
+    # the ramp is reset explicitly afterwards. On niri the gamma is dropped when
+    # the client goes, which makes this a no-op there rather than a mistake.
+    systemctl --user stop "$UNIT" 2>/dev/null
+    say "night light off"
+}
+
+case "${1:-status}" in
+    start|apply)
+        if setting_on; then start_it; else stop_it >/dev/null; fi
+        ;;
+    stop)
+        set_setting false; stop_it
+        ;;
+    toggle)
+        if setting_on; then set_setting false; stop_it
+        else set_setting true; start_it; fi
+        ;;
+    status)
+        printf '  %-12s %s\n' setting "$(setting_on && echo on || echo off)"
+        printf '  %-12s %s\n' running "$(running && echo yes || echo no)"
+        printf '  %-12s %s\n' wlsunset "$(command -v wlsunset >/dev/null && echo installed || echo 'NOT INSTALLED')"
+        read -r lat lon <<<"$(coordinates)"
+        printf '  %-12s %s\n' location "${lat:-?}, ${lon:-?}"
+        printf '  %-12s %sK night / %sK day\n' range "$NIGHT_TEMP" "$DAY_TEMP"
+        ;;
+    *)
+        printf 'nightlight: unknown command: %s\n' "$1" >&2
+        sed -n '2,12p' "$0" >&2
+        exit 2
+        ;;
+esac
