@@ -295,6 +295,22 @@ PanelWindow {
     // highlighting at all.
     readonly property string query: search.text.trim().toLowerCase()
 
+    // SET THE SEARCH FROM OUTSIDE, for bin/qs-shot.sh.
+    //
+    // The results are the part of this panel most likely to go wrong without
+    // anyone noticing - ranking, the marked substring in a name, how a long
+    // name elides, what an empty result looks like - and all of it is
+    // invisible to a screenshot of a launcher that was just opened, because
+    // that one is always empty. Typing is the only way in otherwise, and a
+    // script cannot type.
+    function setQuery(q: string): void {
+        search.text = q
+        // Back to the first result, as typing would: leaving the selection
+        // where it was would photograph a highlight on a row that is no longer
+        // the match it was chosen for.
+        root.selected = 0
+    }
+
     // --- matching ----------------------------------------------------------
     //
     // Shared by the ranking above and by the highlighting in each row, so a

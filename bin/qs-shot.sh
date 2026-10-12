@@ -5,6 +5,7 @@
 #
 # Usage:  bin/qs-shot.sh settings            open it, shoot it, close it
 #         bin/qs-shot.sh settings Display    and switch to a page first
+#         bin/qs-shot.sh launcher firefox    or, for the launcher, search it
 #         bin/qs-shot.sh --bar               just the bar
 #         bin/qs-shot.sh --full              the whole screen
 #         bin/qs-shot.sh --list              what can be opened
@@ -60,6 +61,36 @@ fi
 mkdir -p "$out_dir"
 stamp="$(date +%Y%m%d-%H%M%S)"
 
+# A CALL THAT DID NOTHING LOOKS EXACTLY LIKE ONE THAT WORKED.
+#
+# `qs ipc call` exits 0 whether or not the function exists - a missing one
+# merely prints "Function not found." on stdout. So the second argument used to
+# be swallowed in silence: `qs-shot.sh launcher firefox` photographed an empty
+# launcher and said nothing about having ignored the word, which is worse than
+# refusing, because the picture looks like an answer.
+ipc() { # target function [arg] -> dies if the function is not there
+    local out
+    out="$(qs ipc call "$@" 2>&1)"
+    case "$out" in
+        *"Function not found"*)
+            die "'$1' has no '$2' - it supports: $(panel_functions "$1" | tr '\n' ' ')" ;;
+        *"Target not found"*)
+            die "no panel called '$1' (try --list)" ;;
+    esac
+    printf '%s' "$out"
+}
+
+# The ipc functions a target declares, read out of shell.qml - the same source
+# --list uses for the targets themselves, so the two cannot disagree.
+panel_functions() {
+    awk -v t="target: \"$1\"" '
+        index($0, t) { inside = 1; next }
+        inside && /^        }/ { exit }
+        inside && match($0, /function [a-zA-Z]+/) {
+            print substr($0, RSTART + 9, RLENGTH - 9)
+        }' "$root/quickshell/shell.qml"
+}
+
 shoot() { # geometry name -> path
     local geo="$1" name="$2"
     # SEPARATE STATEMENTS, and not for tidiness. bash expands every word of a
@@ -105,14 +136,28 @@ grep -qx "$panel" <<<"$targets" || die "no such panel: $panel (try --list)"
 # can be put back the way it was found.
 was_open="$(qs ipc call shot rect 2>/dev/null || echo none)"
 
-qs ipc call "$panel" toggle >/dev/null 2>&1 \
-    || die "$panel has no 'toggle' - it may not be a panel"
+ipc "$panel" toggle >/dev/null
 
 # A panel animates in, and a photograph taken during that catches it part-grown
 # and half-transparent - which looks exactly like a layout bug and is not one.
 sleep 0.6
 
-[[ -n $page ]] && { qs ipc call "$panel" page "$page" >/dev/null 2>&1; sleep 0.4; }
+# WHAT THE SECOND ARGUMENT MEANS DEPENDS ON THE PANEL, and the panel says
+# which it understands. Settings has pages; the launcher has a search box and
+# no pages at all. Anything else with neither refuses rather than quietly
+# photographing the wrong thing.
+if [[ -n $page ]]; then
+    fns="$(panel_functions "$panel")"
+    if grep -qx page <<<"$fns"; then
+        ipc "$panel" page "$page" >/dev/null
+    elif grep -qx query <<<"$fns"; then
+        ipc "$panel" query "$page" >/dev/null
+    else
+        qs ipc call "$panel" toggle >/dev/null 2>&1
+        die "'$panel' takes no second argument - it has neither 'page' nor 'query'"
+    fi
+    sleep 0.4
+fi
 
 geo="$(qs ipc call shot rect 2>/dev/null)"
 if [[ -z $geo || $geo == none ]]; then

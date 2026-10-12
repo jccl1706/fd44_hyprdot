@@ -673,6 +673,14 @@ ShellRoot {
         function toggle(): void { shell.toggleFocused(launcherVariants.instances) }
         function open(): void   { shell.openFocused(launcherVariants.instances)   }
         function close(): void  { shell.closeAll(launcherVariants.instances)      }
+
+        // Opens it if it is not already, because a query typed into a launcher
+        // nobody can see is no use to anyone.
+        function query(text: string): void {
+            shell.openFocused(launcherVariants.instances)
+            const one = shell.focusedOne(launcherVariants.instances)
+            if (one) one.setQuery(text)
+        }
     }
 
     // Notifications - inspect and drive the daemon:
