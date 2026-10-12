@@ -228,8 +228,19 @@ DropPanel {
                     // A whole-row tap copies it back, which is what you came for.
                     TapHandler { onTapped: root.act("copy", parent.modelData.id) }
 
+                    // A GUTTER FOR THE SCROLLBAR, ALWAYS, NOT ONLY WHILE IT SHOWS.
+                    // The handle draws at the flickable's right edge, which is
+                    // exactly where the forget button sits - so on a history long
+                    // enough to scroll, the two were on top of each other and the
+                    // last button was half scrollbar.
+                    //
+                    // Reserved whether or not the list overflows, for the reason
+                    // SettingsPanel gives about its own gutter: taking the strip
+                    // only when scrolling became possible would shift every row
+                    // sideways the moment the history grew past six.
                     RowLayout {
                         anchors { left: parent.left; right: parent.right
+                                  rightMargin: 12
                                   verticalCenter: parent.verticalCenter }
                         spacing: 10
 
