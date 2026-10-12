@@ -567,6 +567,48 @@ PanelWindow {
                 }
             }
 
+            // THAT THE PAGE CONTINUES, SAID AT THE EDGE IT CONTINUES PAST.
+            //
+            // The scrollbar above is deliberately faint - the note there calls
+            // a permanent one furniture, and that is right - but faint is also
+            // what you do not notice, and the only other cue was a row sliced
+            // off mid-height at the bottom edge, which reads as a clipping bug
+            // rather than as an invitation to scroll.
+            //
+            // A FADE INSTEAD OF A SHADOW OR A LINE. It costs no height, so no
+            // row moves when it appears; it cannot be mistaken for a divider
+            // the way a hairline at the same place would be; and it says
+            // exactly one thing - the content does not end here - at the only
+            // place that claim is about.
+            //
+            // Both ends, because scrolled halfway down a long page the
+            // question "is there anything above" is the same question.
+            Rectangle {
+                anchors { left: parent.left; right: parent.right; top: parent.top }
+                height: 20
+                // The list sits on the row colour, so the fade has to end in
+                // that and not in the card beneath it.
+                gradient: Gradient {
+                    GradientStop { position: 0; color: Theme.surfaceTop }
+                    GradientStop { position: 1; color: "transparent" }
+                }
+                visible: opacity > 0
+                opacity: pane.atYBeginning ? 0 : 1
+                Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+            }
+
+            Rectangle {
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                height: 20
+                gradient: Gradient {
+                    GradientStop { position: 0; color: "transparent" }
+                    GradientStop { position: 1; color: Theme.surfaceTop }
+                }
+                visible: opacity > 0
+                opacity: pane.atYEnd ? 0 : 1
+                Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+            }
+
             delegate: SettingsRow {
                 required property var modelData
                 required property int index
