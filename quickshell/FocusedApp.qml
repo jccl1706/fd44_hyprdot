@@ -149,6 +149,30 @@ Item {
         for (const e of DesktopEntries.applications.values) {
             if ((e.startupClass || "").toLowerCase() === want) return e
         }
+
+        // A THIRD PASS THAT DROPS A SUFFIX, because this configuration creates
+        // app ids no desktop file will ever carry.
+        //
+        // The session terminal is launched as `kitty --app-id kitty-framework`
+        // and niri/rules.kdl matches that exact string to place it - the id is
+        // load-bearing, not decoration. But nothing ships
+        // kitty-framework.desktop, so both passes above fail and the pill shows
+        // a window with no icon, which is how this was noticed.
+        //
+        // LONGEST PREFIX FIRST, and only as a last resort. "kitty-framework"
+        // asks for "kitty" and finds it; "chromium-browser" would have matched
+        // outright in the first pass and never reaches here. An id whose prefix
+        // belongs to a different program could resolve wrongly, but only when
+        // the id itself matches nothing at all - a wrong icon is a better
+        // answer than a blank space, and the exact matches above always win.
+        const parts = want.split("-")
+        for (let n = parts.length - 1; n >= 1; n--) {
+            const prefix = parts.slice(0, n).join("-")
+            for (const e of DesktopEntries.applications.values) {
+                const id = (e.id || "").toLowerCase().replace(/\.desktop$/, "")
+                if (id === prefix) return e
+            }
+        }
         return null
     }
 
