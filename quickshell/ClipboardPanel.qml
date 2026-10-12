@@ -67,6 +67,9 @@ DropPanel {
                 // clipboard is the whole point: the next thing you do with a
                 // saved image is name it to something, and typing a timestamped
                 // path by hand is how you get it wrong.
+                // A cancelled dialog prints nothing and exits 1, which is
+                // not an error - it is the user saying no. Nothing is written,
+                // the note stays empty, and the list is left as it was.
                 const out = String(text).trim()
                 if (out.startsWith("/")) {
                     saver.command = ["sh", "-c", 'printf %s "$1" | wl-copy', "sh", out]
@@ -170,8 +173,13 @@ DropPanel {
                         Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
 
                         Repeater {
+                            // Save where it belongs, save where you say, forget.
+                            // The automatic one first because it is the common
+                            // case: most of the time the answer is "Pictures"
+                            // and being asked would be the annoyance.
                             model: [
-                                { g: "\u{F0193}", verb: "save",   tip: "save to a file" },
+                                { g: "\u{F0193}", verb: "save",   tip: "save it" },
+                                { g: "\u{F0256}", verb: "saveas", tip: "save as…" },
                                 { g: "\u{F01B4}", verb: "delete", tip: "forget this" }
                             ]
                             Rectangle {

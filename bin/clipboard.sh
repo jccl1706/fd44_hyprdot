@@ -6,7 +6,9 @@
 # Usage:  bin/clipboard.sh watch        start the watchers (run at login)
 #         bin/clipboard.sh list         history as JSON, for the panel
 #         bin/clipboard.sh copy <id>    put that entry back on the clipboard
-#         bin/clipboard.sh save <id>    write that entry to a file, print the path
+#         bin/clipboard.sh save <id>    write it out where it belongs, print the path
+#         bin/clipboard.sh save <id> <dir>  ... or into that directory
+#         bin/clipboard.sh saveas <id>  ... or wherever a file dialog says
 #         bin/clipboard.sh delete <id>  forget one entry
 #         bin/clipboard.sh wipe         forget everything
 #         bin/clipboard.sh status       what is running and how much is stored
@@ -122,6 +124,54 @@ save)
     mv "$tmp" "$out"
     rmdir "$tmpdir" 2>/dev/null
     printf '%s\n' "$out"
+    ;;
+
+saveas)
+    # saveas <id> - the same as `save`, but you pick where.
+    #
+    # ZENITY, BECAUSE THE PORTAL IS NOT CALLABLE FROM A SHELL SCRIPT. The GNOME
+    # desktop portal is running and would give the native chooser, but reaching
+    # it means a D-Bus request/response dance with a reply object - not
+    # something to hand-roll in bash. zenity is a few hundred kilobytes and
+    # talks to that same portal.
+    #
+    # THE DIALOG IS PRE-FILLED with the automatic destination and a name, so
+    # Enter does exactly what `save` would have done and anything else is a
+    # deliberate choice. A save dialog that opens on an empty field in the home
+    # directory makes you do work the script already did.
+    [[ -n ${2:-} ]] || die "saveas needs an id"
+    command -v zenity >/dev/null 2>&1 || die "zenity is not installed"
+
+    tmpdir="$(mktemp -d)"; tmp="$tmpdir/clip"
+    printf '%s\t' "$2" | cliphist decode > "$tmp" || die "could not decode $2"
+    ext=""
+    if command -v file >/dev/null 2>&1; then
+        case "$(file -b --mime-type "$tmp")" in
+            image/png)  ext=.png  ;; image/jpeg) ext=.jpg ;;
+            image/webp) ext=.webp ;; image/gif)  ext=.gif ;;
+            text/*)     ext=.txt  ;;
+        esac
+    fi
+    case "$ext" in
+        .png|.jpg|.webp|.gif) start="$CLIP_PICS" ;;
+        *)                    start="$CLIP_DOCS" ;;
+    esac
+    mkdir -p "$start"
+    suggested="$start/clip-$(date +%Y%m%d-%H%M%S)$ext"
+
+    # 2>/dev/null because GTK writes accessibility and portal chatter to stderr
+    # that has nothing to do with whether the user picked a file.
+    chosen="$(zenity --file-selection --save --confirm-overwrite \
+                     --title="Save clipboard entry" \
+                     --filename="$suggested" 2>/dev/null)" || {
+        rm -rf "$tmpdir"
+        exit 1          # cancelled - not an error, and nothing is written
+    }
+    [[ -n $chosen ]] || { rm -rf "$tmpdir"; exit 1; }
+    mkdir -p "$(dirname "$chosen")"
+    mv "$tmp" "$chosen"
+    rmdir "$tmpdir" 2>/dev/null
+    printf '%s\n' "$chosen"
     ;;
 
 delete)
