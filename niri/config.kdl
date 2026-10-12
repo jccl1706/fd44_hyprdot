@@ -720,7 +720,18 @@ binds {
     // Mod+Space       { switch-layout "next"; }
     // Mod+Shift+Space { switch-layout "prev"; }
 
-    Print { screenshot; }
+    // PRINT IS NOT HERE. niri's own `screenshot` action was bound to it, and
+    // apps.kdl is included at the bottom of this file - after this block - and
+    // binds the same key to `grim - | wl-copy`. So this one never fired, while
+    // reading as the live binding: the third dead stock bind found in this
+    // file, after Mod+T/alacritty and the brightness keys, and the place
+    // someone would start looking if Print ever behaved unexpectedly.
+    //
+    // THE OTHER TWO STAY, because nothing overrides them and they do something
+    // this configuration does not otherwise offer: a whole-output and a
+    // single-window capture, saved to screenshot-path above rather than put on
+    // the clipboard. Worth knowing they land somewhere different from
+    // Mod+Ctrl+P, which writes ~/Pictures/screenshot-<date>.png.
     Ctrl+Print { screenshot-screen; }
     Alt+Print { screenshot-window; }
 
