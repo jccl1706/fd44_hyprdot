@@ -720,30 +720,25 @@ Singleton {
         // waits for the toggle.
         if (!settings.nightLight) return
 
-        // DEBOUNCED, AND NO PREVIEW. Every change of temperature restarts
-        // wlsunset, and there is no way around that: it takes its temperature
-        // once at startup, and niri drops the gamma ramp whenever a client
-        // goes - so each restart is a white flash, whatever the script does.
-        // Killing instead of stopping was tried; so was overlapping a second
-        // instance before killing the first. Both still flashed.
-        //
-        // What is left is to flash as seldom as possible. The timer collapses a
-        // run of adjustments into one restart once you stop moving, so sliding
-        // from 4000 to 2800 and back costs a single flash at the end rather
-        // than one per release. The preview is gone with it: a preview is two
-        // more restarts, which is two more flashes, to show what holding the
-        // temperature now shows for free.
+        // DEBOUNCED ONLY LIGHTLY NOW. This used to collapse a run of changes
+        // into one because every change restarted wlsunset and every restart
+        // flashed the screen white. With wl-gammarelay-rs the temperature is a
+        // D-Bus write to a daemon that never goes away, so a change costs
+        // nothing and the only reason to wait at all is to avoid running the
+        // script once per pixel of slider travel.
         nightLightApply.restart()
     }
 
 
     Process { id: nightLightProc }
 
-    // 700ms: long enough to swallow a run of slider releases, short enough that
-    // letting go and looking does not feel like waiting for something.
+    // 150ms: enough to coalesce a flurry, too short to notice. It was 700 when
+    // every change cost a white flash and the goal was to have as few as
+    // possible; now the goal is for the slider to answer while you are looking
+    // at it.
     Timer {
         id: nightLightApply
-        interval: 700
+        interval: 150
         onTriggered: {
             if (!settings.nightLight) return
             nightLightProc.command = [Quickshell.env("HOME")
