@@ -751,7 +751,16 @@ binds {
 
     // Powers off the monitors. To turn them back on, do any input like
     // moving the mouse or pressing any other key.
-    Mod+Shift+P { power-off-monitors; }
+    //
+    // ON B FOR BLANK, NOT niri's Mod+Shift+P, because apps.kdl is included
+    // after this file and binds that key to a region screenshot. The stock
+    // binding therefore never fired - it was written down, documented in the
+    // comment above, and unreachable, which is worse than absent: it is the
+    // one line anybody would trust when asking how to blank the screen.
+    //
+    // Nothing else here powers the displays off by hand. idle-action.sh blanks
+    // on a timer, which is a different thing from deciding to blank now.
+    Mod+Shift+B hotkey-overlay-title="Blank the displays" { power-off-monitors; }
 }
 
 include "workspaces.kdl"
