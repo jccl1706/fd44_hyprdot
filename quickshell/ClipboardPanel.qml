@@ -93,14 +93,38 @@ DropPanel {
                 // is empty: zenity exits 1 and says nothing, which is the user
                 // declining rather than anything going wrong.
                 root.note = ""
-                root.error = String(actorErr.text).trim()
-                                   .replace(/^clipboard:\s*/, "")
+                const msg = String(actorErr.text).trim()
+                                  .replace(/^clipboard:\s*/, "")
+                root.error = msg
+
+                // AND A NOTIFICATION, BECAUSE THIS PANEL IS USUALLY GONE BY NOW.
+                //
+                // DropPanel closes the moment its focus grab clears, and opening
+                // the save dialog is exactly that: click "save as…", the chooser
+                // takes focus, this panel shuts. The failure then arrives for a
+                // surface nobody can see - which is why "no error message" was
+                // reported twice after the error handling was supposedly fixed,
+                // and why driving the same code over ipc showed it working.
+                //
+                // ALWAYS, NOT ONLY WHEN HIDDEN. Gating this on !revealed was
+                // the clever version and it is how the bug survived a third
+                // time: whether the panel is still up when the failure lands
+                // depends on timing nobody controls - a dialog that steals
+                // focus closes it, a fast failure beats the close. Reporting a
+                // failure twice is a cost worth paying to never report it zero
+                // times.
+                if (msg !== "") {
+                    notifier.command = ["notify-send", "-a", "Clipboard",
+                                        "-u", "critical", "Could not save", msg]
+                    notifier.running = true
+                }
             }
             root.refresh()
         }
     }
 
     Process { id: saver }
+    Process { id: notifier }
 
     Column {
         width: parent.width
