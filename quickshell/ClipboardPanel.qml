@@ -134,8 +134,13 @@ DropPanel {
         Item {
             width: parent.width
             height: 22
+            // THE SAME 16 AS THE ROWS BELOW, so the title sits directly over
+            // the glyph column rather than a few pixels to its left. Both were
+            // flush against the card before, which looked deliberate only
+            // because they were wrong together.
             Text {
-                anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                anchors { left: parent.left; leftMargin: 16
+                          verticalCenter: parent.verticalCenter }
                 text: "Clipboard"
                 color: Theme.fg
                 font.family: Theme.font
@@ -143,7 +148,8 @@ DropPanel {
                 font.weight: Theme.weightSemi
             }
             Text {
-                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                anchors { right: parent.right; rightMargin: 16
+                          verticalCenter: parent.verticalCenter }
                 text: root.error !== "" ? root.error
                     : root.note !== "" ? root.note
                     : root.entries.length === 0 ? "nothing copied yet"
@@ -213,12 +219,29 @@ DropPanel {
 
             delegate: Item {
                     required property var modelData
-                    width: parent.width
+                    // TWELVE SHORT OF THE LIST, so the selector behind the row
+                    // stops before the scrollbar instead of sliding under it.
+                    //
+                    // This is SettingsPanel's trick seen from the other end: it
+                    // makes the flickable wider than its content, which comes to
+                    // the same thing - the handle gets a strip of its own that
+                    // nothing else draws into. Insetting the highlight itself
+                    // would have left the row's tap target full width and the
+                    // colour not matching it.
+                    width: rows.width - 12
                     height: 44
 
                     Rectangle {
+                        // THE HIGHLIGHT IS THE ROW, not the row plus four pixels.
+                        // The negative margin here bled it outside the delegate
+                        // on every side, and the ListView clips - so the one
+                        // thing meant to show which row you are on arrived with
+                        // its corners sliced square against the list edges, and
+                        // sat wider than the content it was highlighting.
+                        //
+                        // anchors.fill and radius 8, which is what the rows in
+                        // NotificationPanel do.
                         anchors.fill: parent
-                        anchors.margins: -4
                         radius: 8
                         color: hover.hovered ? Theme.surfaceHigh : "transparent"
                         Behavior on color { ColorAnimation { duration: Theme.animFast } }
@@ -238,9 +261,20 @@ DropPanel {
                     // SettingsPanel gives about its own gutter: taking the strip
                     // only when scrolling became possible would shift every row
                     // sideways the moment the history grew past six.
+                    // INSET 16 EACH SIDE, which every other list in this shell
+                    // does and this one did not: the rows ran flat against the
+                    // card edge while the header above them did not, so the
+                    // glyph column sat further left than the title it belonged
+                    // under.
+                    //
+                    // The right side is the same 16 rather than the scrollbar's
+                    // 12, because symmetry is the point and 16 clears the handle
+                    // just as well. It is reserved whether or not the list is
+                    // scrolling - see SettingsPanel on why a gutter that comes
+                    // and goes makes every row twitch sideways.
                     RowLayout {
                         anchors { left: parent.left; right: parent.right
-                                  rightMargin: 12
+                                  leftMargin: 16; rightMargin: 16
                                   verticalCenter: parent.verticalCenter }
                         spacing: 10
 
