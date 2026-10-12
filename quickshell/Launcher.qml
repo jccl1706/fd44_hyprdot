@@ -834,7 +834,8 @@ PanelWindow {
             anchors { bottom: searchRow.top; bottomMargin: Theme.barPadding
                       left: parent.left; right: parent.right }
             height: 1
-            color: Theme.outline
+            color: Theme.dim
+            opacity: 0.25
         }
 
         // --- tabs -----------------------------------------------------------

@@ -360,7 +360,8 @@ DropPanel {
                         anchors.verticalCenter: parent.verticalCenter
                         width: parent.width
                         height: 1
-                        color: Theme.outline
+                        color: Theme.dim
+                        opacity: 0.25
                     }
                 }
 
@@ -616,7 +617,8 @@ DropPanel {
                 anchors.verticalCenter: parent.verticalCenter
                 width: parent.width
                 height: 1
-                color: Theme.outline
+                color: Theme.dim
+                opacity: 0.25
             }
         }
 
