@@ -28,7 +28,20 @@
 
 set -uo pipefail
 
-SHOTS="${XDG_CACHE_HOME:-$HOME/.cache}/fd44-clips"
+# WHERE A SAVED ENTRY GOES, and it is not the cache.
+#
+# The first version wrote to ~/.cache/fd44-clips, which is wrong in a way that
+# only shows up later: a cache is something the system may clear, and these are
+# files you asked to keep. They go to the XDG directories instead - an image to
+# Pictures, text to Documents - so they are where you would look for them and
+# where a backup already covers them.
+#
+# Overridable per call, because "save it HERE" is a reasonable thing to want and
+# the panel should not be the only way in.
+pics="$(xdg-user-dir PICTURES 2>/dev/null || echo "$HOME/Pictures")"
+docs="$(xdg-user-dir DOCUMENTS 2>/dev/null || echo "$HOME/Documents")"
+CLIP_PICS="${FD44_CLIP_PICTURES:-$pics/clips}"
+CLIP_DOCS="${FD44_CLIP_DOCUMENTS:-$docs/clips}"
 
 die() { printf 'clipboard: %s\n' "$*" >&2; exit 1; }
 command -v cliphist >/dev/null 2>&1 || die "cliphist is not installed (sudo dnf install cliphist)"
@@ -79,9 +92,11 @@ copy)
     ;;
 
 save)
+    # save <id> [directory]
     [[ -n ${2:-} ]] || die "save needs an id"
-    mkdir -p "$SHOTS"
-    tmp="$(mktemp "$SHOTS/clip-XXXXXX")"
+    dest="${3:-}"
+    tmpdir="$(mktemp -d)"
+    tmp="$tmpdir/clip"
     printf '%s\t' "$2" | cliphist decode > "$tmp" || die "could not decode $2"
     # NAMED BY WHAT IT TURNED OUT TO BE, not by what was guessed beforehand.
     # `file` is installed here now; without it the extension is left off rather
@@ -94,8 +109,18 @@ save)
             text/*)     ext=.txt  ;;
         esac
     fi
-    out="$SHOTS/clip-$(date +%Y%m%d-%H%M%S)$ext"
+    # The directory follows the TYPE unless one was named: an image belongs in
+    # Pictures and a snippet of text does not.
+    if [[ -z $dest ]]; then
+        case "$ext" in
+            .png|.jpg|.webp|.gif) dest="$CLIP_PICS" ;;
+            *)                    dest="$CLIP_DOCS" ;;
+        esac
+    fi
+    mkdir -p "$dest" || die "cannot write to $dest"
+    out="$dest/clip-$(date +%Y%m%d-%H%M%S)$ext"
     mv "$tmp" "$out"
+    rmdir "$tmpdir" 2>/dev/null
     printf '%s\n' "$out"
     ;;
 
@@ -115,7 +140,8 @@ status)
     printf '  %-12s %s\n' entries "$(cliphist list 2>/dev/null | wc -l)"
     db=~/.cache/cliphist/db
     printf '  %-12s %s\n' store "$([ -f "$db" ] && du -h "$db" | cut -f1 || echo empty)"
-    printf '  %-12s %s\n' saved "$([ -d "$SHOTS" ] && ls "$SHOTS" | wc -l || echo 0) file(s) in ${SHOTS/#$HOME/\~}"
+    printf '  %-12s %s\n' images "$([ -d "$CLIP_PICS" ] && ls "$CLIP_PICS" | wc -l || echo 0) in ${CLIP_PICS/#$HOME/\~}"
+    printf '  %-12s %s\n' text   "$([ -d "$CLIP_DOCS" ] && ls "$CLIP_DOCS" | wc -l || echo 0) in ${CLIP_DOCS/#$HOME/\~}"
     ;;
 
 *)
