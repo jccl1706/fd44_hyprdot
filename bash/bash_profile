@@ -77,7 +77,17 @@ unset _pw_marker
 # THE SAFETY NET BELOW ALREADY COVERS A BAD CHOICE: a compositor that exits
 # within 15 seconds drops you to this shell with the log path instead of
 # respawning, which is exactly what a niri config error would do.
-if uwsm check may-start -q; then
+# GUARDED ON uwsm EXISTING, like the password check above. Without it this line
+# runs on a machine that has no uwsm and bash answers
+#
+#     -bash: uwsm: command not found
+#
+# on every login shell: every ssh in, every new tmux window, every terminal.
+# bin/link-dotfiles.sh only installs this file where uwsm is present, so it
+# looked safe - but a machine can LOSE uwsm after the link is made, which is
+# what happened to the gaming desktop when it was reinstalled with Plasma. The
+# file stayed; the binary did not.
+if command -v uwsm >/dev/null 2>&1 && uwsm check may-start -q; then
     _uwsm_state="${XDG_STATE_HOME:-$HOME/.local/state}"
     mkdir -p "$_uwsm_state"
     _fd44_compositor=hyprland
