@@ -131,9 +131,17 @@ DropPanel {
         width: parent.width
         spacing: 10
 
+        // 40, NOT THE 22 THIS WAS. The header had exactly the height of its
+        // own text, so the title sat hard against the top of the card while
+        // NotificationPanel's - 48, because it carries the do-not-disturb
+        // switch - had room around it. Opening the two from adjacent pills,
+        // the difference was the first thing you saw.
+        //
+        // 40 rather than 48: matching the number would mean matching a height
+        // that exists to fit a control this panel does not have.
         Item {
             width: parent.width
-            height: 22
+            height: 40
             // THE SAME 16 AS THE ROWS BELOW, so the title sits directly over
             // the glyph column rather than a few pixels to its left. Both were
             // flush against the card before, which looked deliberate only
