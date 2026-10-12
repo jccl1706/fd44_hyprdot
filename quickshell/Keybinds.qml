@@ -175,12 +175,41 @@ PanelWindow {
             font.weight: Font.DemiBold
         }
 
-        Text {
+        // WHICH COMPOSITOR THESE KEYS CAME FROM, with its mark beside the name.
+        //
+        // The same assets/niri.svg the bar's CompositorMark draws, and the same
+        // rule: only niri has a vendored mark, so on Hyprland the row is the
+        // word alone rather than the wrong logo.
+        //
+        // BASELINE-ALIGNED TO THE TEXT, NOT CENTRED ON THE ROW. A mark centred
+        // against a 12px label sits visibly high - the word's weight is at its
+        // x-height and the mark's is at its middle - and at this size a pixel
+        // of that reads as a mistake rather than as a style.
+        Row {
             anchors { top: parent.top; right: parent.right; margins: 24 }
-            text: Compositor.backend
-            color: Theme.dim
-            font.family: Theme.font
-            font.pixelSize: Theme.fontSizeSmall
+            spacing: 7
+
+            Image {
+                id: compositorMark
+                visible: Compositor.backend === "niri"
+                source: visible ? Qt.resolvedUrl("assets/niri.svg") : ""
+                // 2x then scaled, as in CompositorMark.qml: an SVG rasterised
+                // at its display size is mush on a 204ppi panel.
+                sourceSize { width: 32; height: 32 }
+                width: 16
+                height: 16
+                smooth: true
+                anchors.verticalCenter: backendName.verticalCenter
+                anchors.verticalCenterOffset: -1
+            }
+
+            Text {
+                id: backendName
+                text: Compositor.backend
+                color: Theme.dim
+                font.family: Theme.font
+                font.pixelSize: Theme.fontSizeSmall
+            }
         }
 
         // COLUMNS RATHER THAN ONE LIST, because sixty entries in one column is a
