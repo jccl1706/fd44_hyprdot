@@ -75,7 +75,7 @@ Singleton {
         caffeine: { label: "Caffeine",
                     help: "holds off the idle lock. Hidden, there is no other way to switch it on" },
         thermal:  { label: "Graphics temperature",
-                    help: "the card's temperature while it is working, and a click opens a live view of everything the machine measures. Only ever drawn on a machine with a discrete card, so it is absent on the laptop whether this is on or off" },
+                    help: "the card's temperature while it is working, and a click opens a live view of everything the machine measures - fans, CPU, clocks" },
         units:    { label: "Failure warning",
                     help: "appears only when a systemd unit has failed - a backup gone stale, a scrub that found errors - and opens a terminal with the logs. Hidden, nothing says the machine is broken until someone runs systemctl --failed" },
         backup:   { label: "Backup reminder",
@@ -209,6 +209,24 @@ Singleton {
         // was not asked here. Unknown keeps the slot; only a probe that has run
         // and found nothing takes it away.
         if (id === "battery") return !Battery.probed || Battery.present
+
+        // THE SAME SHAPE, FOR THE SAME REASON. The thermal plugin is drawn only
+        // where there is a discrete card to read - bin/thermal.sh answers
+        // ok:false on this laptop and nothing appears - but `available` said yes
+        // regardless, so the Bar page offered a toggle for a plugin that could
+        // not be shown whichever way it was set. Its own help text admitted as
+        // much, ending "it is absent on the laptop whether this is on or off":
+        // a settings row describing its own uselessness instead of not being
+        // there. That sentence is gone with this, since the row now appears
+        // only where the toggle does something.
+        //
+        // `answered` AND NOT `present` ALONE, for the reason written above:
+        // present is false before the probe has run as well as on a machine
+        // with no card, so the row would be dropped at startup and appear a
+        // moment later. Thermals already drew that distinction and was simply
+        // never asked.
+        if (id === "thermal") return !Thermals.answered || Thermals.present
+
         return true
     }
 

@@ -85,7 +85,13 @@ ipc() { # target function [arg] -> dies if the function is not there
 panel_functions() {
     awk -v t="target: \"$1\"" '
         index($0, t) { inside = 1; next }
-        inside && /^        }/ { exit }
+        # THE HANDLER CLOSES AT FOUR SPACES, A FUNCTION AT EIGHT. Matching
+        # eight ended the scan at the first multi-line function in the block,
+        # so `settings` appeared to have only the functions declared before its
+        # `search` - page is written after it - and qs-shot refused a page it
+        # has always supported. It broke the moment a multi-line function was
+        # added above another, which is to say immediately.
+        inside && /^    }/ { exit }
         inside && match($0, /function [a-zA-Z]+/) {
             print substr($0, RSTART + 9, RLENGTH - 9)
         }' "$root/quickshell/shell.qml"
