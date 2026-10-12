@@ -212,23 +212,64 @@ done
 # or upstream fixed it - nothing is touched and nothing is said. The patch must
 # never be the reason a future update appears to install and then look wrong.
 fix_nordzy_emblems() {
-    local dir="$SHARE/icons/Nordzy-dark/places/scalable" n f
+    local dir="$SHARE/icons/Nordzy-dark/places/scalable"
     [[ -d $dir ]] || return 0
-    for n in folder-images.svg folder-videos.svg; do
-        f="$dir/$n"
-        [[ -f $f ]] || continue
-        grep -q 'class="ColorScheme-Text" d=' "$f" 2>/dev/null || continue
-        python3 -I - "$f" <<'PY'
-import pathlib, sys
-p = pathlib.Path(sys.argv[1]); t = p.read_text()
-old = '<path class="ColorScheme-Text"'
-if t.count(old) == 1:
-    t = t.replace(old, '<path fill="#81a1c1"', 1)
-    t = t.replace(' color="#363636" opacity=".15"', '', 1)
-    p.write_text(t)
+    python3 -I - "$dir" <<'PY'
+import pathlib, re, sys
+
+d = pathlib.Path(sys.argv[1])
+FOLDER_BASE = "#2e3440"          # the dark shading every folder shares
+fixed = []
+
+for f in sorted(d.glob("*.svg")):
+    if f.is_symlink():           # folder-pictures -> folder-images, one file
+        continue
+    t = f.read_text(errors="replace")
+
+    # The broken element: names a class, carries no fill, and the file defines
+    # no rule for that class - so it paints with the default, which is black.
+    m = re.search(r'<path class="(ColorScheme-[\w-]+)"(?![^>]*fill=)', t)
+    if not m:
+        continue
+    cls = m.group(1)
+    if re.search(r"\." + re.escape(cls) + r"\s*\{[^}]*(color|fill)\s*:", t):
+        continue
+
+    # THE COLOUR COMES FROM THE FILE ITSELF, NOT FROM A CONSTANT. Nordzy ships
+    # the same folders in a dozen accents - cyan #88c0d0, green #a3be8c,
+    # turquoise #8fbcbb - and each one's emblems are drawn in its own. Hardcoding
+    # the default blue would repair the blue folders and quietly wreck the rest.
+    accents = [c for c in re.findall(r'fill="(#[0-9a-fA-F]{6})"', t)
+               if c.lower() != FOLDER_BASE]
+    if not accents:
+        continue
+    accent = max(set(accents), key=accents.count)
+
+    # THE WHOLE ELEMENT IS REWRITTEN, not just its opening attribute. The
+    # attributes sit AFTER the d="..." path data:
+    #
+    #   <path class="ColorScheme-Text" d="…" color="#363636" opacity=".15" .../>
+    #
+    # so a substitution anchored between fill and d silently strips nothing -
+    # which left opacity=".15" in place and the emblem at 15%, the same faint
+    # result the first attempt at this produced. `color` paints nothing on its
+    # own and the .15 was shading for a wash, not for the emblem itself; both go.
+    elem = re.search(r"<path class=\"" + re.escape(cls) + r"\"[^>]*>", t)
+    if not elem:
+        continue
+    new_elem = elem.group(0)
+    new_elem = new_elem.replace(f'class="{cls}"', f'fill="{accent}"', 1)
+    new_elem = re.sub(r'\s+color="[^"]*"', "", new_elem)
+    new_elem = re.sub(r'\s+opacity="[^"]*"', "", new_elem)
+    t = t[:elem.start()] + new_elem + t[elem.end():]
+    f.write_text(t)
+    fixed.append((f.name, accent))
+
+for n, a in fixed:
+    print(f"    recoloured {n} -> {a}")
+if fixed:
+    print(f"    {len(fixed)} folder icons were painting their emblem black")
 PY
-        printf '    recoloured %s (its emblem was painting black, not Nord blue)\n' "$n"
-    done
     command -v gtk-update-icon-cache >/dev/null 2>&1 \
         && gtk-update-icon-cache -qf "$SHARE/icons/Nordzy-dark" 2>/dev/null || true
 }
