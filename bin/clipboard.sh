@@ -42,6 +42,16 @@ set -uo pipefail
 # the panel should not be the only way in.
 pics="$(xdg-user-dir PICTURES 2>/dev/null || echo "$HOME/Pictures")"
 docs="$(xdg-user-dir DOCUMENTS 2>/dev/null || echo "$HOME/Documents")"
+# How many IMAGES to keep. Text keeps cliphist's default 750; images do not,
+# for the reason spelled out in `watch` below. 40 full-screen captures is about
+# 80MB, which is a cache and not a filing cabinet - anything worth keeping is a
+# save away, and that is what the save button is for.
+IMAGE_ITEMS="${FD44_CLIP_IMAGES:-40}"
+
+# This script's own path, resolved through any symlink, so the image watcher can
+# call back into it. ~/.local/bin/clipboard is a symlink to the checkout.
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+
 CLIP_PICS="${FD44_CLIP_PICTURES:-$pics/clips}"
 CLIP_DOCS="${FD44_CLIP_DOCUMENTS:-$docs/clips}"
 
@@ -58,8 +68,24 @@ watch)
     n=$(ps -eo comm --no-headers | grep -cx wl-paste)
     (( n >= 2 )) && { echo "clipboard: already watching"; exit 0; }
     pkill -x wl-paste 2>/dev/null
-    setsid wl-paste --type text --watch cliphist store >/dev/null 2>&1 &
-    setsid wl-paste --type image --watch cliphist store >/dev/null 2>&1 &
+
+    # THE IMAGE WATCHER PRUNES AFTER EVERY STORE, because cliphist cannot do
+    # this itself. Its -max-items is a limit on the WHOLE DATABASE, not on the
+    # watcher that passes it: measured, not assumed - storing one item with
+    # -max-items 5 took a 25 entry history down to 5, text and all. So an image
+    # cap expressed that way would quietly throw away the text history, which
+    # is the opposite of the point.
+    #
+    # (It also only parses before the subcommand. `cliphist store -max-items 40`
+    # is accepted in silence and does nothing at all, which is how the first
+    # version of this looked like it worked.)
+    #
+    # A full-screen capture off this machine is about 2MB and a line of shell
+    # is tens of bytes, so the two kinds cannot share a count. Text keeps
+    # cliphist's own default; images are trimmed by `prune` below.
+    setsid wl-paste --type text  --watch cliphist store >/dev/null 2>&1 &
+    setsid wl-paste --type image --watch sh -c \
+        'cliphist store; "$0" prune' "$SELF" >/dev/null 2>&1 &
     sleep 1
     echo "clipboard: watching text and images"
     ;;
@@ -190,6 +216,22 @@ saveas)
 delete)
     [[ -n ${2:-} ]] || die "delete needs an id"
     printf '%s\t' "$2" | cliphist delete
+    ;;
+
+prune)
+    # Drop every image entry past the newest $IMAGE_ITEMS, leaving text alone.
+    #
+    # cliphist list is newest first and prints "<id>\t<preview>"; an image's
+    # preview is the line "[[ binary data 2 MiB png 2256x1504 ]]", which is the
+    # only way to tell the two kinds apart from the outside. `cliphist delete`
+    # wants that whole line back on stdin, not the id.
+    keep="${2:-$IMAGE_ITEMS}"
+    n=0
+    while IFS= read -r row; do
+        printf '%s\n' "$row" | cliphist delete && n=$((n + 1))
+    done < <(cliphist list 2>/dev/null | grep -F 'binary data' | tail -n +$((keep + 1)))
+    [[ $n -gt 0 ]] && echo "clipboard: pruned $n image(s), keeping $keep"
+    exit 0
     ;;
 
 wipe)
