@@ -448,6 +448,13 @@ ShellRoot {
         function toggle(): void { shell.toggleFocused(keybindsVariants.instances) }
         function open(): void   { shell.openFocused(keybindsVariants.instances) }
         function close(): void  { shell.closeAll(keybindsVariants.instances) }
+
+        // Open it with the filter already typed in.
+        function find(q: string): void {
+            shell.openFocused(keybindsVariants.instances)
+            const one = shell.focusedOne(keybindsVariants.instances)
+            if (one) one.search(q)
+        }
     }
 
     IpcHandler {

@@ -65,15 +65,68 @@ PanelWindow {
     mask: Region { item: hitArea }
 
     property var groups: []
+    property string query: ""
+
+    // WHAT THE FLOW ACTUALLY DRAWS. Seventy-one binds across eleven groups is
+    // past the point where reading them all is faster than finding one, so the
+    // card filters as you type.
+    //
+    // A GROUP DISAPPEARS WHEN NOTHING IN IT MATCHES rather than staying as an
+    // empty heading: the layout is columns of groups, and empty headings would
+    // keep the columns the shape they are now while saying nothing.
+    //
+    // Key and label both, so "shot" finds the screenshot binds by their
+    // description and "Mod+Alt" finds a whole modifier's worth by their keys.
+    readonly property var visibleGroups: {
+        const q = root.query.trim().toLowerCase()
+        if (q === "") return root.groups
+        const out = []
+        for (const g of root.groups) {
+            // MATCHED AGAINST WHAT THE ROW SHOWS, not only against what the
+            // config says. The key is stored as "Mod+Shift+C" and drawn as
+            // "Super+Shift+C" - the same replace() the Text below does - so a
+            // filter over the raw value alone would find nothing for "super",
+            // which is the word actually on the screen in front of you.
+            //
+            // Both forms are searched, so "mod" keeps working for anyone
+            // thinking in terms of the config file.
+            const hits = g.binds.filter(b => {
+                const raw = String(b.key).toLowerCase()
+                const shown = raw.replace(/\bmod\b/, "super")
+                return raw.indexOf(q) !== -1
+                    || shown.indexOf(q) !== -1
+                    || String(b.label).toLowerCase().indexOf(q) !== -1
+            })
+            if (hits.length > 0) out.push({ name: g.name, binds: hits })
+        }
+        return out
+    }
+
+    readonly property int matchCount: {
+        let n = 0
+        for (const g of root.visibleGroups) n += g.binds.length
+        return n
+    }
 
     function open(): void {
         reader.running = true          // re-read every time: binds change
+        root.query = ""                // a stale filter would hide most of it
         root.revealed = true
-        card.forceActiveFocus()
+        filter.forceActiveFocus()      // type immediately, no click first
     }
 
     function close(): void {
         root.revealed = false
+    }
+
+    // Open with the filter already set. `qs ipc call keybinds find screenshot`
+    // is a reasonable thing to want from a script, and it is also the only way
+    // to exercise the filter without a keyboard - there is no wtype or ydotool
+    // on this machine, and every real UI bug this session came from looking at
+    // a picture rather than reasoning about the code.
+    function search(q: string): void {
+        root.open()
+        root.query = q
     }
 
     function toggle(): void {
@@ -134,12 +187,26 @@ PanelWindow {
     Rectangle {
         id: card
         anchors.centerIn: parent
-        width: Math.min(parent.width - Theme.barPadding * 4, columns.implicitWidth + 48)
+        // A FLOOR, BECAUSE THE CONTENT CAN BE NOTHING. The width comes from the
+        // Flow, and a filter that matches no bind leaves the Flow empty - which
+        // collapsed the card to a sliver with its own heading, filter field and
+        // "no key matches" message hanging out of it, clipped.
+        //
+        // The floor is the header's own width: title, filter field and the
+        // compositor mark are there whatever the list does.
+        readonly property real minWidth: 24 + heading.implicitWidth + 20
+                                         + filterRow.width + 24 + 70
+        width: Math.min(parent.width - Theme.barPadding * 4,
+                        Math.max(columns.implicitWidth + 48, card.minWidth))
         // HUGS THE CONTENT, NOT THE ALLOWANCE. columns.height is the height the
         // Flow is ALLOWED to use before wrapping into another column; the tallest
         // column it actually produced is implicitHeight. Using the former left a
         // strip of empty card below the last group.
-        height: Math.min(columns.height, columns.implicitHeight) + 76
+        // Same reasoning vertically: with nothing matched the Flow contributes
+        // no height, so the message gets its own allowance instead.
+        height: (root.matchCount === 0 && root.query !== ""
+                 ? 44
+                 : Math.min(columns.height, columns.implicitHeight)) + 76
         radius: Theme.cornerRadius
 
         // ALPHA IN THE COLOUR, NOT `opacity`. An Item's opacity applies to its
@@ -173,6 +240,89 @@ PanelWindow {
             font.family: Theme.font
             font.pixelSize: Theme.fontSizeTitle
             font.weight: Theme.weightSemi
+        }
+
+        // --- the filter -----------------------------------------------------
+        //
+        // NO BOX AROUND IT. Every other field in this shell - the launcher's,
+        // the network password - sits in a framed row because it is the thing
+        // you came to that panel to use. Here the list is, and a bordered input
+        // beside the title would read as another panel stacked on this one.
+        // A glyph, a line of text and a rule under it is enough to say "type
+        // here" next to a heading.
+        //
+        // IT HAS FOCUS FROM THE MOMENT THE CARD OPENS, so the keystroke after
+        // the one that opened this goes into the filter rather than nowhere.
+        // Escape is handled here as well as on the card, because focus lives
+        // here now and the card would never see it.
+        Row {
+            id: filterRow
+            anchors { top: parent.top; topMargin: 24
+                      left: heading.right; leftMargin: 20 }
+            spacing: 8
+            width: 190
+
+            Text {
+                id: filterGlyph
+                anchors.verticalCenter: filter.verticalCenter
+                text: "\u{F0349}"               // nf-md-magnify
+                font.family: Theme.glyphFont
+                font.pixelSize: 14
+                color: root.query === "" ? Theme.dim : Theme.accent
+                Behavior on color { ColorAnimation { duration: Theme.animFast } }
+            }
+
+            TextInput {
+                id: filter
+                width: filterRow.width - filterGlyph.width - filterRow.spacing
+                text: root.query
+                onTextChanged: root.query = text
+                color: Theme.fg
+                font.family: Theme.font
+                font.pixelSize: Theme.fontSize
+                selectByMouse: true
+                selectionColor: Theme.accent
+                clip: true
+
+                Keys.onEscapePressed: {
+                    // Escape clears a filter first and closes second, so a
+                    // mistyped search does not cost you the panel.
+                    if (root.query !== "") root.query = ""
+                    else root.close()
+                }
+
+                Text {
+                    anchors.fill: parent
+                    verticalAlignment: Text.AlignVCenter
+                    visible: filter.text === ""
+                    text: "filter"
+                    color: Theme.dim
+                    font: filter.font
+                }
+            }
+        }
+
+        // The rule under the filter, so it reads as a field rather than a
+        // stray word beside the title.
+        Rectangle {
+            anchors { left: filterRow.left; right: filterRow.right
+                      top: filterRow.bottom; topMargin: 4 }
+            height: 1
+            color: root.query === "" ? Theme.outline : Theme.accent
+            opacity: root.query === "" ? 0.6 : 1
+            Behavior on color { ColorAnimation { duration: Theme.animFast } }
+        }
+
+        // Nothing matched: said where the list would have been, rather than
+        // leaving an empty card that looks broken.
+        Text {
+            visible: root.query !== "" && root.matchCount === 0
+            anchors { left: parent.left; leftMargin: 24
+                      top: heading.bottom; topMargin: 24 }
+            text: "no key matches \"" + root.query + "\""
+            color: Theme.dim
+            font.family: Theme.font
+            font.pixelSize: Theme.fontSize
         }
 
         // WHICH COMPOSITOR THESE KEYS CAME FROM, with its mark beside the name.
@@ -234,7 +384,7 @@ PanelWindow {
             spacing: 26
 
             Repeater {
-                model: root.groups
+                model: root.visibleGroups
 
                 ColumnLayout {
                     spacing: 3

@@ -218,8 +218,6 @@ binds {
     Mod+Shift+P hotkey-overlay-title="Screenshot: a region" { spawn-sh "$HOME/.config/fd44/bin/screenshot.sh region"; }
     Mod+Ctrl+P hotkey-overlay-title="Screenshot: this window" { spawn-sh "$HOME/.config/fd44/bin/screenshot.sh window"; }
 
-    // --- and the two that go through swappy ---------------------------------
-    //
     // DRAW CAPTURES STRAIGHT INTO THE ANNOTATOR and never writes the plain
     // version: grim pipes into swappy, so when you already know you are going
     // to mark something up there is no untouched file left behind to decide
