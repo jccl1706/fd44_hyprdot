@@ -36,7 +36,11 @@ DropPanel {
             height: 48
 
             Text {
-                anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                // 16 LIKE EVERY OTHER PANEL HEADER. This one was 14, which is
+                // not a difference you can see on its own and is plainly visible
+                // when two panels are opened one after the other from adjacent
+                // pills.
+                anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
                 text: NotificationService.doNotDisturb ? "Silenced" : "Notifications"
                 color: Theme.fg
                 font.family: Theme.font

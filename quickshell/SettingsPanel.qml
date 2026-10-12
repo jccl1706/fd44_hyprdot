@@ -254,7 +254,7 @@ PanelWindow {
                     text: "Settings"
                     color: Theme.fg
                     font.pixelSize: Theme.fontSizeHeading
-                    font.weight: Font.DemiBold
+                    font.weight: Theme.weightSemi
                     leftPadding: 10
                     bottomPadding: 10
                 }

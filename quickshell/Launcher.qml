@@ -834,8 +834,7 @@ PanelWindow {
             anchors { bottom: searchRow.top; bottomMargin: Theme.barPadding
                       left: parent.left; right: parent.right }
             height: 1
-            color: Theme.dim
-            opacity: 0.25
+            color: Theme.outline
         }
 
         // --- tabs -----------------------------------------------------------
@@ -875,8 +874,19 @@ PanelWindow {
                         id: label
                         anchors.centerIn: parent
                         text: parent.modelData.label
+                        // font.family WAS MISSING, so these two chips were the
+                        // only text in the shell drawn in Qt's default sans
+                        // rather than the configured one - visible beside the
+                        // search field directly above them.
+                        font.family: Theme.font
                         font.pixelSize: Theme.fontSize
-                        font.weight: parent.active ? Font.DemiBold : Font.Normal
+                        // Theme.weightSemi is 600, which is what Font.DemiBold
+                        // is on Qt 6's numeric scale: the same weight, named the
+                        // way the rest of the shell names it. The inactive side
+                        // stays Font.Normal because 400 has no token - it is
+                        // Qt's default and every other normal-weight label here
+                        // simply omits the property.
+                        font.weight: parent.active ? Theme.weightSemi : Font.Normal
                         color: parent.active ? Theme.bg : Theme.fg
                     }
 

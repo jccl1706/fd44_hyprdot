@@ -172,7 +172,7 @@ PanelWindow {
             color: Theme.fg
             font.family: Theme.font
             font.pixelSize: Theme.fontSizeTitle
-            font.weight: Font.DemiBold
+            font.weight: Theme.weightSemi
         }
 
         // WHICH COMPOSITOR THESE KEYS CAME FROM, with its mark beside the name.
@@ -244,7 +244,7 @@ PanelWindow {
                         color: Theme.accent
                         font.family: Theme.font
                         font.pixelSize: Theme.fontSizeSmall + 1
-                        font.weight: Font.DemiBold
+                        font.weight: Theme.weightSemi
                         font.capitalization: Font.AllUppercase
                         Layout.bottomMargin: 4
                     }
@@ -262,7 +262,7 @@ PanelWindow {
                                 color: Theme.fg
                                 font.family: Theme.font
                                 font.pixelSize: Theme.fontSize
-                                font.weight: Font.Medium
+                                font.weight: Theme.weightMedium
                                 // 132 LINES THE LABELS UP WITHOUT SETTING THE
                                 // WIDTH. It is a minimum, not a cap: the few
                                 // long key names - XF86AudioRaiseVolume is
