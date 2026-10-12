@@ -235,15 +235,19 @@ for f in sorted(d.glob("*.svg")):
     if re.search(r"\." + re.escape(cls) + r"\s*\{[^}]*(color|fill)\s*:", t):
         continue
 
-    # THE COLOUR COMES FROM THE FILE ITSELF, NOT FROM A CONSTANT. Nordzy ships
-    # the same folders in a dozen accents - cyan #88c0d0, green #a3be8c,
-    # turquoise #8fbcbb - and each one's emblems are drawn in its own. Hardcoding
-    # the default blue would repair the blue folders and quietly wreck the rest.
-    accents = [c for c in re.findall(r'fill="(#[0-9a-fA-F]{6})"', t)
-               if c.lower() != FOLDER_BASE]
-    if not accents:
-        continue
-    accent = max(set(accents), key=accents.count)
+    # THE SHADING COLOUR, NOT THE ACCENT, AND THE OPACITY STAYS.
+    #
+    # Every folder in this theme is built the same way: six paths, where the
+    # emblem - the page, the people, the "A" - is drawn as FOLDER_BASE at .15,
+    # a dark tint over the light folder face. Pictures and Videos carry a
+    # SEVENTH path for their extra detail, and it is that one upstream left
+    # unpainted.
+    #
+    # An earlier attempt gave it the accent at full opacity. That is the colour
+    # of the folder face itself, so the emblem washed out into the folder and
+    # came out hollow and pale next to Public and Templates - which is what the
+    # screenshot of it showed. The fix is the shading the other five paths
+    # already use.
 
     # THE WHOLE ELEMENT IS REWRITTEN, not just its opening attribute. The
     # attributes sit AFTER the d="..." path data:
@@ -258,15 +262,18 @@ for f in sorted(d.glob("*.svg")):
     if not elem:
         continue
     new_elem = elem.group(0)
-    new_elem = new_elem.replace(f'class="{cls}"', f'fill="{accent}"', 1)
+    new_elem = new_elem.replace(f'class="{cls}"', f'fill="{FOLDER_BASE}"', 1)
+    # `color` paints nothing on its own and is what upstream meant to be a
+    # fill; it goes. opacity STAYS - .15 is the tint every other emblem uses.
     new_elem = re.sub(r'\s+color="[^"]*"', "", new_elem)
-    new_elem = re.sub(r'\s+opacity="[^"]*"', "", new_elem)
+    if 'opacity=' not in new_elem:
+        new_elem = new_elem.replace("/>", ' opacity=".15"/>')
     t = t[:elem.start()] + new_elem + t[elem.end():]
     f.write_text(t)
-    fixed.append((f.name, accent))
+    fixed.append(f.name)
 
-for n, a in fixed:
-    print(f"    recoloured {n} -> {a}")
+for n in fixed:
+    print(f"    recoloured {n}")
 if fixed:
     print(f"    {len(fixed)} folder icons were painting their emblem black")
 PY
