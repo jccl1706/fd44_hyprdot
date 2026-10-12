@@ -90,7 +90,11 @@ json.dump(out, sys.stdout)
 copy)
     [[ -n ${2:-} ]] || die "copy needs an id"
     # decode writes the ORIGINAL bytes, so an image goes back as an image.
-    printf '%s\t' "$2" | cliphist decode | wl-copy
+    # PIPED, SO THE EXIT STATUS IS wl-copy's, NOT cliphist's - an entry that has
+    # since been dropped would otherwise put an empty clipboard up and call it
+    # a success. pipefail makes the whole pipeline fail on either.
+    set -o pipefail
+    printf '%s\t' "$2" | cliphist decode | wl-copy || die "could not copy entry $2"
     ;;
 
 save)
@@ -119,9 +123,14 @@ save)
             *)                    dest="$CLIP_DOCS" ;;
         esac
     fi
-    mkdir -p "$dest" || die "cannot write to $dest"
+    # EVERY STEP IS CHECKED, because the failure here is not "nothing
+    # happened" - it is printing a path that was never written. `mv` failing
+    # left the exit status at 0 and the path on stdout, so the panel reported
+    # "saved" and copied a filename that does not exist. A save that lies is
+    # worse than one that refuses.
+    mkdir -p "$dest" 2>/dev/null || { rm -rf "$tmpdir"; die "cannot create $dest"; }
     out="$dest/clip-$(date +%Y%m%d-%H%M%S)$ext"
-    mv "$tmp" "$out"
+    mv "$tmp" "$out" 2>/dev/null || { rm -rf "$tmpdir"; die "cannot write to $dest"; }
     rmdir "$tmpdir" 2>/dev/null
     printf '%s\n' "$out"
     ;;
@@ -168,8 +177,12 @@ saveas)
         exit 1          # cancelled - not an error, and nothing is written
     }
     [[ -n $chosen ]] || { rm -rf "$tmpdir"; exit 1; }
-    mkdir -p "$(dirname "$chosen")"
-    mv "$tmp" "$chosen"
+    # Checked for the same reason as `save` above. The chooser happily lets you
+    # pick a directory you cannot write to - it is only picking a name.
+    mkdir -p "$(dirname "$chosen")" 2>/dev/null \
+        || { rm -rf "$tmpdir"; die "cannot create $(dirname "$chosen")"; }
+    mv "$tmp" "$chosen" 2>/dev/null \
+        || { rm -rf "$tmpdir"; die "cannot write to $(dirname "$chosen")"; }
     rmdir "$tmpdir" 2>/dev/null
     printf '%s\n' "$chosen"
     ;;

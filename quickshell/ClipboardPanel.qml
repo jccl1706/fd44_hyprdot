@@ -30,13 +30,14 @@ DropPanel {
 
     property var entries: []
     property string note: ""
+    property string error: ""
 
     readonly property string script:
         Quickshell.env("HOME") + "/Work/fd44_hyprdot/bin/clipboard.sh"
 
     // Re-read every time it is shown, so it never offers an entry that has
     // since been superseded.
-    onRevealedChanged: if (revealed) root.refresh()
+    onRevealedChanged: if (revealed) { root.error = ""; root.note = ""; root.refresh() }
 
     function refresh(): void {
         if (lister.running) return
@@ -44,6 +45,8 @@ DropPanel {
     }
 
     function act(verb: string, id: string): void {
+        root.error = ""
+        root.note = ""
         actor.command = [root.script, verb, id]
         actor.running = true
     }
@@ -61,6 +64,27 @@ DropPanel {
 
     Process {
         id: actor
+
+        // STDERR IS READ, NOT DISCARDED. Without this the panel knew only what
+        // the script printed on stdout, so a save into a directory the user
+        // cannot write to reported "saved · path copied" and put a filename
+        // that does not exist on the clipboard. The script now exits non-zero
+        // and says why; this is the half that shows it.
+        stderr: StdioCollector {
+            onStreamFinished: {
+                const msg = String(text).trim().replace(/^clipboard:\s*/, "")
+                if (msg !== "") root.error = msg
+            }
+        }
+
+        // The exit status decides, not the presence of output: a cancelled
+        // save-as exits 1 with nothing on either stream, and that is not an
+        // error to show.
+        onExited: (code, status) => {
+            if (code === 0) root.error = ""
+            root.refresh()
+        }
+
         stdout: StdioCollector {
             onStreamFinished: {
                 // `save` prints the path it wrote. Putting that on the
@@ -101,10 +125,16 @@ DropPanel {
             }
             Text {
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                text: root.note !== "" ? root.note
+                text: root.error !== "" ? root.error
+                    : root.note !== "" ? root.note
                     : root.entries.length === 0 ? "nothing copied yet"
                     : root.entries.length + " kept"
-                color: root.note !== "" ? Theme.accent : Theme.dim
+                color: root.error !== "" ? Theme.danger
+                     : root.note !== "" ? Theme.accent : Theme.dim
+                elide: Text.ElideRight
+                // The count is short; an error is a sentence. It gets the room.
+                width: root.error !== "" ? parent.width - 110 : implicitWidth
+                horizontalAlignment: Text.AlignRight
                 font.family: Theme.font
                 font.pixelSize: Theme.fontSizeSmall
                 Behavior on color { ColorAnimation { duration: Theme.animFast } }
