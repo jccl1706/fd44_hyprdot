@@ -603,6 +603,25 @@ Singleton {
         }
     }
 
+    // THE ONE WRITE PATH. Every `key:` row in the settings panel commits
+    // through here, as does every setter above - so losing it breaks the whole
+    // panel at once while the shell still loads and qs-check still passes.
+    //
+    // It was lost exactly that way: removing the night light cut a span from
+    // setNightLight() to this comment, and setValue lived inside it. Nothing
+    // failed until something called it, and then only as a TypeError in the
+    // log that no panel surfaces.
+    function setValue(key: string, v): void {
+        if (settings[key] === undefined) {
+            console.warn("Settings: no such key", key)
+            return
+        }
+        if (settings[key] === v) return
+        settings[key] = v
+        settings.dirty = true
+        saveTimer.restart()
+    }
+
     // Back to the defaults above, which are the shell's original behaviour.
     function resetAll(): void {
         settings.notifyLowMs = 5000
