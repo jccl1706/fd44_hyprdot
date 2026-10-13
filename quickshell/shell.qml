@@ -624,7 +624,25 @@ ShellRoot {
         // seconds hands the machine to Steam or switches it off. Useful for
         // testing the armed state from a script - and worth knowing before
         // putting either in a loop.
-        function activate(id: string): void { shell.eachBar(b => b.activateId(id)) }
+        // IT SAYS WHAT HAPPENED. A plugin can be absent for two quite different
+        // reasons - the id is wrong, or it is switched off on the Bar page -
+        // and a caller that gets silence cannot tell those apart, or either of
+        // them from having worked.
+        function activate(id: string): string {
+            let found = false
+            shell.eachBar(b => { if (b.activateId(id)) found = true })
+            if (found) return "activated " + id
+            if (!(id in BarLayout.meta)) return "no such plugin: " + id
+            // UNAVAILABLE IS NOT HIDDEN, and BarLayout.available() already knows
+            // the difference - the thermal readout is in the hidden list on this
+            // laptop because the machine has no discrete GPU, not because anyone
+            // switched it off, and telling someone to go and enable it would send
+            // them to a toggle that is not on the page.
+            if (!BarLayout.available(id)) return id + " is not available on this machine"
+            return BarLayout.enabled(id)
+                ? id + " is not on this bar"
+                : id + " is hidden - switch it on under Settings > Bar"
+        }
     }
 
     // The stay-awake switch (Caffeine.qml), for scripts and keybinds:

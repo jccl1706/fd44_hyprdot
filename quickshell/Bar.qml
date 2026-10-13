@@ -195,14 +195,19 @@ PanelWindow {
     // The same as clicking plugin `id` wherever it currently sits - for IPC
     // and keybinds, so a panel opened without the mouse still drops down
     // under its glyph.
-    function activateId(id: string): void {
+    // RETURNS WHETHER IT FOUND ANYTHING TO CLICK. It used to return nothing, so
+    // `qs ipc call bar activate notes` on a bar where notes is hidden did
+    // nothing and said nothing - indistinguishable from success, and from a
+    // typo in the id.
+    function activateId(id: string): bool {
         for (const z of BarLayout.zones) {
             const slot = root.zoneItem(z).itemFor(id)
             if (slot) {
                 root.activate(id, slot)
-                return
+                return true
             }
         }
+        return false
     }
 
     // --- dragging --------------------------------------------------------
