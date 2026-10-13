@@ -26,6 +26,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 
 PanelWindow {
@@ -212,6 +213,8 @@ PanelWindow {
                                          + filterRow.width + 24 + 70
         width: Math.min(parent.width - Theme.barPadding * 4,
                         Math.max(columns.implicitWidth + 48, card.minWidth))
+        // When the content is wider than the screen allows, the card takes the
+        // whole allowance and the Flickable inside it carries the overflow.
         // HUGS THE CONTENT, NOT THE ALLOWANCE. columns.height is the height the
         // Flow is ALLOWED to use before wrapping into another column; the tallest
         // column it actually produced is implicitHeight. Using the former left a
@@ -383,18 +386,58 @@ PanelWindow {
         // that height, then starts another beside it. Left to right it would wrap
         // into ROWS of groups instead, and one tall group - Workspaces is twenty
         // entries - would set the height of its whole row.
+        // IT SCROLLS SIDEWAYS WHEN IT HAS TO, AND ONLY THEN. 146 binds in
+        // seventeen groups want about five columns; a little over four fit on
+        // this screen, and the card is already as wide as it is allowed to be.
+        //
+        // The alternative was to go back to listing two of the nine config
+        // files, which is what hid 67 working binds in the first place. A
+        // cheatsheet you occasionally drag is better than one that lies about
+        // what the machine does - and with the filter above, the usual way to
+        // reach anything is to type it rather than to scroll at all.
+        Flickable {
+            id: pane
+            x: 24
+            y: heading.y + heading.height + 16
+            width: card.width - 48
+            height: columns.height
+            contentWidth: columns.implicitWidth
+            contentHeight: columns.height
+            clip: true
+            flickableDirection: Flickable.HorizontalFlick
+            boundsBehavior: Flickable.StopAtBounds
+            interactive: contentWidth > width
+
+            ScrollBar.horizontal: ScrollBar {
+                id: paneScroll
+                policy: pane.contentWidth > pane.width ? ScrollBar.AlwaysOn
+                                                       : ScrollBar.AlwaysOff
+                height: 10
+                background: null
+                contentItem: Rectangle {
+                    implicitHeight: 5
+                    radius: 3
+                    color: Theme.dim
+                    opacity: paneScroll.pressed ? 0.75
+                           : (paneScroll.hovered ? 0.55 : 0.3)
+                    Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+                }
+            }
+
         Flow {
             id: columns
             flow: Flow.TopToBottom
-            x: 24
-            y: heading.y + heading.height + 16
-            // TUNED TO THE CONTENT, not to the screen. With the numbered runs
-            // collapsed the list is about forty rows, which splits into two
-            // columns of roughly this height. Taller and the third column holds
-            // three entries and a lot of nothing; shorter and it spills into four.
-            // Clamped by the screen so the laptop panel cannot be overflowed.
-            height: Math.min(root.height - BarStyle.barBottom - Theme.barPadding * 4 - 76,
-                             660)
+            // THE SCREEN, NOT A TUNED NUMBER. This was clamped to 660px, chosen
+            // when the list was about forty rows and split into two columns.
+            // The cheatsheet now reads config.kdl as well - 146 binds across
+            // seventeen groups - and at 660px tall that wraps into five columns
+            // which are wider than the card: the rightmost was drawn clipped
+            // mid-word and the one after it was off the screen entirely.
+            //
+            // A tuned height cannot survive its content changing, and this one
+            // did not. Using the space there is means the columns grow taller
+            // before they grow wider, which is the direction that fits.
+            height: root.height - BarStyle.barBottom - Theme.barPadding * 4 - 76
             spacing: 26
 
             Repeater {
@@ -486,6 +529,7 @@ PanelWindow {
                     }
                 }
             }
+        }
         }
     }
 

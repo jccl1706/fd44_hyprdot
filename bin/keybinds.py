@@ -27,9 +27,46 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Files in the order their binds should be shown.
-NIRI_FILES = ("binds.kdl", "apps.kdl")
+# config.kdl IS READ TOO, AND IT WAS NOT. The docstring above says the source is
+# "this repository's own niri/*.kdl" and this tuple named two of the nine - so 67
+# working binds, more than half of them, existed and were never listed. Among
+# them Mod+Shift+E and Ctrl+Alt+Delete, which quit the compositor.
+#
+# It is LAST because it is the stock file: niri's own suggestions, pruned. The
+# two before it are this machine's, and a reader should meet those first.
+NIRI_FILES = ("binds.kdl", "apps.kdl", "config.kdl")
 
-FILE_GROUPS = {"binds.kdl": "Bar", "apps.kdl": "Windows"}
+# The fallback group for a bind appearing before any section comment in its file.
+FILE_GROUPS = {"binds.kdl": "Bar", "apps.kdl": "Windows", "config.kdl": "niri"}
+
+
+# A KEY BOUND TWICE IS THE LATER ONE. niri includes binds.kdl and apps.kdl after
+# config.kdl's own block, so when the same key appears in two files the later one
+# wins and the earlier never fires. Listing both would put a key in the cheatsheet
+# beside an action it does not perform.
+#
+# Ten such binds were found and removed from config.kdl rather than filtered here;
+# this is the guard that stops them coming back unnoticed.
+# niri's OWN ORDER, WHICH IS NOT THE ORDER THESE ARE DISPLAYED IN. config.kdl's
+# binds block sits at the top of that file and the includes are at the bottom, so
+# niri reads config.kdl's binds FIRST and binds.kdl and apps.kdl override them.
+#
+# NIRI_FILES is the reading order for DISPLAY and puts config.kdl last, because
+# its 67 stock binds should not be the first thing in the cheatsheet. Using that
+# order for precedence had it exactly backwards: it kept config.kdl's dead
+# XF86Audio binds and dropped the live ones from binds.kdl, so the volume group
+# disappeared and media went from four rows to one.
+WINS_ORDER = ("config.kdl", "binds.kdl", "apps.kdl")
+
+
+def drop_shadowed(rows):
+    rank = {f: i for i, f in enumerate(WINS_ORDER)}
+    best = {}
+    for r in rows:
+        k = r["key"]
+        if k not in best or rank.get(r.get("file"), -1) >= rank.get(best[k].get("file"), -1):
+            best[k] = r
+    return [r for r in rows if best[r["key"]] is r]
 
 SECTION = re.compile(r"^\s*//\s*-{2,}\s*(.+?)\s*-{2,}\s*$")
 # A bind line: the key combo, optional flags, then the action up to the brace.
@@ -95,6 +132,7 @@ def from_niri() -> list:
         if not os.path.exists(path):
             continue
         group = FILE_GROUPS.get(fname, fname)
+        src = fname          # for drop_shadowed; stripped before output
         in_binds = False
         depth = 0           # brace depth inside the binds block
         pending = ""
@@ -137,6 +175,7 @@ def from_niri() -> list:
                 title = TITLE.search(m.group("flags") or "")
                 out.append({
                     "group": group,
+                    "file": src,            # dropped before output
                     "key": m.group("key"),
                     "label": title.group(1) if title else pretty(action),
                 })
@@ -304,6 +343,13 @@ def main() -> int:
     # the card and its last column was drawn clipped off the right edge. The
     # earlier version only had niri's numbered run to worry about, so appending
     # tmux raw was invisible until tmux grew keys.
+    # SHADOWED BINDS GO BEFORE collapse(), not after: collapse folds numbered
+    # runs into one row, and a shadowed member of a run would otherwise be
+    # folded in and become invisible rather than dropped.
+    binds = drop_shadowed(binds)
+    # The source file has done its job; it is not part of the answer.
+    for b in binds:
+        b.pop("file", None)
     binds = collapse(binds) + collapse(from_tmux())
     json.dump(binds, sys.stdout, indent=1)
     sys.stdout.write("\n")

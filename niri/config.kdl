@@ -440,7 +440,9 @@ binds {
 
     // Mod-Shift-/, which is usually the same as Mod-?,
     // shows a list of important hotkeys.
-    Mod+Shift+Slash { show-hotkey-overlay; }
+    // Mod+Shift+Slash IS NOT HERE: binds.kdl opens quickshell's cheatsheet, and that file is included
+    // after this one, so this stock bind never fired. Removed rather
+    // than left to be read as live - it was show-hotkey-overlay.
 
     // THESE WERE niri's OWN SUGGESTED BINDS AND ALL THREE WERE DEAD KEYS:
     // alacritty, fuzzel and swaylock are not installed and never were. The
@@ -461,6 +463,7 @@ binds {
     // guards against a second instance and puts the locker in its own systemd
     // scope. Spawning hyprlock directly bypasses both, and a second hyprlock
     // on top of the first is a black screen that no password dismisses.
+    // --- Session -----------------------------------------------------------
     Super+Alt+L hotkey-overlay-title="Lock the Screen" { spawn "loginctl" "lock-session"; }
 
     // Use spawn-sh to run a shell command. Do this if you need pipes, multiple commands, etc.
@@ -504,7 +507,10 @@ binds {
     // THE ARROWS ARE IN apps.kdl, which is included after this file and binds
     // them to the same four actions. These were duplicates, not alternatives.
 
-    Mod+J     { focus-window-down; }
+    // Mod+J IS NOT HERE: apps.kdl cycles preset column widths, and that file is included
+    // after this one, so this stock bind never fired. Removed rather
+    // than left to be read as live - it was focus-window-down.
+    // --- Focus and move ----------------------------------------------------
     Mod+K     { focus-window-up; }
     Mod+L     { focus-column-right; }
 
@@ -524,15 +530,25 @@ binds {
     // Mod+Ctrl+J     { move-window-down-or-to-workspace-down; }
     // Mod+Ctrl+K     { move-window-up-or-to-workspace-up; }
 
+    // --- Ends of the row ---------------------------------------------------
     Mod+Home { focus-column-first; }
     Mod+End  { focus-column-last; }
     Mod+Ctrl+Home { move-column-to-first; }
     Mod+Ctrl+End  { move-column-to-last; }
 
-    Mod+Shift+Left  { focus-monitor-left; }
-    Mod+Shift+Down  { focus-monitor-down; }
-    Mod+Shift+Up    { focus-monitor-up; }
-    Mod+Shift+Right { focus-monitor-right; }
+    // Mod+Shift+Left IS NOT HERE: apps.kdl moves the column left, and that file is included
+    // after this one, so this stock bind never fired. Removed rather
+    // than left to be read as live - it was focus-monitor-left.
+    // Mod+Shift+Down IS NOT HERE: apps.kdl moves the window down, and that file is included
+    // after this one, so this stock bind never fired. Removed rather
+    // than left to be read as live - it was focus-monitor-down.
+    // Mod+Shift+Up IS NOT HERE: apps.kdl moves the window up, and that file is included
+    // after this one, so this stock bind never fired. Removed rather
+    // than left to be read as live - it was focus-monitor-up.
+    // Mod+Shift+Right IS NOT HERE: apps.kdl moves the column right, and that file is included
+    // after this one, so this stock bind never fired. Removed rather
+    // than left to be read as live - it was focus-monitor-right.
+    // --- Between monitors --------------------------------------------------
     Mod+Shift+H     { focus-monitor-left; }
     Mod+Shift+J     { focus-monitor-down; }
     Mod+Shift+K     { focus-monitor-up; }
@@ -557,6 +573,7 @@ binds {
 
     Mod+Page_Down      { focus-workspace-down; }
     Mod+Page_Up        { focus-workspace-up; }
+    // --- Workspaces --------------------------------------------------------
     Mod+U              { focus-workspace-down; }
     Mod+I              { focus-workspace-up; }
     Mod+Ctrl+Page_Down { move-column-to-workspace-down; }
@@ -570,6 +587,7 @@ binds {
 
     Mod+Shift+Page_Down { move-workspace-down; }
     Mod+Shift+Page_Up   { move-workspace-up; }
+    // --- Workspaces --------------------------------------------------------
     Mod+Shift+U         { move-workspace-down; }
     Mod+Shift+I         { move-workspace-up; }
 
@@ -584,6 +602,7 @@ binds {
     Mod+Ctrl+WheelScrollDown cooldown-ms=150 { move-column-to-workspace-down; }
     Mod+Ctrl+WheelScrollUp   cooldown-ms=150 { move-column-to-workspace-up; }
 
+    // --- Mouse wheel -------------------------------------------------------
     Mod+WheelScrollRight      { focus-column-right; }
     Mod+WheelScrollLeft       { focus-column-left; }
     Mod+Ctrl+WheelScrollRight { move-column-right; }
@@ -617,6 +636,7 @@ binds {
     // file is included after this one. Identical behaviour, so nothing changed
     // when these stopped being read - which is exactly why they sat here.
 
+    // --- Workspaces --------------------------------------------------------
     Mod+Ctrl+2 { move-column-to-workspace 2; }
     Mod+Ctrl+3 { move-column-to-workspace 3; }
     Mod+Ctrl+4 { move-column-to-workspace 4; }
@@ -638,11 +658,16 @@ binds {
     // consume-or-expel IS IN apps.kdl, same keys, same actions.
 
     // Consume one window from the right to the bottom of the focused column.
-    Mod+Comma  { consume-window-into-column; }
+    // Mod+Comma IS NOT HERE: binds.kdl opens the wallpaper picker, and that file is included
+    // after this one, so this stock bind never fired. Removed rather
+    // than left to be read as live - it was consume-window-into-column.
     // Expel the bottom window from the focused column to the right.
-    Mod+Period { expel-window-from-column; }
+    // Mod+Period IS NOT HERE: binds.kdl opens the theme picker, and that file is included
+    // after this one, so this stock bind never fired. Removed rather
+    // than left to be read as live - it was expel-window-from-column.
 
     // Cycle through widths set in preset-column-widths.
+    // --- Column and window size --------------------------------------------
     Mod+R { switch-preset-column-width; }
     // Cycling through the presets in reverse order is also possible.
     Mod+Shift+R { switch-preset-column-width-back; }
@@ -650,17 +675,22 @@ binds {
     Mod+Ctrl+Shift+R { switch-preset-window-height; }
     Mod+Ctrl+R { reset-window-height; }
 
-    Mod+F { maximize-column; }
+    // Mod+F IS NOT HERE: apps.kdl fullscreens; Mod+Alt+F maximizes the column, and that file is included
+    // after this one, so this stock bind never fired. Removed rather
+    // than left to be read as live - it was maximize-column.
     Mod+Shift+F { fullscreen-window; }
 
     // While maximize-column leaves gaps and borders around the window,
     // maximize-window-to-edges doesn't: the window expands to the edges of the screen.
     // This bind corresponds to normal window maximizing,
     // e.g. by double-clicking on the titlebar.
-    Mod+M { maximize-window-to-edges; }
+    // Mod+M IS NOT HERE: binds.kdl opens the power menu, and that file is included
+    // after this one, so this stock bind never fired. Removed rather
+    // than left to be read as live - it was maximize-window-to-edges.
 
     // Expand the focused column to space not taken up by other fully visible columns.
     // Makes the column "fill the rest of the space".
+    // --- Column and window size --------------------------------------------
     Mod+Ctrl+F { expand-column-to-available-width; }
 
     Mod+C { center-column; }
@@ -676,6 +706,7 @@ binds {
     // * adjust width as a percentage of screen width: "-10%" or "+10%"
     // Pixel sizes use logical, or scaled, pixels. I.e. on an output with scale 2.0,
     // set-column-width "100" will make the column occupy 200 physical screen pixels.
+    // --- Column and window size --------------------------------------------
     Mod+Minus { set-column-width "-10%"; }
     Mod+Equal { set-column-width "+10%"; }
 
@@ -701,6 +732,7 @@ binds {
     // vertical tabs rather than stacked. Moved off Mod+W when that became
     // close; G for "group", which is what a tabbed column is, and the nearest
     // free key with a mnemonic.
+    // --- Tabbed columns ----------------------------------------------------
     Mod+G { toggle-column-tabbed-display; }
 
     // Actions to switch layouts.
@@ -723,6 +755,7 @@ binds {
     // single-window capture, saved to screenshot-path above rather than put on
     // the clipboard. Worth knowing they land somewhere different from
     // Mod+Ctrl+P, which writes ~/Pictures/screenshot-<date>.png.
+    // --- Screenshots -------------------------------------------------------
     Ctrl+Print { screenshot-screen; }
     Alt+Print { screenshot-window; }
 
@@ -737,6 +770,7 @@ binds {
     Mod+Escape allow-inhibiting=false { toggle-keyboard-shortcuts-inhibit; }
 
     // The quit action will show a confirmation dialog to avoid accidental exits.
+    // --- Session -----------------------------------------------------------
     Mod+Shift+E { quit; }
     Ctrl+Alt+Delete { quit; }
 
@@ -751,6 +785,7 @@ binds {
     //
     // Nothing else here powers the displays off by hand. idle-action.sh blanks
     // on a timer, which is a different thing from deciding to blank now.
+    // --- Session -----------------------------------------------------------
     Mod+Shift+B hotkey-overlay-title="Blank the displays" { power-off-monitors; }
 }
 
