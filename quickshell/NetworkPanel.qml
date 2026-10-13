@@ -506,7 +506,24 @@ DropPanel {
                     const g = getContext("2d")
                     g.reset()
                     const pts = graph.pts
-                    if (pts.length < 2) return
+
+                    // A BASELINE WHILE THERE IS NOTHING TO DRAW, rather than an
+                    // empty rectangle. Samples are collected only while the
+                    // panel is open, so the first two seconds of every open had
+                    // 46px of blank inside a 92px block - a hole, which reads as
+                    // a panel that failed rather than as a graph still filling.
+                    //
+                    // Drawn rather than collapsed, because collapsing the block
+                    // would resize the card a second after it opened.
+                    if (pts.length < 2) {
+                        g.strokeStyle = Qt.alpha(Theme.dim, 0.35)
+                        g.lineWidth = 1
+                        g.beginPath()
+                        g.moveTo(0, graph.height - 1)
+                        g.lineTo(graph.width, graph.height - 1)
+                        g.stroke()
+                        return
+                    }
 
                     // A FLOOR ON THE SCALE, or an idle link draws its own noise as
                     // mountains: a few hundred bytes of background chatter fills

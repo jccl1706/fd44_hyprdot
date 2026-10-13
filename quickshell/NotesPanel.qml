@@ -130,11 +130,27 @@ DropPanel {
             }
         }
 
-        Rectangle { width: parent.width; height: 1; color: Theme.outline }
+        // THE FOOTER GOES WHEN THERE IS NOTHING TO COUNT, and the rule under it
+        // goes with it. Empty, this drew a hairline across the card with 38px of
+        // blank beneath - a line under nothing, which reads as a panel that
+        // failed to finish drawing rather than as an empty scratchpad.
+        //
+        // The word count already says "" when the pad is empty and the Clear
+        // control already hides itself, so the strip was reserved for two things
+        // that had both opted out.
+        //
+        // The card shrinks by 39px on the first character typed. That is a jump,
+        // but it is the right way round: the panel grows a footer at the moment
+        // it has something to put in it.
+        Rectangle {
+            width: parent.width; height: 1; color: Theme.outline
+            visible: editor.text !== ""
+        }
 
         Item {
             width: parent.width
-            height: 38
+            visible: editor.text !== ""
+            height: visible ? 38 : 0
 
             Text {
                 anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }

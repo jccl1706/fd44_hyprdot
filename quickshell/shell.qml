@@ -568,6 +568,18 @@ ShellRoot {
                 p.toggle(w > 0 ? w - 120 : 0)
             })
         }
+        // Same placement as toggle above, for the same reason: opened from a
+        // script the card should land where opening it by click lands.
+        function open(): void {
+            shell.eachClaudePanel(p => {
+                if (p.revealed) return
+                shell.closeBarPanels(p.modelData, p)
+                const w = p.barWindow ? p.barWindow.width : 0
+                p.toggle(w > 0 ? w - 120 : 0)
+            })
+        }
+        function close(): void { shell.eachClaudePanel(p => { if (p.revealed) p.close() }) }
+
         function scan(): void { ClaudeUsage.refresh() }
         function status(): string {
             if (!ClaudeUsage.ready) return "not scanned yet"
@@ -768,6 +780,12 @@ ShellRoot {
         target: "battery"
 
         function toggle(): void { shell.toggleFocused(batteryPanelVariants.instances) }
+        // open AND close AS WELL AS toggle, because every other panel has all
+        // three and a script cannot tell which it got: `qs ipc call battery
+        // open` printed "Function not found." and exited 0, which is this
+        // shell's most reliable way to look like it worked.
+        function open(): void   { shell.openFocused(batteryPanelVariants.instances) }
+        function close(): void  { shell.closeAll(batteryPanelVariants.instances)    }
         function status(): string {
             return Battery.ready
                 ? Battery.percent + "% " + Battery.status
