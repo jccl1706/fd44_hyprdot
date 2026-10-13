@@ -46,7 +46,8 @@ docs="$(xdg-user-dir DOCUMENTS 2>/dev/null || echo "$HOME/Documents")"
 # for the reason spelled out in `watch` below. 40 full-screen captures is about
 # 80MB, which is a cache and not a filing cabinet - anything worth keeping is a
 # save away, and that is what the save button is for.
-IMAGE_ITEMS="${FD44_CLIP_IMAGES:-40}"
+IMAGE_ITEMS_DEFAULT=40
+IMAGE_ITEMS="${FD44_CLIP_IMAGES:-$IMAGE_ITEMS_DEFAULT}"
 
 # This script's own path, resolved through any symlink, so the image watcher can
 # call back into it. ~/.local/bin/clipboard is a symlink to the checkout.
@@ -267,10 +268,17 @@ status)
         live=$(tr '\0' '\n' < "/proc/$wpid/environ" 2>/dev/null \
                | sed -n 's/^FD44_CLIP_IMAGES=//p')
     fi
-    if [[ -n $live && $live != "$IMAGE_ITEMS" ]]; then
-        printf '  %-12s %s\n' "image cap" "$live in the running watcher, $IMAGE_ITEMS here - restart the watcher"
+    # AN ABSENT OVERRIDE MEANS THE WATCHER USES THE DEFAULT, not whatever this
+    # shell happens to have. The first version of this compared against $live
+    # while it was empty and reported the caller's value as though the watcher
+    # were using it - `FD44_CLIP_IMAGES=5 clipboard.sh status` said "5" about a
+    # watcher pruning at 40, which is precisely the confusion it exists to end.
+    live="${live:-$IMAGE_ITEMS_DEFAULT}"
+    if [[ -n ${wpid:-} && $live != "$IMAGE_ITEMS" ]]; then
+        printf '  %-12s %s\n' "image cap" \
+            "$live in the running watcher, $IMAGE_ITEMS here - restart it to apply"
     else
-        printf '  %-12s %s\n' "image cap" "${live:-$IMAGE_ITEMS} newest images kept"
+        printf '  %-12s %s\n' "image cap" "$live newest images kept"
     fi
     db=~/.cache/cliphist/db
     printf '  %-12s %s\n' store "$([ -f "$db" ] && du -h "$db" | cut -f1 || echo empty)"
