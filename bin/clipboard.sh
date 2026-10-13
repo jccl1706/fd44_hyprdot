@@ -251,6 +251,27 @@ status)
     n=$(ps -eo comm --no-headers | grep -cx wl-paste)
     printf '  %-12s %s\n' watching "$([ "$n" -ge 2 ] && echo yes || echo "no ($n of 2 watchers)")"
     printf '  %-12s %s\n' entries "$(cliphist list 2>/dev/null | wc -l)"
+    printf '  %-12s %s\n' kinds "$(cliphist list 2>/dev/null | grep -cF 'binary data') image, $(cliphist list 2>/dev/null | grep -vcF 'binary data') text"
+
+    # THE CAP THE WATCHER IS ACTUALLY USING, which is not necessarily the one
+    # this status run would use. IMAGE_ITEMS comes from the environment, and the
+    # watcher inherited whatever was exported in the shell that started it - so
+    # exporting FD44_CLIP_IMAGES for a single test leaves that value pruning
+    # your history for the rest of the session, invisibly.
+    #
+    # Read out of /proc rather than guessed, and the two are shown separately
+    # when they disagree so the discrepancy is the thing you see.
+    wpid=$(ps -eo pid,args --no-headers | awk '/wl-paste --type image/ {print $1; exit}')
+    live=""
+    if [[ -n ${wpid:-} && -r /proc/$wpid/environ ]]; then
+        live=$(tr '\0' '\n' < "/proc/$wpid/environ" 2>/dev/null \
+               | sed -n 's/^FD44_CLIP_IMAGES=//p')
+    fi
+    if [[ -n $live && $live != "$IMAGE_ITEMS" ]]; then
+        printf '  %-12s %s\n' "image cap" "$live in the running watcher, $IMAGE_ITEMS here - restart the watcher"
+    else
+        printf '  %-12s %s\n' "image cap" "${live:-$IMAGE_ITEMS} newest images kept"
+    fi
     db=~/.cache/cliphist/db
     printf '  %-12s %s\n' store "$([ -f "$db" ] && du -h "$db" | cut -f1 || echo empty)"
     printf '  %-12s %s\n' images "$([ -d "$CLIP_PICS" ] && ls "$CLIP_PICS" | wc -l || echo 0) in ${CLIP_PICS/#$HOME/\~}"
