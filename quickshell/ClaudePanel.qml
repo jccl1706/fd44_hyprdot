@@ -102,7 +102,9 @@ DropPanel {
                 Text {
                     font.family: Theme.font
                     text: ClaudeUsage.ready
-                          ? ClaudeUsage.blockMessages + " messages · resets in "
+                          ? ClaudeUsage.blockMessages
+                            + (ClaudeUsage.blockMessages === 1 ? " message" : " messages")
+                            + " · resets in "
                             + ClaudeUsage.remaining()
                           : "reading the transcripts"
                     color: Theme.dim
@@ -186,7 +188,12 @@ DropPanel {
                 Repeater {
                     model: [
                         { k: "Today",     v: ClaudeUsage.human(ClaudeUsage.todayBilled),
-                          d: ClaudeUsage.todayMessages + " messages" },
+                          // SINGULAR AT ONE, and one is not a rare case here:
+                          // it is what the panel says for the first message of
+                          // a block or a day, which is exactly when someone
+                          // opens it to check the count is moving.
+                          d: ClaudeUsage.todayMessages
+                             + (ClaudeUsage.todayMessages === 1 ? " message" : " messages") },
                         { k: "Last 7 days", v: ClaudeUsage.human(ClaudeUsage.weekBilled), d: "" },
                         { k: "Cache reads, this block",
                           v: ClaudeUsage.human(ClaudeUsage.blockCacheRead),

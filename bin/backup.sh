@@ -496,7 +496,11 @@ cmd_run() {
         # a disk that just took a backup costs nothing worth measuring.
         copy_headers "$where"
         cmd_readme >/dev/null
-        notify "Backup complete" "$(restic snapshots --tag fd44 --json 2>/dev/null | grep -c '"time"') snapshots on the disk"
+        # "1 snapshots on the disk" is what the first backup to a new disk says,
+        # and it is the one everybody reads most carefully - the run where they
+        # are checking the thing worked at all.
+        n=$(restic snapshots --tag fd44 --json 2>/dev/null | grep -c '"time"')
+        notify "Backup complete" "$n snapshot$( (( n == 1 )) || printf s ) on the disk"
     else
         notify "Backup failed" "see: journalctl --user -u backup.service" critical
         die "restic failed"
