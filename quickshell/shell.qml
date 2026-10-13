@@ -679,6 +679,22 @@ ShellRoot {
         function open(): void   { shell.openFocused(themePickerVariants.instances)   }
         function close(): void  { shell.closeAll(themePickerVariants.instances)      }
         function status(): string { return ThemeLibrary.current }
+
+        // `qs ipc call theme set nord`. bin/theme.sh has had `set` all along;
+        // the shell could open the picker and not use it, so a script had to
+        // reach past the shell to the script the shell calls.
+        //
+        // It goes through ThemeLibrary.choose() rather than spawning theme.sh
+        // directly, so a bad name is reported the same way the picker reports
+        // it instead of failing somewhere nothing is watching.
+        function set(name: string): void { ThemeLibrary.choose(name) }
+        // .name, NOT THE OBJECTS. ThemeLibrary.themes is theme.sh's `json` -
+        // one object per theme carrying its palette - so joining the array gave
+        // "[object Object] [object Object] ...". Caught by running the thing
+        // rather than by reading it back.
+        function list(): string {
+            return (ThemeLibrary.themes || []).map(t => t.name).join(" ")
+        }
     }
 
     IpcHandler {

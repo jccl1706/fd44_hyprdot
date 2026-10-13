@@ -73,7 +73,29 @@ Singleton {
         }
     }
 
-    Process { id: setter }
+    // IT SAYS WHEN IT FAILS, which it did not. ThemeToggle, WallpaperState and
+    // Monitors all warn when their script exits non-zero; this one - the picker
+    // that actually changes the theme - ignored the result entirely, so a
+    // theme.sh that fell over left the old colours on screen and nothing
+    // anywhere to say why.
+    //
+    // stderr rather than just the code, because theme.sh is specific when it
+    // refuses ("no such theme: x (have: ...)") and a bare exit number throws
+    // that away.
+    Process {
+        id: setter
+        stderr: StdioCollector { id: setterErr }
+        onExited: (code, status) => {
+            if (code === 0) return
+            const why = String(setterErr.text).trim().replace(/^theme:\s*/, "")
+            console.warn("theme.sh set failed with", code, why)
+            notifier.command = ["notify-send", "-a", "Theme", "-u", "critical",
+                                "Could not change the theme", why || ("exit " + code)]
+            notifier.running = true
+        }
+    }
+
+    Process { id: notifier }
 
     Component.onCompleted: library.rescan()
 }
