@@ -875,13 +875,26 @@ ShellRoot {
     IpcHandler {
         target: "calendar"
 
+        // THEY CLOSE THE OTHER PANELS, WHICH THEY DID NOT. The bar's own clock
+        // click goes through onClockRequested and calls closeBarPanels() before
+        // toggling; these two called openUnderClock() straight, so opening the
+        // calendar over an open audio panel left BOTH on screen - the only
+        // panel in the shell that did not replace what was there.
+        //
+        // Measured by listing niri's layer surfaces after opening audio and
+        // then each other panel in turn: every other one came back with a
+        // single quickshell-<panel> layer, the calendar with two.
         function toggle(): void {
             const one = shell.focusedOne(calendarVariants.instances)
-            if (one) one.toggleUnderClock()
+            if (!one) return
+            if (!one.revealed) shell.closeBarPanels(one.modelData, one)
+            one.toggleUnderClock()
         }
         function open(): void {
             const one = shell.focusedOne(calendarVariants.instances)
-            if (one) one.openUnderClock()
+            if (!one) return
+            shell.closeBarPanels(one.modelData, one)
+            one.openUnderClock()
         }
         function close(): void  { shell.closeAll(calendarVariants.instances) }
 
