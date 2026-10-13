@@ -164,6 +164,30 @@ Singleton {
         return out
     }
 
+    // NAME -> FULL PATH, for anything that has a name rather than a preview url:
+    // the ipc, a script, a terminal. Matched on the stem the way isCurrent()
+    // does, so "kanagawa" finds kanagawa.webp without anyone typing the
+    // extension or the directory.
+    function pathFor(nameOrPath): string {
+        if (!library.repoRoot) return ""
+        const want = library.stemOf(nameOrPath)
+        if (want === "") return ""
+        for (let i = 0; i < library.files.count; i++) {
+            const n = library.files.get(i, "fileName")
+            if (library.stemOf(n) === want)
+                return library.repoRoot + "/wallpapers/" + n
+        }
+        return ""
+    }
+
+    // Every wallpaper's stem, for listing from a script.
+    function allNames(): var {
+        const out = []
+        for (let i = 0; i < library.files.count; i++)
+            out.push(library.stemOf(library.files.get(i, "fileName")))
+        return out
+    }
+
     // Show it now and remember it.
     function choose(previewUrl): void {
         const full = library.originalFor(previewUrl)

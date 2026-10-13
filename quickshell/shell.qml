@@ -34,6 +34,11 @@
 // (look for namespace "quickshell")
 
 import Quickshell
+// For the audio and network `status` ipc below. The panels import these
+// themselves; shell.qml did not, and a status function that reads them
+// failed with "Pipewire is not defined" rather than returning anything.
+import Quickshell.Services.Pipewire
+import Quickshell.Networking
 import Quickshell.Io
 import Quickshell.Hyprland
 import QtQuick
@@ -469,6 +474,18 @@ ShellRoot {
         target: "audio"
 
         function toggle(): void { shell.toggleFocused(audioVariants.instances) }
+
+        // PARITY WITH bluetooth AND battery, which have had `status` all along.
+        // A script could ask this machine about its adapter and its charge and
+        // not about its sound or its network - the two things most likely to be
+        // the reason something is not working.
+        function status(): string {
+            const sink = Pipewire.defaultAudioSink
+            if (!sink) return "no sink"
+            const v = Math.round((sink.audio?.volume ?? 0) * 100)
+            return (sink.audio?.muted ? "muted" : v + "%")
+                 + " \u00b7 " + (sink.description || sink.name || "unknown")
+        }
         function open(): void   { shell.openFocused(audioVariants.instances)   }
         function close(): void  { shell.closeAll(audioVariants.instances)      }
     }
@@ -639,6 +656,26 @@ ShellRoot {
         target: "network"
 
         function toggle(): void { shell.toggleFocused(networkVariants.instances) }
+
+        function status(): string {
+            const devs = Networking.devices?.values ?? []
+            const wired = devs.find(d => d.type === DeviceType.Wired && d.connected)
+            if (wired) return "wired, connected"
+            const wifi = devs.find(d => d.type === DeviceType.Wifi)
+            if (!wifi) return "no network device"
+            if (!Networking.wifiEnabled) return "wi-fi off"
+            if (!wifi.connected) return "wi-fi on, not connected"
+            // .networks.values.find(connected), AND .name NOT .ssid - which is
+            // what NetworkButton and NetworkList both do. Guessing at
+            // activeAccessPoint.ssid returned undefined and the status read
+            // "wi-fi connected" with the network's name missing from it.
+            const n = wifi.networks?.values?.find(x => x.connected) ?? null
+            return "wi-fi " + (n?.name || "connected")
+                 // * 100: signalStrength is a 0..1 fraction, which printed as
+                 // "0.57%". NetworkList.qml:135 does the same multiply.
+                 + (n?.signalStrength !== undefined
+                    ? " \u00b7 " + Math.round(n.signalStrength * 100) + "%" : "")
+        }
         function open(): void   { shell.openFocused(networkVariants.instances)   }
         function close(): void  { shell.closeAll(networkVariants.instances)      }
     }
@@ -711,6 +748,19 @@ ShellRoot {
 
         // Apply whatever is currently centred - the same thing Return does.
         function apply(): void  { shell.eachRevealed(wallpaperVariants.instances, w => w.applySelected()) }
+
+        // CHOOSE ONE BY NAME, NOT ONLY BY STEPPING PAST IT. next/prev/apply need
+        // the picker open and walk the strip one at a time, which is no way for
+        // a script to reach a particular wallpaper - and bin/wallpaper.sh has
+        // taken a path since the beginning. The same gap the theme target had.
+        function set(name: string): void {
+            const p = WallpaperLibrary.pathFor(name)
+            if (p === "") { console.warn("wallpaper: no match for", name); return }
+            WallpaperState.apply(p, WallpaperLibrary.setterScript)
+        }
+
+        function current(): string { return WallpaperState.path }
+        function list(): string { return WallpaperLibrary.allNames().join(" ") }
     }
 
     // Focus mode - hide the bar down to its exit button, or bring it back:
