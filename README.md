@@ -314,9 +314,14 @@ bin/theme.sh restore                 # generate the palette files
 
 ## Keybindings
 
-**[The full cheatsheet is in `docs/keybindings.md`](docs/keybindings.md)** — every
-bind, grouped, with the reasoning. The same thing styled, for reading on the
-machine and for printing, is [`docs/keybindings.html`](docs/keybindings.html)
+**`SUPER` `SHIFT` `/` opens the complete list on the machine**, read straight
+from the config files and filtered as you type. It is generated, so it cannot
+disagree with what the keys actually do.
+
+[`docs/keybindings.md`](docs/keybindings.md) is the written version — grouped,
+with the reasoning, and the place to read it on GitHub. Being written rather
+than generated, it covers the keys worth explaining rather than all of them.
+The same styled for printing is [`docs/keybindings.html`](docs/keybindings.html)
 (`xdg-open docs/keybindings.html`). The ones worth knowing without looking:
 
 | Key | Action |

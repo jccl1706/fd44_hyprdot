@@ -1,16 +1,32 @@
 # Keybindings
 
-Every key this desktop binds, in one page. `SUPER` is the Windows key; the
-source of truth is [`hypr/binds.lua`](../hypr/binds.lua), and `hyprctl binds`
-lists what the running compositor actually has registered.
+Every key this desktop binds, in one page. `SUPER` is the Windows key.
+
+The source of truth depends on which compositor is running. Under **niri** it is
+[`niri/binds.kdl`](../niri/binds.kdl), [`niri/apps.kdl`](../niri/apps.kdl) and
+the `binds` block in [`niri/config.kdl`](../niri/config.kdl); under **Hyprland**
+it is [`hypr/binds.lua`](../hypr/binds.lua). `niri msg action` and `hyprctl binds`
+respectively say what the running compositor has registered.
+
+The complete list, read from those files and searchable, is `SUPER` `SHIFT` `/`
+on the machine itself — it is generated rather than written, so it cannot drift
+from the config the way this page can.
 
 There is a styled twin, [`keybindings.html`](keybindings.html), for reading on
 the machine itself — `xdg-open docs/keybindings.html`, and `Ctrl+P` prints it on
 two sheets. GitHub serves HTML as source, so this is the page to read here.
 
-> **Nothing here is bound twice by accident.** Hyprland does not shadow an
-> existing bind when you add another on the same key — it registers both and
-> fires both. If a key seems to do two things, that is what happened.
+> **The two compositors disagree about double binding, and it matters.**
+>
+> **Hyprland** does not shadow: bind a key twice and it registers both and fires
+> both. If a key seems to do two things there, that is what happened.
+>
+> **niri** shadows: the last definition wins and the earlier one never fires.
+> Because `config.kdl` includes `binds.kdl` and `apps.kdl` at its end, anything
+> those two files bind overrides `config.kdl`'s own block silently — no warning,
+> and `niri validate` calls the config valid. Ten binds were found dead this way
+> and removed; `SUPER` `F` was `maximize-column` in one file and
+> `fullscreen-window` in another, and only the second ever ran.
 
 ---
 
