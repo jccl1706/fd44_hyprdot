@@ -422,5 +422,57 @@ if (( status != 124 )); then
     exit 1
 fi
 
+# --- every singleton member a file names actually exists there ---------------
+#
+# LOADING IS NOT RESOLVING. QML looks a function up when it is CALLED, so a
+# singleton that has lost one still parses, still loads, and every panel still
+# draws - the failure is a TypeError in a log at the moment someone uses it.
+#
+# Settings.setValue() was deleted by a careless span removal and nothing noticed
+# for four commits: the shell came up each time and this script said "loads
+# clean". It is the one write path for the whole settings panel.
+#
+# So: read every Foo.bar in the QML, with comments stripped so documentation
+# mentioning another file does not count, and check Foo declares bar.
+singleton_members() {
+    python3 -I - "$config" <<'PY'
+import re, sys, pathlib
+
+qml = {p.stem: p.read_text() for p in pathlib.Path(sys.argv[1]).glob("*.qml")}
+defs, props = {}, {}
+for n, s in qml.items():
+    defs[n] = set(re.findall(r"^\s*function\s+(\w+)\s*\(", s, re.M))
+    props[n] = set(re.findall(r"^\s*(?:readonly\s+)?property\s+[\w<>]+\s+(\w+)", s, re.M))
+    props[n] |= set(re.findall(r"^\s*property\s+alias\s+(\w+)", s, re.M))
+    props[n] |= set(re.findall(r"^\s*signal\s+(\w+)", s, re.M))
+
+# Members of Qt's own types, reached through a name that happens to start with a
+# capital. Not ours to verify.
+SKIP = {"qml","values","get","count","join","map","filter","find","push","slice",
+        "indexOf","toFixed","replace","split","restart","start","stop","length",
+        "forceActiveFocus","open","close","item","text","trim","pop","some","every"}
+
+bad = []
+for caller, s in qml.items():
+    body = re.sub(r"//[^\n]*", "", s)
+    body = re.sub(r"/\*.*?\*/", "", body, flags=re.S)
+    for m in re.finditer(r"\b([A-Z]\w+)\.(\w+)\b", body):
+        obj, mem = m.group(1), m.group(2)
+        if obj not in qml or mem in SKIP: continue
+        if mem in defs[obj] or mem in props[obj]: continue
+        bad.append(f"{caller}.qml  ->  {obj}.{mem}  is not declared in {obj}.qml")
+for b in sorted(set(bad)):
+    print(b)
+PY
+}
+
+unresolved="$(singleton_members)"
+if [[ -n $unresolved ]]; then
+    red "qs-check: it loads, but names things that do not exist"
+    printf '%s\n' "$unresolved" | head -20 | sed 's/^/  /'
+    printf '  %s\n' "QML resolves these at call time, so the shell starts and fails later."
+    exit 1
+fi
+
 show_suppressed
-green "qs-check: $config loads clean"
+green "qs-check: $config loads clean, and every singleton member resolves"
