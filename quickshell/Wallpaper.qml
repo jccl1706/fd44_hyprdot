@@ -18,12 +18,12 @@
 // the decode matters: fading in an image that is still loading would fade in
 // nothing and then pop.
 //
-// IT ALSO SETTLES: the incoming wallpaper starts four percent oversized and
+// IT ALSO SETTLES: the incoming wallpaper starts eight percent oversized and
 // eases down to its true size while it fades, which reads as the picture
-// coming to rest rather than simply appearing. Four percent is deliberately
-// almost too small to name - at eight the movement is a visible slide and
-// draws the eye to a change nobody asked to be shown, which is the wrong
-// manners for something that happens by itself every hour.
+// coming to rest rather than simply appearing. It began at four, which was
+// honest about not wanting to be noticed and turned out to be so quiet that
+// the motion barely registered; eight is a movement you can actually see, and
+// seeing it is the point.
 //
 // SCALING UP AND NOT DOWN, so the image covers the screen for every frame of
 // the animation. Starting under 1.0 would show the desktop behind the
@@ -62,8 +62,8 @@ PanelWindow {
     readonly property int fadeDuration: 1200
 
     // Where the incoming wallpaper starts. See the note above on why it is
-    // small, and why it is above 1.0 rather than below.
-    readonly property real zoomFrom: 1.04
+    // above 1.0 rather than below.
+    readonly property real zoomFrom: 1.08
 
     // Decoded at the monitor's real pixel size, both dimensions: with both
     // set and PreserveAspectCrop, Qt scales the image to COVER the screen at
