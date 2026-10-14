@@ -65,7 +65,7 @@ done
 # or scrolled past in a terminal.
 die()  { printf '\033[1;31mgaming-setup:\033[0m %s\n' "$*" >&2; exit 1; }
 log()  { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
-warn() { printf '\033[1;33mwarn:\033[0m %s\n' "$*" >&2; }
+warn() { printf '\033[1;33m!!\033[0m  %s\n' "$*" >&2; }
 
 
 # -------------------------------------------------------------------------

@@ -33,7 +33,9 @@ set -euo pipefail
 green=$'\033[1;32m'; red=$'\033[1;31m'; bold=$'\033[1m'; reset=$'\033[0m'
 note() { printf '%s==>%s %s\n' "$green" "$reset" "$*"; }
 warn() { printf '%s!!%s  %s\n' "$bold" "$reset" "$*" >&2; }
-die()  { printf '%sfonts:%s %s\n' "$red" "$reset" "$*" >&2; exit 1; }
+# font-setup, not "fonts" - the prefix names the file you would go and open,
+# which is the whole value of the convention the rest of bin/ follows.
+die()  { printf '%sfont-setup:%s %s\n' "$red" "$reset" "$*" >&2; exit 1; }
 
 (( EUID == 0 )) || die "run this with sudo - the font package is a system install"
 U="${SUDO_USER:-jc}"

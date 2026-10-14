@@ -59,7 +59,11 @@ ITEMS=(
 
 c_g=$'\033[1;32m'; c_y=$'\033[1;33m'; c_r=$'\033[1;31m'; c_d=$'\033[2m'; c_0=$'\033[0m'
 say()  { printf '%s==>%s %s\n' "$c_g" "$c_0" "$*"; }
-warn() { printf '%s==>%s %s\n' "$c_y" "$c_0" "$*" >&2; }
+# !! NOT ==>, WHICH IS THIS SCRIPT'S OWN SUCCESS MARKER. A warning printed with
+# the same prefix as every completed step reads as one, and the colour is no help
+# in a journal or a piped log where there is none. !! is what backup, font-setup,
+# icon-bridge and the rest use.
+warn() { printf '%s!!%s  %s\n' "$c_y" "$c_0" "$*" >&2; }
 die()  { printf '%sgtk-theme:%s %s\n' "$c_r" "$c_0" "$*" >&2; exit 1; }
 
 mode=install force=false

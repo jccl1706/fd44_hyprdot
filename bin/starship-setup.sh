@@ -42,7 +42,7 @@ SNIPPET="$HOME/.bashrc.d/starship.sh"
 SOURCE_CONFIG="$repo/starship/starship.toml"
 
 die()  { printf 'starship-setup: %s\n' "$*" >&2; exit 1; }
-warn() { printf 'starship-setup: WARNING - %s\n' "$*" >&2; }
+warn() { printf '\033[1;33m!!\033[0m  %s\n' "$*" >&2; }
 log()  { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
 
 (( EUID != 0 )) || die "run this as yourself, not with sudo - it only touches your home directory"
