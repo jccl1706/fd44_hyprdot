@@ -764,6 +764,12 @@ ShellRoot {
         function next(): void   { shell.eachRevealed(wallpaperVariants.instances, w => w.move(1))  }
         function prev(): void   { shell.eachRevealed(wallpaperVariants.instances, w => w.move(-1)) }
 
+        // A DIFFERENT WALLPAPER WITHOUT OPENING ANYTHING. next/prev step the
+        // picker's strip and need it on screen; this is the one Mod+Shift+W
+        // presses, and it goes through bin/daylight.py so that the night rule
+        // and the interval are obeyed rather than worked around.
+        function random(): void { WallpaperLibrary.shuffle() }
+
         // Apply whatever is currently centred - the same thing Return does.
         function apply(): void  { shell.eachRevealed(wallpaperVariants.instances, w => w.applySelected()) }
 

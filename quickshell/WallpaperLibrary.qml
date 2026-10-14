@@ -44,6 +44,30 @@ Singleton {
 
     readonly property string setterScript: repoRoot ? repoRoot + "/bin/wallpaper.sh" : ""
 
+    // --- a different wallpaper, now ------------------------------------------
+    //
+    // ROTATING IS NOT THE SAME AS PICKING ONE AT RANDOM HERE, which is why this
+    // runs the script rather than choosing a file itself. bin/daylight.py knows
+    // that after sunset the choice comes from the darker half of the collection,
+    // and it restarts the hour so the next automatic change is a full interval
+    // away rather than arriving moments after this one. Both of those would have
+    // to be reimplemented, and then kept in step, to do it here.
+    readonly property string rotatorScript: repoRoot ? repoRoot + "/bin/daylight.py" : ""
+
+    function shuffle(): void {
+        if (!rotatorScript) { console.warn("wallpaper: no repo root, cannot shuffle"); return }
+        if (shuffler.running) return
+        shuffler.running = true
+    }
+
+    Process {
+        id: shuffler
+        command: library.rotatorScript ? [library.rotatorScript, "--now"] : []
+        stderr: StdioCollector {
+            onStreamFinished: if (text.trim()) console.warn("wallpaper:", text.trim())
+        }
+    }
+
     // THE VIEWS READ PREVIEWS, NOT WALLPAPERS.
     //
     // The originals are 2560px wide and the set is ~38 megapixels - enough

@@ -39,6 +39,7 @@ binds {
     Mod+Space       hotkey-overlay-title="Launcher" { spawn "qs" "ipc" "call" "launcher" "toggle"; }
     Mod+Comma       hotkey-overlay-title="Wallpaper picker" { spawn "qs" "ipc" "call" "wallpaper" "toggle"; }
     Mod+Period      hotkey-overlay-title="Theme picker" { spawn "qs" "ipc" "call" "theme" "toggle"; }
+    Mod+Shift+W     hotkey-overlay-title="Shuffle the wallpaper" { spawn "qs" "ipc" "call" "wallpaper" "random"; }
     Mod+Shift+Comma hotkey-overlay-title="Settings" { spawn "qs" "ipc" "call" "settings" "toggle"; }
     // C for clipboard. Mod+V would be the obvious key and is niri's
     // toggle-window-floating, which this configuration keeps.
