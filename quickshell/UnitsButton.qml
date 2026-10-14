@@ -33,17 +33,21 @@ Item {
     readonly property bool shown: Units.failing
 
     visible: root.shown
-    // + 8 TO MATCH THE HOVER PILL BEHIND IT. The highlight below is
-    // content.implicitWidth + 8 - four pixels of breathing room each side -
-    // while this said content.implicitWidth, so the plugin was eight pixels
-    // narrower than the thing it draws. BarZone clips, so the highlight was
-    // cut off square at both ends: most visible on the plugin nearest the end
-    // of the centre pill, where the chop lands against the rounded edge.
+    // + 10 FOR A HIGHLIGHT THAT IS + 8. The hover pill below is
+    // content.implicitWidth + 8 and this used to be content.implicitWidth, so
+    // the plugin was narrower than the thing it draws and BarZone's clip cut
+    // the overhang off square at both ends.
     //
-    // The round buttons do not have this: a 22px circle inside a 22px button
-    // fits by construction. Only the four that size themselves to their text -
-    // backup, thermal, units and updates - could get it wrong.
-    implicitWidth: root.shown ? content.implicitWidth + 8 : 0
+    // MATCHING IT EXACTLY WAS NOT ENOUGH, and the reason is the display: this
+    // panel runs at scale 1.6, so a logical edge sitting precisely on the clip
+    // boundary lands between two physical pixels and the rounded cap loses its
+    // last column. The right-hand cap came out flat while the left stayed
+    // round, which is what "not rounded on the right side" looks like.
+    //
+    // One logical pixel of slack each side keeps the curve off the boundary at
+    // any scale. The round buttons never had this: a 22px circle inside a 22px
+    // button is clipped at a straight edge where a lost column does not show.
+    implicitWidth: root.shown ? content.implicitWidth + 10 : 0
     implicitHeight: 22
 
     readonly property string alertGlyph: "\u{F0026}"   // nf-md-alert
