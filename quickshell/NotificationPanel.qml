@@ -31,9 +31,12 @@ DropPanel {
 
         // --- do not disturb ------------------------------------------------
 
+        // 44 LIKE THE REST. This was 48, the only panel header at that height,
+        // and the switch it carries fits in 44 - BluetoothPanel has had a switch
+        // in a 44 header all along.
         Item {
             width: parent.width
-            height: 48
+            height: 44
 
             Text {
                 // 16 LIKE EVERY OTHER PANEL HEADER. This one was 14, which is
