@@ -433,7 +433,7 @@ if [ "$made" -gt 0 ] || [ "$fixed" -gt 0 ]; then
 
   And the rest of a fresh machine, each opt-in and each explaining itself:
     bin/backup.sh setup      the copy that is not on this disk
-    systemctl --user enable --now daylight.timer   wallpaper that follows the sun
+    systemctl --user enable --now daylight.timer   a random wallpaper through the day
     bin/icon-bridge.sh       so quickshell can see the icon theme at all
     bin/starship-setup.sh    the two-line prompt, fetched from upstream
                              (starship is not a Fedora package)

@@ -1,11 +1,11 @@
 [Unit]
-# Sets the wallpaper, and the palette with it, for the time of day - see
-# bin/daylight.py for where the slots are and daylight/slots.conf for what
-# goes in them.
+# Picks a random wallpaper every interval_minutes, from the darker half of the
+# collection once the sun is down, and switches the palette if any slot names
+# one - see bin/daylight.py for how, and daylight/slots.conf for the settings.
 #
 # A USER UNIT: it writes ~/.local/state/wallpaper, which is this user's
 # desktop, and runs bin/theme.sh, which writes this user's configuration.
-Description=Follow the sun: wallpaper and palette
+Description=A random wallpaper through the day, and the palette by the sun
 ConditionPathExists=%h/.config/fd44
 
 [Service]

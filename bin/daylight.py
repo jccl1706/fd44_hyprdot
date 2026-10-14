@@ -1,15 +1,30 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Follow the sun: wallpaper, and the palette with it.
+"""A different wallpaper through the day, and the palette by the sun.
 
-    bin/daylight.py            apply whatever the hour calls for
+    bin/daylight.py            change the wallpaper if one is due
     bin/daylight.py --status   what it thinks, and when it changes next
     bin/daylight.py --dry-run  say what it would do
 
-FOUR SLOTS, ANCHORED TO SUNRISE AND SUNSET rather than to the clock: morning
-around first light, day, evening as it goes, night. Fixed hours would be two
-hours wrong between June and December, which is the whole difficulty this is
-meant to answer.
+THE WALLPAPER IS RANDOM, ON A CLOCK. One is picked at random every
+interval_minutes (an hour by default), so the desktop moves through the whole
+collection instead of showing the same four pictures it always did.
+
+AT NIGHT IT PICKS FROM THE DARKER HALF ONLY. Unconstrained random puts a
+249-luminance picture on screen at two in the morning, and a wallpaper that is
+right at noon glares in a dark room - which is the fault the four fixed slots
+were measured to fix, and not one worth reintroducing for the sake of being
+random. Day picks from all 63; night picks from the darker half by measured
+luminance. "Night" is the sun's, not the clock's.
+
+MEASURED ONCE AND CACHED. dwebp decodes each wallpaper to 64x36 and the average
+luminance is kept in the cache, keyed by size and mtime, so the measuring pass
+happens the first time and never again until a file changes. With no dwebp the
+night restriction is skipped rather than guessed at, and it says so.
+
+THE SLOTS REMAIN, FOR THE PALETTE ONLY: morning around first light, day,
+evening as it goes, night. Fixed hours would be two hours wrong between June and
+December, which is the whole difficulty this is meant to answer.
 
   morning   sunrise - 30m  ->  sunrise + 2h
   day       sunrise + 2h   ->  sunset  - 90m
@@ -37,6 +52,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import random
 import os
 import re
 import subprocess
@@ -167,6 +183,124 @@ def current_theme() -> str:
 
 # --- what time it is -----------------------------------------------------
 
+WALLPAPERS = REPO / "wallpapers"
+LUM_CACHE = (Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+             / "fd44-hyprdot" / "wallpaper-luminance")
+
+
+def wallpaper_files() -> list[Path]:
+    return sorted(WALLPAPERS.glob("*.webp"))
+
+
+def measure(path: Path) -> float | None:
+    """Average luminance 0-255, or None if it cannot be read.
+
+    64x36 IS ENOUGH AND 4K IS NOT FREE. What is wanted is one number for the
+    whole picture, and dwebp will scale while it decodes, so the full image is
+    never held. The weights are the usual perceptual ones rather than a plain
+    mean, because green reads as brighter than blue at the same value.
+    """
+    try:
+        r = subprocess.run(["dwebp", "-quiet", "-scale", "64", "36", "-pam",
+                            str(path), "-o", "-"], capture_output=True)
+    except FileNotFoundError:
+        return None
+    if r.returncode != 0 or not r.stdout:
+        return None
+    data = r.stdout
+    marker = data.find(b"ENDHDR\n")
+    if marker < 0:
+        return None
+    head = data[:marker].decode("ascii", "replace")
+    depth = 4
+    for line in head.splitlines():
+        if line.startswith("DEPTH"):
+            depth = int(line.split()[1])
+    px = data[marker + 7:]
+    count = len(px) // depth
+    if count == 0:
+        return None
+    total = 0
+    for i in range(count):
+        o = i * depth
+        total += (px[o] * 299 + px[o + 1] * 587 + px[o + 2] * 114) // 1000
+    return total / count
+
+
+def luminances() -> dict[str, float]:
+    """Every wallpaper's brightness, measuring only what has changed.
+
+    The cache key is size and mtime, so replacing a file with a different
+    picture under the same name is noticed; touching one is not enough to force
+    a remeasure, and nor should it be.
+    """
+    cached: dict[str, tuple[str, float]] = {}
+    if LUM_CACHE.exists():
+        for line in LUM_CACHE.read_text().splitlines():
+            parts = line.split("\t")
+            if len(parts) == 3:
+                try:
+                    cached[parts[0]] = (parts[1], float(parts[2]))
+                except ValueError:
+                    pass
+
+    out: dict[str, float] = {}
+    fresh: dict[str, tuple[str, float]] = {}
+    changed = False
+    for f in wallpaper_files():
+        try:
+            st = f.stat()
+        except OSError:
+            continue
+        stamp = f"{st.st_size}:{int(st.st_mtime)}"
+        hit = cached.get(f.name)
+        if hit and hit[0] == stamp:
+            out[f.name] = hit[1]
+            fresh[f.name] = hit
+            continue
+        value = measure(f)
+        changed = True
+        if value is None:
+            continue
+        out[f.name] = value
+        fresh[f.name] = (stamp, value)
+
+    if changed or len(fresh) != len(cached):
+        try:
+            LUM_CACHE.parent.mkdir(parents=True, exist_ok=True)
+            LUM_CACHE.write_text(
+                "".join(f"{n}\t{v[0]}\t{v[1]:.2f}\n" for n, v in sorted(fresh.items())))
+        except OSError:
+            pass
+    return out
+
+
+def choose_wallpaper(night: bool, avoid: str) -> tuple[str, str]:
+    """A random wallpaper, and one line saying how it was narrowed down.
+
+    THE ONE ON SCREEN IS EXCLUDED so that a change is always a change. With a
+    single candidate that exclusion would leave nothing, so it only applies
+    while there is something else to pick.
+    """
+    files = [f.name for f in wallpaper_files()]
+    if not files:
+        return "", "no wallpapers in wallpapers/"
+
+    pool, how = files, f"all {len(files)}"
+    if night:
+        lum = luminances()
+        rated = sorted((v, n) for n, v in lum.items() if n in files)
+        if len(rated) >= 4:
+            half = rated[: len(rated) // 2]
+            pool = [n for _v, n in half]
+            how = f"the darker half, {len(pool)} of {len(rated)} under {half[-1][0]:.0f}"
+        elif not lum:
+            how = f"all {len(files)} - no dwebp, so brightness is unknown"
+
+    options = [n for n in pool if n != avoid] or pool
+    return random.choice(options), how
+
+
 def slot_for(now: datetime, rise: datetime, sett: datetime) -> tuple[str, datetime]:
     """The slot `now` falls in, and when the next one starts."""
     edges = []
@@ -213,11 +347,33 @@ def main() -> int:
     rise, sett = times
     slot, following = slot_for(now, rise, sett)
 
-    wallpaper = config.get(f"{slot}_wallpaper", "")
     theme = config.get(f"{slot}_theme", "")
     state = read_kv(STATE)
     today = now.astimezone().strftime("%Y-%m-%d")
     same_day = state.get("date") == today
+
+    # WHETHER A CHANGE IS DUE IS THE SCRIPT'S TO DECIDE, not the timer's. The
+    # unit may fire early, late, twice, or not at all across a suspend, and
+    # --dry-run must not consume a turn. Keeping the last change in the state
+    # file makes every one of those cases the same question: how long has it
+    # been?
+    try:
+        interval = max(1, int(config.get("interval_minutes", "60")))
+    except ValueError:
+        interval = 60
+    last = state.get("wallpaper_at", "")
+    minutes_since = None
+    if last:
+        try:
+            minutes_since = (now - datetime.fromisoformat(last)).total_seconds() / 60
+        except ValueError:
+            minutes_since = None
+    due = minutes_since is None or minutes_since >= interval
+
+    on_screen = current_wallpaper()
+    wallpaper, narrowed = ("", "")
+    if due:
+        wallpaper, narrowed = choose_wallpaper(slot == "night", Path(on_screen).name)
 
     if args.status or args.dry_run:
         local = lambda d: d.astimezone().strftime("%H:%M")
@@ -226,7 +382,14 @@ def main() -> int:
         print(f"  sunset        {local(sett)}")
         print(f"  slot          {slot}")
         print(f"  next slot at  {local(following)}")
-        print(f"  wallpaper     {wallpaper or '(none set for this slot)'}")
+        print(f"  every         {interval} minutes")
+        if minutes_since is None:
+            print("  last change   never")
+        else:
+            print(f"  last change   {minutes_since:.0f} minutes ago"
+                  + ("" if due else f", next in {interval - minutes_since:.0f}"))
+        print(f"  picking from  {narrowed or ('the darker half at night' if slot == 'night' else 'all of them')}")
+        print(f"  wallpaper     {wallpaper or '(not due yet)'}")
         print(f"  theme         {theme or '(none set for this slot)'}")
         if same_day:
             print(f"  last set      wallpaper={state.get('wallpaper','-')} theme={state.get('theme','-')}")
@@ -237,7 +400,7 @@ def main() -> int:
     theme_overridden = same_day and state.get("theme") not in ("", None, current_theme())
 
     actions: list[tuple[str, list[str]]] = []
-    if wallpaper and not wallpaper_overridden and current_wallpaper() != wallpaper:
+    if wallpaper and not wallpaper_overridden and Path(on_screen).name != wallpaper:
         actions.append(("wallpaper", [str(REPO / "bin" / "wallpaper.sh"), "set",
                                       str(REPO / "wallpapers" / wallpaper)]))
     if theme and not theme_overridden and current_theme() != theme:
@@ -260,9 +423,14 @@ def main() -> int:
         print(f"  {what} -> {command[-1].split('/')[-1]}")
 
     if not args.dry_run:
+        changed_now = any(what == "wallpaper" for what, _ in actions)
         write_state({
             "date": today,
             "slot": slot,
+            # The clock only restarts when a wallpaper actually went up. A run
+            # that was blocked by a manual choice has not had its turn.
+            "wallpaper_at": now.isoformat(timespec="seconds") if changed_now
+                            else state.get("wallpaper_at", ""),
             # What WE set, so anything else becomes evidence of a manual change.
             "wallpaper": wallpaper if wallpaper and not wallpaper_overridden else state.get("wallpaper", ""),
             "theme": theme if theme and not theme_overridden else state.get("theme", ""),

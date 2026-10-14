@@ -1,5 +1,5 @@
 [Unit]
-Description=Follow the sun, every five minutes
+Description=A random wallpaper through the day, and the palette by the sun
 ConditionPathExists=%h/.config/hypr
 
 [Timer]
