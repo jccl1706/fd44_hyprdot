@@ -396,7 +396,7 @@ PanelWindow {
                 property real fixedWidth:
                     leftRow.implicitWidth + leftZone.width + BarStyle.pillPadding * 2
                 Behavior on fixedWidth {
-                    NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+                    NumberAnimation { duration: Theme.animNormal; easing.type: Easing.OutCubic }
                 }
                 width: fixedWidth + osd.implicitWidth
                 radius: height / 2

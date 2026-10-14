@@ -186,7 +186,7 @@ PanelWindow {
         anchors.fill: parent
         color: Theme.bg
         opacity: root.revealed ? 0.30 : 0
-        Behavior on opacity { NumberAnimation { duration: 140 } }
+        Behavior on opacity { NumberAnimation { duration: Theme.animNormal } }
     }
 
     // --- the card ---------------------------------------------------------
@@ -235,7 +235,7 @@ PanelWindow {
         border.color: Theme.rim
 
         scale: root.revealed ? 1 : 0.97
-        Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutQuint } }
+        Behavior on scale { NumberAnimation { duration: Theme.animNormal; easing.type: Easing.OutQuint } }
 
         // Swallows clicks so they do not reach the dismissing MouseArea.
         MouseArea { anchors.fill: parent }

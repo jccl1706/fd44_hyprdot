@@ -156,7 +156,7 @@ Row {
     // the icon "taking a moment to show up" when stepping onto a workspace.
     // Short enough not to be waited for, long enough to be followed.
     move: Transition {
-        NumberAnimation { properties: "x"; duration: 140; easing.type: Easing.OutCubic }
+        NumberAnimation { properties: "x"; duration: Theme.animNormal; easing.type: Easing.OutCubic }
     }
 
     // A LISTMODEL, NOT THE ARRAY ITSELF, and this is what makes the glide
