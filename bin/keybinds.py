@@ -85,6 +85,14 @@ BIND = re.compile(
 )
 TITLE = re.compile(r'hotkey-overlay-title="([^"]*)"')
 
+# `hotkey-overlay-title=null` IS A BIND ASKING NOT TO BE LISTED. niri honours it
+# in its own overlay; this script did not, so Super+Alt+S - the screen reader
+# toggle, which the config explicitly suppresses - appeared in the cheatsheet
+# labelled "pkill", the first word of its command.
+#
+# Unquoted, so the TITLE pattern above cannot see it: that one wants "...".
+HIDDEN = re.compile(r'hotkey-overlay-title=null\b')
+
 
 def pretty(action: str) -> str:
     """Turn a niri action into something worth reading on a cheatsheet."""
@@ -172,7 +180,10 @@ def from_niri() -> list:
                 if not m:
                     continue
                 action = m.group("action")
-                title = TITLE.search(m.group("flags") or "")
+                flags = m.group("flags") or ""
+                if HIDDEN.search(flags):
+                    continue
+                title = TITLE.search(flags)
                 out.append({
                     "group": group,
                     "file": src,            # dropped before output
