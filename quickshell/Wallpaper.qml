@@ -18,6 +18,20 @@
 // the decode matters: fading in an image that is still loading would fade in
 // nothing and then pop.
 //
+// IT ALSO SETTLES: the incoming wallpaper starts four percent oversized and
+// eases down to its true size while it fades, which reads as the picture
+// coming to rest rather than simply appearing. Four percent is deliberately
+// almost too small to name - at eight the movement is a visible slide and
+// draws the eye to a change nobody asked to be shown, which is the wrong
+// manners for something that happens by itself every hour.
+//
+// SCALING UP AND NOT DOWN, so the image covers the screen for every frame of
+// the animation. Starting under 1.0 would show the desktop behind the
+// wallpaper at the edges, and PreserveAspectCrop only guarantees cover at the
+// size it decoded for. OutCubic rather than InOutCubic because the motion
+// should arrive quickly and ease to a stop, not creep away from where it
+// started.
+//
 // WHILE QUICKSHELL RESTARTS this surface is gone for about a second, and
 // Hyprland paints misc.background_color, which bin/theme.sh keeps at the
 // theme's background - see hypr/look.lua.
@@ -45,7 +59,11 @@ PanelWindow {
     color: Theme.bg
     mask: Region {}
 
-    readonly property int fadeDuration: 700
+    readonly property int fadeDuration: 1200
+
+    // Where the incoming wallpaper starts. See the note above on why it is
+    // small, and why it is above 1.0 rather than below.
+    readonly property real zoomFrom: 1.04
 
     // Decoded at the monitor's real pixel size, both dimensions: with both
     // set and PreserveAspectCrop, Qt scales the image to COVER the screen at
@@ -57,6 +75,11 @@ PanelWindow {
     property Image base: imageA
     property Image over: imageB
 
+    // The animations bind to this rather than taking a target when they start:
+    // a ParallelAnimation does not hand its target down to its children, so
+    // each one needs to know for itself which image is coming in.
+    property Image incoming: null
+
     readonly property string target: WallpaperState.path
     onTargetChanged: root.show(root.target)
     Component.onCompleted: root.show(root.target)
@@ -67,27 +90,47 @@ PanelWindow {
         if (String(root.base.source) === url && String(root.over.source) === "") return
         fade.stop()
         root.over.opacity = 0
+        root.over.scale = root.zoomFrom
         root.over.source = url
         // A cache hit can be Ready before any status change is signalled.
         if (root.over.status === Image.Ready) root.startFade()
     }
 
     function startFade(): void {
-        fade.target = root.over
+        root.incoming = root.over
         fade.start()
     }
 
-    NumberAnimation {
+    ParallelAnimation {
         id: fade
-        property: "opacity"
-        from: 0
-        to: 1
-        duration: root.fadeDuration
-        easing.type: Easing.InOutCubic
+
+        NumberAnimation {
+            target: root.incoming
+            property: "opacity"
+            from: 0
+            to: 1
+            duration: root.fadeDuration
+            easing.type: Easing.OutCubic
+        }
+
+        NumberAnimation {
+            target: root.incoming
+            property: "scale"
+            from: root.zoomFrom
+            to: 1
+            duration: root.fadeDuration
+            easing.type: Easing.OutCubic
+        }
+
         onFinished: {
             // A fade stopped halfway by a newer choice is not a finished one.
             if (root.over.opacity < 1) return
             root.base.source = ""
+            // The outgoing image keeps whatever scale it ended on, and it is
+            // about to become the one a future wallpaper loads into. Left at
+            // 1.04 it would start its next fade already settled and never
+            // move, so the reset belongs here rather than in show().
+            root.base.scale = 1
             const previous = root.base
             root.base = root.over
             root.over = previous
