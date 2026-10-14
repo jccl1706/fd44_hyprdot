@@ -35,7 +35,17 @@ Item {
     readonly property bool shown: Backups.overdue
 
     visible: root.shown
-    implicitWidth: root.shown ? content.implicitWidth : 0
+    // + 8 TO MATCH THE HOVER PILL BEHIND IT. The highlight below is
+    // content.implicitWidth + 8 - four pixels of breathing room each side -
+    // while this said content.implicitWidth, so the plugin was eight pixels
+    // narrower than the thing it draws. BarZone clips, so the highlight was
+    // cut off square at both ends: most visible on the plugin nearest the end
+    // of the centre pill, where the chop lands against the rounded edge.
+    //
+    // The round buttons do not have this: a 22px circle inside a 22px button
+    // fits by construction. Only the four that size themselves to their text -
+    // backup, thermal, units and updates - could get it wrong.
+    implicitWidth: root.shown ? content.implicitWidth + 8 : 0
     implicitHeight: 22
 
     readonly property string diskGlyph: "\u{F02CA}"   // nf-md-harddisk
