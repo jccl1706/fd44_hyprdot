@@ -3,6 +3,7 @@
 """A different wallpaper through the day, and the palette by the sun.
 
     bin/daylight.py            change the wallpaper if one is due
+    bin/daylight.py --now      change it regardless, and restart the hour
     bin/daylight.py --status   what it thinks, and when it changes next
     bin/daylight.py --dry-run  say what it would do
 
@@ -324,6 +325,12 @@ def slot_for(now: datetime, rise: datetime, sett: datetime) -> tuple[str, dateti
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--dry-run", action="store_true")
+    # NOT THE SAME AS WAITING. --now is for wanting a different picture this
+    # second, so it overrules the interval AND a manual choice: asking for one
+    # by hand is itself the choice, and refusing on the grounds that you chose
+    # something earlier would be the script arguing with you.
+    parser.add_argument("--now", action="store_true",
+                        help="change the wallpaper regardless of the interval")
     parser.add_argument("--status", action="store_true")
     args = parser.parse_args()
 
@@ -368,7 +375,7 @@ def main() -> int:
             minutes_since = (now - datetime.fromisoformat(last)).total_seconds() / 60
         except ValueError:
             minutes_since = None
-    due = minutes_since is None or minutes_since >= interval
+    due = args.now or minutes_since is None or minutes_since >= interval
 
     on_screen = current_wallpaper()
     wallpaper, narrowed = ("", "")
@@ -396,7 +403,7 @@ def main() -> int:
 
     # A manual change wins until tomorrow - per thing, so picking a wallpaper
     # does not also stop the theme following the sun.
-    wallpaper_overridden = same_day and state.get("wallpaper") not in ("", None, current_wallpaper())
+    wallpaper_overridden = (not args.now) and same_day and state.get("wallpaper") not in ("", None, current_wallpaper())
     theme_overridden = same_day and state.get("theme") not in ("", None, current_theme())
 
     actions: list[tuple[str, list[str]]] = []
