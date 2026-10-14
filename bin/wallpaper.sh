@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
+# =========================================================================
+# wallpaper.sh - remember the wallpaper, and make the picker's previews
+# =========================================================================
 #
-# Remember the wallpaper, and make the picker's previews.
-#
-#   wallpaper.sh set <path>   use this wallpaper (it fades in straight away)
-#   wallpaper.sh restore      make sure one is chosen - run at every login
-#   wallpaper.sh current      print the current path, if any
-#   wallpaper.sh thumbs       generate missing or outdated previews
-#   wallpaper.sh thumbdir     print where the previews are, if there are any
+# Usage:  wallpaper.sh set <path>   use this wallpaper (it fades in straight away)
+#         wallpaper.sh restore      make sure one is chosen - run at every login
+#         wallpaper.sh current      print the current path, if any
+#         wallpaper.sh thumbs       generate missing or outdated previews
+#         wallpaper.sh thumbdir     print where the previews are, if there are any
 #
 # QUICKSHELL DRAWS THE WALLPAPER (quickshell/Wallpaper.qml). There is no
 # wallpaper daemon to talk to. This script only records the choice, in

@@ -3,6 +3,16 @@
 # theme.sh - switch the whole desktop between the themes in themes/
 # =========================================================================
 #
+# Usage:  bin/theme.sh set <name>   switch to that palette
+#         bin/theme.sh toggle       the next one in themes/, wrapping
+#         bin/theme.sh current      print the active palette's name
+#         bin/theme.sh list         one name per line
+#         bin/theme.sh json         every palette with its colours, for the panel
+#         bin/theme.sh restore      re-apply the current one (run at login)
+#
+# `json` IS LISTED BECAUSE THE SHELL CALLS IT. The theme picker reads it to draw
+# the swatches, so it is part of the interface whether or not anyone types it.
+#
 # One palette file (themes/<name>.conf) is the source of truth. This script
 # reads it and fans the values out to the consumers below, each of which has its
 # own idea of what a config file is and its own way of being told to reload:
