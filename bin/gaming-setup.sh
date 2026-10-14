@@ -59,7 +59,11 @@ while (( $# )); do
     shift
 done
 
-die()  { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
+# NAMED, NOT "error:". Every other script here prefixes its failures with
+# its own name - backup:, clipboard:, theme: - and these three said "error:",
+# which tells you nothing when the output is interleaved with another script's
+# or scrolled past in a terminal.
+die()  { printf '\033[1;31mgaming-setup:\033[0m %s\n' "$*" >&2; exit 1; }
 log()  { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33mwarn:\033[0m %s\n' "$*" >&2; }
 
