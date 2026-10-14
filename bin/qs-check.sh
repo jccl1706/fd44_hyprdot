@@ -474,5 +474,76 @@ if [[ -n $unresolved ]]; then
     exit 1
 fi
 
+# --- every `qs ipc call` names a handler that exists -------------------------
+#
+# `qs ipc call` EXITS 0 WHEN THE FUNCTION IS NOT THERE. It prints "Function not
+# found" and succeeds, so a mistyped bind is indistinguishable from a working
+# one: the key does nothing, the shell logs nothing, and the exit status says
+# fine. A bind can be wrong from the day it is written and never be noticed
+# until someone presses it and wonders.
+#
+# This reads the IpcHandler blocks for the targets and functions that really
+# exist, then checks every call site in the keybinds, the scripts and the shell
+# itself against them.
+ipc_call_sites() {
+    python3 - "$config" <<'PY'
+import re, sys, pathlib, glob, os
+
+root = pathlib.Path(sys.argv[1])
+root = root.parent if root.is_file() else root
+repo = root.parent
+
+handlers = {}
+for f in sorted(root.glob("*.qml")):
+    s = f.read_text()
+    for m in re.finditer(r"IpcHandler\s*\{", s):
+        i = s.index("{", m.start()); d = 0; j = i
+        while j < len(s):
+            if s[j] == "{": d += 1
+            elif s[j] == "}":
+                d -= 1
+                if d == 0: break
+            j += 1
+        blk = s[i:j]
+        t = re.search(r'target:\s*"([a-z]+)"', blk)
+        if t:
+            handlers.setdefault(t.group(1), set()).update(
+                re.findall(r"function\s+([a-zA-Z]+)\s*\(", blk))
+
+if not handlers:
+    sys.exit(0)
+
+files = []
+for pat in ("niri/*.kdl", "bin/*.sh", "bin/*.py", "quickshell/*.qml", "hypr/*.conf"):
+    files += glob.glob(str(repo / pat))
+
+for path in sorted(files):
+    try: lines = pathlib.Path(path).read_text().splitlines()
+    except Exception: continue
+    for ln, line in enumerate(lines, 1):
+        st = line.strip()
+        if st.startswith("//") or st.startswith("#"): continue
+        m = re.search(r'"qs"\s+"ipc"\s+"call"\s+"([a-z]+)"\s+"([a-zA-Z]+)"', line)
+        if not m:
+            m = re.search(r"\bqs ipc call ([a-z]+) ([a-zA-Z]+)", line)
+        if not m: continue
+        tgt, fn = m.group(1), m.group(2)
+        rel = os.path.relpath(path, repo)
+        if tgt not in handlers:
+            print(f"{rel}:{ln}  qs ipc call {tgt} {fn}  ->  no target named {tgt}")
+        elif fn not in handlers[tgt]:
+            near = ", ".join(sorted(handlers[tgt])[:6])
+            print(f"{rel}:{ln}  qs ipc call {tgt} {fn}  ->  {tgt} has no {fn}() ({near})")
+PY
+}
+
+deadipc="$(ipc_call_sites)"
+if [[ -n $deadipc ]]; then
+    red "qs-check: a keybind or script calls an ipc function that is not there"
+    printf '%s\n' "$deadipc" | head -20 | sed 's/^/  /'
+    printf '  %s\n' "qs ipc call exits 0 for these, so nothing else will ever tell you."
+    exit 1
+fi
+
 show_suppressed
-green "qs-check: $config loads clean, and every singleton member resolves"
+green "qs-check: $config loads clean, every singleton member resolves, every ipc call lands"
