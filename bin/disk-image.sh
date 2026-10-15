@@ -267,9 +267,32 @@ restore() {
     [[ "$typed" == "$serial" ]] || die "that is not the serial - nothing was written"
 
     say "restoring"
-    zstd -dc --long=27 "$base.img.zst" | dd of="$disk" bs=16M status=progress oflag=direct
+    # iflag=fullblock IS NOT OPTIONAL WHEN dd READS FROM A PIPE. Without it a
+    # short read gives a short write, and with oflag=direct a write that is not
+    # a multiple of the sector size fails outright - so the restore would die
+    # partway through, on a disk it had already started overwriting. The image
+    # is only ever written by a pipe from zstd, so this applies every time.
+    zstd -dc --long=27 "$base.img.zst" \
+      | dd of="$disk" bs=16M iflag=fullblock oflag=direct status=progress
     sync
-    say "restored - the disk is byte-for-byte what it was"
+
+    # VERIFIED BY READING IT BACK, not announced. Everything this script does
+    # is measured except, until now, the one operation that cannot be undone.
+    # The recorded checksum was taken off the original disk while the image was
+    # being written, so comparing the restored disk against it proves the whole
+    # round trip: disk -> image -> disk.
+    if [[ -f "$base.source.sha256" ]]; then
+        local want got size
+        want="$(cat "$base.source.sha256")"
+        size=$(blockdev --getsize64 "$disk")
+        say "reading the disk back to check it - $(human "$size")"
+        got="$(dd if="$disk" bs=16M iflag=direct status=none | sha256sum | cut -d" " -f1)"
+        printf '  recorded  %s\n  restored  %s\n' "$want" "$got"
+        [[ "$got" == "$want" ]] || die "THE RESTORED DISK DOES NOT MATCH THE IMAGE"
+        say "restored and verified - the disk is byte-for-byte what it was"
+    else
+        warn "no recorded checksum beside the image - restored, but NOT verified"
+    fi
 }
 
 # --- wipe -----------------------------------------------------------------
