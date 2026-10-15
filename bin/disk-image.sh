@@ -122,10 +122,23 @@ measure() {
     tmp="$(mktemp)"; trap 'rm -f "$tmp"' RETURN
     for ((i = 0; i < samples; i++)); do
         off=$(( i * (size / samples) ))
-        dd if="$disk" bs="$chunk" count=1 skip=$((off / chunk)) \
+        # skip AND count ARE BOTH IN BYTES because of the iflags, and both are
+        # passed as bytes. Getting this wrong is quiet: count=1 under
+        # count_bytes reads a single byte and dd reports no error, so the
+        # sample comes back 400 bytes long, entirely zeros because they all
+        # came from the start of the disk, and the estimate that follows is
+        # arithmetic on nothing.
+        dd if="$disk" bs="$chunk" skip="$off" count="$chunk" \
            iflag=skip_bytes,count_bytes status=none 2>/dev/null >> "$tmp" || true
     done
     raw=$(stat -c%s "$tmp")
+    # A SHORT SAMPLE IS A FAILED SAMPLE. The point of this mode is to be
+    # trusted about how much disk to set aside, so it says nothing rather than
+    # extrapolating from whatever happened to be read.
+    local want=$(( samples * chunk ))
+    if (( raw < want / 2 )); then
+        die "only read $(human "$raw") of an intended $(human "$want") - the sample is not usable"
+    fi
     comp=$(zstd -3 -c "$tmp" 2>/dev/null | wc -c)
     zeros=$(tr -d '\000' < "$tmp" | wc -c)
     local zero_pct=$(( 100 - (zeros * 100 / (raw > 0 ? raw : 1)) ))
