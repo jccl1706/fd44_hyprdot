@@ -61,12 +61,22 @@ Everything done on the KDE install is replaced: the system, the restic
 configuration, the btrfs scrub timer, and `~/.claude` - including the
 conversation in which all of this was done.
 
-**It is not gone.** The 16:07 backup on the T5 captured it: snapshot
-`77c40876`, 817 MiB, including `~/.claude`. The restored system will have
-`~/.claude` as of this morning instead. To bring today back afterwards:
+**It is not gone.** A backup was run at 16:54, immediately before powering the
+laptop down: snapshot **`c6260a85`**, 828 MiB, including `~/.claude` with this
+whole conversation in it. The restored system will have `~/.claude` as of this
+morning instead. To bring today back afterwards, on the Framework, with the T5
+plugged into it:
 
 ```sh
-restic restore 77c40876 --target / --include /home/jc/.claude
+export RESTIC_REPOSITORY=/run/media/jc/Samsung_T5/fd44-backup
+export RESTIC_PASSWORD_FILE=~/.config/fd44-backup/password
+restic restore c6260a85 --target ~/restore --include /home/jc/.claude
+mv ~/.claude ~/.claude.old && mv ~/restore/home/jc/.claude ~/.claude
 ```
+
+**Do not use the earlier id `77c40876`** - it was pruned by the retention
+policy within the hour, as a near-duplicate of a snapshot from the same minute.
+Check the current id with `restic snapshots --host framework` rather than
+trusting one written down, including this one.
 
 The restic repository itself lives on the T5 and is untouched by any of this.
