@@ -54,11 +54,11 @@ spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/theme.sh restore"
 // "Access denied" from whatever asked - so it reads as a permissions problem
 // and is not one.
 //
-// mate-polkit is two packages, has no opinion about fractional scaling, and is
-// what most wlroots compositors use. The unit is masked in
+// mate-polkit replaces it, started by systemd/polkit-mate.service rather than
+// from here: an agent that has died is worse than one that never started, and
+// a unit can be restarted where a spawn cannot. hyprpolkitagent is masked in
 // ~/.config/systemd/user because install_fedora.sh enabled it --global, and a
 // user-scope disable does not override that.
-spawn-at-startup "sh" "-c" "pgrep -x polkit-mate-aut >/dev/null || /usr/libexec/polkit-mate-authentication-agent-1 >/dev/null 2>&1 &"
 
 spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/lock-at-login.sh"
 

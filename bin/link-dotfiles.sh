@@ -354,6 +354,7 @@ link systemd/usb-notify.service "$CONFIG/systemd/user/usb-notify.service"
 # when you plug something in, which is a thing to ask for rather than inherit.
 #   systemctl --user enable --now udiskie.service
 link systemd/udiskie.service "$CONFIG/systemd/user/udiskie.service"
+link systemd/polkit-mate.service "$CONFIG/systemd/user/polkit-mate.service"
 
 # The display notifier, for the other half of the same question - a monitor
 # is a drm event and never touches the usb subsystem.

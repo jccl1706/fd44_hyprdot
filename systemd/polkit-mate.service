@@ -1,0 +1,36 @@
+# =========================================================================
+# polkit-mate.service - the thing that asks for your password
+# =========================================================================
+#
+# Without an authentication agent nothing can ask: mounting a disk from the
+# file manager fails, `systemctl start` from the session fails, a firewall
+# change fails - and each one reports a permissions error rather than a
+# missing agent, which is why this is hard to diagnose from the symptom.
+#
+# NOT hyprpolkitagent, which this replaced on 2026-10-15. It throws
+# std::out_of_range - `__n (which is 1) >= this->size() (which is 0)` - in the
+# instant after logging `window: got fractional scale: 156.7%`, this laptop's
+# scale of 1.5666... It registered fine and died on the first request, every
+# time, and systemd restarted it so it was always alive and always about to
+# die again. Five coredumps in one afternoon. See install/install_fedora.sh.
+#
+# A UNIT RATHER THAN AN autostart.kdl SPAWN, because an agent that has died is
+# worse than one that never started: the session looks fine and only refuses
+# when you finally need it. Restart=on-failure puts it back.
+#
+# mate-polkit ships only /etc/xdg/autostart/..., which niri does not read.
+
+[Unit]
+Description=Polkit authentication agent (mate-polkit)
+PartOf=graphical-session.target
+After=graphical-session.target
+ConditionPathExists=/usr/libexec/polkit-mate-authentication-agent-1
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/polkit-mate-authentication-agent-1
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
