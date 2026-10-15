@@ -148,10 +148,30 @@ measure() {
     printf '  of that, zeros   %s%%\n' "$zero_pct"
     printf '  compresses to    %s%% of its size\n' "$(( comp * 100 / (raw > 0 ? raw : 1) ))"
     printf '\n'
-    local est=$(( size / 100 * (comp * 100 / (raw > 0 ? raw : 1)) ))
-    say "estimated image size: about $(human "$est")"
-    printf '  Reading still takes as long either way - every block is read.\n'
-    printf '  Allow room: the estimate is a sample, not a promise.\n'
+    local ratio=$(( comp * 100 / (raw > 0 ? raw : 1) ))
+    local est=$(( size / 100 * ratio ))
+
+    # A SAMPLE OF AN ALMOST-EMPTY DISK FINDS NOTHING, AND NOTHING EXTRAPOLATES
+    # TO ZERO. 400 points on a 932 GiB drive holding 4 GiB of data have about
+    # a one in six chance of landing on any of it, so "every byte was zero" is
+    # the expected result rather than a surprising one - and multiplying it out
+    # says the image will be 0 B, which is both false and the kind of false
+    # that gets believed because a program printed it.
+    #
+    # What the sample can honestly say is that the drive is overwhelmingly
+    # unwritten. The floor is whatever is actually stored, which cannot be seen
+    # from out here: it is behind the LUKS header, and opening that needs a
+    # passphrase this script has no business holding.
+    if (( zero_pct >= 99 )); then
+        say "the drive is essentially all zeros - no written data in the sample"
+        printf '  The image will be small: close to the size of what is actually\n'
+        printf '  stored, which cannot be measured from outside the LUKS header.\n'
+        printf '  A filesystem holding a few GB images to a few GB.\n'
+    else
+        say "estimated image size: about $(human "$est")"
+        printf '  Allow room: the estimate is a sample, not a promise.\n'
+    fi
+    printf '\n  Reading takes the same time either way - every block is read.\n'
 }
 
 # --- image ----------------------------------------------------------------
