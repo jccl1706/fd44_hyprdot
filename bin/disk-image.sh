@@ -43,6 +43,29 @@ warn() { printf '\033[1;33m==>\033[0m %s\n' "$*"; }
 
 [[ $EUID -eq 0 ]] || die "run this as root (it reads a raw device)"
 
+# --- the tools, checked before anything is read ---------------------------
+#
+# CRYPTSETUP IS NOT OPTIONAL even though it is only used for a few seconds.
+# Without it the LUKS header backup is skipped, and it would be skipped
+# QUIETLY: `if cryptsetup isLuks ...` on a machine with no cryptsetup is a
+# command that fails, which reads as "not a LUKS partition" and moves on. The
+# image would be written, verified, and reported good, and the one file that
+# cannot be reconstructed from anything else would simply not be in it. Found
+# on the desktop this is meant to run on, which has zstd but neither cryptsetup
+# nor gdisk.
+need=()
+for t in dd zstd sfdisk cryptsetup lsblk sha256sum blockdev; do
+    command -v "$t" >/dev/null 2>&1 || need+=("$t")
+done
+if (( ${#need[@]} )); then
+    printf '%s: missing: %s\n' "$name" "${need[*]}" >&2
+    printf '  on Fedora:  sudo dnf install cryptsetup gdisk zstd util-linux coreutils\n' >&2
+    exit 1
+fi
+# sgdisk is the only genuinely optional one: it writes a second copy of the
+# partition table in GPT's own format, and sfdisk has already written one.
+command -v sgdisk >/dev/null 2>&1 || warn_no_sgdisk=1
+
 # --- find the disk --------------------------------------------------------
 find_disk() {
     local want="$1" dev serial
@@ -115,18 +138,29 @@ image() {
     # makes the big file useful.
     say "saving the partition table"
     sfdisk --dump "$disk" > "$base.sfdisk"
-    sgdisk --backup="$base.gpt" "$disk" >/dev/null 2>&1 || true
+    if [[ -n "${warn_no_sgdisk:-}" ]]; then
+        warn "no sgdisk - keeping only the sfdisk dump of the partition table"
+    else
+        sgdisk --backup="$base.gpt" "$disk" >/dev/null 2>&1 || true
+    fi
 
     say "saving any LUKS headers"
-    local part
+    local part found_luks=0
     for part in "$disk"p* "$disk"[0-9]*; do
         [[ -b "$part" ]] || continue
         if cryptsetup isLuks "$part" 2>/dev/null; then
             cryptsetup luksHeaderBackup "$part" \
-                --header-backup-file "$base.$(basename "$part").luks-header" 2>/dev/null \
-                && say "  header from $part"
+                --header-backup-file "$base.$(basename "$part").luks-header" \
+                || die "could not back up the LUKS header on $part"
+            say "  header from $part"
+            found_luks=1
         fi
     done
+    # SAID OUT LOUD EITHER WAY. A disk with no LUKS on it is perfectly normal;
+    # a disk that HAS LUKS and whose header was not saved is a disaster that
+    # only shows up years later, so the run should never be ambiguous about
+    # which of the two happened.
+    (( found_luks )) || warn "no LUKS partitions found on $disk - nothing to back up"
 
     say "writing the image - $(human "$size") to read"
     printf '  source  %s\n  target  %s.img.zst\n\n' "$disk" "$base"
