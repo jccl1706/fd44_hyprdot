@@ -67,22 +67,39 @@ fi
 command -v sgdisk >/dev/null 2>&1 || warn_no_sgdisk=1
 
 # --- find the disk --------------------------------------------------------
+# ASK lsblk, NOT /sys/block/*/device/serial. That file is the serial of the
+# CONTROLLER, which for an NVMe is the drive and for a USB enclosure is the
+# bridge chip. Measured on the enclosure this was written for: the Sabrent
+# reports 0546071110F388396596 through lsblk and 0000000000000000 through
+# sysfs - a value cheap bridges share with each other, so matching on it could
+# find a disk that is not the one asked for. lsblk reads VPD page 0x80, which
+# is the drive answering for itself.
+#
+# AMBIGUITY IS A REFUSAL, not a first match. Two disks answering to one serial
+# means the question has no answer, and this script's whole job is to be sure
+# which disk it is pointed at.
 find_disk() {
-    local want="$1" dev serial
-    for dev in /sys/block/*; do
-        [[ -r "$dev/device/serial" ]] || continue
-        serial="$(tr -d ' \n' < "$dev/device/serial" 2>/dev/null || true)"
-        if [[ "$serial" == "$want" ]]; then
-            printf '/dev/%s\n' "${dev##*/}"
-            return 0
-        fi
-    done
-    return 1
+    local want="$1" name serial
+    local -a matches=()
+    [[ -n "$want" ]] || return 1
+    while read -r name serial; do
+        [[ "$serial" == "$want" ]] && matches+=("/dev/$name")
+    done < <(lsblk -dno NAME,SERIAL 2>/dev/null)
+    case ${#matches[@]} in
+        1) printf '%s\n' "${matches[0]}"; return 0 ;;
+        0) return 1 ;;
+        *) printf '%s: more than one disk answers to serial %s: %s\n' \
+                  "$name" "$want" "${matches[*]}" >&2; return 2 ;;
+    esac
 }
 
 require_disk() {
     local serial="$1" disk
     disk="$(find_disk "$serial")" || die "no disk with serial $serial is attached"
+    # Printed every time: the one line that proves this is pointed at the disk
+    # you meant, in a script whose other modes erase things.
+    printf '  %s  %s\n' "$disk" \
+           "$(lsblk -dno MODEL,SIZE "$disk" 2>/dev/null | tr -s ' ')" >&2
     # REFUSE A MOUNTED DISK. An image of a filesystem that is being written to
     # is an image of a filesystem caught mid-sentence.
     if lsblk -nro MOUNTPOINT "$disk" | grep -q .; then
