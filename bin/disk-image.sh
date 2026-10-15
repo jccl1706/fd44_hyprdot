@@ -7,6 +7,7 @@
 #         bin/disk-image.sh image   <serial> <outdir>   write it
 #         bin/disk-image.sh verify  <serial> <outdir>   compare it against the disk
 #         bin/disk-image.sh restore <serial> <outdir>   put it back (asks twice)
+#         bin/disk-image.sh wipe    <serial> <outdir>   discard it, once imaged
 #
 # Run it as root, on the machine the disk is PLUGGED INTO, not the machine it
 # came out of.
@@ -271,10 +272,60 @@ restore() {
     say "restored - the disk is byte-for-byte what it was"
 }
 
+# --- wipe -----------------------------------------------------------------
+wipe() {
+    local serial="$1" outdir="$2" disk typed
+    local base="$outdir/$serial"
+
+    # THE IMAGE IS THE PRECONDITION. This is the one command here that destroys
+    # something with no way back, so it refuses to run unless the copy it is
+    # making redundant is present and carries the checksum that was taken off
+    # the disk. It does not re-verify - that takes twenty minutes and was done
+    # when the image was made - but a missing or unrecorded image means the
+    # answer to "is this safe" is unknown, and unknown is a no.
+    [[ -f "$base.img.zst" ]] || die "no image at $base.img.zst - nothing to fall back on"
+    [[ -f "$base.source.sha256" ]] || die "no recorded checksum beside the image"
+    [[ -f "$base.sfdisk" ]] || die "no partition table saved beside the image"
+
+    disk="$(require_disk "$serial")"
+
+    printf '\n'
+    warn "This DISCARDS EVERY BLOCK on $disk. There is no undo."
+    lsblk -o NAME,SIZE,TYPE,FSTYPE,MODEL,SERIAL "$disk" >&2
+    printf '\n  falling back on:\n'
+    printf '    %s  (%s)\n' "$base.img.zst" "$(human "$(stat -c%s "$base.img.zst")")"
+    printf '    %s\n' "$base.sda2.luks-header"
+    printf '\n  Type the serial of the disk to confirm: '
+    read -r typed
+    [[ "$typed" == "$serial" ]] || die "that is not the serial - nothing was touched"
+
+    say "discarding every block"
+    if ! blkdiscard "$disk"; then
+        warn "blkdiscard failed - the enclosure may not pass TRIM through"
+        warn "falling back to erasing the headers, which is what makes the data unreachable"
+        wipefs --all --force "$disk" >/dev/null
+        dd if=/dev/zero of="$disk" bs=1M count=16 status=none
+        local end=$(( $(blockdev --getsize64 "$disk") / 1048576 - 16 ))
+        dd if=/dev/zero of="$disk" bs=1M count=16 seek="$end" status=none
+    fi
+    sync
+    partprobe "$disk" 2>/dev/null || true
+
+    say "done - $disk"
+    lsblk -o NAME,SIZE,TYPE,FSTYPE "$disk" >&2
+    printf '\n  first 4 KiB reads: '
+    if dd if="$disk" bs=4096 count=1 status=none | tr -d '\000' | head -c1 | grep -q .; then
+        printf 'NOT zeros\n'
+    else
+        printf 'all zeros\n'
+    fi
+}
+
 case "${1:-}" in
     measure) [[ $# -eq 2 ]] || die "usage: $name measure <serial>"; measure "$2" ;;
     image)   [[ $# -eq 3 ]] || die "usage: $name image <serial> <outdir>"; image "$2" "$3" ;;
     verify)  [[ $# -eq 3 ]] || die "usage: $name verify <serial> <outdir>"; verify "$2" "$3" ;;
     restore) [[ $# -eq 3 ]] || die "usage: $name restore <serial> <outdir>"; restore "$2" "$3" ;;
-    *) die "usage: $name [measure <serial>|image <serial> <dir>|verify <serial> <dir>|restore <serial> <dir>]" ;;
+    wipe)    [[ $# -eq 3 ]] || die "usage: $name wipe <serial> <outdir>"; wipe "$2" "$3" ;;
+    *) die "usage: $name [measure|image|verify|restore|wipe] - see the header" ;;
 esac
