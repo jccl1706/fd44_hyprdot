@@ -104,7 +104,18 @@ Going back is `sudo ./bin/disk-image.sh restore 0546071110F388396596
 **There is one copy.** It sits on this desktop's Crucial NVMe, which is also
 its root filesystem. A second copy somewhere else is worth the ten minutes.
 
-### Three bugs this found, all in disk-image.sh
+### The drive was then wiped
+
+`disk-image.sh wipe` on 2026-10-15. **The enclosure does not pass TRIM
+through** - `blkdiscard -f` returns `ioctl failed: Operation not supported` on
+a drive that discards fine as a native NVMe - so the headers were erased
+instead. The partition table and the LUKS header are gone, which is what makes
+the volume unreadable: the master key lived in that header. The ciphertext
+remains on the flash and the SSD keeps its dirty write state, neither of which
+matters for a drive about to be reinstalled. To genuinely discard it, do so
+once it is back in the laptop.
+
+### Four bugs this found, all in disk-image.sh
 
 Worth keeping, because each was invisible until the real hardware was in front
 of it and each would have been believed:
@@ -115,6 +126,10 @@ of it and each would have been believed:
 - `measure` sampled **400 bytes** and reported on 932 GiB: under
   `iflag=count_bytes`, `count=1` means one byte. It printed a confident
   "about 47GiB" (`3b5c971`)
+- `blkdiscard` failure was reported as "the enclosure may not pass TRIM
+  through" when the real cause was a missing `-f` on a disk that still had a
+  partition table - a confident diagnosis of something that was not wrong
+  (`6c68334`)
 - `local a="$1" b="$a/x"` is unbound under `set -u` - every word is expanded
   before any is assigned. `verify` and `restore` both died on it (`2b0d0e8`)
 
