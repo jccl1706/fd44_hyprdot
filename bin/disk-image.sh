@@ -276,6 +276,7 @@ restore() {
 wipe() {
     local serial="$1" outdir="$2" disk typed
     local base="$outdir/$serial"
+    local discarded=0
 
     # THE IMAGE IS THE PRECONDITION. This is the one command here that destroys
     # something with no way back, so it refuses to run unless the copy it is
@@ -300,9 +301,22 @@ wipe() {
     [[ "$typed" == "$serial" ]] || die "that is not the serial - nothing was touched"
 
     say "discarding every block"
-    if ! blkdiscard "$disk"; then
-        warn "blkdiscard failed - the enclosure may not pass TRIM through"
-        warn "falling back to erasing the headers, which is what makes the data unreachable"
+    # -f IS REQUIRED WHENEVER THE DISK STILL HAS A PARTITION TABLE. Without it
+    # blkdiscard refuses - "contains existing partition (gpt)" - which is a
+    # safety interlock and not a hardware limitation. This script read any
+    # non-zero exit as "the enclosure does not pass TRIM through" and said so,
+    # which was a confident diagnosis of the wrong thing: the enclosure was
+    # fine, the flag was missing, and the blocks were never discarded.
+    local err
+    err="$(blkdiscard -f "$disk" 2>&1)" && discarded=1 || discarded=0
+    if (( ! discarded )); then
+        printf '%s\n' "$err" >&2
+        case "$err" in
+            *"not supported"*|*"Operation not supported"*|*"ioctl"*)
+                warn "this enclosure does not pass TRIM through" ;;
+            *)  warn "blkdiscard failed for the reason above" ;;
+        esac
+        warn "erasing the headers instead, which is what puts the data out of reach"
         wipefs --all --force "$disk" >/dev/null
         dd if=/dev/zero of="$disk" bs=1M count=16 status=none
         local end=$(( $(blockdev --getsize64 "$disk") / 1048576 - 16 ))
@@ -311,7 +325,14 @@ wipe() {
     sync
     partprobe "$disk" 2>/dev/null || true
 
-    say "done - $disk"
+    if (( discarded )); then
+        say "done - every block on $disk discarded"
+    else
+        say "done - headers erased on $disk, blocks NOT discarded"
+        printf '  The data is unreachable: the LUKS master key lived in that\n'
+        printf '  header and is gone. But the ciphertext is still on the flash,\n'
+        printf '  and the drive has not been returned to a clean write state.\n'
+    fi
     lsblk -o NAME,SIZE,TYPE,FSTYPE "$disk" >&2
     printf '\n  first 4 KiB reads: '
     if dd if="$disk" bs=4096 count=1 status=none | tr -d '\000' | head -c1 | grep -q .; then
