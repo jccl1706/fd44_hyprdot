@@ -230,7 +230,13 @@ image() {
 
 # --- verify ---------------------------------------------------------------
 verify() {
-    local serial="$1" outdir="$2" base="$outdir/$serial"
+    # SPLIT ON PURPOSE. Under `set -u`, every word of a `local` is expanded
+    # before the builtin assigns any of them, so `local a="$1" b="$a/x"` dies
+    # on an unbound `a` - measured on bash 5.3.9. image() happened to declare
+    # its parts separately and worked; verify() and restore() wrote it on one
+    # line and did not.
+    local serial="$1" outdir="$2"
+    local base="$outdir/$serial"
     [[ -f "$base.img.zst" ]] || die "no image at $base.img.zst"
     [[ -f "$base.source.sha256" ]] || die "no recorded source checksum beside the image"
 
@@ -248,7 +254,8 @@ verify() {
 
 # --- restore --------------------------------------------------------------
 restore() {
-    local serial="$1" outdir="$2" base="$outdir/$serial" disk typed
+    local serial="$1" outdir="$2" disk typed
+    local base="$outdir/$serial"
     [[ -f "$base.img.zst" ]] || die "no image at $base.img.zst"
     disk="$(require_disk "$serial")"
 
