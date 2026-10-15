@@ -43,7 +43,28 @@ paths=(
 
 [[ $EUID -ne 0 ]] || die "do not run this as root - these files belong to $me"
 command -v restic >/dev/null || die "restic is not installed"
-[[ -n "${RESTIC_REPOSITORY:-}" ]] || die "RESTIC_REPOSITORY is not set - see docs/backup.md"
+# FIND THE REPOSITORY RATHER THAN BE TOLD IT. The backup disk mounts under a
+# name udisks chooses - the label on one machine, the UUID on another - so the
+# path is not something worth remembering or typing. Anything already exported
+# wins; otherwise look where a mounted disk would put it.
+if [[ -z "${RESTIC_REPOSITORY:-}" ]]; then
+    for candidate in /run/media/"$me"/*/fd44-backup /media/"$me"/*/fd44-backup \
+                     /run/media/"$me"/*/*/fd44-backup; do
+        [[ -d $candidate ]] || continue
+        export RESTIC_REPOSITORY="$candidate"
+        say "found the repository at $candidate"
+        break
+    done
+fi
+if [[ -z "${RESTIC_REPOSITORY:-}" ]]; then
+    printf '%s: no backup repository found.\n' "$name" >&2
+    printf '  The disk is probably not mounted. At the machine itself:\n' >&2
+    printf '    udisksctl mount -b /dev/sda1\n' >&2
+    printf '  or click it in the file manager. Over ssh this fails: polkit has\n' >&2
+    printf '  no seat session to ask.\n' >&2
+    printf '  Then re-run, or set RESTIC_REPOSITORY by hand.\n' >&2
+    exit 1
+fi
 
 case "${1:-}" in
 stage)
