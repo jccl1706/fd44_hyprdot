@@ -59,10 +59,20 @@ never-written blocks are usually zeros and compress to nothing - so this image
 could be 5 GB or 931 GB and only the drive's history decides which. Reading
 takes about the same either way, since every block is read regardless.
 
-Check before starting, because neither could be checked from the Framework:
+### The desktop, checked from the Framework over ssh on 2026-10-15
 
-- `/home` on the desktop has room for whatever `measure` predicts
-- `zstd`, `gdisk` and `cryptsetup` are installed there
+- `/home` has **1.9 TB free** of 3.7 TB - room for the image at any size
+- `zstd`, `sfdisk`, `lsblk`, `sha256sum` present
+- **`cryptsetup` and `gdisk` were missing**: `sudo dnf install cryptsetup gdisk`
+- this repository is cloned at `~/Work/fd44_hyprdot` and up to date
+- the enclosure was not plugged in yet - the only disks were the two internal
+  4 TB NVMes (`nvme0n1` Crucial, running Fedora; `nvme1n1` Samsung 990 PRO)
+
+That missing `cryptsetup` is why `disk-image.sh` now checks its tools before
+reading anything. It used to test `cryptsetup isLuks` inside an `if`, and on a
+machine without cryptsetup that test fails, which reads as "not a LUKS
+partition" - so the header backup would have been skipped in silence while the
+run reported success. See commit `0debe3a`.
 
 Going back one day is `restore` with the same serial. It asks for the serial to
 be typed before it writes anything.
