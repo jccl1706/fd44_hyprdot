@@ -251,7 +251,9 @@ NIRI=(
     # wrong name took the whole desktop install down with it after the NVIDIA
     # driver had already been built. Fedora offers polkit-kde (a third of
     # Plasma) and mate-polkit; the laptop uses neither.
-    hyprpolkitagent         # without an agent, nothing can ask for a password
+    mate-polkit             # without an agent, nothing can ask for a password;
+                            # NOT hyprpolkitagent, which crashes on a fractional
+                            # scale - see install_fedora.sh for the backtrace
 )
 
 TOOLS=(

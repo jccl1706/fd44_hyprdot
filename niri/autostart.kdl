@@ -40,6 +40,26 @@ spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/theme.sh restore"
 
 // The lock screen at login, for an autologin session. hyprlock speaks
 // ext-session-lock-v1, which niri implements, so this carries over unchanged.
+// THE POLKIT AGENT, AND WHY IT IS NOT HYPRLAND'S.
+//
+// Without an agent nothing can ask for a password: no mounting a disk from the
+// file manager, no `systemctl start` from the session, no firewall change.
+//
+// hyprpolkitagent 0.2.0 CRASHES ON THIS DISPLAY. It throws std::out_of_range -
+// `__n (which is 1) >= this->size() (which is 0)` - the instant after it logs
+// `window: got fractional scale: 156.7%`, which is this panel's scale of
+// 1.5666... It registers fine and dies on the first request, every time;
+// systemd restarts it and it dies again on the next one. Five coredumps in one
+// afternoon, reproducible on demand. The symptom is not a crash dialog, it is
+// "Access denied" from whatever asked - so it reads as a permissions problem
+// and is not one.
+//
+// mate-polkit is two packages, has no opinion about fractional scaling, and is
+// what most wlroots compositors use. The unit is masked in
+// ~/.config/systemd/user because install_fedora.sh enabled it --global, and a
+// user-scope disable does not override that.
+spawn-at-startup "sh" "-c" "pgrep -x polkit-mate-aut >/dev/null || /usr/libexec/polkit-mate-authentication-agent-1 >/dev/null 2>&1 &"
+
 spawn-at-startup "sh" "-c" "$HOME/Work/fd44_hyprdot/bin/lock-at-login.sh"
 
 // Audio interface gain, which is a USB device setting and has nothing to do with

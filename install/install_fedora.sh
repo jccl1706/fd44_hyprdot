@@ -29,8 +29,9 @@
 #         The package list is EDITED rather than duplicated, so the two cannot
 #         drift: niri replaces hyprland, xwayland-satellite is added because
 #         niri has no built-in Xwayland, the portal becomes gnome plus gtk, and
-#         hyprland-guiutils is dropped. hyprlock, hypridle and hyprpolkitagent
-#         stay - they are not Hyprland-only.
+#         hyprland-guiutils is dropped. hyprlock and hypridle stay - they are
+#         not Hyprland-only - but hyprpolkitagent does not: it crashes on a
+#         fractional scale, so mate-polkit takes its place.
 #
 #         And ~/.local/state/fd44-compositor is written, because the repo's
 #         bash_profile starts whichever compositor it names and defaults to
@@ -1159,7 +1160,7 @@ depacs=(
     # (quickshell/Wallpaper.qml). hyprpaper used to, with swaybg as a fallback
     # because hyprpaper 0.8.4 aborted on startup inside libhyprtoolkit's wl_seat
     # handler - and the COPR's current build does that on every machine tried.
-    hyprlock hypridle hyprpolkitagent xdg-desktop-portal-hyprland
+    hyprlock hypridle mate-polkit xdg-desktop-portal-hyprland
     hyprland-guiutils
     wl-clipboard cliphist grim slurp
     nautilus gvfs file-roller xdg-user-dirs
@@ -1335,9 +1336,25 @@ plasmapacs=(
 # to Hyprland's own IPC and does nothing here; on niri the gnome portal
 # provides screencast and screenshot and gtk provides the file chooser.
 #
-# hyprlock, hypridle AND hyprpolkitagent STAY. They are not Hyprland-only -
-# they speak the wlr protocols and the idle-notify protocol, and this laptop
-# runs all three under niri today.
+# hyprlock AND hypridle STAY. They are not Hyprland-only - they speak the wlr
+# protocols and the idle-notify protocol, and this laptop runs both under niri.
+#
+# hyprpolkitagent DOES NOT, and this comment used to say it did. On 2026-10-15
+# it was found crashing on every single authentication request: it throws
+# std::out_of_range - `__n (which is 1) >= this->size() (which is 0)` - in the
+# instant after logging `window: got fractional scale: 156.7%`, this panel's
+# scale of 1.5666... Five coredumps in an afternoon, reproducible by asking for
+# any privileged action. systemd restarted it each time and it died on the next
+# request.
+#
+# IT PRESENTS AS A PERMISSIONS PROBLEM, which is why it survived so long: the
+# caller sees "Access denied" or a mount that refuses, and nothing says an agent
+# crashed. Two unrelated failures were blamed on ssh having no seat session
+# before anyone looked at the coredumps.
+#
+# mate-polkit replaces it: two packages, no opinion about fractional scaling,
+# and what most wlroots compositors use. It is started from niri/autostart.kdl
+# rather than enabled as a unit, beside the rest of the session.
 #
 # EXACT NAMES, NOT A PREFIX SUBSTITUTION. The obvious ${depacs[@]/#hyprland/niri}
 # also rewrites hyprland-guiutils into niri-guiutils, which does not exist - the
@@ -2774,7 +2791,7 @@ if [[ -f "$rootmnt/etc/bluetooth/main.conf" ]]; then
         || sed -i "/^\[General\]/a AlwaysPairable = true" /etc/bluetooth/main.conf'
 fi
 if compositor_desktop; then
-    run fchroot systemctl --global enable hyprpolkitagent.service hypridle.service \
+    run fchroot systemctl --global enable hypridle.service \
         || warn "could not enable one of the Hyprland user units"
 fi
 
