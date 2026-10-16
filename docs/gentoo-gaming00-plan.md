@@ -168,11 +168,20 @@ management notifiers and save and restore video memory itself. Fedora sets it
 to **0** because it has the userspace path available and prefers it; with no
 script on this system, 1 is the setting that fits.
 
-**This is reasoned rather than observed.** The parameter exists
-(`modinfo nvidia` confirms all three), the Gentoo README says nothing about
-suspend either way, and nothing here has actually been suspended yet. The test
-is to suspend the machine and see whether the desktop returns intact - until
-then this is the most defensible configuration, not a verified one.
+**Verified on 2026-10-16** with `rtcwake -m mem -s 30`:
+
+```
+PM: suspend entry (deep) ... PM: suspend exit     a real S3 cycle
+same boot_id                                      slept, did not reboot
+plasmashell 1995 -> 1995, kwin 1857 -> 1857       the session SURVIVED
+RTX 5090, VRAM restored, NVRM errors 0 -> 0
+```
+
+The unchanged PIDs are the part that matters: a session that crashed and
+restarted looks nearly identical from outside, and only the process IDs
+distinguish the two. The driver preserved and restored video memory entirely
+in-kernel - no userspace helper, no elogind hook, nothing for OpenRC to
+coordinate.
 
 ## Filesystem: btrfs, not ext4
 
