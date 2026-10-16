@@ -1,0 +1,23 @@
+#!/sbin/openrc-run
+# tuned's power-profiles-daemon compatibility layer, on OpenRC.
+#
+# tuned ships the dbus service file for org.freedesktop.UPower.PowerProfiles,
+# but it says "Exec=/bin/false" and "SystemdService=tuned-ppd.service" - so on
+# a systemd box dbus activation hands off to systemd, and here it just runs
+# /bin/false and fails. That is the "Activated service
+# 'org.freedesktop.UPower.PowerProfiles' failed" line in the log.
+#
+# Plasma's Performance / Balanced / Power Save switcher talks to that interface,
+# not to tuned directly, so without this the switcher has nothing behind it even
+# though tuned itself is running happily.
+
+description="power-profiles-daemon compatibility for tuned"
+description_start="Start the PowerProfiles dbus shim"
+
+command="/usr/bin/tuned-ppd"
+command_background="yes"
+pidfile="/run/tuned-ppd.pid"
+
+depend() {
+	need dbus tuned
+}
