@@ -38,10 +38,18 @@ STORAGE=(BLK_DEV_NVME NVME_CORE SATA_AHCI ATA ATA_PIIX BLK_DEV_SD
          NLS_CODEPAGE_437 NLS_ISO8859_1 NLS_UTF8)
 
 # --- AMD Zen 5 / B850 platform --------------------------------------------
-PLATFORM=(X86_AMD_PSTATE X86_AMD_PSTATE_DEFAULT_MODE AMD_3D_VCACHE
-          SENSORS_K10TEMP SENSORS_NCT6775 EDAC_AMD64 CRYPTO_DEV_CCP
+# X86_AMD_PSTATE_DEFAULT_MODE is an int, not a bool - `--enable` on it writes
+# 'y' and kconfig warns "symbol value 'y' invalid". It is left out; the
+# default mode is already the active one Fedora uses.
+#
+# EDAC_AMD64 needs EDAC, AMD_NB, AMD_NODE and EDAC_DECODE_MCE. It reports ECC
+# DRAM errors, which this machine's non-ECC consumer DDR5 cannot produce, so
+# it is listed last and costs nothing if it still does not take.
+PLATFORM=(X86_AMD_PSTATE AMD_3D_VCACHE
+          SENSORS_K10TEMP SENSORS_NCT6775 CRYPTO_DEV_CCP
           CRYPTO_DEV_CCP_DD KVM KVM_AMD PINCTRL_AMD I2C_PIIX4 I2C_CHARDEV
-          ASUS_WMI ACPI_WMI AMD_PMC X86_AMD_PLATFORM_DEVICE)
+          ASUS_WMI ACPI_WMI AMD_PMC X86_AMD_PLATFORM_DEVICE
+          EDAC EDAC_DECODE_MCE AMD_NB AMD_NODE EDAC_AMD64)
 
 # --- the RTX 5090 is out of tree; the kernel only has to stay out of its way
 GPU=(DRM DRM_FBDEV_EMULATION DRM_SIMPLEDRM FB SYSFB_SIMPLEFB X86_PAT
@@ -56,9 +64,16 @@ AUDIO=(SOUND SND SND_PCI SND_HDA_INTEL SND_HDA_CODEC_REALTEK
        SND_HDA_CODEC_HDMI SND_USB SND_USB_AUDIO SND_HRTIMER)
 
 # --- USB, input, and the Aquacomputer Quadro ------------------------------
+# HID_LOGITECH depends on LEDS_CLASS *and* LEDS_CLASS_MULTICOLOR, which
+# defconfig does not set - so it was dropped, and HID_LOGITECH_DJ and
+# HID_LOGITECH_HIDPP went with it, silently. Without DJ a Unifying receiver
+# works only as a generic mouse: paired devices are not exposed individually.
+# The LEDS entries come first so the dependency is met before the driver is
+# asked for.
 USBHID=(USB_SUPPORT USB USB_XHCI_HCD USB_XHCI_PCI USB_EHCI_HCD
-        HID HID_GENERIC USB_HID HID_LOGITECH HID_LOGITECH_DJ
-        HID_LOGITECH_HIDPP HIDRAW
+        NEW_LEDS LEDS_CLASS LEDS_CLASS_MULTICOLOR
+        HID HID_GENERIC USB_HID HIDRAW
+        HID_LOGITECH HID_LOGITECH_DJ HID_LOGITECH_HIDPP
         HWMON SENSORS_AQUACOMPUTER_D5NEXT)
 
 # --- things a desktop needs that defconfig does not turn on ---------------
