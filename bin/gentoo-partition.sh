@@ -152,6 +152,23 @@ cmd_mount() {
     esp="$(partname "$disk" 1)"; root="$(partname "$disk" 2)"
     [[ -b $root ]] || die "$root does not exist - run wipe first"
 
+    # MOUNT WHAT THIS SCRIPT MADE, OR NOTHING. Running `mount` before `wipe`
+    # is an easy slip, and the only thing that caught it the first time was
+    # ext4 refusing a btrfs mount option. Had the old filesystem happened to be
+    # btrfs, the install would have proceeded on top of it - so check the type
+    # and the label rather than relying on an accident.
+    local have_fs have_label
+    have_fs="$(lsblk -dno FSTYPE "$root" 2>/dev/null)"
+    have_label="$(lsblk -dno LABEL "$root" 2>/dev/null)"
+    [[ $have_fs == btrfs ]] \
+        || die "$root is $have_fs, not btrfs - run '$name wipe $serial' first"
+    [[ $have_label == "$FS_LABEL" ]] \
+        || die "$root is labelled '$have_label', not $FS_LABEL - this is not the filesystem this script made"
+
+    local have_esp
+    have_esp="$(lsblk -dno FSTYPE "$esp" 2>/dev/null)"
+    [[ $have_esp == vfat ]] || die "$esp is $have_esp, not vfat"
+
     local opts="noatime,compress=zstd:1"
     mkdir -p "$target"
     say "mounting $root on $target"
