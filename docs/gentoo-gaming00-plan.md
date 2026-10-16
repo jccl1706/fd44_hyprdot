@@ -143,50 +143,36 @@ curl, gpg, tar, sgdisk, parted. 1.7 TB free and 29 GiB of RAM available.
   per-disk. Record `efibootmgr -v` before and after, and confirm the Fedora
   entry survives.
 
-## nvidia suspend/resume on OpenRC: one script
+## nvidia suspend/resume on OpenRC: no hook, one module parameter
 
-The nvidia kernel module does not care what PID 1 is. Loading,
-`nvidia_drm.modeset=1`, Wayland and KDE are all udev and modprobe.
+**The elogind sleep hook written here earlier was wrong for Gentoo**, and is
+kept below only as the record of a plan that did not survive contact.
 
-**Suspend is the exception.** With `NVreg_PreserveVideoMemoryAllocations=1` the
-driver saves VRAM to disk across a suspend, and something must call it at the
-right moment. On Fedora that is four systemd units - and
-`nvidia-suspend.service` turns out to be a thin wrapper:
+It called `/usr/bin/nvidia-sleep.sh`, which Fedora ships and **Gentoo does
+not**. Checked with `qlist x11-drivers/nvidia-drivers`: the only sleep-related
+files are four systemd drop-ins, and all four merely set
+`SYSTEMD_SLEEP_FREEZE_USER_SESSIONS=false` to avoid an Xorg deadlock. Nothing
+about VRAM, and no script for a hook to call.
 
-```
-ExecCondition=grep -qs 'UseKernelSuspendNotifiers: 0' /proc/driver/nvidia/params
-ExecStart=/usr/bin/nvidia-sleep.sh "suspend"
-```
-
-`/usr/bin/nvidia-sleep.sh` ships with the driver. So on OpenRC this is one
-elogind sleep hook, not a port:
-
-```sh
-# /lib/elogind/system-sleep/nvidia  (chmod 755)
-#!/bin/sh
-# $1 is pre|post, $2 is suspend|hibernate|suspend-then-hibernate
-grep -qs 'UseKernelSuspendNotifiers: 0' /proc/driver/nvidia/params || exit 0
-case "$1/$2" in
-    pre/suspend)              /usr/bin/nvidia-sleep.sh suspend   ;;
-    pre/hibernate)            /usr/bin/nvidia-sleep.sh hibernate ;;
-    pre/suspend-then-hibernate) /usr/bin/nvidia-sleep.sh suspend ;;
-    post/*)                   /usr/bin/nvidia-sleep.sh resume    ;;
-esac
-```
-
-And the modprobe options Fedora uses, which are not init-specific:
+The driver can do it without userspace help:
 
 ```
 # /etc/modprobe.d/nvidia.conf
 options nvidia NVreg_PreserveVideoMemoryAllocations=1
-options nvidia NVreg_UseKernelSuspendNotifiers=0
+options nvidia NVreg_UseKernelSuspendNotifiers=1
 options nvidia NVreg_TemporaryFilePath=/var/tmp
 ```
 
-Skipping the hook does not break booting - the failure mode is corrupted VRAM
-after a resume. Two of Fedora's five nvidia units need no replacement at all:
-`nvidia-persistenced` is already disabled there, and `nvidia-powerd` is Dynamic
-Boost, a laptop feature.
+`UseKernelSuspendNotifiers=1` makes the driver register kernel power
+management notifiers and save and restore video memory itself. Fedora sets it
+to **0** because it has the userspace path available and prefers it; with no
+script on this system, 1 is the setting that fits.
+
+**This is reasoned rather than observed.** The parameter exists
+(`modinfo nvidia` confirms all three), the Gentoo README says nothing about
+suspend either way, and nothing here has actually been suspended yet. The test
+is to suspend the machine and see whether the desktop returns intact - until
+then this is the most defensible configuration, not a verified one.
 
 ## Filesystem: btrfs, not ext4
 
