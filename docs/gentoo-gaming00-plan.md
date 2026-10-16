@@ -106,16 +106,101 @@ CONFIG_DRM_NOUVEAU=n                MUST be off or it fights the nvidia module
 and the Quadro in particular, since they are USB devices that may not be
 plugged in while installing.
 
+## nvidia suspend/resume on OpenRC: one script
+
+The nvidia kernel module does not care what PID 1 is. Loading,
+`nvidia_drm.modeset=1`, Wayland and KDE are all udev and modprobe.
+
+**Suspend is the exception.** With `NVreg_PreserveVideoMemoryAllocations=1` the
+driver saves VRAM to disk across a suspend, and something must call it at the
+right moment. On Fedora that is four systemd units - and
+`nvidia-suspend.service` turns out to be a thin wrapper:
+
+```
+ExecCondition=grep -qs 'UseKernelSuspendNotifiers: 0' /proc/driver/nvidia/params
+ExecStart=/usr/bin/nvidia-sleep.sh "suspend"
+```
+
+`/usr/bin/nvidia-sleep.sh` ships with the driver. So on OpenRC this is one
+elogind sleep hook, not a port:
+
+```sh
+# /lib/elogind/system-sleep/nvidia  (chmod 755)
+#!/bin/sh
+# $1 is pre|post, $2 is suspend|hibernate|suspend-then-hibernate
+grep -qs 'UseKernelSuspendNotifiers: 0' /proc/driver/nvidia/params || exit 0
+case "$1/$2" in
+    pre/suspend)              /usr/bin/nvidia-sleep.sh suspend   ;;
+    pre/hibernate)            /usr/bin/nvidia-sleep.sh hibernate ;;
+    pre/suspend-then-hibernate) /usr/bin/nvidia-sleep.sh suspend ;;
+    post/*)                   /usr/bin/nvidia-sleep.sh resume    ;;
+esac
+```
+
+And the modprobe options Fedora uses, which are not init-specific:
+
+```
+# /etc/modprobe.d/nvidia.conf
+options nvidia NVreg_PreserveVideoMemoryAllocations=1
+options nvidia NVreg_UseKernelSuspendNotifiers=0
+options nvidia NVreg_TemporaryFilePath=/var/tmp
+```
+
+Skipping the hook does not break booting - the failure mode is corrupted VRAM
+after a resume. Two of Fedora's five nvidia units need no replacement at all:
+`nvidia-persistenced` is already disabled there, and `nvidia-powerd` is Dynamic
+Boost, a laptop feature.
+
+## Filesystem: btrfs, not ext4
+
+Chosen for one Gentoo-specific reason. What breaks a source distribution is an
+update - a kernel that `nvidia-drivers` does not support yet, a rebuild that
+half-finishes, a USE change that cascades. A snapshot before
+`emerge -uDN @world` turns each of those from an evening into a reboot.
+
+The usual objection - Portage's small-file I/O under copy-on-write - goes away
+when `PORTAGE_TMPDIR` lives on tmpfs, which 30 GiB of RAM makes free. Builds
+never touch the disk; only the installed result does.
+
+With GRUB, `sys-boot/grub-btrfs` puts snapshots straight in the boot menu,
+which is the safety net a rolling distribution wants. This machine already runs
+btrfs on its Fedora root, and `bin/btrfs-scrub-setup.sh` here already knows how
+to scrub one - though note that script installs **systemd** units and will need
+an OpenRC equivalent.
+
+Layout on the Samsung: reuse the existing 1 GiB `NIXESP` vfat partition as the
+ESP, and give the rest to btrfs with subvolumes for `/`, `/home` and
+`/.snapshots`.
+
+## Bootloader: GRUB
+
+Chosen over systemd-boot, which would be an odd fit beside OpenRC anyway.
+UEFI, Secure Boot is disabled so nothing needs signing. Add `grub-btrfs` for
+snapshot entries.
+
+Each disk keeps its own ESP, so Fedora and Gentoo can boot independently from
+the firmware menu; whether Gentoo's GRUB should also detect Fedora with
+`os-prober` is still open - it is convenient and it is also one more thing that
+can rewrite a boot entry you did not ask it to.
+
 ## Portage, for this CPU
 
 `-march=znver5` on a 9800X3D. 16 threads and 30 GiB of RAM mean `MAKEOPTS="-j16"`
 and `PORTAGE_TMPDIR` on tmpfs are both comfortable. Compile time will not be the
 bottleneck on this machine; nvidia and kernel choices will be.
 
+## Decided
+
+- **OpenRC**, deliberately, having been told what it costs - see above
+- **btrfs** root with subvolumes, `PORTAGE_TMPDIR` on tmpfs
+- **GRUB** plus `grub-btrfs`
+- **`plasma-meta` only**, not `kde-apps-meta` - roughly halves the build
+- Profile: `default/linux/amd64/23.0/desktop/plasma`, OpenRC variant
+
 ## Still to decide
 
-- Filesystem for the Gentoo root (the Samsung currently has ext4 for NIXROOT
-  and NIXHOME)
-- Whether to keep a Fedora entry in the Gentoo bootloader, or leave each disk
-  booting itself from the firmware menu
-- Profile: `default/linux/amd64/23.0/desktop/plasma` with OpenRC
+- Whether Gentoo's GRUB runs `os-prober` to find Fedora, or each disk boots
+  itself from the firmware menu
+- Which `-bin` packages to accept: `rust-bin` and `firefox-bin` save hours and
+  cost nothing visible; `qtwebengine` has no binary and is the worst single
+  build in a KDE install, so check whether your USE flags actually pull it
