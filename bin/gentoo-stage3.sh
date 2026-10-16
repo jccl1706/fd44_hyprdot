@@ -38,6 +38,7 @@ ARCH=amd64
 VARIANT=openrc                       # NOT the mirror default, which is systemd
 BASE="https://distfiles.gentoo.org/releases/${ARCH}/autobuilds"
 KEYSERVER=hkps://keys.gentoo.org
+KEYBUNDLE=https://qa-reports.gentoo.org/output/service-keys.gpg
 RELEASE_KEY=BB572E0E2D182910
 ROOT="${2:-/mnt/gentoo}"
 
@@ -75,23 +76,51 @@ cmd_fetch() {
     say "latest ${ARCH} ${VARIANT} stage3"
     printf '  %s\n' "$url"
 
-    say "downloading"
-    curl -fL --progress-bar --max-time 1800 -o "$dest"     "$url"
-    curl -fL --silent      --max-time 300  -o "$dest.asc" "$url.asc"
+    # Reuse a complete download rather than fetching 280 MB again, but always
+    # re-verify: a tarball sitting on disk is not evidence of anything.
+    if [[ -f $dest ]] && [[ "$(stat -c%s "$dest")" -gt 100000000 ]]; then
+        say "a tarball is already here, reusing it ($(du -h "$dest" | cut -f1))"
+    else
+        say "downloading"
+        curl -fL --progress-bar --max-time 1800 -o "$dest" "$url"
+    fi
+    curl -fL --silent --max-time 300 -o "$dest.asc" "$url.asc"
 
-    say "fetching Gentoo's release key"
-    # A keyring of our own, so this never depends on - or pollutes - root's.
-    local kr="$ROOT/.gentoo-keyring.gpg"
-    rm -f "$kr"
-    gpg --no-default-keyring --keyring "$kr" --keyserver "$KEYSERVER" \
-        --recv-keys "$RELEASE_KEY" >/dev/null 2>&1 \
-        || die "could not fetch the release key from $KEYSERVER"
+    # GPG NEEDS A HOME OF ITS OWN HERE. Run as root on a machine where nobody
+    # has used gpg, ~/.gnupg does not exist, and the failure is indirect and
+    # baffling: "failed to create temporary file .../.gnupg/.#lk..." followed
+    # by "can't connect to the dirmngr". A scratch GNUPGHOME avoids depending
+    # on, or polluting, whatever root's looks like.
+    local gnupg; gnupg="$(mktemp -d)"
+    export GNUPGHOME="$gnupg/home"
+    mkdir -p -m700 "$GNUPGHOME"
+    local kr="$gnupg/keyring.gpg"
+
+    # THE KEY COMES OVER HTTPS, NOT FROM A KEYSERVER. A keyserver needs
+    # dirmngr, which needs a working gpg home and an outbound hkps connection;
+    # Gentoo publishes the same keys as a file over TLS from its own
+    # infrastructure, which needs neither. The keyserver stays as a fallback.
+    say "fetching Gentoo's signing keys"
+    if curl -fsSL --max-time 120 "$KEYBUNDLE" -o "$gnupg/keys.gpg" \
+       && gpg --no-default-keyring --keyring "$kr" --import "$gnupg/keys.gpg" 2>/dev/null; then
+        say "imported from $KEYBUNDLE"
+    else
+        warn "the HTTPS bundle failed, trying the keyserver"
+        gpg --no-default-keyring --keyring "$kr" --keyserver "$KEYSERVER" \
+            --recv-keys "$RELEASE_KEY" 2>&1 | sed 's/^/  /' \
+            || { rm -rf "$gnupg"; die "could not obtain Gentoo's release key by either route"; }
+    fi
+
+    gpg --no-default-keyring --keyring "$kr" --list-keys "$RELEASE_KEY" >/dev/null 2>&1 \
+        || { rm -rf "$gnupg"; die "release key $RELEASE_KEY is not in the keyring that was fetched"; }
+    say "release key $RELEASE_KEY present"
 
     say "verifying the signature"
     if gpg --no-default-keyring --keyring "$kr" --verify "$dest.asc" "$dest" 2>&1 | sed 's/^/  /'; then
         say "signature good"
+        rm -rf "$gnupg"
     else
-        rm -f "$dest" "$dest.asc"
+        rm -rf "$gnupg" "$dest" "$dest.asc"
         die "SIGNATURE VERIFICATION FAILED - the download was deleted"
     fi
     printf '\n  %s\n  Next: %s unpack\n' "$(du -h "$dest" | cut -f1) at $dest" "$name"
@@ -112,7 +141,7 @@ cmd_unpack() {
     say "unpacking $(basename "$tarball")"
     tar xpf "$tarball" --xattrs-include='*.*' --numeric-owner -C "$ROOT"
     say "unpacked"
-    rm -f "$tarball" "$tarball.asc" "$ROOT/.gentoo-keyring.gpg"
+    rm -f "$tarball" "$tarball.asc"
     say "tarball and keyring removed"
     printf '  %s\n' "$(du -sh "$ROOT" | cut -f1) in $ROOT"
     printf '\n  Next: %s chroot\n' "$name"
