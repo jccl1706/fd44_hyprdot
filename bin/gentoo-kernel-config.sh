@@ -114,6 +114,18 @@ USBHID=(USB_SUPPORT USB USB_XHCI_HCD USB_XHCI_PCI USB_EHCI_HCD
         HID_LOGITECH HID_LOGITECH_DJ HID_LOGITECH_HIDPP
         HWMON SENSORS_AQUACOMPUTER_D5NEXT)
 
+# --- zram, for compressed swap in RAM -------------------------------------
+#
+# A desktop with 30 GiB and no swap does not slow down under pressure, it
+# OOM-kills - which during a large emerge means losing hours of compiling to
+# a single greedy linker. zram gives the kernel somewhere to put cold pages at
+# the cost of some CPU, which this machine has in abundance.
+#
+# ZRAM as a module so its parameters can be set at load time; ZSMALLOC and the
+# zstd crypto backend are what it compresses with.
+ZRAM=(ZSMALLOC CRYPTO_ZSTD ZRAM_DEF_COMP_ZSTD)
+ZRAM_MODULE=(ZRAM)
+
 # --- things a desktop needs that defconfig does not turn on ---------------
 DESKTOP=(FUSE_FS TMPFS TMPFS_POSIX_ACL CGROUPS NAMESPACES
          NTSYNC                       # Wine/Proton sync primitive
@@ -124,7 +136,7 @@ DESKTOP=(FUSE_FS TMPFS TMPFS_POSIX_ACL CGROUPS NAMESPACES
 DISABLE=(DRM_NOUVEAU)
 
 ALL=("${STORAGE[@]}" "${PLATFORM[@]}" "${GPU[@]}" "${NET[@]}"
-     "${AUDIO[@]}" "${USBHID[@]}" "${DESKTOP[@]}")
+     "${AUDIO[@]}" "${USBHID[@]}" "${DESKTOP[@]}" "${ZRAM[@]}")
 
 cmd_apply() {
     [[ -f .config ]] || die "no .config - run 'make defconfig' first"
@@ -135,6 +147,8 @@ cmd_apply() {
     for s in "${NEEDS_FIRMWARE_SO_MODULE[@]}"; do "$CFG" --module "$s"; done
     say "as a MODULE: ${#GPU_TTM_HELPER_SHIM[@]} only to select DRM_TTM_HELPER for nvidia"
     for s in "${GPU_TTM_HELPER_SHIM[@]}"; do "$CFG" --module "$s"; done
+    say "as a MODULE: ${#ZRAM_MODULE[@]} so its parameters can be set at load"
+    for s in "${ZRAM_MODULE[@]}"; do "$CFG" --module "$s"; done
     say "disabling ${#DISABLE[@]}"
     for s in "${DISABLE[@]}"; do "$CFG" --disable "$s"; done
     say "make olddefconfig - settles dependencies"
