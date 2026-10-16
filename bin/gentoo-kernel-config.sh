@@ -56,8 +56,23 @@ GPU=(DRM DRM_FBDEV_EMULATION DRM_SIMPLEDRM FB SYSFB_SIMPLEFB X86_PAT
      AGP MTRR)
 
 # --- network: RTL8125 wired, MT7922 wireless ------------------------------
-NET=(R8169 WLAN CFG80211 MAC80211 MT76_CORE MT76_CONNAC_LIB MT792x_LIB
-     MT7921_COMMON MT7921E RFKILL)
+NET=(R8169 WLAN CFG80211 MAC80211 RFKILL)
+
+# ANYTHING THAT NEEDS FIRMWARE MUST BE A MODULE, not built in - unless you
+# also build an initramfs carrying the firmware, which a hand-tailored kernel
+# exists partly to avoid.
+#
+# Found the hard way: MT7921E=y probed at 5.5 seconds, before / was mounted,
+# so /lib/firmware did not exist and the load failed:
+#
+#   mt7921e: Direct firmware load for mediatek/WIFI_RAM_CODE_MT7922_1.bin failed
+#
+# The firmware was installed and correct the whole time. Rebinding the device
+# by hand after boot loaded it immediately and the interface appeared, which
+# is what proved the cause was timing rather than a missing file. As a module
+# it is loaded after the root filesystem is up and simply works.
+NEEDS_FIRMWARE_SO_MODULE=(MT76_CORE MT76_CONNAC_LIB MT792x_LIB
+                          MT7921_COMMON MT7921E)
 
 # --- audio: AMD HDA, NVIDIA HDA, and the Audient EVO4 over USB ------------
 AUDIO=(SOUND SND SND_PCI SND_HDA_INTEL SND_HDA_CODEC_REALTEK
@@ -93,6 +108,8 @@ cmd_apply() {
     cp .config .config.before-fd44
     say "enabling ${#ALL[@]} symbols"
     local s; for s in "${ALL[@]}"; do "$CFG" --enable "$s"; done
+    say "as MODULES: ${#NEEDS_FIRMWARE_SO_MODULE[@]} that load firmware"
+    for s in "${NEEDS_FIRMWARE_SO_MODULE[@]}"; do "$CFG" --module "$s"; done
     say "disabling ${#DISABLE[@]}"
     for s in "${DISABLE[@]}"; do "$CFG" --disable "$s"; done
     say "make olddefconfig - settles dependencies"
@@ -105,7 +122,17 @@ cmd_verify() {
     [[ -f .config ]] || die "no .config"
     local s v ok=0 missing=()
     printf '\n'
-    for s in "${ALL[@]}"; do
+    say "firmware-loading drivers must be =m, not =y"
+    for s in "${NEEDS_FIRMWARE_SO_MODULE[@]}"; do
+        v="$(grep -E "^CONFIG_${s}=" .config | head -1 || true)"
+        case "$v" in
+            *=m) printf '    %-24s %s\n' "$s" "m  ok" ;;
+            *=y) printf '    %-24s \033[1;31my  WRONG - will probe before /lib/firmware exists\033[0m\n' "$s" ;;
+            *)   printf '    %-24s not set\n' "$s" ;;
+        esac
+    done
+    printf '\n'
+    for s in "${ALL[@]}" "${NEEDS_FIRMWARE_SO_MODULE[@]}"; do
         v="$(grep -E "^CONFIG_${s}=" .config | head -1 || true)"
         if [[ -n $v ]]; then ok=$((ok+1)); else missing+=("$s"); fi
     done
