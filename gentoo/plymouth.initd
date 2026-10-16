@@ -1,0 +1,43 @@
+#!/sbin/openrc-run
+# Plymouth on OpenRC.
+#
+# Gentoo's plymouth package ships systemd units only, so this exists to start it
+# here. There is no initramfs on this machine by design - every boot-critical
+# driver is built into the kernel - so plymouth cannot start before root is
+# mounted the way it does on an initramfs system. It covers the OpenRC part of
+# the boot instead, which is most of what is visible.
+#
+# "after modules" is load-bearing: nvidia_drm is a module, and without it there
+# is no DRM device for plymouth to draw on, so starting earlier gets a blank
+# screen or a text fallback rather than a splash.
+
+description="Boot splash screen"
+# OpenRC logs "no description" for every optional command it knows about unless
+# each is described, which filled the syslog with noise on the first boot.
+description_start="Start the splash and attach it to the console"
+description_stop="Tell plymouth to quit, leaving the last frame up"
+
+depend() {
+	need localmount
+	after modules
+	before display-manager
+}
+
+start() {
+	ebegin "Starting plymouth"
+	# --mode=boot tells plymouth this is a boot, not a shutdown or reboot.
+	/usr/sbin/plymouthd --mode=boot --attach-to-session --pid-file=/run/plymouth/pid
+	local rc=$?
+	if [ $rc -eq 0 ]; then
+		/usr/bin/plymouth show-splash
+	fi
+	# Never fail the boot over a splash screen: if plymouth cannot start, the
+	# machine should still come up. eend is given 0 on purpose.
+	eend 0
+}
+
+stop() {
+	ebegin "Stopping plymouth"
+	/usr/bin/plymouth quit --retain-splash 2>/dev/null
+	eend 0
+}
