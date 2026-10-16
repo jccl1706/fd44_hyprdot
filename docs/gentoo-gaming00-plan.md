@@ -106,6 +106,43 @@ CONFIG_DRM_NOUVEAU=n                MUST be off or it fights the nvidia module
 and the Quadro in particular, since they are USB devices that may not be
 plugged in while installing.
 
+## Method: a chroot from the running Fedora, not the live ISO
+
+Gentoo installs perfectly well from another running Linux, and here that is the
+better choice for two reasons.
+
+**Fedora stays up, so the install can be driven over ssh** from the laptop.
+From the ISO every command and every error has to be relayed by hand, and a
+Gentoo install produces a great deal of both.
+
+**`make localmodconfig` gets a better reference.** Inside the chroot it reads
+`/proc/modules` of the *running* kernel - Fedora's, on this hardware, with the
+USB devices actually plugged in. The live ISO boots a generic kernel that loads
+a different set, and would miss the EVO4 and the Quadro.
+
+Everything needed is already on that machine: btrfs-progs, mkfs.vfat, chroot,
+curl, gpg, tar, sgdisk, parted. 1.7 TB free and 29 GiB of RAM available.
+
+```
+1. partition the Samsung  reuse NIXESP as the ESP, btrfs on the rest
+2. mount subvolumes       /mnt/gentoo, @root @home @snapshots
+3. stage3                 download, verify the signature, untar
+4. bind-mount             /proc /sys /dev /dev/pts /run, copy resolv.conf
+5. chroot                 from here it is an ordinary handbook install
+6. kernel                 localmodconfig against Fedora's lsmod, then prune
+7. GRUB                   from inside the chroot, to the Samsung's ESP only
+```
+
+**Step 7 is where this method can hurt Fedora, and nowhere else:**
+
+- Use Gentoo's `grub-install` **inside the chroot**, never Fedora's
+  `grub2-install` from outside it.
+- `--efi-directory` must be the Samsung's ESP. Fedora's is mounted at `/boot`
+  on the other disk and must not be written to.
+- `efibootmgr` writes firmware NVRAM, which is system-wide rather than
+  per-disk. Record `efibootmgr -v` before and after, and confirm the Fedora
+  entry survives.
+
 ## nvidia suspend/resume on OpenRC: one script
 
 The nvidia kernel module does not care what PID 1 is. Loading,
