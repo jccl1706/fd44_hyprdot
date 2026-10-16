@@ -126,14 +126,24 @@ USBHID=(USB_SUPPORT USB USB_XHCI_HCD USB_XHCI_PCI USB_EHCI_HCD
 #
 # Both backends: nftables is what a firewall would be written in today, and
 # iptables-legacy is what libvirt still reaches for by default.
+# Two naming traps, both found by reading back what actually took:
+#
+#   * the xtables matches and targets are NETFILTER_XT_*, not XT_*. The short
+#     names do not exist, and scripts/config accepts them in silence.
+#   * IP_NF_FILTER, IP_NF_NAT and friends all "depends on IP_NF_IPTABLES_LEGACY"
+#     on this kernel - IP_NF_IPTABLES alone is the nft-backed compat layer and
+#     leaves them unsettable. libvirt's own error named "iptables v1.8.13
+#     (legacy)", so the legacy tables are exactly what it reaches for.
 NETFILTER_CORE=(NETFILTER NETFILTER_ADVANCED NF_CONNTRACK NF_NAT
                 NETFILTER_XTABLES NF_TABLES NF_TABLES_INET
                 NFT_CT NFT_NAT NFT_MASQ NFT_REJECT NFT_LOG NFT_LIMIT
-                IP_NF_IPTABLES IP_NF_FILTER IP_NF_NAT IP_NF_MANGLE
+                IP_NF_IPTABLES IP_NF_IPTABLES_LEGACY
+                IP_NF_FILTER IP_NF_NAT IP_NF_MANGLE
                 IP_NF_TARGET_MASQUERADE IP_NF_TARGET_REJECT
-                IP6_NF_IPTABLES IP6_NF_FILTER IP6_NF_NAT
-                XT_MATCH_CONNTRACK XT_MATCH_COMMENT XT_MATCH_ADDRTYPE
-                XT_TARGET_MASQUERADE XT_TARGET_CHECKSUM XT_TARGET_LOG
+                IP6_NF_IPTABLES IP6_NF_IPTABLES_LEGACY IP6_NF_FILTER IP6_NF_NAT
+                NETFILTER_XT_MATCH_CONNTRACK NETFILTER_XT_MATCH_COMMENT
+                NETFILTER_XT_MATCH_ADDRTYPE NETFILTER_XT_TARGET_MASQUERADE
+                NETFILTER_XT_TARGET_CHECKSUM NETFILTER_XT_TARGET_LOG
                 BRIDGE_NETFILTER NF_CONNTRACK_FTP NF_NAT_FTP)
 
 # fq_codel: /usr/lib/sysctl.d/50-default.conf asks for it and the kernel had no
