@@ -114,6 +114,36 @@ USBHID=(USB_SUPPORT USB USB_XHCI_HCD USB_XHCI_PCI USB_EHCI_HCD
         HID_LOGITECH HID_LOGITECH_DJ HID_LOGITECH_HIDPP
         HWMON SENSORS_AQUACOMPUTER_D5NEXT)
 
+# --- netfilter -------------------------------------------------------------
+#
+# Found when libvirtd refused to start: "modprobe: FATAL: Module ip_tables not
+# found". libvirt's default network is NAT, which it builds out of iptables
+# rules, so with no netfilter in the kernel the daemon cannot come up at all.
+#
+# This is also why this machine had no firewall. The earlier audit recorded
+# "no firewall tooling installed", which was true but shallow - the kernel
+# could not have run one.
+#
+# Both backends: nftables is what a firewall would be written in today, and
+# iptables-legacy is what libvirt still reaches for by default.
+NETFILTER_CORE=(NETFILTER NETFILTER_ADVANCED NF_CONNTRACK NF_NAT
+                NETFILTER_XTABLES NF_TABLES NF_TABLES_INET
+                NFT_CT NFT_NAT NFT_MASQ NFT_REJECT NFT_LOG NFT_LIMIT
+                IP_NF_IPTABLES IP_NF_FILTER IP_NF_NAT IP_NF_MANGLE
+                IP_NF_TARGET_MASQUERADE IP_NF_TARGET_REJECT
+                IP6_NF_IPTABLES IP6_NF_FILTER IP6_NF_NAT
+                XT_MATCH_CONNTRACK XT_MATCH_COMMENT XT_MATCH_ADDRTYPE
+                XT_TARGET_MASQUERADE XT_TARGET_CHECKSUM XT_TARGET_LOG
+                BRIDGE_NETFILTER NF_CONNTRACK_FTP NF_NAT_FTP)
+
+# fq_codel: /usr/lib/sysctl.d/50-default.conf asks for it and the kernel had no
+# modern qdisc at all, so it silently stayed on pfifo_fast. The sysctl line is
+# prefixed "-" so the failure is ignored by design and never surfaced as an
+# error. fq_codel is what keeps a download from adding latency to everything
+# else, which on a machine that games while something is pulling packages is
+# worth more than it sounds.
+QDISC=(NET_SCH_FQ_CODEL NET_SCH_FQ)
+
 # --- KVM guests ------------------------------------------------------------
 #
 # KVM itself is already built in (KVM=y, KVM_AMD=y), so /dev/kvm exists and a
@@ -185,6 +215,10 @@ cmd_apply() {
     for s in "${ZRAM_MODULE[@]}"; do "$CFG" --module "$s"; done
     say "as a MODULE: ${#REMOVABLE_FS_MODULE[@]} filesystems for removable media"
     for s in "${REMOVABLE_FS_MODULE[@]}"; do "$CFG" --module "$s"; done
+    say "built IN: ${#NETFILTER_CORE[@]} netfilter symbols - libvirt NAT and any firewall"
+    for s in "${NETFILTER_CORE[@]}"; do "$CFG" --enable "$s"; done
+    say "built IN: ${#QDISC[@]} queueing disciplines"
+    for s in "${QDISC[@]}"; do "$CFG" --enable "$s"; done
     say "as a MODULE: ${#VIRT_GUEST_MODULE[@]} for KVM guest networking"
     for s in "${VIRT_GUEST_MODULE[@]}"; do "$CFG" --module "$s"; done
     say "as a MODULE: ${#VFIO_MODULE[@]} for PCI passthrough, available but unused"
