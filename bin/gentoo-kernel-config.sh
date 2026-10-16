@@ -114,6 +114,26 @@ USBHID=(USB_SUPPORT USB USB_XHCI_HCD USB_XHCI_PCI USB_EHCI_HCD
         HID_LOGITECH HID_LOGITECH_DJ HID_LOGITECH_HIDPP
         HWMON SENSORS_AQUACOMPUTER_D5NEXT)
 
+# --- KVM guests ------------------------------------------------------------
+#
+# KVM itself is already built in (KVM=y, KVM_AMD=y), so /dev/kvm exists and a
+# guest will boot - but with no network. libvirt's default NAT network needs a
+# tap device, and without TUN it cannot be created at all, leaving QEMU's slow
+# user-mode networking as the only option. Found by checking before installing
+# rather than after the first guest came up isolated.
+#
+# TUN       tap devices, what every libvirt network is built on
+# BRIDGE    bridged networking, for guests on the LAN rather than behind NAT
+# VHOST_NET kernel-side virtio-net; without it the datapath goes through
+#           userspace QEMU and throughput drops sharply
+VIRT_GUEST_MODULE=(TUN BRIDGE VHOST_NET MACVTAP)
+
+# VFIO is for passing real PCI devices to a guest. Built as modules so the
+# option exists without committing to it: this machine has a single GPU, so
+# passing the 5090 through would leave the host blind unless the 9800X3D's
+# integrated GPU is enabled in BIOS first ("iGPU Multi-Monitor").
+VFIO_MODULE=(VFIO VFIO_PCI VFIO_IOMMU_TYPE1)
+
 # --- filesystems for removable media --------------------------------------
 #
 # defconfig gives vfat and iso9660 but not these, and nothing reports the gap:
@@ -165,6 +185,10 @@ cmd_apply() {
     for s in "${ZRAM_MODULE[@]}"; do "$CFG" --module "$s"; done
     say "as a MODULE: ${#REMOVABLE_FS_MODULE[@]} filesystems for removable media"
     for s in "${REMOVABLE_FS_MODULE[@]}"; do "$CFG" --module "$s"; done
+    say "as a MODULE: ${#VIRT_GUEST_MODULE[@]} for KVM guest networking"
+    for s in "${VIRT_GUEST_MODULE[@]}"; do "$CFG" --module "$s"; done
+    say "as a MODULE: ${#VFIO_MODULE[@]} for PCI passthrough, available but unused"
+    for s in "${VFIO_MODULE[@]}"; do "$CFG" --module "$s"; done
     say "disabling ${#DISABLE[@]}"
     for s in "${DISABLE[@]}"; do "$CFG" --disable "$s"; done
     say "make olddefconfig - settles dependencies"
