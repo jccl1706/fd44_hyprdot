@@ -114,6 +114,20 @@ USBHID=(USB_SUPPORT USB USB_XHCI_HCD USB_XHCI_PCI USB_EHCI_HCD
         HID_LOGITECH HID_LOGITECH_DJ HID_LOGITECH_HIDPP
         HWMON SENSORS_AQUACOMPUTER_D5NEXT)
 
+# --- filesystems for removable media --------------------------------------
+#
+# defconfig gives vfat and iso9660 but not these, and nothing reports the gap:
+# the drive simply will not mount, with "unknown filesystem type". Found when a
+# Samsung T5 formatted exFAT could not be mounted.
+#
+# exfat   - every USB drive and SD card over 32 GB ships formatted this way
+# ntfs3   - the in-kernel NTFS driver, for drives shared with Windows
+# udf     - DVDs, and some large USB drives
+#
+# As modules: they are needed only when such a drive is attached, and the NLS
+# codepages they translate filenames through are already built in.
+REMOVABLE_FS_MODULE=(EXFAT_FS NTFS3_FS UDF_FS)
+
 # --- zram, for compressed swap in RAM -------------------------------------
 #
 # A desktop with 30 GiB and no swap does not slow down under pressure, it
@@ -149,6 +163,8 @@ cmd_apply() {
     for s in "${GPU_TTM_HELPER_SHIM[@]}"; do "$CFG" --module "$s"; done
     say "as a MODULE: ${#ZRAM_MODULE[@]} so its parameters can be set at load"
     for s in "${ZRAM_MODULE[@]}"; do "$CFG" --module "$s"; done
+    say "as a MODULE: ${#REMOVABLE_FS_MODULE[@]} filesystems for removable media"
+    for s in "${REMOVABLE_FS_MODULE[@]}"; do "$CFG" --module "$s"; done
     say "disabling ${#DISABLE[@]}"
     for s in "${DISABLE[@]}"; do "$CFG" --disable "$s"; done
     say "make olddefconfig - settles dependencies"
