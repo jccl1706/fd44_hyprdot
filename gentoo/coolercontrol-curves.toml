@@ -1,0 +1,104 @@
+# CoolerControl fan curves for the gaming desktop (gentoo00 / fedora00)
+#
+# These are hand-tuned curves for the Aquacomputer Quadro in that machine. They
+# existed only inside the two installs on its NVMes until this file; a dead disk
+# would have meant rebuilding them from memory, which is why they are here.
+#
+# WHAT DRIVES WHAT
+#   fan1, fan2  nothing is plugged in. Pinned to 0 because the Quadro was
+#               driving the empty channels at 58% and 56%, so a fan connected
+#               there later would spin up immediately before a profile existed.
+#   fan3        "fd44 exhaust - max(CPU, GPU)" - a Mix profile taking whichever
+#               of the CPU and GPU curves asks for more.
+#   fan4        "fd44 CPU fan - Tctl" - follows the CPU directly.
+#
+# THE FUNCTIONS matter as much as the curves: they are what stops the fans
+# audibly surging. Zen 5 Tctl is spiky, so "fd44 smooth" ignores swings under
+# 2 C and waits 2 s; the GPU one is calmer still and ramps down in small steps.
+#
+# HOW TO RESTORE
+#   Stop the daemon first - it rewrites this file:
+#     rc-service coolercontrold stop     (or systemctl stop coolercontrold)
+#   Append the [[functions]] blocks after the existing ones in
+#   /etc/coolercontrol/config.toml, the [[profiles]] blocks after theirs, and
+#   merge the [device-settings.<uid>] block. Then start the daemon and check
+#   the log says "Successfully applied" for each channel.
+#
+# THE UIDs ARE PORTABLE. CoolerControl hashes device identity, not the OS, so
+# c1f24395... is this same Quadro under Fedora and under Gentoo. That is how
+# these curves moved between the two installs unchanged. They will NOT match a
+# different machine, and the temp_source device_uid lines must be repointed if
+# the CPU or GPU is ever replaced.
+#
+# Verified on gentoo00 2026-10-16: with CPU at 46.8 C the fan4 curve
+# interpolates [40,25]->[60,35] to ~29%, and the daemon set 74/255. Values were
+# set to 200 first, so the result could only have come from the daemon.
+
+[[functions]]
+uid = "07bfcbb2-450c-4678-83f2-98552f31afa2"
+name = "fd44 smooth (2C, 2s)"
+f_type = "Standard"
+duty_minimum = 2
+duty_maximum = 100
+step_size_min_decreasing = 0
+step_size_max_decreasing = 0
+response_delay = 2
+deviance = 2.0
+only_downward = false
+threshold_hopping = true
+bypass_min_at_extremes = false
+
+[[functions]]
+uid = "fe4a546c-22b5-4728-8756-bf9951c5c676"
+name = "fd44 GPU calm (3C, 4s, slow down)"
+f_type = "Standard"
+duty_minimum = 2
+duty_maximum = 100
+step_size_min_decreasing = 1
+step_size_max_decreasing = 3
+response_delay = 4
+deviance = 3.0
+only_downward = false
+threshold_hopping = true
+bypass_min_at_extremes = false
+
+
+# Cooler Control Settings
+# -------------------------------
+# This is where CoolerControl specifc general and specifc device settings are set. These device
+# settings differ from the above Device Settings, in that they are applied to CoolerControl,
+# and not on the devices themselves. For ex. settings such as disabling/enabling a particular device.
+
+[[profiles]]
+uid = "7a1bd60b-3d68-4eeb-94da-6317d86d0f69"
+name = "fd44 CPU fan - Tctl"
+p_type = "Graph"
+speed_profile = [[40.0, 25], [60.0, 35], [70.0, 50], [80.0, 75], [88.0, 100]]
+temp_source = { temp_name = "temp1", device_uid = "3145e1a42801faf9cf948df8c705afb4859f084c10a7e7c5e4efecb1e0167127" }
+function_uid = "07bfcbb2-450c-4678-83f2-98552f31afa2"
+
+[[profiles]]
+uid = "3421dfac-d197-4acb-b42e-cc47555590fb"
+name = "fd44 GPU hotspot"
+p_type = "Graph"
+speed_profile = [[50.0, 30], [70.0, 45], [85.0, 70], [95.0, 100]]
+temp_source = { temp_name = "GPU Temp Hotspot", device_uid = "85a21d26eab0bd35669dd0bc1dc6512052143644133a26fa9f93b6f814cfc72e" }
+function_uid = "fe4a546c-22b5-4728-8756-bf9951c5c676"
+
+[[profiles]]
+uid = "703c4e6c-c278-4964-ae2f-be574609f64e"
+name = "fd44 exhaust - max(CPU, GPU)"
+p_type = "Mix"
+function_uid = "0"
+member_profile_uids = ["7a1bd60b-3d68-4eeb-94da-6317d86d0f69", "3421dfac-d197-4acb-b42e-cc47555590fb"]
+mix_function_type = "Max"
+
+# A list of functions to be applied to the various profiles
+# -------------------------------
+
+[device-settings.c1f24395fffb49c9ac0d233d782520b11b40a40da82d10b335582d70518d2018]
+fan1 = { speed_fixed = 0 }
+fan2 = { speed_fixed = 0 }
+fan3 = { profile_uid = "703c4e6c-c278-4964-ae2f-be574609f64e" }
+fan4 = { profile_uid = "7a1bd60b-3d68-4eeb-94da-6317d86d0f69" }
+
