@@ -133,10 +133,14 @@ USBHID=(USB_SUPPORT USB USB_XHCI_HCD USB_XHCI_PCI USB_EHCI_HCD
 #   * IP_NF_FILTER, IP_NF_NAT and friends all "depends on IP_NF_IPTABLES_LEGACY"
 #     on this kernel - IP_NF_IPTABLES alone is the nft-backed compat layer and
 #     leaves them unsettable. libvirt's own error named "iptables v1.8.13
-#     (legacy)", so the legacy tables are exactly what it reaches for.
+#     (legacy)", so the legacy tables are exactly what it reaches for. And
+#     IP_NF_IPTABLES_LEGACY in turn hangs off NETFILTER_XTABLES_LEGACY, the
+#     master switch for the whole legacy path - miss that one symbol and the
+#     other nine stay unsettable no matter how often they are enabled.
 NETFILTER_CORE=(NETFILTER NETFILTER_ADVANCED NF_CONNTRACK NF_NAT
                 NETFILTER_XTABLES NF_TABLES NF_TABLES_INET
                 NFT_CT NFT_NAT NFT_MASQ NFT_REJECT NFT_LOG NFT_LIMIT
+                NETFILTER_XTABLES_LEGACY
                 IP_NF_IPTABLES IP_NF_IPTABLES_LEGACY
                 IP_NF_FILTER IP_NF_NAT IP_NF_MANGLE
                 IP_NF_TARGET_MASQUERADE IP_NF_TARGET_REJECT
