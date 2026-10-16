@@ -56,7 +56,7 @@ GPU=(DRM DRM_FBDEV_EMULATION DRM_SIMPLEDRM FB SYSFB_SIMPLEFB X86_PAT
      AGP MTRR)
 
 # --- network: RTL8125 wired, MT7922 wireless ------------------------------
-NET=(R8169 WLAN CFG80211 MAC80211 RFKILL)
+NET=(R8169 WLAN RFKILL)
 
 # ANYTHING THAT NEEDS FIRMWARE MUST BE A MODULE, not built in - unless you
 # also build an initramfs carrying the firmware, which a hand-tailored kernel
@@ -71,7 +71,15 @@ NET=(R8169 WLAN CFG80211 MAC80211 RFKILL)
 # by hand after boot loaded it immediately and the interface appeared, which
 # is what proved the cause was timing rather than a missing file. As a module
 # it is loaded after the root filesystem is up and simply works.
-NEEDS_FIRMWARE_SO_MODULE=(MT76_CORE MT76_CONNAC_LIB MT792x_LIB
+# CFG80211 IS ON THIS LIST TOO, and net-wireless/wireless-regdb says so in its
+# own post-install message: "With CONFIG_CFG80211=y (built-in), the driver(s)
+# won't be able to load regulatory.db from /lib/firmware, resulting in broken
+# regulatory domain support." Same failure as the MT76 stack, one layer up -
+# without regulatory.db the card falls back to world-wide settings and loses
+# 5 GHz channels and transmit power. MAC80211 follows CFG80211 because it
+# depends on it.
+NEEDS_FIRMWARE_SO_MODULE=(CFG80211 MAC80211
+                          MT76_CORE MT76_CONNAC_LIB MT792x_LIB
                           MT7921_COMMON MT7921E)
 
 # --- audio: AMD HDA, NVIDIA HDA, and the Audient EVO4 over USB ------------
@@ -136,7 +144,7 @@ cmd_verify() {
         v="$(grep -E "^CONFIG_${s}=" .config | head -1 || true)"
         if [[ -n $v ]]; then ok=$((ok+1)); else missing+=("$s"); fi
     done
-    say "$ok of ${#ALL[@]} enabled"
+    say "$ok of $(( ${#ALL[@]} + ${#NEEDS_FIRMWARE_SO_MODULE[@]} )) enabled"
     if (( ${#missing[@]} )); then
         printf '\n  NOT SET - each is a symbol whose dependencies were not met,\n'
         printf '  or which does not exist in this kernel version:\n'
