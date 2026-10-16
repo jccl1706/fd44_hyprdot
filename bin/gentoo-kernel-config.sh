@@ -52,8 +52,23 @@ PLATFORM=(X86_AMD_PSTATE AMD_3D_VCACHE
           EDAC EDAC_DECODE_MCE AMD_NB AMD_NODE EDAC_AMD64)
 
 # --- the RTX 5090 is out of tree; the kernel only has to stay out of its way
+#
+# DRM_QXL=m LOOKS ABSURD AND IS NOT. nvidia-drivers refuses to build without
+# CONFIG_DRM_TTM_HELPER, which has no menu entry of its own - it is only ever
+# `select`ed by a DRM driver. With every in-tree DRM driver disabled (which is
+# the point, for an nvidia box) nothing selects it, and the ebuild stops with:
+#
+#   CONFIG_DRM_TTM_HELPER: is not set but is needed to compile when using
+#   kernel version 6.11.x or newer while DRM_FBDEV_EMULATION is set
+#
+# The ebuild suggests DRM_QXL=m, DRM_AMDGPU=m or DRM_NOUVEAU=m. QXL is a QEMU
+# virtual GPU: the smallest of the three, and it physically cannot bind to
+# anything in this machine. NOUVEAU would also work as a module but is the one
+# driver that actively fights nvidia, and AMDGPU is large and pointless on a
+# CPU with no integrated graphics.
 GPU=(DRM DRM_FBDEV_EMULATION DRM_SIMPLEDRM FB SYSFB_SIMPLEFB X86_PAT
      AGP MTRR)
+GPU_TTM_HELPER_SHIM=(DRM_QXL)
 
 # --- network: RTL8125 wired, MT7922 wireless ------------------------------
 NET=(R8169 WLAN RFKILL)
@@ -118,6 +133,8 @@ cmd_apply() {
     local s; for s in "${ALL[@]}"; do "$CFG" --enable "$s"; done
     say "as MODULES: ${#NEEDS_FIRMWARE_SO_MODULE[@]} that load firmware"
     for s in "${NEEDS_FIRMWARE_SO_MODULE[@]}"; do "$CFG" --module "$s"; done
+    say "as a MODULE: ${#GPU_TTM_HELPER_SHIM[@]} only to select DRM_TTM_HELPER for nvidia"
+    for s in "${GPU_TTM_HELPER_SHIM[@]}"; do "$CFG" --module "$s"; done
     say "disabling ${#DISABLE[@]}"
     for s in "${DISABLE[@]}"; do "$CFG" --disable "$s"; done
     say "make olddefconfig - settles dependencies"
@@ -154,7 +171,7 @@ cmd_verify() {
     printf '\n'
     say "the ones that must be right"
     local c
-    for c in BLK_DEV_NVME BTRFS_FS VFAT_FS DRM_NOUVEAU SND_USB_AUDIO \
+    for c in BLK_DEV_NVME BTRFS_FS VFAT_FS DRM_NOUVEAU DRM_TTM_HELPER SND_USB_AUDIO \
              SENSORS_AQUACOMPUTER_D5NEXT MT7921E R8169 NTSYNC; do
         printf '    %-32s %s\n' "$c" \
             "$(grep -E "^(CONFIG_${c}=|# CONFIG_${c} )" .config | head -1 || echo 'ABSENT')"
