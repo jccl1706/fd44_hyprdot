@@ -1,0 +1,12 @@
+#!/bin/sh
+# Make sure plymouth has released the display before the desktop wants it.
+#
+# plymouth is supposed to hand over to the display manager by itself, but if it
+# does not, it keeps DRM master and SDDM comes up to a black screen - which
+# looks exactly like a broken graphics driver. This runs at the end of the
+# default runlevel and makes the handover unconditional.
+#
+# --retain-splash leaves the last frame up so the screen does not flash to a
+# console before SDDM paints.
+/usr/bin/plymouth quit --retain-splash 2>/dev/null
+exit 0

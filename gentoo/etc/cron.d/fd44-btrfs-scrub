@@ -1,0 +1,9 @@
+# Monthly btrfs scrub - the OpenRC/cron equivalent of btrfs-scrub.timer on the
+# systemd machines. Scrub reads every block and checks it against its stored
+# checksum; on a single-device filesystem it detects corruption and names the
+# file but cannot repair data, which is still worth knowing while backups are
+# fresh rather than a year later.
+#
+# First Sunday of the month at 00:15. Output goes to syslog via cron, which is
+# why metalog had to be running before this was worth adding.
+15 0 1-7 * 0  root  /usr/local/sbin/fd44-btrfs-scrub

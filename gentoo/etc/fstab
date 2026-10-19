@@ -1,0 +1,32 @@
+# /etc/fstab: static file system information.
+#
+# See the manpage fstab(5) for more information.
+#
+# NOTE: The root filesystem should have a pass number of either 0 or 1.
+#       All other filesystems should have a pass number of 0 or greater than 1.
+#
+# NOTE: Even though we list ext4 as the type here, it will work with ext2/ext3
+#       filesystems.  This just tells the kernel to use the ext4 driver.
+#
+# NOTE: You can use full paths to devices like /dev/sda3, but it is often
+#       more reliable to use filesystem labels or UUIDs. See your filesystem
+#       documentation for details on setting a label. To obtain the UUID, use
+#       the blkid(8) command.
+
+# <fs>			<mountpoint>	<type>		<opts>		<dump> <pass>
+
+#LABEL=boot		/boot		ext4		defaults	1 2
+#UUID=58e72203-57d1-4497-81ad-97655bd56494		/		xfs		defaults		0 1
+#LABEL=swap		none		swap		sw		0 0
+#/dev/cdrom		/mnt/cdrom	auto		noauto,ro	0 0
+tmpfs /var/tmp/portage tmpfs size=16G,uid=portage,gid=portage,mode=775,noatime 0 0
+# Generated 2026-10-16 from the live UUIDs on gaming00.
+# btrfs subvolumes on the Samsung 990 PRO; the ESP is the same disk's p1.
+# compress=zstd:1 and noatime match what gentoo-partition.sh mounts with.
+
+UUID=eee2e765-dabd-4dd0-9bc0-dbe57cb00256  /             btrfs  noatime,compress=zstd:1,subvol=@root        0 0
+UUID=eee2e765-dabd-4dd0-9bc0-dbe57cb00256  /home         btrfs  noatime,compress=zstd:1,subvol=@home        0 0
+UUID=eee2e765-dabd-4dd0-9bc0-dbe57cb00256  /.snapshots   btrfs  noatime,compress=zstd:1,subvol=@snapshots   0 0
+
+# umask=0077 keeps the ESP root-only, as Fedora does on its own.
+UUID=86B2-4498          /boot         vfat   umask=0077,shortname=winnt                  0 2

@@ -1,0 +1,9 @@
+# CoolerControl lives in the GURU overlay, which is user-maintained, and is
+# keyworded ~amd64 (testing) there. Accepted for this package alone rather than
+# globally, so one overlay package does not drag the whole system onto testing.
+#
+# Wanted for the Aquacomputer Quadro: the kernel's aquacomputer_d5next driver
+# already exposes its 3 PWM channels and the nct6799 exposes the board's, so
+# this adds curve editing and graphs over hardware that already works - not new
+# capability. fancontrol from lm-sensors is the in-tree alternative.
+sys-apps/coolercontrold ~amd64

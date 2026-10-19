@@ -1,0 +1,4 @@
+# No liquidctl: it is for devices with no kernel driver, and the Quadro here is
+# driven natively by aquacomputer_d5next. Leaving it off avoids a Python stack
+# this machine has no other use for.
+sys-apps/coolercontrold -liquidctl

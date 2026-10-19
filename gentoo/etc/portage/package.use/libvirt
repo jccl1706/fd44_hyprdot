@@ -1,0 +1,12 @@
+# libvirt's default NAT network ("virbr0") is dnsmasq handing out DHCP leases to
+# guests. The script flag lets libvirt run its lease-change hook, which is how
+# it knows a guest's address - without it virt-manager cannot show guest IPs and
+# dnsmasq will not satisfy the dependency at all.
+net-dns/dnsmasq dhcp ipv6 script
+
+# gnutls tools/pkcs11 are pulled in by libvirt's TLS transport.
+net-libs/gnutls tools pkcs11
+
+# virt-manager's GUI wants spice-gtk built with usbredir, which is what lets a
+# USB device plugged into the host be redirected into a running guest.
+net-misc/spice-gtk usbredir
