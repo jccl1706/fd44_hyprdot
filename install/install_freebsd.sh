@@ -178,6 +178,11 @@ say "Stage F - root password and a wheel user"
 # root: locked by default here; set one if you want console root login.
 #   echo 'secret' | pw -V $MNT/etc usermod root -h 0
 run "pw -V $MNT/etc useradd $NEWUSER -m -G wheel -s /bin/sh -c '$NEWUSER' || true"
+# pw -m in a chroot creates the home owned by ROOT, not the user - which later
+# stops the user writing ~/.cache, and a KDE login then has no icon/service
+# cache and every desktop icon is blank. chown the home to the user. (Found the
+# hard way on the T480.)
+run "chroot $MNT chown -R $NEWUSER:$NEWUSER /home/$NEWUSER"
 if [ -n "$SSH_KEY_URL" ]; then
     run "mkdir -p $MNT/root/.ssh && fetch -o $MNT/root/.ssh/authorized_keys $SSH_KEY_URL"
     run "mkdir -p $MNT/home/$NEWUSER/.ssh && fetch -o $MNT/home/$NEWUSER/.ssh/authorized_keys $SSH_KEY_URL"
