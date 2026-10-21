@@ -116,11 +116,22 @@ before being trusted.
   NOT the MediaTek MT7922 an earlier draft assumed - so FreeBSD covers it through
   iwlwifi/LinuxKPI, the good case. (Confirmed by reading the running Framework;
   the AX210 is also what the T480's iwm 8265 proved works.)
-- **amdgpu / KMS - THE Framework risk:** the Framework is a **Ryzen 5 7640U,
-  Zen 4, with Radeon 760M (RDNA3)**. RDNA3 KMS support in FreeBSD's `drm-kmod` is
-  recent and may be incomplete - this, not Wi-Fi, is the thing to verify before
-  trusting a FreeBSD Framework. The script's `amdgpu` path (detect by vendor id
-  0x1002) is correct; whether RDNA3 actually lights up is the open question.
+- **amdgpu / KMS - THE Framework risk, but a *known recipe* now.** The Framework
+  is a **Ryzen 5 7640U, Zen 4, with Radeon 760M (RDNA3)**. A web survey (Oct 2026)
+  of people running FreeBSD on the AMD Framework shows RDNA3 (the 780M, same
+  Phoenix family) **working on 15.x with 3D acceleration** — but *not* with the
+  default `drm-kmod`. The documented recipe, now baked into `freebsd_desktop.sh`
+  for the `amdgpu` path:
+    - **`drm-612-kmod`** (DRM 6.12) or `drm-66-kmod` (6.6) — mesa 26.1+ needs
+      DRM 6.6+, so the generic meta can be too old for RDNA3
+    - **`gpu-firmware-kmod`** at **20260519+** (confirmed present in the repo)
+    - **ReBAR / Smart Access Memory ON** and **Secure Boot OFF** in BIOS
+  Known open bug: 4K mode on the 780M times out (`optc1_wait_for_state`), 1080p
+  fine — the Framework's internal panel is 2256×1504 so likely unaffected, but
+  watch external 4K. Verify amdgpu attaches in `dmesg` on the real machine; it is
+  no longer a gamble, just a checklist. Sources: the official
+  `FrameworkComputer/freebsd-on-framework` guide, xyinn.org's 7840U/780M writeup,
+  and the FreeBSD forums AMD GPU support matrix.
 - **CPU scaling:** powerd is now a default in `install_freebsd.sh` (every laptop
   needs it; FreeBSD leaves the CPU throttled otherwise). On the Framework's AMD
   it drives `hwpstate_amd`, which works but is less polished than Intel's - do
@@ -139,8 +150,22 @@ Six bugs the VM could not surface were found and fixed in the scripts there
 logout crash, TearFree). The **Framework is the planned next target** but is the
 harder case - AMD Zen 4 + RDNA3 - so its GPU gets verified before it is trusted.
 
-niri and Hyprland are simply not in scope — KDE is the desktop, so their absence
-of a FreeBSD story stops being this project's problem.
+### Desktop choice: KDE (default) or sway
+
+KDE Plasma stays the default and the validated path. But `freebsd_desktop.sh`
+also offers **sway** (`DESKTOP=sway`) — FreeBSD *does* package a full wlroots
+stack (sway 1.12, waybar, foot, wofi, swaylock/idle, wmenu, all in the repo), so
+a tiling-Wayland desktop is available. sway is the closest thing FreeBSD
+supports to the fd44 niri feel: niri (scrollable tiling) and Hyprland have no
+FreeBSD port, but sway is a first-class wlroots citizen there.
+
+Caveats for the sway path, honestly: it is **packaged and configured but not yet
+proven on real hardware** (unlike Plasma, validated on the T480). It is
+Wayland-only, so it needs a real DRM/KMS GPU — no scfb/VM fallback — and it
+relies on `pam_xdg` (FreeBSD 14.1+) to provide `XDG_RUNTIME_DIR` since there is
+no elogind. There is no display manager in the sway path: log in on ttyv0 and
+sway starts from `~/.profile`. On the Framework, sway needs the same amdgpu
+recipe above.
 
 ## Decisions to make before any code
 
