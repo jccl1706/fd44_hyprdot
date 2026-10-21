@@ -98,6 +98,18 @@ if [ "$GPU_KLD" != scfb ]; then
     # drm-kmod wants the KMS module in kld_list (loaded after root mount),
     # NOT in loader.conf.
     run "sysrc kld_list+=$GPU_KLD"
+    # TearFree stops screen tearing on the modesetting driver (Intel and AMD).
+    # Without it the desktop has visible tearing/glitches even though GL is fully
+    # accelerated - verified on the T480's i915. DRI 3 is the modern path.
+    run "mkdir -p /usr/local/etc/X11/xorg.conf.d"
+    run "cat > /usr/local/etc/X11/xorg.conf.d/20-tearfree.conf <<CONF
+Section \"Device\"
+    Identifier \"GPU\"
+    Driver     \"modesetting\"
+    Option     \"TearFree\" \"true\"
+    Option     \"DRI\"      \"3\"
+EndSection
+CONF"
 fi
 # the desktop user needs DRM/input access
 run "pw groupmod video -m $DESKTOP_USER"
