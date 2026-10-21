@@ -159,6 +159,13 @@ run "sysrc -R $MNT sshd_enable=YES"
 # swap by its GPT label, which does not renumber
 run "printf '/dev/gpt/swap0\\tnone\\tswap\\tsw\\t0\\t0\\n' > $MNT/etc/fstab"
 run "cp $MNT/usr/share/zoneinfo/$TIMEZONE $MNT/etc/localtime"
+# powerd: CPU frequency scaling, which FreeBSD does NOT enable by default - so
+# the CPU sits at its lowest step and the machine feels sluggish. Seen on the
+# T480: stuck at 799 MHz until powerd was on, then 3398 under load. Every laptop
+# wants this. Drives Intel (est/hwpstate) and AMD (hwpstate_amd) alike, though
+# AMD scaling on FreeBSD is less polished than Intel's.
+run "sysrc -R $MNT powerd_enable=YES"
+run "sysrc -R $MNT powerd_flags='-a hiadaptive -b hiadaptive -n hiadaptive'"
 # FreeBSD's default sshd forbids root key login - allow it (but prefer the user)
 run "sed -i '' '/PermitRootLogin/d' $MNT/etc/ssh/sshd_config"
 run "echo 'PermitRootLogin prohibit-password' >> $MNT/etc/ssh/sshd_config"

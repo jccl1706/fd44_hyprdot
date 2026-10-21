@@ -112,17 +112,32 @@ before being trusted.
   May 2026 Qt 6.11.1 bug blocked the Wayland session while X11 kept working).
   So: ship X11, offer Wayland as an opt-in to test on the real machine, do not
   make it the default until it is proven on this hardware.
-- **Wi-Fi (Framework MT7922):** 15.1's LinuxKPI-7.0 wireless *may* now cover
-  mt76/mt7921, but MediaTek via LinuxKPI has been weak historically. **Verify on
-  real hardware before promising networking.** Plan for a wired/USB-ethernet
-  fallback during install regardless.
-- **amdgpu / KMS:** `drm-kmod` supports the Framework's AMD graphics and is one
-  of FreeBSD's better-supported paths — it is also the GPU stack the working
-  Plasma-Wayland report used — but KMS load timing and the exact generation need
-  checking on the actual machine.
+- **Wi-Fi (Framework):** it has an **Intel AX210** (`0x8086:0x2725`, iwlwifi) -
+  NOT the MediaTek MT7922 an earlier draft assumed - so FreeBSD covers it through
+  iwlwifi/LinuxKPI, the good case. (Confirmed by reading the running Framework;
+  the AX210 is also what the T480's iwm 8265 proved works.)
+- **amdgpu / KMS - THE Framework risk:** the Framework is a **Ryzen 5 7640U,
+  Zen 4, with Radeon 760M (RDNA3)**. RDNA3 KMS support in FreeBSD's `drm-kmod` is
+  recent and may be incomplete - this, not Wi-Fi, is the thing to verify before
+  trusting a FreeBSD Framework. The script's `amdgpu` path (detect by vendor id
+  0x1002) is correct; whether RDNA3 actually lights up is the open question.
+- **CPU scaling:** powerd is now a default in `install_freebsd.sh` (every laptop
+  needs it; FreeBSD leaves the CPU throttled otherwise). On the Framework's AMD
+  it drives `hwpstate_amd`, which works but is less polished than Intel's - do
+  not expect it to match Linux's `amd-pstate-epp` boost behaviour.
 - **Suspend/resume:** rougher than Linux on this laptop; the s2idle/deep tuning
   from the Linux side does not carry. Do not promise working sleep.
 - **Fingerprint, and other Framework niceties:** assume unsupported.
+
+### Validated on the T480 (Intel), 2026-10-21
+
+The first real-hardware deployment was the ThinkPad T480 (Intel i5-8250U, UHD
+620, iwm 8265) - deliberately the easy case, Intel everywhere. Base + KDE Plasma
+both work: ZFS boot environments, SDDM, hardware GL with TearFree, Wi-Fi, powerd.
+Six bugs the VM could not surface were found and fixed in the scripts there
+(GPU detect-by-vendor-id, XDG_DATA_DIRS, procfs, home-owned-by-root, the greeter
+logout crash, TearFree). The **Framework is the planned next target** but is the
+harder case - AMD Zen 4 + RDNA3 - so its GPU gets verified before it is trusted.
 
 niri and Hyprland are simply not in scope — KDE is the desktop, so their absence
 of a FreeBSD story stops being this project's problem.
