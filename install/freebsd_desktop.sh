@@ -85,6 +85,15 @@ say "Stage 2 - enable services and the GPU driver"
 run "sysrc dbus_enable=YES"
 run "sysrc seatd_enable=YES"
 run "sysrc sddm_enable=YES"
+# XDG_DATA_DIRS: FreeBSD puts icons/mime/.desktop under /usr/local/share, and if
+# this is unset KDE cannot find them - the symptom is a Plasma desktop with every
+# icon blank, even though kf6-breeze-icons is installed and its cache is built.
+# Set it for login shells; the SDDM session sources /etc/profile.
+run "grep -q XDG_DATA_DIRS /etc/profile || printf '\\nXDG_DATA_DIRS=/usr/local/share:/usr/share\\nexport XDG_DATA_DIRS\\n' >> /etc/profile"
+# procfs: various desktop tools expect /proc, which FreeBSD does not mount by
+# default.
+run "mount -t procfs proc /proc 2>/dev/null || true"
+run "grep -q procfs /etc/fstab || printf 'proc\\t/proc\\tprocfs\\trw\\t0\\t0\\n' >> /etc/fstab"
 if [ "$GPU_KLD" != scfb ]; then
     # drm-kmod wants the KMS module in kld_list (loaded after root mount),
     # NOT in loader.conf.
@@ -92,6 +101,9 @@ if [ "$GPU_KLD" != scfb ]; then
 fi
 # the desktop user needs DRM/input access
 run "pw groupmod video -m $DESKTOP_USER"
+# create the user's standard folders (Desktop, Documents, ...) so Plasma's
+# Folder View does not complain that ~/Desktop is missing on first login
+run "su - $DESKTOP_USER -c 'XDG_DATA_DIRS=/usr/local/share:/usr/share xdg-user-dirs-update' 2>/dev/null || true"
 
 # === Stage 3: X driver for the no-KMS (VM) case ============================
 if [ "$GPU_KLD" = scfb ]; then
