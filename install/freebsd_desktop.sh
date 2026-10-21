@@ -54,13 +54,18 @@ die() { printf '\033[1;31mFAIL:\033[0m %s\n' "$*" >&2; exit 1; }
 [ -d /usr/local ] || die "no /usr/local - is this a booted FreeBSD (not the installer)?"
 
 # === detect the GPU driver =================================================
-# Look at the VGA/display controller's vendor string in pciconf.
+# Match on the PCI VENDOR ID of the VGA controller, NOT the vendor name string.
+# (A name match on "ATI" is a trap: "Intel CorporATIon" contains it, which made
+# an earlier version pick amdgpu on an Intel ThinkPad.) The display-controller
+# device line carries class=0x0300xx and vendor=0xNNNN; read the id off it.
+#   0x1002 = AMD/ATI   0x8086 = Intel
 detect_kld() {
-    vga=$(pciconf -lv 2>/dev/null | grep -B4 -iE 'subclass *= *VGA|class=0x030000' || true)
-    if   printf '%s' "$vga" | grep -qiE 'AMD|ATI|Advanced Micro'; then echo amdgpu
-    elif printf '%s' "$vga" | grep -qiE 'Intel';                  then echo i915kms
-    else echo scfb   # QEMU VGA / VESA / unknown -> framebuffer X, no KMS
-    fi
+    vline=$(pciconf -lv 2>/dev/null | grep -iE 'class=0x0300' | head -1)
+    case "$vline" in
+        *vendor=0x1002*) echo amdgpu  ;;
+        *vendor=0x8086*) echo i915kms ;;
+        *)               echo scfb    ;;   # QEMU VGA / VESA / unknown -> no KMS
+    esac
 }
 [ "$GPU_KLD" = auto ] && GPU_KLD=$(detect_kld)
 
