@@ -6,8 +6,15 @@ shape — and is honest about which parts port cleanly and which are a genuine
 rewrite or an open risk. No code yet: this exists so the real decisions are made
 before 3000 lines are, the way `gentoo-gaming00-plan.md` did for that build.
 
-Target: **FreeBSD 15.1 + ZFS (boot environments) + EFI + a Wayland desktop**,
+Target: **FreeBSD 15.1 + ZFS (boot environments) + EFI + KDE Plasma**,
 developed and tested in a VM first.
+
+The desktop choice is **KDE Plasma**, and that is a deliberate de-risking: KDE is
+one of FreeBSD's flagship, actively-maintained desktops (the KDE-FreeBSD project,
+730 ports, Plasma 6.6.3+ tracking upstream), where niri and Hyprland have no
+credible FreeBSD story. It also maps straight onto the `--plasma` branch
+`install_fedora.sh` already has, and it dissolves the quickshell question — Plasma
+ships its own panel and shell, so there is no tiling-compositor bar to port.
 
 FreeBSD 15.1 is real — released 2026-06-16, the second release on stable/15,
 carrying LinuxKPI wireless based on Linux 7.0 (which is the only reason the
@@ -51,9 +58,10 @@ just equivalents but improvements.
 | base system = Fedora packages | base system is **one tarball** (`base.txz`) + kernel | cleaner; the OS and its packages are separate concerns on FreeBSD |
 | systemd units (`systemctl enable`) | **`/etc/rc.conf`** entries (`sysrc foo_enable=YES`) | declarative-ish, simpler |
 | `dnf install` for everything else | **`pkg install`** (binary) or ports | |
-| getty autologin + uwsm | FreeBSD `gettytab` autologin + a Wayland launch from the shell profile | no uwsm; hand-roll the session start |
+| getty autologin + uwsm (niri/Hyprland path) | **SDDM** (`sddm_enable=YES`) | Plasma's natural display manager; well-supported on FreeBSD. The autologin/uwsm approach was tiling-compositor-specific and does not apply |
 | Plymouth graphical boot | no real equivalent | loader has a splash/logo but nothing like Plymouth; likely dropped |
-| NVIDIA (already dropped — AMD target) | **`drm-kmod`** (`amdgpu` via `kldload amdgpu`) | AMD works; see Risks for the GPU/KMS detail |
+| NVIDIA (already dropped — AMD target) | **`drm-kmod`** (`amdgpu` via `kldload amdgpu`) | AMD works; also the GPU the one positive Plasma-Wayland-on-FreeBSD report used |
+| — (Plasma needs these on FreeBSD) | **`dbus`, `seatd`** in rc.conf | seat/session management; Plasma + SDDM want them running |
 
 ### bsdinstall scripted vs. manual extract
 
@@ -82,37 +90,42 @@ than reimplementing them. Decide and record before coding.
 |---|---|---|
 | `install_fedora.sh` — guided bare-metal installer (wizard, preflight, dry-run, partition, base) | `install_freebsd.sh` — same wizard, `gpart` + ZFS + `base.txz` | **high** |
 | `fedora_bootstrap.sh` — minimal bootable system from a running Linux | roll into stage 1 or a `freebsd_bootstrap.sh` run from the live installer | **high** |
-| `fedora_desktop.sh` — GPU + desktop on the booted system | `freebsd_desktop.sh` — `drm-kmod` + Wayland + bar | **low — see Risks** |
-| compositor config (niri/Hyprland/Plasma) | **compositor swap likely required** | **low** |
+| `fedora_desktop.sh` — GPU + desktop on the booted system | `freebsd_desktop.sh` — `drm-kmod` + Plasma + SDDM | **medium-high (X11), see Risks** |
+| compositor config (niri/Hyprland/Plasma) | Plasma ships its own — **X11 session for v1** | **medium-high** |
 
-The dividing line is exactly where the Fedora pipeline already splits: the base
-system is solid ground; the desktop is the unknown.
+KDE moves the desktop from "unknown" to "mostly known": the X11 Plasma session on
+FreeBSD is mature. What is left uncertain is the **Wayland** session and the
+laptop hardware, below — not the desktop software itself.
 
-## Risks — the desktop and the hardware, stated plainly
+## Risks — now the Wayland session and the hardware, not the desktop
 
-The base-system installer is high-confidence. Everything below is why the
-*desktop* half is scoped separately and gets real-hardware proof before trust.
+Choosing KDE took the desktop *software* off the risk list — the X11 Plasma
+session on FreeBSD is mature and well-maintained. What remains is the Plasma
+**Wayland** session and the laptop hardware, and these get real-hardware proof
+before being trusted.
 
-- **niri on FreeBSD: no evidence it runs at all.** Rust + smithay; smithay's
-  FreeBSD support is unestablished. Treat as a non-starter until proven.
-- **Hyprland on FreeBSD:** a ports entry exists but looks dated (it still
-  describes the wlroots base Hyprland left behind at 0.42 for aquamarine).
-  Uncertain; do not assume.
-- **Working Wayland on FreeBSD today is sway / labwc** (wlroots 0.20 is current
-  and ports well). So a FreeBSD fd44 almost certainly means **a different
-  compositor**: the `quickshell` bar (Qt) may port, but the niri/Hyprland KDL/conf
-  does not. Scope it as **"FreeBSD + sway (or labwc) + quickshell"**, not a niri
-  port. This is the single biggest design change from the Linux builds.
+- **Plasma session: X11 for v1, Wayland aspirational.** The X11 session is the
+  known-good path and what the installer should default to. The Wayland session
+  *can* work on FreeBSD — the one solid positive report (Phoronix, 2025) was
+  specifically an **AMD + drm-kmod + amdgpu + dbus + seatd** setup, which is
+  exactly the Framework's GPU — but it is version-sensitive and unreliable (a
+  May 2026 Qt 6.11.1 bug blocked the Wayland session while X11 kept working).
+  So: ship X11, offer Wayland as an opt-in to test on the real machine, do not
+  make it the default until it is proven on this hardware.
 - **Wi-Fi (Framework MT7922):** 15.1's LinuxKPI-7.0 wireless *may* now cover
   mt76/mt7921, but MediaTek via LinuxKPI has been weak historically. **Verify on
   real hardware before promising networking.** Plan for a wired/USB-ethernet
   fallback during install regardless.
 - **amdgpu / KMS:** `drm-kmod` supports the Framework's AMD graphics and is one
-  of FreeBSD's better-supported paths, but KMS load timing and the exact GPU
-  generation need checking on the actual machine.
+  of FreeBSD's better-supported paths — it is also the GPU stack the working
+  Plasma-Wayland report used — but KMS load timing and the exact generation need
+  checking on the actual machine.
 - **Suspend/resume:** rougher than Linux on this laptop; the s2idle/deep tuning
   from the Linux side does not carry. Do not promise working sleep.
 - **Fingerprint, and other Framework niceties:** assume unsupported.
+
+niri and Hyprland are simply not in scope — KDE is the desktop, so their absence
+of a FreeBSD story stops being this project's problem.
 
 ## Decisions to make before any code
 
@@ -122,24 +135,31 @@ The base-system installer is high-confidence. Everything below is why the
 2. **Encryption** — ZFS native (per-dataset, BE-friendly) vs GELI (whole-disk,
    LUKS-like). Pick one; the prompt-at-boot discipline is the same either way.
 3. **bsdinstall-scripted vs manual** — per the section above.
-4. **Compositor** — sway or labwc. This decides how much of the quickshell
-   layer survives and how much is rewritten.
-5. **Scope of v1** — recommend: ship the **base installer** first (high
-   confidence, useful on its own, testable entirely in the VM), and treat the
-   desktop as a separate milestone gated on real-hardware Wi-Fi/GPU/suspend
-   results.
+4. **Plasma session type** — X11 (default, mature) with Wayland as an opt-in
+   flag to test on real AMD hardware. Not a compositor choice any more; KDE
+   settles that.
+5. **Display manager** — SDDM (standard for Plasma), with `dbus` and `seatd`
+   enabled in rc.conf alongside it.
+6. **Scope of v1** — recommend: ship the **base installer + X11 Plasma** first
+   (now medium-high confidence, testable largely in the VM), and treat the
+   Wayland session and the laptop hardware (Wi-Fi/GPU/suspend) as a separate
+   milestone gated on real-hardware results.
 
 ## What does NOT port
 
 - Plymouth, uwsm, systemd-anything.
 - The hibernation path.
-- The niri and Hyprland configurations (compositor swap).
+- The niri and Hyprland configurations, and the quickshell bar — Plasma brings
+  its own shell and panel, so none of the tiling-WM layer carries over. (A later
+  pass could rebuild the fd44 *look* in Plasma, but that is theming, not porting.)
 - The NVIDIA handling (already absent — AMD target), and the Linux suspend tuning.
 
 ## First concrete step
 
 Stand up a FreeBSD 15.1 VM on the `vmtest` rig, do **one manual install by hand**
-(gpart → zpool → base.txz → bectl → rc.conf → pkg), writing down every command.
-That transcript becomes the skeleton of `install_freebsd.sh`, exactly as the
-first by-hand Gentoo install became `bin/gentoo-*.sh`. Nothing here is committed
-to until that by-hand install has booted in the VM.
+(gpart → zpool → base.txz → bectl → rc.conf → pkg → `pkg install` Plasma + SDDM,
+with `dbus`/`seatd`/`sddm` enabled), writing down every command. Get the **X11
+Plasma session** up first; only then try the Wayland session. That transcript
+becomes the skeleton of `install_freebsd.sh`, exactly as the first by-hand Gentoo
+install became `bin/gentoo-*.sh`. Nothing here is committed to until that by-hand
+install has booted to a Plasma login in the VM.
